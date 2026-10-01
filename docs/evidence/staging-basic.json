@@ -1,0 +1,165 @@
+{
+  "url": "https://sub2api-cloudflare-staging.alphazhang689.workers.dev",
+  "checkedAt": "2026-09-08T15:29:26.826Z",
+  "checks": [
+    {
+      "name": "public health",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "anonymous session rejected",
+      "passed": true,
+      "status": 401
+    },
+    {
+      "name": "unknown API is not SPA",
+      "passed": true,
+      "status": 404
+    },
+    {
+      "name": "anonymous model listing rejected",
+      "passed": true,
+      "status": 401
+    },
+    {
+      "name": "cloud Argon2 admin login",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "browser dashboard and static assets",
+      "passed": true
+    },
+    {
+      "name": "secure session cookie",
+      "passed": true
+    },
+    {
+      "name": "admin read /api/v1/admin/users?limit=5",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "admin read /api/v1/admin/channels?limit=5",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "admin read /api/v1/admin/models?limit=5",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "admin read /api/v1/admin/groups?limit=5",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "untrusted origin rejected",
+      "passed": true,
+      "status": 403
+    },
+    {
+      "name": "enable invite-only test registration",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "create one-use invitation",
+      "passed": true,
+      "status": 201
+    },
+    {
+      "name": "cloud invitation registration",
+      "passed": true,
+      "status": 201
+    },
+    {
+      "name": "new user has zero balance and ordinary role",
+      "passed": true
+    },
+    {
+      "name": "ordinary user admin access rejected",
+      "passed": true,
+      "status": 403
+    },
+    {
+      "name": "platform key creation and one-time secret UI",
+      "passed": true
+    },
+    {
+      "name": "authenticated model listing",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "unconfigured model safely rejected /v1/chat/completions",
+      "passed": true,
+      "status": 403
+    },
+    {
+      "name": "unconfigured model safely rejected /v1/responses",
+      "passed": true,
+      "status": 403
+    },
+    {
+      "name": "unconfigured model safely rejected /v1/messages",
+      "passed": true,
+      "status": 403
+    },
+    {
+      "name": "cloud ledger grant",
+      "passed": true,
+      "status": 201
+    },
+    {
+      "name": "grant replay does not double-credit",
+      "passed": true
+    },
+    {
+      "name": "cloud ledger negative balance",
+      "passed": true,
+      "status": 201
+    },
+    {
+      "name": "restore test account zero balance",
+      "passed": true,
+      "status": 201
+    },
+    {
+      "name": "cloud append-only ledger sum equals balance",
+      "passed": true
+    },
+    {
+      "name": "logout revokes user session",
+      "passed": true,
+      "status": 401
+    },
+    {
+      "name": "restore original registration policy",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "disable only the synthetic smoke-test account",
+      "passed": true,
+      "status": 200
+    },
+    {
+      "name": "admin logout revokes session",
+      "passed": true,
+      "status": 401
+    },
+    {
+      "name": "rendered dashboard balance on public HTTPS",
+      "passed": true
+    },
+    {
+      "name": "admin registration UI shows restored closed policy",
+      "passed": true
+    }
+  ],
+  "testUserId": "101ce69d-3605-49a6-9c36-cdb8720a0204",
+  "scope": "real Cloudflare basic test; no provider or email calls"
+}

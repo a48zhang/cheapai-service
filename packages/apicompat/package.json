@@ -1,0 +1,26 @@
+{
+  "name": "@sub2api/apicompat",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./ids": "./ids.ts",
+    "./finish-reasons": "./finish-reasons.ts",
+    "./errors": "./errors.ts",
+    "./types/*": "./types/*.ts",
+    "./requests/*": "./requests/*.ts",
+    "./responses/*": "./responses/*.ts",
+    "./streams/*": "./streams/*.ts",
+    "./capabilities/*": "./capabilities/*.ts",
+    "./usage/*": "./usage/*.ts",
+    "./passthrough/*": "./passthrough/*.ts"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}

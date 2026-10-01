@@ -1,0 +1,19 @@
+node_modules/
+.pnpm-store/
+.wrangler/
+dist/
+coverage/
+test-results/
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+*.log
+*.tsbuildinfo
+secrets/
+local-data/
+backups/
+
+# Local scratch and deployment artifacts
+/work/

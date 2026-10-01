@@ -1,0 +1,52 @@
+{
+  "url": "https://sub2api-cloudflare-staging.alphazhang689.workers.dev",
+  "checkedAt": "2026-09-09T16:00:14.102Z",
+  "passed": true,
+  "changed": [
+    {
+      "kind": "user",
+      "id": "021b4dfd-4775-4f11-944d-cb35409ad0cb",
+      "before": {
+        "concurrency": 9007199254740991,
+        "rpm": 60
+      },
+      "changedFields": [
+        "rpmLimit"
+      ]
+    },
+    {
+      "kind": "user",
+      "id": "101ce69d-3605-49a6-9c36-cdb8720a0204",
+      "before": {
+        "concurrency": 9007199254740991,
+        "rpm": 60
+      },
+      "changedFields": [
+        "rpmLimit"
+      ]
+    },
+    {
+      "kind": "user",
+      "id": "2ce3440d-10f2-4472-9e25-a7e0b8b4b5fa",
+      "before": {
+        "concurrency": 9007199254740991,
+        "rpm": 60
+      },
+      "changedFields": [
+        "rpmLimit"
+      ]
+    },
+    {
+      "kind": "channel",
+      "id": "60c44a24-adb5-4b76-9027-959d3fe474c9",
+      "before": {
+        "concurrency": 9007199254740991,
+        "rpm": 60
+      },
+      "changedFields": [
+        "rpmLimit"
+      ]
+    }
+  ],
+  "policy": "Only legacy user concurrency=2 and user/channel RPM=60 defaults replaced; other values preserved."
+}

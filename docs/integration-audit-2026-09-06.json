@@ -1,0 +1,495 @@
+{
+  "checked_at": "2026-09-06T06:57:56.204747+00:00",
+  "source_sha256": "1ab990599e544f9efb1698b7bbeab0e7aff8cc46e8bd02dcf4da07b1e4755898",
+  "full_product_complete": false,
+  "tasks": {
+    "total": 393,
+    "completed": 120,
+    "pending": 245,
+    "deferred": 28
+  },
+  "checks": {
+    "typecheck": {
+      "mode": "typecheck",
+      "started_at": "2026-09-06T06:52:32.172747+00:00",
+      "finished_at": "2026-09-06T06:52:50.915189+00:00",
+      "exit_code": 0,
+      "source_before": "1ab990599e544f9efb1698b7bbeab0e7aff8cc46e8bd02dcf4da07b1e4755898",
+      "source_after": "1ab990599e544f9efb1698b7bbeab0e7aff8cc46e8bd02dcf4da07b1e4755898"
+    },
+    "build": {
+      "mode": "build",
+      "started_at": "2026-09-06T06:52:17.865558+00:00",
+      "finished_at": "2026-09-06T06:52:33.873608+00:00",
+      "exit_code": 0,
+      "source_before": "1ab990599e544f9efb1698b7bbeab0e7aff8cc46e8bd02dcf4da07b1e4755898",
+      "source_after": "1ab990599e544f9efb1698b7bbeab0e7aff8cc46e8bd02dcf4da07b1e4755898"
+    },
+    "vitest": {
+      "mode": "vitest",
+      "started_at": "2026-09-06T06:52:30.826343+00:00",
+      "finished_at": "2026-09-06T06:57:24.334883+00:00",
+      "exit_code": 0,
+      "source_before": "1ab990599e544f9efb1698b7bbeab0e7aff8cc46e8bd02dcf4da07b1e4755898",
+      "source_after": "1ab990599e544f9efb1698b7bbeab0e7aff8cc46e8bd02dcf4da07b1e4755898"
+    }
+  },
+  "existing_tests": {
+    "files": 80,
+    "total": 2085,
+    "passed": 2085,
+    "failed": 0,
+    "pending": 0,
+    "exit_code": 0
+  },
+  "https": {
+    "checked_at": "2026-09-06T06:53:33.627633+00:00",
+    "mode": "Wrangler local HTTPS, fresh local D1/DO, no external calls",
+    "migration_exit": 0,
+    "cases": [
+      {
+        "case": "liveness",
+        "category": "infrastructure",
+        "method": "GET",
+        "path": "/healthz",
+        "expected_statuses": [
+          200
+        ],
+        "actual_status": 200,
+        "pass": true,
+        "content_type": "application/json"
+      },
+      {
+        "case": "static shell",
+        "category": "infrastructure",
+        "method": "GET",
+        "path": "/",
+        "expected_statuses": [
+          200
+        ],
+        "actual_status": 200,
+        "pass": true,
+        "content_type": "text/html; charset=utf-8"
+      },
+      {
+        "case": "SPA fallback only, login UI still incomplete",
+        "category": "infrastructure",
+        "method": "GET",
+        "path": "/login",
+        "expected_statuses": [
+          200
+        ],
+        "actual_status": 200,
+        "pass": true,
+        "content_type": "text/html; charset=utf-8"
+      },
+      {
+        "case": "public settings and CSRF bootstrap",
+        "category": "auth",
+        "method": "GET",
+        "path": "/api/v1/settings/public",
+        "expected_statuses": [
+          200
+        ],
+        "actual_status": 200,
+        "pass": true,
+        "content_type": "application/json"
+      },
+      {
+        "case": "closed registration policy",
+        "category": "auth",
+        "method": "POST",
+        "path": "/api/v1/auth/register",
+        "expected_statuses": [
+          403
+        ],
+        "actual_status": 403,
+        "pass": true,
+        "content_type": "application/json"
+      },
+      {
+        "case": "nonexistent login rejects",
+        "category": "auth",
+        "method": "POST",
+        "path": "/api/v1/auth/login",
+        "expected_statuses": [
+          401
+        ],
+        "actual_status": 401,
+        "pass": true,
+        "content_type": "application/json"
+      },
+      {
+        "case": "anonymous current identity",
+        "category": "auth",
+        "method": "GET",
+        "path": "/api/v1/auth/me",
+        "expected_statuses": [
+          401
+        ],
+        "actual_status": 401,
+        "pass": true,
+        "content_type": "application/json"
+      },
+      {
+        "case": "required protected product endpoint",
+        "category": "missing_product_contract",
+        "method": "GET",
+        "path": "/api/v1/keys",
+        "expected_statuses": [
+          401,
+          403
+        ],
+        "actual_status": 404,
+        "pass": false,
+        "content_type": "application/json",
+        "error_code": "not_found"
+      },
+      {
+        "case": "required protected product endpoint",
+        "category": "missing_product_contract",
+        "method": "GET",
+        "path": "/api/v1/account/balance",
+        "expected_statuses": [
+          401,
+          403
+        ],
+        "actual_status": 404,
+        "pass": false,
+        "content_type": "application/json",
+        "error_code": "not_found"
+      },
+      {
+        "case": "required protected product endpoint",
+        "category": "missing_product_contract",
+        "method": "GET",
+        "path": "/api/v1/billing/entries",
+        "expected_statuses": [
+          401,
+          403
+        ],
+        "actual_status": 404,
+        "pass": false,
+        "content_type": "application/json",
+        "error_code": "not_found"
+      },
+      {
+        "case": "required protected product endpoint",
+        "category": "missing_product_contract",
+        "method": "GET",
+        "path": "/api/v1/admin/channels",
+        "expected_statuses": [
+          401,
+          403
+        ],
+        "actual_status": 404,
+        "pass": false,
+        "content_type": "application/json",
+        "error_code": "not_found"
+      },
+      {
+        "case": "required protected product endpoint",
+        "category": "missing_product_contract",
+        "method": "GET",
+        "path": "/api/v1/admin/users",
+        "expected_statuses": [
+          401,
+          403
+        ],
+        "actual_status": 404,
+        "pass": false,
+        "content_type": "application/json",
+        "error_code": "not_found"
+      },
+      {
+        "case": "required protected product endpoint",
+        "category": "missing_product_contract",
+        "method": "GET",
+        "path": "/api/v1/admin/registration/settings",
+        "expected_statuses": [
+          401,
+          403
+        ],
+        "actual_status": 404,
+        "pass": false,
+        "content_type": "application/json",
+        "error_code": "not_found"
+      },
+      {
+        "case": "required protected product endpoint",
+        "category": "missing_product_contract",
+        "method": "GET",
+        "path": "/api/v1/admin/registration/codes",
+        "expected_statuses": [
+          401,
+          403
+        ],
+        "actual_status": 404,
+        "pass": false,
+        "content_type": "application/json",
+        "error_code": "not_found"
+      },
+      {
+        "case": "required protected product endpoint",
+        "category": "missing_product_contract",
+        "method": "GET",
+        "path": "/v1/models",
+        "expected_statuses": [
+          401,
+          403
+        ],
+        "actual_status": 404,
+        "pass": false,
+        "content_type": "application/json",
+        "error_code": "not_found"
+      },
+      {
+        "case": "required authenticated generation endpoint",
+        "category": "missing_product_contract",
+        "method": "POST",
+        "path": "/v1/chat/completions",
+        "expected_statuses": [
+          401
+        ],
+        "actual_status": 404,
+        "pass": false,
+        "content_type": "application/json",
+        "error_code": "not_found"
+      },
+      {
+        "case": "required authenticated generation endpoint",
+        "category": "missing_product_contract",
+        "method": "POST",
+        "path": "/v1/responses",
+        "expected_statuses": [
+          401
+        ],
+        "actual_status": 404,
+        "pass": false,
+        "content_type": "application/json",
+        "error_code": "not_found"
+      },
+      {
+        "case": "required authenticated generation endpoint",
+        "category": "missing_product_contract",
+        "method": "POST",
+        "path": "/v1/messages",
+        "expected_statuses": [
+          401
+        ],
+        "actual_status": 404,
+        "pass": false,
+        "content_type": "application/json",
+        "error_code": "not_found"
+      },
+      {
+        "case": "unknown API JSON404",
+        "category": "infrastructure",
+        "method": "GET",
+        "path": "/api/v1/not-implemented-probe",
+        "expected_statuses": [
+          404
+        ],
+        "actual_status": 404,
+        "pass": true,
+        "content_type": "application/json"
+      },
+      {
+        "case": "unknown API JSON404",
+        "category": "infrastructure",
+        "method": "GET",
+        "path": "/v1/not-implemented-probe",
+        "expected_statuses": [
+          404
+        ],
+        "actual_status": 404,
+        "pass": true,
+        "content_type": "application/json"
+      },
+      {
+        "case": "built static asset",
+        "category": "infrastructure",
+        "method": "GET",
+        "path": "/assets/index-DbqK5YFy.js",
+        "expected_statuses": [
+          200
+        ],
+        "actual_status": 200,
+        "pass": true,
+        "content_type": "text/javascript; charset=utf-8"
+      },
+      {
+        "case": "built static asset",
+        "category": "infrastructure",
+        "method": "GET",
+        "path": "/assets/index-e7bK_wnx.css",
+        "expected_statuses": [
+          200
+        ],
+        "actual_status": 200,
+        "pass": true,
+        "content_type": "text/css; charset=utf-8"
+      },
+      {
+        "case": "register rejects missing CSRF",
+        "category": "auth",
+        "method": "POST",
+        "path": "/api/v1/auth/register",
+        "expected_statuses": [
+          403
+        ],
+        "actual_status": 403,
+        "pass": true,
+        "content_type": "application/json"
+      },
+      {
+        "case": "register rejects cross-site Origin",
+        "category": "auth",
+        "method": "POST",
+        "path": "/api/v1/auth/register",
+        "expected_statuses": [
+          403
+        ],
+        "actual_status": 403,
+        "pass": true,
+        "content_type": "application/json"
+      },
+      {
+        "case": "open registration creates account and secure session",
+        "category": "auth",
+        "method": "POST",
+        "path": "/api/v1/auth/register",
+        "expected_statuses": [
+          201
+        ],
+        "actual_status": 201,
+        "pass": true,
+        "content_type": "application/json"
+      },
+      {
+        "case": "registered cookie restores ordinary zero-balance identity",
+        "category": "auth",
+        "method": "GET",
+        "path": "/api/v1/auth/me",
+        "expected_statuses": [
+          200
+        ],
+        "actual_status": 200,
+        "pass": true,
+        "content_type": "application/json"
+      },
+      {
+        "case": "duplicate registration conflicts",
+        "category": "auth",
+        "method": "POST",
+        "path": "/api/v1/auth/register",
+        "expected_statuses": [
+          409
+        ],
+        "actual_status": 409,
+        "pass": true,
+        "content_type": "application/json"
+      },
+      {
+        "case": "logout rejects missing CSRF",
+        "category": "auth",
+        "method": "POST",
+        "path": "/api/v1/auth/logout",
+        "expected_statuses": [
+          403
+        ],
+        "actual_status": 403,
+        "pass": true,
+        "content_type": "application/json"
+      },
+      {
+        "case": "failed logout preserves session",
+        "category": "auth",
+        "method": "GET",
+        "path": "/api/v1/auth/me",
+        "expected_statuses": [
+          200
+        ],
+        "actual_status": 200,
+        "pass": true,
+        "content_type": "application/json"
+      },
+      {
+        "case": "logout revokes and clears cookie",
+        "category": "auth",
+        "method": "POST",
+        "path": "/api/v1/auth/logout",
+        "expected_statuses": [
+          200
+        ],
+        "actual_status": 200,
+        "pass": true,
+        "content_type": "application/json"
+      },
+      {
+        "case": "old session is invalid after logout",
+        "category": "auth",
+        "method": "GET",
+        "path": "/api/v1/auth/me",
+        "expected_statuses": [
+          401
+        ],
+        "actual_status": 401,
+        "pass": true,
+        "content_type": "application/json"
+      },
+      {
+        "case": "wrong password rejects",
+        "category": "auth",
+        "method": "POST",
+        "path": "/api/v1/auth/login",
+        "expected_statuses": [
+          401
+        ],
+        "actual_status": 401,
+        "pass": true,
+        "content_type": "application/json"
+      },
+      {
+        "case": "login after logout creates fresh session",
+        "category": "auth",
+        "method": "POST",
+        "path": "/api/v1/auth/login",
+        "expected_statuses": [
+          200
+        ],
+        "actual_status": 200,
+        "pass": true,
+        "content_type": "application/json"
+      },
+      {
+        "case": "fresh login restores same identity",
+        "category": "auth",
+        "method": "GET",
+        "path": "/api/v1/auth/me",
+        "expected_statuses": [
+          200
+        ],
+        "actual_status": 200,
+        "pass": true,
+        "content_type": "application/json"
+      }
+    ],
+    "passed": 23,
+    "failed": 11,
+    "construction_placeholder": true,
+    "test_server_stopped": true
+  },
+  "https_exit_code": 1,
+  "fixed_findings": [
+    "前端显式幂等键传递与校验",
+    "前后端分页nextCursor一致",
+    "登录与匿名CSRF引导不再被邮件配置故障阻断，注册继续安全关闭"
+  ],
+  "deferred_scope": [
+    "真实上游和SDK九格验证",
+    "真实邮件投递",
+    "Cloudflare云环境部署与恢复",
+    "负载、生产容量及最终验收"
+  ]
+}

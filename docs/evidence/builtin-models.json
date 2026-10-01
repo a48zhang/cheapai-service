@@ -1,0 +1,40 @@
+{
+  "checkedAt": "2026-09-09T16:37:07.602Z",
+  "url": "https://sub2api-cloudflare-staging.alphazhang689.workers.dev",
+  "modelCount": 23,
+  "installed": [
+    "gpt-5",
+    "gpt-5-mini",
+    "gpt-5-nano",
+    "gpt-5.1",
+    "gpt-5.2",
+    "gpt-5.3-codex",
+    "gpt-5.4",
+    "gpt-5.4-mini",
+    "gpt-5.4-nano",
+    "gpt-5.5",
+    "gpt-5.6",
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
+    "gpt-6-astra",
+    "claude-sonnet-4-6",
+    "claude-opus-4-6",
+    "claude-opus-4-7",
+    "claude-opus-4-8",
+    "claude-sonnet-5",
+    "claude-opus-5",
+    "claude-fable-5",
+    "claude-mythos-5"
+  ],
+  "checks": [
+    "authenticated model list",
+    "all built-in IDs installed",
+    "live metadata dialog",
+    "Cloudflare D1 readback: 23 model records"
+  ],
+  "realUpstreamCalls": 0,
+  "deployedVersion": "6c855a4b-54fe-437c-9b25-ef4e9c1c5ed4",
+  "migration": "0018_builtin_models.sql",
+  "networkNote": "Initial TLS request failed; retry completed all catalog/UI assertions. Logout request then disconnected; browser context was closed."
+}

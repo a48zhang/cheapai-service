@@ -1,0 +1,37 @@
+{
+  "id": "Q-RC",
+  "publicModel": "q-rc-model",
+  "upstreamModel": "q-rc-chat-model",
+  "answer": "Responses-to-Chat answer",
+  "followupAnswer": "Responses-to-Chat follow-up",
+  "usage": {
+    "inputTokens": 7,
+    "outputTokens": 3,
+    "totalTokens": 10
+  },
+  "singleTool": {
+    "id": "call_rc_lookup",
+    "name": "lookup",
+    "arguments": "{\"q\":\"single\"}",
+    "result": "single lookup result"
+  },
+  "parallelTools": [
+    {
+      "id": "call_rc_weather",
+      "name": "weather",
+      "arguments": "{\"q\":\"weather\"}",
+      "result": "weather result"
+    },
+    {
+      "id": "call_rc_clock",
+      "name": "clock",
+      "arguments": "{\"q\":\"clock\"}",
+      "result": "clock result"
+    }
+  ],
+  "error": {
+    "status": 502,
+    "code": "q_rc_upstream_error",
+    "message": "synthetic upstream failure"
+  }
+}

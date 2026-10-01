@@ -1,0 +1,23 @@
+{
+  "name": "@sub2api/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "test": "vitest run --root ../.. --config ../../vitest.config.ts"
+  },
+  "dependencies": {
+    "@noble/hashes": "2.4.0",
+    "@sub2api/apicompat": "workspace:*",
+    "hono": "4.13.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260905.1",
+    "@sub2api/web": "workspace:*",
+    "typescript": "5.9.3",
+    "wrangler": "4.129.0"
+  }
+}

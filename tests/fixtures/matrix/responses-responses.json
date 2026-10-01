@@ -1,0 +1,19 @@
+{
+  "id": "Q-RR",
+  "publicModel": "matrix-responses-responses",
+  "upstreamModel": "provider-responses",
+  "answer": "Q-RR text answer",
+  "followupAnswer": "Q-RR follow-up answer",
+  "usage": { "inputTokens": 7, "outputTokens": 3, "totalTokens": 10 },
+  "singleTool": {
+    "id": "rr_call_single",
+    "name": "lookup",
+    "arguments": "{\"q\":\"single\"}",
+    "result": "Q-RR single result"
+  },
+  "parallelTools": [
+    { "id": "rr_call_a", "name": "lookup_a", "arguments": "{\"q\":\"a\"}", "result": "Q-RR result a" },
+    { "id": "rr_call_b", "name": "lookup_b", "arguments": "{\"q\":\"b\"}", "result": "Q-RR result b" }
+  ],
+  "error": { "status": 502, "code": "upstream_failure", "message": "PRIVATE_Q_RR_UPSTREAM_ERROR" }
+}

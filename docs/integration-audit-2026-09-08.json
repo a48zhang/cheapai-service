@@ -1,0 +1,84 @@
+{
+  "checked_at": "2026-09-07T17:33:40.179458+00:00",
+  "scope": "local implementation and mock-upstream integration; no remote deployment or live provider/email acceptance",
+  "task_status_at_report": {
+    "completed": 402,
+    "deferred_by_user": 28
+  },
+  "product_sha256": "49edebaa0a9a33af84d11dcc3ea4df7a4634a360a73a95f1882e1e82c9f25c56",
+  "product_files": 225,
+  "validation_method": "Latest successful result per test file replaces earlier results. This is a merged regression record, not a single all-green full-suite invocation.",
+  "regression": {
+    "files": 178,
+    "tests": 3788,
+    "passed": 3788,
+    "failed": 0
+  },
+  "browser": {
+    "tests": 9,
+    "passed": 9,
+    "failed": 0
+  },
+  "runs": [
+    {
+      "name": "vitest",
+      "files": 169,
+      "tests": 3707,
+      "passed": 3705,
+      "failed": 2,
+      "mode": "vitest",
+      "started_at": "2026-09-07T16:53:31.952001+00:00",
+      "finished_at": "2026-09-07T17:07:36.433318+00:00",
+      "exit_code": 1,
+      "source_before": "4f53dcec622bfb988416108be1bbcd4727cba78340294c4612f5493f1334792e",
+      "source_after": "f14c65a4fff4145844b566cbab70cfcd83c9ff6cff85bfb020b1ebcf516cabf4"
+    },
+    {
+      "name": "gateway-core",
+      "files": 37,
+      "tests": 415,
+      "passed": 415,
+      "failed": 0,
+      "mode": "gateway-core",
+      "started_at": "2026-09-07T17:20:19.495095+00:00",
+      "finished_at": "2026-09-07T17:24:24.596826+00:00",
+      "exit_code": 0,
+      "source_before": "176044089c785a280f52c58470c1cc80f2001e26d7e43c8f5f500221950591f4",
+      "source_after": "26176732755fd7dccb77bee1f4e0be91e1db16711f118ee747e0f58c412334db"
+    },
+    {
+      "name": "matrix",
+      "files": 9,
+      "tests": 81,
+      "passed": 81,
+      "failed": 0,
+      "mode": "matrix",
+      "started_at": "2026-09-07T17:30:58.862999+00:00",
+      "finished_at": "2026-09-07T17:32:10.122032+00:00",
+      "exit_code": 0,
+      "source_before": "433e6ad1fbdfcc77ab6faa00c371c4644417a1ad64a886fafcd3f410a04043c8",
+      "source_after": "433e6ad1fbdfcc77ab6faa00c371c4644417a1ad64a886fafcd3f410a04043c8"
+    },
+    {
+      "mode": "typecheck",
+      "started_at": "2026-09-07T16:55:43.501417+00:00",
+      "finished_at": "2026-09-07T16:56:10.633676+00:00",
+      "exit_code": 0,
+      "source_before": "3dc06e1603e78e88d6f8c827174d5104b0e16c28c556f9dcb532a53997828a97",
+      "source_after": "3dc06e1603e78e88d6f8c827174d5104b0e16c28c556f9dcb532a53997828a97"
+    },
+    {
+      "mode": "build",
+      "started_at": "2026-09-07T16:55:47.123157+00:00",
+      "finished_at": "2026-09-07T16:56:10.048881+00:00",
+      "exit_code": 0,
+      "source_before": "3dc06e1603e78e88d6f8c827174d5104b0e16c28c556f9dcb532a53997828a97",
+      "source_after": "3dc06e1603e78e88d6f8c827174d5104b0e16c28c556f9dcb532a53997828a97"
+    }
+  ],
+  "fixes": [
+    "Pre-dispatch JSON/SSE request conversion errors return 400 and are not_chargeable.",
+    "Native HTTP test fixtures isolate protocol model/channel selection.",
+    "Browser admin test reads the configured port-specific connection file."
+  ]
+}

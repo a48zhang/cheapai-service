@@ -1,0 +1,23 @@
+packages:
+  - apps/web
+  - apps/worker
+  - packages/apicompat
+
+engineStrict: true
+# Script execution must never install or update dependencies implicitly.
+verifyDepsBeforeRun: error
+
+# Preserve pnpm 11's one-day release age check; exceptions are exact reviewed pins.
+minimumReleaseAge: 1440
+minimumReleaseAgeExclude:
+  - '@cloudflare/workers-types@5.20260905.1'
+  - '@playwright/test@1.63.0'
+  - 'hono@4.13.7'
+  - 'playwright-core@1.63.0'
+  - 'playwright@1.63.0'
+
+# Only the native tools required by the pinned build/test dependencies may build.
+allowBuilds:
+  'esbuild@0.28.1': true
+  'workerd@1.20260815.1': true
+  'workerd@1.20260903.1': true

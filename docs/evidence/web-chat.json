@@ -1,0 +1,138 @@
+{
+  "checkedAt": "2026-09-12T15:42:34.555973+00:00",
+  "status": "local_complete_deployment_blocked",
+  "agents": {
+    "count": 8,
+    "model": "gpt-5.6-luna",
+    "reasoningEffort": "max"
+  },
+  "regression": {
+    "files": 137,
+    "passed": 1910
+  },
+  "finalFocusedRecheck": {
+    "files": 3,
+    "passed": 14
+  },
+  "browser": {
+    "passed": 15,
+    "tests": [
+      {
+        "title": "administrator configures the console and investigates an abnormal request",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "duration": 11681
+      },
+      {
+        "title": "closed registration, email verification false",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "duration": 863
+      },
+      {
+        "title": "closed registration, email verification true",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "duration": 892
+      },
+      {
+        "title": "open registration, email verification false",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "duration": 3498
+      },
+      {
+        "title": "open registration, email verification true",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "duration": 3949
+      },
+      {
+        "title": "invite registration, email verification false",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "duration": 3475
+      },
+      {
+        "title": "invite registration, email verification true",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "duration": 3740
+      },
+      {
+        "title": "resend advances generation and the first verification code cannot register",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "duration": 2493
+      },
+      {
+        "title": "built-in models are installed and channel selection fills native defaults",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "duration": 3620
+      },
+      {
+        "title": "real browser signup → key → funding → nine JSON/SSE pairs → overdraft and recovery",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "duration": 7788
+      },
+      {
+        "title": "six-character password, unlimited concurrency, channel models and granted Key groups",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "duration": 9723
+      },
+      {
+        "title": "coalesces rapid sends while the initial conversation create is delayed",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "duration": 3451
+      },
+      {
+        "title": "retries a response-loss operation with the same operation ID and one charge",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "duration": 3316
+      },
+      {
+        "title": "chat UI locks a new send before conversation creation and renders the stream",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "duration": 1283
+      },
+      {
+        "title": "local web chat: groups, idempotency, history, versions, failure and mobile shell",
+        "status": "passed",
+        "expectedStatus": "passed",
+        "duration": 5835
+      }
+    ],
+    "method": "Latest result per case; the mobile layout case was rerun after the CSS fix."
+  },
+  "typecheck": {
+    "worker": "passed",
+    "web": "passed"
+  },
+  "build": {
+    "web": "passed",
+    "workerDryRun": "passed"
+  },
+  "mobile": {
+    "viewportWidth": 390,
+    "documentWidth": 390
+  },
+  "migrationFiles": [
+    "0019_remove_default_output.sql",
+    "0020_group_billing_multiplier.sql",
+    "0021_web_chat_keys.sql",
+    "0022_chat.sql",
+    "0023_request_source_group.sql"
+  ],
+  "deployment": {
+    "performed": false,
+    "reason": "Cloudflare whoami reports expired OAuth token that could not be refreshed."
+  },
+  "realUpstreamCalls": 0,
+  "realEmails": 0
+}

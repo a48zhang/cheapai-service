@@ -1,0 +1,19 @@
+{
+  "url": "https://sub2api-cloudflare-staging.alphazhang689.workers.dev",
+  "checkedAt": "2026-09-09T02:39:12.507Z",
+  "checks": [
+    "home has no protocol promotion",
+    "existing admin login and useful dashboard",
+    "cloud unlimited channel and model metadata",
+    "administrator grants multiple groups",
+    "six-character password works on Cloudflare",
+    "Key binds a granted non-default group",
+    "ungranted group rejected",
+    "mobile group selector and single-row actions",
+    "administrator grant controls render correctly",
+    "withdrawal immediately disables group access",
+    "same Key can switch to an authorized group"
+  ],
+  "cleanup": "test Key revoked; synthetic user/channel/groups disabled",
+  "noLiveProviderCalls": true
+}

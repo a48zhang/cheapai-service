@@ -1,0 +1,100 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  // Local and production retain placeholders; staging has isolated cloud resources.
+  "name": "sub2api-cloudflare-local",
+  "main": "index.ts",
+  "compatibility_date": "2026-08-15",
+  "workers_dev": false,
+  "preview_urls": false,
+  "vars": { "ENVIRONMENT": "local" },
+  // Five-minute maintenance schedule. This file alone does not deploy a trigger.
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api", "/api/*", "/v1", "/v1/*", "/healthz"]
+  },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "sub2api-cloudflare-local",
+    "database_id": "00000000-0000-0000-0000-000000000001",
+    "migrations_dir": "../../migrations",
+    "remote": false
+  }],
+  "kv_namespaces": [{
+    "binding": "CACHE",
+    "id": "00000000000000000000000000000001",
+    "remote": false
+  }],
+  "durable_objects": {
+    "bindings": [{ "name": "GATE", "class_name": "Gate" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Gate"] }],
+  // Email Service uses send_email / SendEmail. Local simulation never delivers mail.
+  "send_email": [{
+    "name": "EMAIL",
+    "allowed_sender_addresses": ["local@example.invalid"],
+    "allowed_destination_addresses": ["local-recipient@example.invalid"],
+    "remote": false
+  }],
+  "env": {
+    // Staging mail remains disabled until a real sender is configured and tested.
+    "staging": {
+      "name": "sub2api-cloudflare-staging",
+      "account_id": "4ac5221079fd3481ce2d92f1d1e049cd",
+      "workers_dev": true,
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "PUBLIC_BASE_URL": "https://sub2api-cloudflare-staging.alphazhang689.workers.dev",
+        "EMAIL_VERIFICATION_READY": "false"
+      },
+      // Explicit per-environment schedule; do not rely on inherited triggers.
+      "triggers": { "crons": ["*/5 * * * *"] },
+      "d1_databases": [{
+        "binding": "DB",
+        "database_name": "sub2api-cloudflare-staging",
+        "database_id": "50fe8c8c-6945-4a15-a3f6-83904632aec2",
+        "migrations_dir": "../../migrations",
+        "remote": false
+      }],
+      "kv_namespaces": [{
+        "binding": "CACHE",
+        "id": "6fe5850647504132a0ce70f2c5bd2056",
+        "remote": false
+      }],
+      "durable_objects": {
+        "bindings": [{ "name": "GATE", "class_name": "Gate" }]
+      },
+      "send_email": []
+    },
+    // Production placeholders are distinct. Keep mail restricted until the
+    // production sender is verified and recipient policy is explicitly configured.
+    "production": {
+      "name": "sub2api-cloudflare-production",
+      "vars": { "ENVIRONMENT": "production" },
+      "triggers": { "crons": ["*/5 * * * *"] },
+      "d1_databases": [{
+        "binding": "DB",
+        "database_name": "sub2api-cloudflare-production",
+        "database_id": "00000000-0000-0000-0000-000000000003",
+        "migrations_dir": "../../migrations",
+        "remote": false
+      }],
+      "kv_namespaces": [{
+        "binding": "CACHE",
+        "id": "00000000000000000000000000000003",
+        "remote": false
+      }],
+      "durable_objects": {
+        "bindings": [{ "name": "GATE", "class_name": "Gate" }]
+      },
+      "send_email": [{
+        "name": "EMAIL",
+        "allowed_sender_addresses": ["production@example.invalid"],
+        "allowed_destination_addresses": ["production-recipient@example.invalid"],
+        "remote": false
+      }]
+    }
+  }
+}

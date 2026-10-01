@@ -1,0 +1,18 @@
+{
+  "url": "https://sub2api-cloudflare-staging.alphazhang689.workers.dev",
+  "checkedAt": "2026-09-08T16:32:11.318Z",
+  "passed": true,
+  "checks": [
+    "new public home and assets",
+    "existing admin login and real balance",
+    "/keys",
+    "/admin/users",
+    "/admin/channels",
+    "/admin/models",
+    "/admin/groups",
+    "/admin/registration/settings",
+    "mobile navigation and layout",
+    "logout",
+    "mobile public home"
+  ]
+}
