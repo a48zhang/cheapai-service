@@ -264,3 +264,72 @@ describe('G14-BASE real native assembly, mock providers only', () => {
     expect(allowed.response.status).toBe(200); expect(provider).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('BV02 logical RPM and production cooldown wiring', () => {
+  it.each(['busy', 'cooldown'])('counts one user RPM across %s fallback and a new count for a later dispatch', async failure => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1_800_000_000_000);
+    try {
+      await testEnv.DB.prepare("UPDATE users SET rpm_limit=1,balance_units=10000 WHERE id='g14-user'").run();
+      await addChannel('chat', 'spare-chat', 0);
+      const gate = testEnv.GATE.get(testEnv.GATE.idFromName('channel:channel-chat'));
+      if (failure === 'cooldown') await gate.setCooldown({ ttlMs: 60000, errorClass: 'rate_limited' });
+      else await gate.acquire({ requestId: 'rpm-blocker', limit: 1, ttlMs: 60000 });
+      const provider = vi.fn(async (url: string) => { expect(url).toContain('spare-chat.example'); return Response.json(output('chat')); });
+      const first = await call('chat', input('chat'), provider);
+      expect(first.response.status, first.text).toBe(200);
+      const second = await call('chat', input('chat'), provider);
+      expect(second.response.status, second.text).toBe(429);
+      expect(provider).toHaveBeenCalledOnce();
+      expect(await testEnv.DB.prepare('SELECT COUNT(*) AS n FROM requests').first('n')).toBe(1);
+      expect(await active('user:g14-user')).toBe(0);
+    } finally { clock.mockRestore(); }
+  });
+
+  it.each([401, 403, 429].flatMap(status => [false, true].flatMap(stream => ['json', 'html', 'empty'].map(format => ({ status, stream, format })))))
+  ('observes $status stream=$stream format=$format before decoding and skips the cooled channel on the next call', async ({ status, stream, format }) => {
+    await testEnv.DB.prepare("UPDATE users SET balance_units=10000 WHERE id='g14-user'").run();
+    await addChannel('chat', 'spare-chat', 0);
+    const provider = vi.fn(async (url: string) => {
+      if (url.includes('spare-chat.example')) return stream ? sse('chat') : Response.json(output('chat'));
+      const body = format === 'json' ? JSON.stringify({ error: { message: 'PRIVATE_ERROR' } }) : format === 'html' ? '<html>PRIVATE_ERROR</html>' : null;
+      return new Response(body, { status, headers: { 'Content-Type': format === 'json' ? 'application/json' : 'text/html', 'Retry-After': '9999999999' } });
+    });
+    const first = await call('chat', input('chat', stream), provider);
+    expect(first.response.status).toBe(502);
+    expect(first.text).not.toContain('PRIVATE_ERROR');
+    expect(provider).toHaveBeenCalledOnce();
+    const cooldown = await testEnv.GATE.get(testEnv.GATE.idFromName('channel:channel-chat')).getCooldown();
+    expect(cooldown).toMatchObject({ active: true, errorClass: status === 429 ? 'rate_limited' : 'auth_rejected' });
+    expect(cooldown.retryAfterMs).toBeGreaterThan(290_000);
+    expect(cooldown.retryAfterMs).toBeLessThanOrEqual(300_000);
+    const second = await call('chat', input('chat', stream), provider);
+    expect(second.response.status, second.text).toBe(200);
+    expect(provider).toHaveBeenCalledTimes(2);
+    expect(await active('user:g14-user')).toBe(0);
+    expect(await active('channel:channel-chat')).toBe(0);
+    expect(await active('channel:spare-chat')).toBe(0);
+  });
+});
+
+describe('BV02 uncertain cooldown write', () => {
+  it('bounds a hanging Gate write without changing upstream classification or retaining leases', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const gate: GatewayDispatchDependencies['GATE'] = {
+      idFromName: name => testEnv.GATE.idFromName(name),
+      get(id) {
+        const native = testEnv.GATE.get(id);
+        return { acquire: input => native.acquire(input), renew: input => native.renew(input), release: input => native.release(input),
+          getCooldown: () => native.getCooldown(), setCooldown: () => new Promise(() => undefined) };
+      },
+    };
+    try {
+      const provider = vi.fn(async () => new Response('<html>PRIVATE_PROVIDER_ERROR</html>', { status: 429 }));
+      const result = await call('chat', input('chat'), provider, { GATE: gate });
+      expect(result.response.status).toBe(502);
+      expect(warning).toHaveBeenCalledWith(expect.stringContaining('channel_cooldown_write_uncertain'));
+      expect(warning).toHaveBeenCalledWith(expect.stringContaining('"error_code":"timeout"'));
+      expect(JSON.stringify(warning.mock.calls)).not.toContain('PRIVATE_PROVIDER_ERROR');
+      expect(await active('user:g14-user')).toBe(0); expect(await active('channel:channel-chat')).toBe(0);
+    } finally { warning.mockRestore(); }
+  });
+});

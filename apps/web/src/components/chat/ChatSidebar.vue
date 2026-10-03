@@ -6,6 +6,9 @@ defineProps<{
   readonly activeId: string | null;
   readonly loading?: boolean;
   readonly mobileOpen?: boolean;
+  readonly loadingMore?: boolean;
+  readonly hasMore?: boolean;
+  readonly error?: string;
 }>();
 
 const emit = defineEmits<{
@@ -14,6 +17,8 @@ const emit = defineEmits<{
   (event: 'rename', value: Conversation): void;
   (event: 'delete', value: Conversation): void;
   (event: 'close'): void;
+  (event: 'loadMore'): void;
+  (event: 'retry'): void;
 }>();
 
 function dateLabel(timestamp: number): string {
@@ -38,9 +43,9 @@ function isoLabel(timestamp: number): string {
     <button type="button" class="new-chat-button" @click="emit('new')">
       <span aria-hidden="true">＋</span> 新对话
     </button>
-    <p v-if="loading" class="history-status" role="status">正在读取…</p>
-    <div v-else-if="!conversations.length" class="history-empty">还没有对话</div>
-    <nav v-else class="history-list" aria-label="历史对话">
+    <p v-if="loading && !conversations.length" class="history-status" role="status">正在读取…</p>
+    <div v-else-if="!conversations.length && !error" class="history-empty">还没有对话</div>
+    <nav v-if="conversations.length" class="history-list" aria-label="历史对话">
       <div v-for="conversation in conversations" :key="conversation.id" class="history-item" :class="{ selected: conversation.id === activeId }">
         <button type="button" class="history-select" :aria-current="conversation.id === activeId ? 'page' : undefined" @click="emit('select', conversation)">
           <span class="history-item-title">{{ conversation.title || '新对话' }}</span>
@@ -52,6 +57,13 @@ function isoLabel(timestamp: number): string {
         </div>
       </div>
     </nav>
+    <div v-if="error" class="history-status" role="alert">
+      <p>{{ error }}</p>
+      <button type="button" :disabled="loading || loadingMore" @click="emit('retry')">重试</button>
+    </div>
+    <button v-else-if="hasMore" type="button" class="new-chat-button" :disabled="loading || loadingMore" @click="emit('loadMore')">
+      {{ loadingMore ? '正在读取…' : '加载更多' }}
+    </button>
   </aside>
 </template>
 

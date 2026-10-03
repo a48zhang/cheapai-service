@@ -1,4 +1,5 @@
-import { createExecutionContext, waitOnExecutionContext } from 'cloudflare:test';
+import { createExecutionContext, runInDurableObject, waitOnExecutionContext } from 'cloudflare:test';
+import { LeaseStorage } from '../../apps/worker/limits/storage';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { app } from '../../apps/worker/app';
 import type { Env } from '../../apps/worker/env';
@@ -6,6 +7,9 @@ import { issueCsrfToken } from '../../apps/worker/auth/csrf';
 import { createCookieSession } from '../../apps/worker/auth/sessions';
 import { generateToken } from '../../apps/worker/auth/tokens';
 import { encryptChannelSecret } from '../../apps/worker/admin/channel-secrets';
+import { ChatService, createD1ChatStorage as legacyD1Storage } from '../../apps/worker/chat/service';
+import { createD1ChatStorage } from '../../apps/worker/chat/d1-storage';
+import type { ChatStorage } from '../../apps/worker/chat/storage';
 import { testEnv } from '../helpers/database';
 
 /**
@@ -246,6 +250,11 @@ describe('web chat HTTP contract and accounting boundaries', () => {
       testEnv.DB.prepare("SELECT COUNT(*) AS count FROM billing_entries WHERE user_id=? AND kind='consumption'").bind(user.id).first<{ count: number }>(),
     ]);
     expect(requestCount?.count).toBe(1); expect(chargeCount?.count).toBe(1);
+    const linked = await testEnv.DB.prepare(`SELECT m.operation_id,m.request_id,r.source,r.user_id,r.group_id,r.public_model_id
+      FROM chat_messages m JOIN requests r ON r.id=m.request_id WHERE m.conversation_id=? AND m.role='assistant'`)
+      .bind(conversation.id).first();
+    expect(linked).toMatchObject({ operation_id: operationId, request_id: expect.any(String), source: 'web_chat',
+      user_id: user.id, group_id: 'chat-full', public_model_id: model });
     const virtual = await testEnv.DB.prepare("SELECT kind,key_hash,display_prefix,group_id FROM api_keys WHERE user_id=? AND kind='web_chat'").bind(user.id).first<any>();
     expect(virtual).toMatchObject({ kind: 'web_chat', key_hash: null, display_prefix: null, group_id: null });
     const listed = await request('/api/v1/keys', { headers: jsonHeaders(user) });
@@ -352,10 +361,9 @@ describe('web chat HTTP contract and accounting boundaries', () => {
       new Promise((_, reject) => setTimeout(() => reject(new Error('chat stream did not start')), 5000)),
     ]);
     controller.abort();
-    // Cancelling the response body models the browser's fetch cancellation;
-    // this is the signal path available even when the route has already
-    // returned its SSE Response object.
-    await reader!.cancel();
+    // Request.signal alone must wake the pending upstream read and finalize;
+    // a second downstream reader.cancel() must not be required.
+    while (!(await reader!.read()).done) { /* Drain the bounded terminal event. */ }
     await Promise.race([
       abortObserved,
       new Promise((_, reject) => setTimeout(() => reject(new Error('upstream did not receive cancellation')), 5000)),
@@ -366,6 +374,83 @@ describe('web chat HTTP contract and accounting boundaries', () => {
     const stoppedMessages = (await body(history)).data.messages as Array<{ role: string; content: string; status: string }>;
     expect(stoppedMessages.some(message => message.role === 'user' && message.content === 'retain before stop')).toBe(true);
     expect(stoppedMessages.some(message => message.role === 'assistant' && message.status === 'stopped')).toBe(true);
+    for (const subject of [`user:${user.id}`, `channel:chat-full-channel-${sequence}`]) {
+      expect(await runInDurableObject(testEnv.GATE.get(testEnv.GATE.idFromName(subject)), (_instance, context) =>
+        new LeaseStorage(context.storage).read(Date.now()).leases.length)).toBe(0);
+    }
+    expect(await testEnv.DB.prepare('SELECT COUNT(*) AS n FROM billing_entries').first('n')).toBe(0);
+  }, 30_000);
+
+  it('checkpoint failure through the real Chat SSE bridge cancels upstream and releases both leases once', async () => {
+    await seedChatFixtures();
+    const user = await createIdentity('chat-checkpoint-user');
+    const created = await request('/api/v1/chat/conversations', {
+      method: 'POST', headers: jsonHeaders(user, true), body: JSON.stringify({ groupId: 'chat-full', modelId: model }),
+    });
+    const conversation = (await body(created)).data;
+    const cancelled = vi.fn();
+    let upstreamSignal: AbortSignal | undefined;
+    vi.stubGlobal('fetch', async (_url: RequestInfo | URL, init?: RequestInit) => {
+      upstreamSignal = init?.signal as AbortSignal;
+      let sent = false;
+      return new Response(new ReadableStream<Uint8Array>({ pull(controller) {
+        if (sent) return new Promise<void>(() => {});
+        sent = true;
+        controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ id: 'checkpoint-fixture', object: 'chat.completion.chunk', created: 1,
+          model: 'upstream-full', choices: [{ index: 0, delta: { content: 'x'.repeat(2200) }, finish_reason: null }] })}\n\n`));
+      }, cancel: cancelled }, { highWaterMark: 0 }), { headers: { 'Content-Type': 'text/event-stream' } });
+    });
+    let checkpointAttempts = 0;
+    const failing = new Proxy(testEnv.DB, { get(target, property, receiver) {
+      if (property === 'prepare') return (sql: string) => {
+        if (/UPDATE chat_messages SET content=\?,updated_at/.test(sql)) {
+          checkpointAttempts++;
+          throw new Error('synthetic checkpoint failure');
+        }
+        return target.prepare(sql);
+      };
+      return Reflect.get(target, property, receiver);
+    } }) as D1Database;
+    const sent = await request(`/api/v1/chat/conversations/${conversation.id}/messages`, {
+      method: 'POST', headers: jsonHeaders(user, true), body: JSON.stringify({ operationId: 'checkpoint-failure',
+        conversationVersion: conversation.version, groupId: 'chat-full', modelId: model, content: 'retain failed answer' }),
+    }, { ...env, DB: failing });
+    expect(sent.response.status).toBe(200);
+    expect(events(sent.text).filter(event => event.event === 'error')).toHaveLength(1);
+    expect(sent.text).toContain('persistence_error');
+    expect(checkpointAttempts).toBe(1);
+    expect(upstreamSignal?.aborted).toBe(true);
+    expect(cancelled).toHaveBeenCalledOnce();
+    expect(await testEnv.DB.prepare("SELECT status,content FROM chat_messages WHERE role='assistant'").first())
+      .toMatchObject({ status: 'failed', content: 'x'.repeat(2200) });
+    for (const subject of [`user:${user.id}`, `channel:chat-full-channel-${sequence}`]) {
+      expect(await runInDurableObject(testEnv.GATE.get(testEnv.GATE.idFromName(subject)), (_instance, context) =>
+        new LeaseStorage(context.storage).read(Date.now()).leases.length)).toBe(0);
+    }
+    expect(await testEnv.DB.prepare('SELECT COUNT(*) AS n FROM billing_entries').first('n')).toBe(0);
+    expect(await testEnv.DB.prepare('SELECT execution_status FROM requests').first('execution_status')).toBe('cancelled');
+  }, 30_000);
+
+  it('web Chat shares the real gateway cooldown and skips the failed channel on the next conversation', async () => {
+    await seedChatFixtures();
+    const user = await createIdentity('chat-cooldown-user');
+    const upstream = vi.fn(async () => new Response('not-json', { status: 401 }));
+    vi.stubGlobal('fetch', upstream);
+    for (const operationId of ['cooldown-first', 'cooldown-next']) {
+      const created = await request('/api/v1/chat/conversations', {
+        method: 'POST', headers: jsonHeaders(user, true), body: JSON.stringify({ groupId: 'chat-full', modelId: model }),
+      });
+      const conversation = (await body(created)).data;
+      const sent = await request(`/api/v1/chat/conversations/${conversation.id}/messages`, {
+        method: 'POST', headers: jsonHeaders(user, true), body: JSON.stringify({ operationId, conversationVersion: conversation.version,
+          groupId: 'chat-full', modelId: model, content: 'cooldown route probe' }),
+      });
+      expect(sent.response.status >= 400 || events(sent.text).some(event => event.event === 'error')).toBe(true);
+    }
+    expect(upstream).toHaveBeenCalledOnce();
+    expect(await testEnv.GATE.get(testEnv.GATE.idFromName(`channel:chat-full-channel-${sequence}`)).getCooldown())
+      .toMatchObject({ active: true, errorClass: 'auth_rejected' });
+    expect(await testEnv.DB.prepare('SELECT COUNT(*) AS n FROM billing_entries').first('n')).toBe(0);
   }, 30_000);
 
   it('creates a new charged variant for regenerate and rejects stale version updates', async () => {
@@ -410,4 +495,68 @@ describe('web chat HTTP contract and accounting boundaries', () => {
     expect(selected.response.status).toBe(200);
     expect((await body(selected)).data.messages.find((message: any) => message.id === oldAssistant.id).selected).toBe(true);
   }, 30_000);
+});
+
+
+describe('extracted ChatStorage contract', () => {
+  it('uses injected isolated storage without touching D1 for conversation reads', async () => {
+    const conversation = { id: 'isolated-conversation', title: 'isolated', groupId: null, modelId: null,
+      version: 1, createdAt: 1, updatedAt: 1 };
+    const view = { conversation, messages: [] };
+    const unsupported = async (): Promise<never> => { throw new Error('unexpected storage operation'); };
+    const storage: ChatStorage = {
+      listConversations: vi.fn(async () => ({ items: [conversation], nextCursor: null })),
+      getConversation: vi.fn(async () => view),
+      createConversation: unsupported, updateConversation: unsupported, deleteConversation: unsupported,
+      startMessage: unsupported, associateRequest: unsupported, saveAssistantProgress: unsupported,
+      finishAssistant: unsupported, selectVersion: unsupported,
+    };
+    const database = new Proxy({} as D1Database, { get() { throw new Error('D1 must not be accessed'); } });
+    const service = new ChatService({ database, storage, now: () => 1 });
+    expect(service.storage).toBe(storage);
+    expect(await service.conversations('isolated-user', null, 20)).toEqual({ items: [conversation], nextCursor: null });
+    expect(await service.conversation('isolated-user', conversation.id)).toEqual(view);
+    expect(storage.listConversations).toHaveBeenCalledWith('isolated-user', null, 20);
+    expect(storage.getConversation).toHaveBeenCalledWith('isolated-user', conversation.id);
+  });
+
+  it('preserves D1 replay, CAS, checkpoints, regeneration context and deletion boundaries', async () => {
+    expect(legacyD1Storage).toBe(createD1ChatStorage);
+    await seedChatFixtures();
+    const user = await createIdentity('storage-contract-user');
+    const storage: ChatStorage = createD1ChatStorage(testEnv.DB);
+    const now = Date.now();
+    const conversation = await storage.createConversation(user.id, { groupId: 'chat-full', modelId: model, now });
+    const input = { operationId: 'storage-contract-send', conversationVersion: conversation.version,
+      groupId: 'chat-full', modelId: model, content: 'preserved prompt', now, regenerate: false };
+    const accepted = await storage.startMessage(user.id, conversation.id, input);
+    expect(accepted.kind).toBe('accepted');
+    if (accepted.kind !== 'accepted') throw new Error('expected accepted generation');
+    expect(accepted.context).toEqual([{ role: 'user', content: 'preserved prompt' }]);
+    expect((await storage.startMessage(user.id, conversation.id, input)).kind).toBe('replayed');
+    await expect(storage.startMessage(user.id, conversation.id, { ...input, operationId: 'competing-generation' }))
+      .rejects.toMatchObject({ code: 'conflict' });
+    await storage.saveAssistantProgress(user.id, conversation.id, accepted.assistantMessage.id, 'partial', now + 1);
+    expect((await storage.getConversation(user.id, conversation.id))?.messages)
+      .toContainEqual(expect.objectContaining({ id: accepted.assistantMessage.id, content: 'partial', status: 'generating' }));
+    await storage.finishAssistant(user.id, conversation.id, accepted.assistantMessage.id, 'completed', 'first answer', now + 2);
+    const finished = await storage.getConversation(user.id, conversation.id);
+    await expect(storage.updateConversation(user.id, conversation.id, conversation.version, { title: 'stale' }, now + 3))
+      .rejects.toMatchObject({ code: 'conflict' });
+    const regenerated = await storage.startMessage(user.id, conversation.id, { ...input,
+      operationId: 'storage-contract-regenerate', conversationVersion: finished!.conversation.version, regenerate: true, now: now + 3 });
+    expect(regenerated.kind).toBe('accepted');
+    if (regenerated.kind !== 'accepted') throw new Error('expected regenerated generation');
+    expect(regenerated.context).toEqual([{ role: 'user', content: 'preserved prompt' }]);
+    await expect(storage.deleteConversation(user.id, conversation.id, regenerated.conversation.version, now + 4))
+      .rejects.toMatchObject({ code: 'conflict' });
+    await storage.finishAssistant(user.id, conversation.id, regenerated.assistantMessage.id, 'stopped', 'stopped answer', now + 4);
+    const stopped = await storage.getConversation(user.id, conversation.id);
+    expect(await storage.deleteConversation(user.id, conversation.id, stopped!.conversation.version, now + 4)).toBe(true);
+    await expect(storage.saveAssistantProgress(user.id, conversation.id, regenerated.assistantMessage.id, 'late', now + 5))
+      .rejects.toMatchObject({ code: 'not_found' });
+    await expect(storage.finishAssistant(user.id, conversation.id, regenerated.assistantMessage.id, 'completed', 'late', now + 5))
+      .rejects.toMatchObject({ code: 'not_found' });
+    expect(await storage.getConversation(user.id, conversation.id)).toBeNull();
+  });
 });

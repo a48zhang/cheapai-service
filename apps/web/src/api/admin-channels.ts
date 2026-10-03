@@ -81,9 +81,25 @@ function decodeProbe(value: unknown): ChannelProbeResult {
 const client = createApiClient({ getCsrfToken: async () => readCsrfCookie() ?? (await authApi.bootstrap()).csrfToken });
 const path = (id: string) => `/api/v1/admin/channels/${encodeURIComponent(id)}`;
 export function createAdminChannelsApi(api = client) {
+  async function list(options: { readonly cursor?: string | null; readonly status?: ChannelStatus } = {}): Promise<ChannelPage> {
+    return (await api.get('/api/v1/admin/channels', { query: { ...options, limit: 20 }, decode: decodeChannelPage })).data;
+  }
   return Object.freeze({
-    async list(options: { readonly cursor?: string | null; readonly status?: ChannelStatus } = {}): Promise<ChannelPage> {
-      return (await api.get('/api/v1/admin/channels', { query: { ...options, limit: 20 }, decode: decodeChannelPage })).data;
+    list,
+    async listAll(options: { readonly status?: ChannelStatus } = {}): Promise<readonly ChannelView[]> {
+      const channels = new Map<string, ChannelView>();
+      const cursors = new Set<string>();
+      let cursor: string | null = null;
+      do {
+        const page = await list({ ...options, cursor });
+        for (const channel of page.items) channels.set(channel.id, channel);
+        cursor = page.nextCursor;
+        if (cursor !== null) {
+          if (cursors.has(cursor)) throw new TypeError('渠道分页游标重复，无法完整读取渠道列表。');
+          cursors.add(cursor);
+        }
+      } while (cursor !== null);
+      return [...channels.values()];
     },
     async create(input: ChannelInput): Promise<ChannelView> {
       return (await api.post('/api/v1/admin/channels', { ...input }, { decode: decodeChannel })).data;

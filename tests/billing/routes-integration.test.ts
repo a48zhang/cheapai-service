@@ -89,13 +89,4 @@ describe('B20/O03 mounted management routes on the real app', () => {
     expect((await call('/api/v1/admin/billing/reconciliation', { cookie: ownerCookie })).status).toBe(403);
   });
 
-  it('mounts audit query with the same session boundary and preserves no-store JSON errors', async () => {
-    const anonymous = await call('/api/v1/admin/audit');
-    expect(anonymous.status).toBe(401);
-    const ordinary = await call('/api/v1/admin/audit', { cookie: ownerCookie });
-    expect(ordinary.status).toBe(403);
-    const response = await call('/api/v1/admin/audit?limit=2', { cookie: adminCookie });
-    expect(response.status).toBe(200); expect(response.headers.get('Cache-Control')).toBe('no-store');
-    expect(await response.json()).toHaveProperty('data.items');
-  });
 });

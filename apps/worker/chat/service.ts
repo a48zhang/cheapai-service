@@ -2,25 +2,18 @@ import { API_ERRORS, ApiError } from '../http';
 import { authenticateWebChat } from '../auth/web-chat-auth';
 import { authorizeChatSelection, listAuthorizedChatModels } from './models';
 import type { AuthorizedChatSelection, ChatGroup } from './models';
-import { createChatSseStream, sseResponse } from './stream';
+import { boundedChatWork, createChatSseStream, sseResponse } from './stream';
 import type { ChatGatewayExecution, ChatSseMeta } from './stream';
-import type { Conversation, ConversationPage, ConversationWithMessages, Message, ChatMessageRole, ChatMessageStatus as StoredChatMessageStatus } from './types';
-import { createConversation as createStoredConversation, deleteConversation as deleteStoredConversation,
-  getConversationWithMessages, listConversations as listStoredConversations, updateConversation as updateStoredConversation } from './messages';
-import { acceptRegenerate, acceptSend, attachRequest, checkpoint, finalize, readContext, selectMessageVersion } from './messages';
-import type { AcceptRegenerateInput, AcceptSendInput, CheckpointInput, FinalizeInput, SelectMessageVersionInput } from './types';
+import type { ChatConversation, ChatConversationPage, ChatConversationView, ChatContextMessage, ChatStorage } from './storage';
+import { createD1ChatStorage } from './d1-storage';
 import { dispatchTrustedGatewayRequest } from '../gateway/dispatch';
 import type { GatewayDispatchDependencies } from '../gateway/dispatch';
 import type { ProtocolRequest } from '@sub2api/apicompat/capabilities/check';
 import type { ChatRequest } from '@sub2api/apicompat/types/chat';
 
-export type ChatRole = ChatMessageRole;
-export type ChatMessageStatus = StoredChatMessageStatus;
-export type ChatConversation = Conversation;
-export type ChatMessage = Message;
-export type ChatConversationPage = ConversationPage;
-export interface ChatConversationView extends ConversationWithMessages {}
-export interface ChatContextMessage { readonly role: ChatRole; readonly content: string }
+export type { ChatRole, ChatMessageStatus, ChatConversation, ChatMessage, ChatConversationPage, ChatConversationView, ChatContextMessage,
+  ChatStorageStartInput, ChatStorageAccepted, ChatStorageReplay, ChatStorageStartResult, ChatStorage } from './storage';
+export { createD1ChatStorage } from './d1-storage';
 
 export interface ChatStartInput {
   readonly operationId: string;
@@ -32,47 +25,6 @@ export interface ChatStartInput {
   /** Request lifecycle fields are supplied by the route, never JSON. */
   readonly signal?: AbortSignal;
   readonly executionContext?: Pick<ExecutionContext, 'waitUntil'>;
-}
-
-export interface ChatStorageStartInput {
-  readonly operationId: string;
-  readonly groupId: string;
-  readonly modelId: string;
-  readonly content?: string;
-  readonly conversationVersion: number;
-  readonly now: number;
-  readonly regenerate: boolean;
-}
-
-export interface ChatStorageAccepted {
-  readonly kind: 'accepted';
-  readonly conversation: ChatConversation;
-  readonly userMessage: ChatMessage | null;
-  readonly assistantMessage: ChatMessage;
-  /** Server-selected current variants only; clients cannot submit history. */
-  readonly context: readonly ChatContextMessage[];
-}
-export interface ChatStorageReplay {
-  readonly kind: 'replayed';
-  readonly conversation: ChatConversation;
-  readonly messages: readonly ChatMessage[];
-}
-export type ChatStorageStartResult = ChatStorageAccepted | ChatStorageReplay;
-
-/** Storage owns all CAS/unique operation and generation-lock guarantees.  The
- * chat API never constructs a message row itself, so a late stream cannot
- * resurrect a deleted or replaced conversation. */
-export interface ChatStorage {
-  listConversations(userId: string, cursor: string | null, limit: number): Promise<ChatConversationPage>;
-  getConversation(userId: string, conversationId: string): Promise<ChatConversationView | null>;
-  createConversation(userId: string, input: { title?: string; groupId?: string | null; modelId?: string | null; now: number }): Promise<ChatConversation>;
-  updateConversation(userId: string, conversationId: string, expectedVersion: number, patch: { title?: string; groupId?: string | null; modelId?: string | null }, now: number): Promise<ChatConversation>;
-  deleteConversation(userId: string, conversationId: string, expectedVersion: number, now: number): Promise<boolean>;
-  startMessage(userId: string, conversationId: string, input: ChatStorageStartInput): Promise<ChatStorageStartResult>;
-  associateRequest(userId: string, conversationId: string, assistantMessageId: string, operationId: string, requestId: string, now: number): Promise<boolean>;
-  saveAssistantProgress(userId: string, conversationId: string, assistantMessageId: string, content: string, now: number): Promise<void>;
-  finishAssistant(userId: string, conversationId: string, assistantMessageId: string, status: Exclude<ChatMessageStatus, 'generating'>, content: string, now: number): Promise<ChatMessage>;
-  selectVersion(userId: string, conversationId: string, messageId: string, expectedConversationVersion: number, now: number): Promise<ChatConversationView>;
 }
 
 export interface ChatGatewayRequest {
@@ -139,52 +91,6 @@ function replayView(storage: ChatStorage, userId: string, conversationId: string
   });
 }
 
-/** Adapter to the storage owner's atomic state machine.  Keeping this bridge
- * here lets the HTTP service remain responsible for protocol/auth orchestration
- * while all ownership, CAS, idempotency and generation-lock SQL stays in
- * `chat/messages.ts` and `chat/repository.ts`. */
-export function createD1ChatStorage(database: D1Database): ChatStorage {
-  return {
-    listConversations: (userId, cursor, limit) => listStoredConversations(database, userId, { cursor, limit }),
-    getConversation: (userId, conversationId) => getConversationWithMessages(database, userId, conversationId),
-    createConversation: (userId, input) => createStoredConversation(database, userId, input),
-    updateConversation: (userId, conversationId, expectedVersion, patch, now) =>
-      updateStoredConversation(database, userId, conversationId, expectedVersion, patch, now),
-    deleteConversation: (userId, conversationId, expectedVersion) =>
-      deleteStoredConversation(database, userId, conversationId, expectedVersion),
-    async startMessage(userId, conversationId, input) {
-      const identity = { userId, conversationId, operationId: input.operationId, conversationVersion: input.conversationVersion,
-        groupId: input.groupId, modelId: input.modelId, now: input.now };
-      const result = input.regenerate
-        ? await acceptRegenerate(database, { ...identity, assistantMessageId: undefined } satisfies AcceptRegenerateInput)
-        : await acceptSend(database, { ...identity, content: input.content ?? '', assistantMessageId: undefined, userMessageId: undefined } satisfies AcceptSendInput);
-      if (result.replayed) return { kind: 'replayed', conversation: result.conversation, messages: result.messages };
-      const contextRows = await readContext(database, userId, conversationId);
-      // Regeneration is a new answer for the same final user turn.  The old
-      // selected assistant variant remains durable until the new answer is
-      // finalized, but it must never be sent as a prompt suffix.
-      const context = contextRows
-        .filter(message => !input.regenerate || message.role === 'user' || message.turnIndex !== result.assistantMessage.turnIndex)
-        .map(message => ({ role: message.role, content: message.content }));
-      return { kind: 'accepted', conversation: result.conversation, userMessage: result.userMessage,
-        assistantMessage: result.assistantMessage, context };
-    },
-    async associateRequest(userId, conversationId, assistantMessageId, _operationId, requestId, now) {
-      const message = await attachRequest(database, { userId, messageId: assistantMessageId, requestId, now });
-      return message.conversationId === conversationId && (message.requestId === requestId);
-    },
-    async saveAssistantProgress(userId, _conversationId, assistantMessageId, content, now) {
-      await checkpoint(database, { userId, messageId: assistantMessageId, content, now } satisfies CheckpointInput);
-    },
-    finishAssistant(userId, _conversationId, assistantMessageId, status, content, now) {
-      return finalize(database, { userId, messageId: assistantMessageId, content, status, now } satisfies FinalizeInput);
-    },
-    selectVersion(userId, conversationId, messageId, expectedConversationVersion, now) {
-      return selectMessageVersion(database, { userId, conversationId, messageId, conversationVersion: expectedConversationVersion, now } satisfies SelectMessageVersionInput);
-    },
-  };
-}
-
 function detachedExecutionContext(): Pick<ExecutionContext, 'waitUntil'> {
   return { waitUntil(_work: Promise<unknown>) { /* local unit calls have no event lifetime */ } };
 }
@@ -207,15 +113,8 @@ function gatewayErrorCode(status: number, bodyCode: unknown): keyof typeof API_E
  * never copied to a browser error. */
 async function throwUnregisteredGatewayError(response: Response): Promise<never> {
   let code: unknown;
-  try { code = (await response.clone().json() as { error?: { code?: unknown } }).error?.code; } catch { /* status mapping below */ }
+  try { code = (await boundedChatWork(response.json()) as { error?: { code?: unknown } }).error?.code; } catch { /* status mapping below */ }
   throw new ApiError(gatewayErrorCode(response.status, code));
-}
-
-function mergeAbortSignals(signal: AbortSignal | undefined, local: AbortController): AbortSignal {
-  if (signal === undefined) return local.signal;
-  if (signal.aborted) local.abort();
-  signal.addEventListener('abort', () => local.abort(), { once: true });
-  return local.signal;
 }
 
 /** Trusted server dispatch adapter.  It creates a Chat request with no
@@ -225,7 +124,11 @@ export function createTrustedChatGateway(dependencies: ChatGatewayDependencies):
   return {
     async execute(request) {
       const local = new AbortController();
-      const signal = mergeAbortSignals(request.signal, local);
+      const abort = () => local.abort();
+      const cleanup = () => request.signal?.removeEventListener('abort', abort);
+      request.signal?.addEventListener('abort', abort, { once: true });
+      if (request.signal?.aborted) abort();
+      const signal = local.signal;
       const completionTasks: Promise<unknown>[] = [];
       const executionContext = request.executionContext;
       const waitUntil = (work: Promise<unknown>) => {
@@ -239,31 +142,41 @@ export function createTrustedChatGateway(dependencies: ChatGatewayDependencies):
       };
       const wireBody: ChatRequest = request.maxOutputTokens === undefined ? body : { ...body, max_tokens: request.maxOutputTokens };
       let registered = false;
-      const response = await dispatchTrustedGatewayRequest({ ...dependencies }, {
-        subject: request.auth as Parameters<typeof dispatchTrustedGatewayRequest>[1]['subject'],
-        request: { protocol: 'chat', request: wireBody } as ProtocolRequest,
-        onRegistered: async requestId => { await request.onRegistered(requestId); registered = true; },
-        signal,
-      }, { waitUntil });
-      if (!registered && !response.ok) await throwUnregisteredGatewayError(response);
-      const requestId = response.headers.get('X-Request-Id') ?? response.headers.get('X-Request-ID');
-      if (requestId === null || !identifier.test(requestId)) throw new ApiError('service_unavailable');
-      return {
-        requestId,
-        source: response,
-        cancel: () => local.abort(),
-        resolveTerminal: async () => {
-          // The dispatcher registers execution.completion with this exact
-          // request context. Awaiting those tasks before reading D1 avoids
-          // turning a valid [DONE] frame into a premature “incomplete” state.
-          await Promise.allSettled(completionTasks);
-          const row = await dependencies.DB.prepare('SELECT execution_status,billing_status FROM requests WHERE id=?').bind(requestId).first<{ execution_status: string; billing_status: string }>();
-          if (row?.execution_status === 'succeeded') return { terminal: 'completed' as const, billingStatus: row.billing_status };
-          if (row?.execution_status === 'cancelled') return { terminal: 'stopped' as const, billingStatus: row.billing_status };
-          if (row?.execution_status === 'failed' || row?.execution_status === 'abandoned') return { terminal: 'failed' as const, billingStatus: row.billing_status };
-          return { terminal: 'failed' as const, billingStatus: 'unknown' };
-        },
-      };
+      let response: Response | undefined;
+      try {
+        response = await dispatchTrustedGatewayRequest({ ...dependencies }, {
+          subject: request.auth as Parameters<typeof dispatchTrustedGatewayRequest>[1]['subject'],
+          request: { protocol: 'chat', request: wireBody } as ProtocolRequest,
+          onRegistered: async requestId => { await request.onRegistered(requestId); registered = true; },
+          signal,
+        }, { waitUntil });
+        if (!registered && !response.ok) await throwUnregisteredGatewayError(response);
+        const requestId = response.headers.get('X-Request-Id') ?? response.headers.get('X-Request-ID');
+        if (requestId === null || !identifier.test(requestId)) throw new ApiError('service_unavailable');
+        return {
+          requestId,
+          source: response,
+          cancel: () => { local.abort(); cleanup(); },
+          resolveTerminal: async () => {
+            // The dispatcher registers execution.completion with this exact
+            // request context. Awaiting those tasks before reading D1 avoids
+            // turning a valid [DONE] frame into a premature “incomplete” state.
+            try {
+              await Promise.allSettled(completionTasks);
+              const row = await dependencies.DB.prepare('SELECT execution_status,billing_status FROM requests WHERE id=?').bind(requestId).first<{ execution_status: string; billing_status: string }>();
+              if (row?.execution_status === 'succeeded') return { terminal: 'completed' as const, billingStatus: row.billing_status };
+              if (row?.execution_status === 'cancelled') return { terminal: 'stopped' as const, billingStatus: row.billing_status };
+              if (row?.execution_status === 'failed' || row?.execution_status === 'abandoned') return { terminal: 'failed' as const, billingStatus: row.billing_status };
+              return { terminal: 'failed' as const, billingStatus: 'unknown' };
+            } finally { cleanup(); }
+          },
+        };
+      } catch (error) {
+        local.abort();
+        cleanup();
+        try { void response?.body?.cancel().catch(() => undefined); } catch { /* already locked */ }
+        throw error;
+      }
     },
   };
 }
@@ -363,6 +276,7 @@ export class ChatService {
     });
     if (started.kind === 'replayed') return { kind: 'replayed', view: await replayView(this.storage, userId, idOfConversation) };
     let answer = '';
+    let execution: ChatGatewayExecution | undefined;
     let registered = false;
     let registeredRequestId: string | null = null;
     const onRegistered = async (requestId: string) => {
@@ -371,13 +285,14 @@ export class ChatService {
         return;
       }
       if (typeof requestId !== 'string' || !identifier.test(requestId)) throw new ApiError('service_unavailable');
-      const saved = await this.storage.associateRequest(userId, idOfConversation, started.assistantMessage.id, input.operationId, requestId, nowOf(this.clock));
+      const saved = await boundedChatWork(this.storage.associateRequest(userId, idOfConversation,
+        started.assistantMessage.id, input.operationId, requestId, nowOf(this.clock)), 5000, input.signal);
       if (!saved) throw new ApiError('service_unavailable');
       registered = true;
       registeredRequestId = requestId;
     };
     try {
-      const execution = await this.gateway.execute({ userId, groupId: selection.group.id, modelId: selection.model.publicModelId,
+      execution = await this.gateway.execute({ userId, groupId: selection.group.id, modelId: selection.model.publicModelId,
         messages: started.context, operationId: input.operationId, auth, ...(maxTokens === undefined ? {} : { maxOutputTokens: maxTokens }),
         ...(input.signal === undefined ? {} : { signal: input.signal }), ...(input.executionContext === undefined ? {} : { executionContext: input.executionContext }), onRegistered });
       if (!registered) throw new ApiError('service_unavailable');
@@ -395,9 +310,13 @@ export class ChatService {
       }) });
       return { kind: 'stream', response: sseResponse(body, execution.requestId), assistantMessageId: started.assistantMessage.id };
     } catch (error) {
-      // If registration failed, gateway owns the normal cleanup path.  The
-      // assistant row remains failed with the user's input/history intact.
-      try { await this.storage.finishAssistant(userId, idOfConversation, started.assistantMessage.id, 'failed', answer, nowOf(this.clock)); } catch { /* preserve original error */ }
+      // If execution escaped before a response could be installed, stop it
+      // first. Gateway cleanup still owns all leases and settlement.
+      try { await boundedChatWork(Promise.resolve().then(() => execution?.cancel?.()), 1000); } catch { /* cancellation is best effort */ }
+      try {
+        await boundedChatWork(Promise.resolve().then(() => this.storage.finishAssistant(userId, idOfConversation,
+          started.assistantMessage.id, input.signal?.aborted ? 'stopped' : 'failed', answer, nowOf(this.clock))));
+      } catch { /* preserve original error; a late D1 result cannot block the response */ }
       throw error instanceof ApiError ? error : new ApiError('service_unavailable');
     }
   }

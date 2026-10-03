@@ -3,54 +3,29 @@
  * actual default-registry adapter calls; they are not provider recordings.
  */
 import { describe, expect, it } from 'vitest';
-import { createProtocolRegistry, defaultProtocolRegistry } from '../../packages/apicompat/index.js';
-import type { RegistryFactoryContext, RegistryDirection } from '../../packages/apicompat/index.js';
-import type { CapabilityFeature, ChannelCapabilities } from '../../packages/apicompat/capabilities/check.js';
+import { defaultProtocolRegistry } from '../../packages/apicompat/index.js';
+import type { RegistryFactoryContext } from '../../packages/apicompat/index.js';
+import type { ChannelCapabilities } from '../../packages/apicompat/capabilities/check.js';
 import type { Protocol, SseFrame } from '../../packages/apicompat/types/shared.js';
 
 const protocols = ['chat', 'responses', 'messages'] as const satisfies readonly Protocol[];
 type P = (typeof protocols)[number];
-const pairs = protocols.flatMap(from => protocols.map(to => ({ from, to }))) as readonly { from: P; to: P }[];
-const pairRows = pairs.map(({ from, to }) => [from, to] as const);
 
-const allFeatures: readonly CapabilityFeature[] = [
-  'streaming', 'stream_usage', 'tools', 'tool_choice', 'parallel_tools', 'parallel_tool_control', 'strict_tools',
-  'image_url', 'image_base64', 'image_file_id', 'image_detail', 'tool_result_images', 'tool_result_error', 'refusal_history',
-  'json_object', 'json_schema', 'reasoning_effort', 'reasoning_summary', 'reasoning_history', 'thinking_budget',
-  'thinking_adaptive', 'thinking_control', 'signed_thinking', 'redacted_thinking', 'encrypted_reasoning', 'cache_control',
-  'response_history', 'item_references', 'file_inputs', 'file_references', 'temperature', 'top_p', 'top_k',
-  'stop_sequences', 'seed', 'penalties', 'multiple_choices', 'service_tier', 'metadata', 'message_names', 'store',
-  'verbosity', 'citations', 'logprobs', 'system_developer_priority',
-];
-
-const schema = { type: 'object', properties: { city: { type: 'string' } }, required: ['city'], additionalProperties: false } as const;
 const basicRequests: Record<P, unknown> = {
   chat: { model: 'public-model', messages: [{ role: 'user', content: 'Synthetic prompt' }] },
   responses: { model: 'public-model', input: 'Synthetic prompt' },
   messages: { model: 'public-model', max_tokens: 16, messages: [{ role: 'user', content: 'Synthetic prompt' }] },
 };
-const toolRequests: Record<P, unknown> = {
-  chat: { model: 'public-model', messages: [{ role: 'user', content: 'Use lookup' }], tools: [{ type: 'function', function: { name: 'lookup', parameters: schema } }], tool_choice: 'auto' },
-  responses: { model: 'public-model', input: 'Use lookup', tools: [{ type: 'function', name: 'lookup', parameters: schema, strict: false }], tool_choice: 'auto' },
-  messages: { model: 'public-model', max_tokens: 16, messages: [{ role: 'user', content: 'Use lookup' }], tools: [{ name: 'lookup', input_schema: schema }], tool_choice: { type: 'auto' } },
-};
-
 const basicResponses: Record<P, unknown> = {
   chat: { id: 'native_chat', object: 'chat.completion', created: 123, model: 'provider-chat', choices: [{ index: 0, message: { role: 'assistant', content: 'Hi' }, finish_reason: 'stop' }], usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 } },
   responses: { id: 'native_responses', object: 'response', created_at: 123, model: 'provider-responses', status: 'completed', output: [], usage: { input_tokens: 2, output_tokens: 3, total_tokens: 5 } },
   messages: { id: 'native_messages', type: 'message', role: 'assistant', model: 'provider-messages', content: [{ type: 'text', text: 'Hi' }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 2, output_tokens: 3, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } },
 };
-const toolResponses: Record<P, unknown> = {
-  chat: { id: 'native_chat', object: 'chat.completion', created: 123, model: 'provider-chat', choices: [{ index: 0, message: { role: 'assistant', content: null, tool_calls: [{ id: 'call_lookup', type: 'function', function: { name: 'lookup', arguments: '{"city":"北京"}' } }] }, finish_reason: 'tool_calls' }], usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 } },
-  responses: { id: 'native_responses', object: 'response', created_at: 123, model: 'provider-responses', status: 'completed', output: [{ type: 'function_call', id: 'item_lookup', call_id: 'call_lookup', name: 'lookup', arguments: '{"city":"北京"}', status: 'completed' }], usage: { input_tokens: 2, output_tokens: 3, total_tokens: 5 } },
-  messages: { id: 'native_messages', type: 'message', role: 'assistant', model: 'provider-messages', content: [{ type: 'tool_use', id: 'call_lookup', name: 'lookup', input: { city: '北京' } }], stop_reason: 'tool_use', stop_sequence: null, usage: { input_tokens: 2, output_tokens: 3, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } },
-};
-
-function channel(protocol: P, rich = false): ChannelCapabilities {
-  return { protocol, features: rich ? allFeatures : ['streaming'], maxOutputTokens: 64, ...(protocol === 'messages' ? { defaultOutputTokens: 16 } : {}), reasoningEfforts: ['low', 'medium', 'high'], cacheTtls: ['5m', '1h'] };
+function channel(protocol: P): ChannelCapabilities {
+  return { protocol, features: ['streaming'], maxOutputTokens: 64, ...(protocol === 'messages' ? { defaultOutputTokens: 16 } : {}), reasoningEfforts: ['low', 'medium', 'high'], cacheTtls: ['5m', '1h'] };
 }
-function factoryContext(protocol: P, rich = false): RegistryFactoryContext {
-  return { capabilities: channel(protocol, rich), outputTokenLimit: 16 };
+function factoryContext(protocol: P): RegistryFactoryContext {
+  return { capabilities: channel(protocol), outputTokenLimit: 16 };
 }
 function responseContext(upstreamResponseId: string) {
   return {
@@ -80,53 +55,8 @@ function sourceFrames(protocol: P): readonly SseFrame[] {
   ];
 }
 
-describe('P23 default registry covers all nine direct directions', () => {
-  it('declares exactly nine directions and makes both modes available', () => {
-    expect(defaultProtocolRegistry.directions).toEqual(pairs);
-    for (const { from, to } of pairs) for (const streaming of [false, true]) {
-      expect(defaultProtocolRegistry.available({ from, to, streaming })).toBe(true);
-      expect(defaultProtocolRegistry.lookup({ from, to, streaming }, factoryContext(to)).ok).toBe(true);
-    }
-  });
-
-  it.each(pairRows)('%s -> %s calls the actual JSON request and response adapters', (from, to) => {
-    const direction: RegistryDirection<P, P> = { from, to, streaming: false };
-    const found = defaultProtocolRegistry.lookup(direction, factoryContext(to));
-    if (!found.ok) throw new Error(`Missing ${from}->${to}`);
-    expect(found.value.request).toMatchObject({ from, to });
-    expect(found.value.response).toMatchObject({ from: to, to: from });
-    const request = found.value.request.convert(basicRequests[from] as never, { targetModel: 'provider-model' });
-    expect(request.ok).toBe(true);
-    const source = basicResponses[to];
-    const response = found.value.response.convert(source as never, responseContext((source as { id: string }).id));
-    expect(response.ok).toBe(true);
-  });
-
-  it.each(pairRows)('%s -> %s calls actual tool request/response adapters', (from, to) => {
-    const found = defaultProtocolRegistry.lookup({ from, to, streaming: false }, factoryContext(to, true));
-    if (!found.ok) throw new Error(`Missing ${from}->${to}`);
-    expect(found.value.request.convert(toolRequests[from] as never, { targetModel: 'provider-model' }).ok).toBe(true);
-    const source = toolResponses[to];
-    expect(found.value.response.convert(source as never, responseContext((source as { id: string }).id)).ok).toBe(true);
-  });
-
-  it.each(pairRows)('%s -> %s calls the actual SSE adapter', (from, to) => {
-    const found = defaultProtocolRegistry.lookup({ from, to, streaming: true }, factoryContext(to));
-    if (!found.ok) throw new Error(`Missing ${from}->${to}`);
-    const source = basicResponses[to] as { id: string };
-    const stream = found.value.stream.create(responseContext(source.id), { unknownEventPolicy: 'reject', maxBufferedBytes: 32_768 });
-    if (!stream.ok) throw new Error(`Cannot create ${to}->${from} stream`);
-    let terminal: import('../../packages/apicompat/types/shared.js').TerminalState | undefined;
-    for (const input of sourceFrames(to)) {
-      const step = stream.value.push(input);
-      terminal ??= step.terminal;
-    }
-    terminal ??= stream.value.finish({ kind: 'eof' }).terminal;
-    expect(terminal?.status).toBe('completed');
-    expect(stream.value.finish({ kind: 'eof' }).events).toEqual([]);
-  });
-});
-
+// Basic JSON/SSE registry wiring is covered in registry.test.ts; tool round trips
+// for all nine directions live in tests/gateway/matrix with billing assertions.
 describe('P23 field boundary and usage evidence', () => {
   it('does not broaden a cross-protocol request with unknown fields', () => {
     const found = defaultProtocolRegistry.lookup({ from: 'chat', to: 'responses', streaming: false }, factoryContext('responses'));
@@ -184,11 +114,5 @@ describe('P23 field boundary and usage evidence', () => {
     expect(converted.value.body).toMatchObject({ usage: { input_tokens: 7, output_tokens: 7, cache_read_input_tokens: 5 } });
     expect(found.value.usage.json(source)).toMatchObject({ quality: 'complete', counts: { inputTokens: 12, outputTokens: 7, cacheReadTokens: 5 } });
     expect(JSON.stringify(source)).toContain('"prompt_tokens":12');
-  });
-});
-
-describe('P23 registry construction remains explicit', () => {
-  it('retains the real production registry and preserves injectable test registries', () => {
-    expect(createProtocolRegistry().directions).toEqual(defaultProtocolRegistry.directions);
   });
 });

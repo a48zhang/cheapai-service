@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { decodeGroup, isBillingMultiplier } from '../../apps/web/src/api/admin-groups';
+import { createApiClient } from '../../apps/web/src/api/client';
+import { createAdminChannelsApi } from '../../apps/web/src/api/admin-channels';
 import { decodeRequest } from '../../apps/web/src/api/requests';
 
 const group = (patch: Record<string, unknown> = {}) => ({
@@ -46,5 +48,71 @@ describe('web admin API contracts', () => {
     expect(() => decodeRequest(request({ price_snapshot: priceSnapshot({ group_version: 0 }), price_snapshot_valid: true }))).toThrow(TypeError);
     expect(() => decodeRequest(request({ price_snapshot: priceSnapshot({ billing_multiplier: '1e-1' }), price_snapshot_valid: true }))).toThrow(TypeError);
     expect(() => decodeRequest(request({ price_snapshot: priceSnapshot({ extra: 'unexpected' }), price_snapshot_valid: true }))).toThrow(TypeError);
+  });
+});
+
+
+const channel = (index: number) => ({
+  id: `channel-${index}`, name: `Channel ${index}`, baseUrl: 'https://upstream.example.invalid',
+  status: index === 41 ? 'disabled' : 'active', priority: 1, concurrencyLimit: 2, rpmLimit: 60,
+  configVersion: 1, createdAt: 10, updatedAt: 10, hasCredential: true, models: [],
+});
+
+describe('complete administrator channel reads', () => {
+  it('reads every page in order, preserves disabled channels and deduplicates IDs', async () => {
+    const requests: URL[] = [];
+    const api = createAdminChannelsApi(createApiClient({ fetch: async input => {
+      const url = new URL(String(input), 'https://console.example'); requests.push(url);
+      const cursor = url.searchParams.get('cursor');
+      const data = cursor === null
+        ? { items: Array.from({ length: 20 }, (_, i) => channel(i + 1)), nextCursor: 'page-2' }
+        : cursor === 'page-2'
+          ? { items: [channel(20), ...Array.from({ length: 20 }, (_, i) => channel(i + 21))], nextCursor: 'page-3' }
+          : { items: [channel(40), channel(41)], nextCursor: null };
+      return Response.json({ data, request_id: 'channels-read' });
+    } }));
+    const result = await api.listAll();
+    expect(result).toHaveLength(41);
+    expect(result[20]?.id).toBe('channel-21');
+    expect(result[40]).toMatchObject({ id: 'channel-41', status: 'disabled' });
+    expect(requests.map(url => url.searchParams.get('cursor'))).toEqual([null, 'page-2', 'page-3']);
+    expect(requests.every(url => url.searchParams.get('limit') === '20' && !url.searchParams.has('status'))).toBe(true);
+  });
+
+  it('preserves the paged list contract and optional status filtering', async () => {
+    const requests: URL[] = [];
+    const api = createAdminChannelsApi(createApiClient({ fetch: async input => {
+      const url = new URL(String(input), 'https://console.example'); requests.push(url);
+      return Response.json({ data: { items: [channel(41)], nextCursor: url.searchParams.get('cursor') ? null : 'next' }, request_id: 'channels-read' });
+    } }));
+    expect((await api.list({ status: 'disabled' })).nextCursor).toBe('next');
+    expect(requests).toHaveLength(1);
+    expect(await api.listAll({ status: 'disabled' })).toHaveLength(1);
+    expect(requests.map(url => url.searchParams.get('cursor'))).toEqual([null, null, 'next']);
+    expect(requests.every(url => url.searchParams.get('status') === 'disabled')).toBe(true);
+  });
+
+  it('rejects repeated cursors rather than exposing a partial list or looping', async () => {
+    let calls = 0;
+    const api = createAdminChannelsApi(createApiClient({ fetch: async () => {
+      calls++;
+      return Response.json({ data: { items: [channel(calls)], nextCursor: 'same-cursor' }, request_id: 'channels-read' });
+    } }));
+    await expect(api.listAll()).rejects.toThrow('渠道分页游标重复');
+    expect(calls).toBe(2);
+  });
+
+  it('rejects a middle-page failure and restarts a later read from the first page', async () => {
+    const cursors: (string | null)[] = [];
+    let fail = true;
+    const api = createAdminChannelsApi(createApiClient({ fetch: async input => {
+      const cursor = new URL(String(input), 'https://console.example').searchParams.get('cursor'); cursors.push(cursor);
+      if (cursor && fail) return Response.json({ error: { code: 'internal_error', message: 'page failed' }, request_id: 'channels-failed' }, { status: 500 });
+      return Response.json({ data: { items: [channel(cursor ? 21 : 1)], nextCursor: cursor ? null : 'next' }, request_id: 'channels-read' });
+    } }));
+    await expect(api.listAll()).rejects.toMatchObject({ status: 500 });
+    fail = false;
+    expect((await api.listAll()).map(item => item.id)).toEqual(['channel-1', 'channel-21']);
+    expect(cursors).toEqual([null, 'next', null, 'next']);
   });
 });

@@ -1,3 +1,4 @@
+import { captureSessionIdentity, isProtectedApiPath, notifySessionExpiry } from './session-expiry.js';
 import type { ApiClientErrorKind, ApiClientOptions, ApiErrorCode, ApiMethod, ApiQuery, ApiRequestOptions, JsonValue, SuccessEnvelope } from './types.js';
 
 const messages: Record<ApiErrorCode, string> = {
@@ -68,6 +69,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
   const fetcher = options.fetch ?? ((...args: Parameters<typeof fetch>) => globalThis.fetch(...args));
   const csrfToken = options.getCsrfToken ?? readCsrfCookie;
   async function request<T = unknown>(path: string, input: ApiRequestOptions<T> = {}): Promise<SuccessEnvelope<T>> {
+    const sessionIdentity = captureSessionIdentity();
     const method = input.method ?? 'GET';
     const url = urlFor(path, input.query);
     if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) throw new ApiClientError('request', 'HTTP 方法无效。');
@@ -98,6 +100,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
     try { response = await fetcher(url, { method, headers, credentials: 'same-origin', redirect: 'error',
       ...(body === undefined ? {} : { body }), ...(input.signal === undefined ? {} : { signal: input.signal }) });
     } catch (cause) { throw failedTransport(cause, input.signal); }
+    if (response.status === 401 && isProtectedApiPath(path)) notifySessionExpiry(sessionIdentity, path);
     const mediaType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() ?? '';
     if (mediaType !== 'application/json' && !/^application\/[a-z0-9.+-]+\+json$/u.test(mediaType)) {
       throw new ApiClientError('invalid_response', '服务返回了非 JSON 响应。', { status: response.status, code: 'non_json_response' });

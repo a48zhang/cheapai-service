@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import ChatComposer from '../components/chat/ChatComposer.vue';
 import ChatMessage from '../components/chat/ChatMessage.vue';
@@ -7,21 +7,22 @@ import ChatSidebar from '../components/chat/ChatSidebar.vue';
 import { ApiClientError } from '../api/client.js';
 import { chatApi } from '../api/chat.js';
 import type {
-  ChatErrorEvent, ChatGroup, ChatMessage as ChatMessageRecord, ChatModel, ChatRegenerateInput, ChatSendInput,
+  ChatErrorEvent, ChatMessage as ChatMessageRecord, ChatRegenerateInput, ChatSendInput,
   ChatSendResult, ChatStreamHandlers, Conversation, ConversationDetail,
 } from '../api/chat.js';
+import { useConversationHistory } from '../composables/chat/useConversationHistory.js';
+import { useChatModelSelection } from '../composables/chat/useChatModelSelection.js';
+import { useChatDraft } from '../composables/chat/useChatDraft.js';
 import { sessionStore } from '../stores/session.js';
 
 const route = useRoute();
 const router = useRouter();
-const DRAFT_KEY = 'sub2api.chat.draft';
-const DRAFT_OWNER_KEY = 'sub2api.chat.draft.owner';
-const SELECTION_KEY = 'sub2api.chat.selection';
 
 interface OwnerScope { readonly userId: string; readonly epoch: number }
 type PendingOperation =
-  | { kind: 'message'; owner: OwnerScope; conversationId: string; routeId: string; input: ChatSendInput; content: string; userId: string; assistantId: string }
-  | { kind: 'regenerate'; owner: OwnerScope; conversationId: string; routeId: string; input: ChatRegenerateInput; content: string; assistantId: string; previousId: string };
+  | { metaReceived?: boolean; kind: 'message'; owner: OwnerScope; conversationId: string; routeId: string; input: ChatSendInput; content: string; userId: string; assistantId: string }
+  | { metaReceived?: boolean; kind: 'regenerate'; owner: OwnerScope; conversationId: string; routeId: string; input: ChatRegenerateInput; content: string; assistantId: string; previousId: string };
+type GenerationOutcome = 'completed' | 'stopped' | 'rejected' | 'failed' | 'uncertain' | 'superseded';
 interface GenerationScope {
   readonly token: number;
   readonly operation: PendingOperation;
@@ -31,23 +32,22 @@ interface GenerationScope {
   stopRequested: boolean;
 }
 
-const groups = ref<readonly ChatGroup[]>([]);
-const conversations = ref<Conversation[]>([]);
+const history = useConversationHistory<OwnerScope>({ list: cursor => chatApi.listConversations(cursor), isOwnerCurrent });
+const { conversations, loading: historyLoading, loadingMore: historyLoadingMore, cursor: historyCursor, error: historyError } = history;
 const activeDetail = ref<ConversationDetail | null>(null);
 const messages = ref<ChatMessageRecord[]>([]);
-const draft = ref('');
+const { draft, setDraft, preservePending } = useChatDraft(() => ({
+  status: sessionStore.state.status, userId: sessionStore.state.user?.id ?? null,
+  expiredUserId: sessionStore.state.expiry?.userId ?? null,
+}));
 const error = ref('');
 const loading = ref(false);
-const historyLoading = ref(false);
-const modelsLoading = ref(false);
 const modelChangePending = ref(false);
 const streaming = ref(false);
 const sendLocked = ref(false);
 const pendingOperation = ref<PendingOperation | null>(null);
 const mobileHistoryOpen = ref(false);
 const messagesViewport = ref<HTMLElement | null>(null);
-const selectedGroupId = ref<string | null>(null);
-const selectedModelId = ref<string | null>(null);
 
 let ownerEpoch = 0;
 let observedOwnerKey = '';
@@ -61,12 +61,12 @@ let skipDetailLoadId: string | null = null;
 const routeConversationId = computed(() => typeof route.params.id === 'string' ? route.params.id : null);
 const isAuthenticated = computed(() => sessionStore.state.status === 'authenticated');
 const currentConversation = computed(() => activeDetail.value?.conversation ?? null);
-const selectedModel = computed<ChatModel | null>(() => {
-  const group = groups.value.find(item => item.id === selectedGroupId.value);
-  return group?.models.find(item => item.publicModelId === selectedModelId.value) ?? null;
+const modelSelection = useChatModelSelection<OwnerScope>({
+  models: () => chatApi.models(), isOwnerCurrent, conversation: () => currentConversation.value,
+  onError: message => { error.value = message; },
 });
-const selectedOption = computed(() => selectedGroupId.value && selectedModelId.value ? JSON.stringify([selectedGroupId.value, selectedModelId.value]) : '');
-const modelOptions = computed(() => groups.value.flatMap(group => group.models.map(model => ({ group, model }))));
+const { groups, loading: modelsLoading, selectedGroupId, selectedModelId, selectedModel, selectedOption,
+  modelOptions, findSelection, applySelection, persistSelection } = modelSelection;
 const visibleMessages = computed(() => [...messages.value]
   .sort((left, right) => left.turnIndex - right.turnIndex || (left.role === 'user' ? -1 : 1) || left.variant - right.variant)
   .filter(item => item.role === 'user' || item.selected));
@@ -85,6 +85,21 @@ function currentOwnerScope(): OwnerScope | null {
 function isOwnerCurrent(scope: OwnerScope): boolean {
   return !disposed && ownerEpoch === scope.epoch && sessionStore.state.status === 'authenticated' && sessionStore.state.user?.id === scope.userId;
 }
+function ownsPending(operation: PendingOperation): boolean {
+  const pending = pendingOperation.value;
+  return pending !== null && pending.input.operationId === operation.input.operationId
+    && pending.owner.userId === operation.owner.userId && pending.owner.epoch === operation.owner.epoch
+    && pending.routeId === operation.routeId;
+}
+function clearPending(operation: PendingOperation): void {
+  if (ownsPending(operation)) pendingOperation.value = null;
+}
+function restorePrevious(operation: PendingOperation): void {
+  if (operation.kind !== 'regenerate' || operation.metaReceived || !isOwnerCurrent(operation.owner)
+    || routeConversationId.value !== operation.routeId) return;
+  messages.value = messages.value.map(item => item.id === operation.previousId ? { ...item, selected: true } : item)
+    .filter(item => item.id !== operation.assistantId);
+}
 function isGenerationCurrent(scope: GenerationScope): boolean {
   return isGenerationOwner(scope) && !scope.stopRequested;
 }
@@ -100,23 +115,6 @@ function invalidateGeneration(): void {
   sendLocked.value = false;
 }
 
-function readStorage(key: string): string | null {
-  try { return window.sessionStorage.getItem(key); } catch { return null; }
-}
-function writeStorage(key: string, value: string): void {
-  try { window.sessionStorage.setItem(key, value); } catch { /* private browsing can deny session storage */ }
-}
-function removeStorage(key: string): void {
-  try { window.sessionStorage.removeItem(key); } catch { /* private browsing can deny session storage */ }
-}
-function setDraft(value: string) {
-  draft.value = value;
-  if (value) {
-    writeStorage(DRAFT_KEY, value);
-    const userId = sessionStore.state.status === 'authenticated' ? sessionStore.state.user?.id : null;
-    writeStorage(DRAFT_OWNER_KEY, userId ? `user:${userId}` : 'anonymous');
-  } else { removeStorage(DRAFT_KEY); removeStorage(DRAFT_OWNER_KEY); }
-}
 function operationId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
   return `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
@@ -136,30 +134,7 @@ function updateMessage(id: string, change: Partial<ChatMessageRecord>): void {
 function variantMessages(message: ChatMessageRecord): readonly ChatMessageRecord[] {
   return messages.value.filter(item => item.role === 'assistant' && item.turnIndex === message.turnIndex).sort((a, b) => a.variant - b.variant);
 }
-function persistSelection(): void {
-  if (selectedGroupId.value && selectedModelId.value) writeStorage(SELECTION_KEY, JSON.stringify({ groupId: selectedGroupId.value, modelId: selectedModelId.value }));
-}
-function findSelection(groupId: string | null, modelId: string | null): { groupId: string; modelId: string } | null {
-  if (!groupId || !modelId) return null;
-  const group = groups.value.find(item => item.id === groupId);
-  if (!group?.models.some(item => item.publicModelId === modelId)) return null;
-  return { groupId, modelId };
-}
-function applySelection(groupId: string | null, modelId: string | null): void {
-  const matched = findSelection(groupId, modelId);
-  if (matched) {
-    selectedGroupId.value = matched.groupId; selectedModelId.value = matched.modelId; persistSelection(); return;
-  }
-  const firstGroup = groups.value[0];
-  const firstModel = firstGroup?.models[0];
-  selectedGroupId.value = firstGroup?.id ?? null; selectedModelId.value = firstModel?.publicModelId ?? null;
-  persistSelection();
-}
-function saveConversation(conversation: Conversation): void {
-  const index = conversations.value.findIndex(item => item.id === conversation.id);
-  if (index < 0) conversations.value = [conversation, ...conversations.value];
-  else conversations.value = conversations.value.map(item => item.id === conversation.id ? conversation : item);
-}
+function saveConversation(conversation: Conversation): void { history.upsert(conversation); }
 function clearActive(): void {
   activeDetail.value = null; messages.value = []; error.value = '';
 }
@@ -168,36 +143,17 @@ async function scrollToBottom(): Promise<void> {
   if (messagesViewport.value) messagesViewport.value.scrollTop = messagesViewport.value.scrollHeight;
 }
 
-async function loadModels(scope: OwnerScope): Promise<void> {
-  if (!isOwnerCurrent(scope)) return;
-  modelsLoading.value = true;
-  try {
-    const result = await chatApi.models();
-    if (!isOwnerCurrent(scope)) return;
-    groups.value = result.items;
-    const conversationSelection = currentConversation.value ? findSelection(currentConversation.value.groupId, currentConversation.value.modelId) : null;
-    if (conversationSelection) applySelection(conversationSelection.groupId, conversationSelection.modelId);
-    else {
-      let stored: { groupId?: string; modelId?: string } | null = null;
-      try { const value: unknown = JSON.parse(readStorage(SELECTION_KEY) ?? 'null'); if (value && typeof value === 'object') stored = value as { groupId?: string; modelId?: string }; } catch { stored = null; }
-      applySelection(stored?.groupId ?? null, stored?.modelId ?? null);
-    }
-  } catch (cause) {
-    if (isOwnerCurrent(scope)) error.value = cause instanceof Error ? cause.message : '模型读取失败。';
-  } finally { if (isOwnerCurrent(scope)) modelsLoading.value = false; }
-}
+async function loadModels(scope: OwnerScope): Promise<void> { await modelSelection.load(scope); }
 
-async function loadConversations(scope: OwnerScope): Promise<void> {
-  if (!isOwnerCurrent(scope)) return;
-  historyLoading.value = true;
-  try {
-    const page = await chatApi.listConversations();
-    if (isOwnerCurrent(scope)) conversations.value = [...page.items];
-  } catch (cause) {
-    if (isOwnerCurrent(scope)) error.value = cause instanceof Error ? cause.message : '历史对话读取失败。';
-  } finally { if (isOwnerCurrent(scope)) historyLoading.value = false; }
+async function loadMoreHistory(): Promise<void> {
+  const owner = currentOwnerScope();
+  if (owner) await history.loadMore(owner);
 }
-
+async function retryHistory(): Promise<void> {
+  const owner = currentOwnerScope();
+  if (owner) await history.retry(owner);
+}
+async function loadConversations(scope: OwnerScope): Promise<void> { await history.load(scope); }
 async function loadConversation(id: string, scope: OwnerScope): Promise<void> {
   if (!isOwnerCurrent(scope)) return;
   const ticket = ++detailEpoch;
@@ -264,23 +220,26 @@ function messageError(cause: unknown): string {
 
 function operationIsUncertain(cause: unknown): boolean {
   if (!(cause instanceof ApiClientError)) return true;
+  if (cause.status === 401 || cause.kind === 'request') return false;
   if (cause.kind === 'network' || cause.kind === 'invalid_response' || cause.kind === 'aborted') return true;
   return cause.kind === 'http' && (cause.status === null || cause.status === 408 || cause.status === 429 || cause.status >= 500);
 }
 
-async function runGeneration(operation: PendingOperation): Promise<void> {
-  if (!isOwnerCurrent(operation.owner) || routeConversationId.value !== operation.routeId || activeGeneration) return;
+async function runGeneration(operation: PendingOperation): Promise<GenerationOutcome> {
+  if (!isOwnerCurrent(operation.owner) || routeConversationId.value !== operation.routeId || activeGeneration) return 'superseded';
   const controller = new AbortController();
   let resolveFinished!: () => void;
   const finished = new Promise<void>(resolve => { resolveFinished = resolve; });
   const scope: GenerationScope = { token: ++generationSequence, operation, controller, finished, resolveFinished, stopRequested: false };
   activeGeneration = scope; streaming.value = true; error.value = '';
   let assistantId = operation.assistantId;
+  let completedMessage: ChatMessageRecord | null = null;
   updateMessage(assistantId, { content: '', status: 'generating', selected: true });
   const handlers: ChatStreamHandlers = {
     onMeta: async meta => {
       if (!isGenerationCurrent(scope)) return;
-      if (operation.kind === 'message' && meta.userMessage) replaceMessage(operation.userId, meta.userMessage);
+      operation.metaReceived = true;
+      if (operation.kind === 'message' && meta.userMessage) { replaceMessage(operation.userId, meta.userMessage); operation.userId = meta.userMessage.id; }
       replaceMessage(assistantId, meta.assistantMessage); assistantId = meta.assistantMessage.id;
       operation.assistantId = assistantId;
       activeDetail.value = { conversation: meta.conversation, messages: messages.value }; saveConversation(meta.conversation);
@@ -292,33 +251,42 @@ async function runGeneration(operation: PendingOperation): Promise<void> {
       if (current) updateMessage(assistantId, { content: current.content + text, status: 'generating' });
       await scrollToBottom();
     },
-    onDone: message => { if (isGenerationCurrent(scope)) replaceMessage(assistantId, message); },
+    onDone: message => { if (isGenerationOwner(scope)) { completedMessage = message; replaceMessage(assistantId, message); } },
     onError: (event: ChatErrorEvent) => { if (isGenerationCurrent(scope)) error.value = event.message; },
   };
   try {
     const result: ChatSendResult = operation.kind === 'message'
       ? await chatApi.sendMessage(operation.conversationId, operation.input, handlers, controller.signal)
       : await chatApi.regenerate(operation.conversationId, operation.input, handlers, controller.signal);
-    if (!isGenerationCurrent(scope)) return;
+    if (!isGenerationOwner(scope)) return 'superseded';
     if (result.kind === 'replay') {
       activeDetail.value = { conversation: result.conversation, messages: result.messages }; messages.value = [...result.messages]; saveConversation(result.conversation);
     } else {
       replaceMessage(assistantId, result.message);
       await refreshCurrent(operation.owner);
     }
-    if (pendingOperation.value === operation) pendingOperation.value = null;
+    clearPending(operation);
     await scrollToBottom();
+    return result.kind === 'stream' && result.message.status === 'stopped' ? 'stopped' : 'completed';
   } catch (cause) {
-    if (!isGenerationOwner(scope)) return;
+    if (!isGenerationOwner(scope)) return 'superseded';
+    // A decoded terminal message wins over a late abort or reader cleanup failure.
+    if (completedMessage) { clearPending(operation); return 'completed'; }
     if (scope.stopRequested || controller.signal.aborted) {
       updateMessage(assistantId, { status: 'stopped' });
-      if (pendingOperation.value === operation) pendingOperation.value = null;
+      clearPending(operation);
+      return 'stopped';
     } else {
       updateMessage(assistantId, { status: 'failed' });
-      setDraft(operation.content);
-      if (operationIsUncertain(cause)) pendingOperation.value = operation;
-      else if (pendingOperation.value === operation) pendingOperation.value = null;
+      if (operation.kind === 'message') setDraft(operation.content);
+      const uncertain = operationIsUncertain(cause);
+      if (uncertain) pendingOperation.value = operation;
+      else clearPending(operation);
       error.value = messageError(cause);
+      if (uncertain) return 'uncertain';
+      if (!operation.metaReceived) { restorePrevious(operation); return 'rejected'; }
+      await refreshCurrent(operation.owner);
+      return 'failed';
     }
   } finally {
     scope.resolveFinished();
@@ -376,7 +344,7 @@ async function send(): Promise<void> {
     pendingOperation.value = operation;
     await runGeneration(operation);
   } catch (cause) {
-    if (isOwnerCurrent(owner)) { setDraft(content); error.value = messageError(cause); }
+    if (isOwnerCurrent(owner) && sendLockToken === lock) { setDraft(content); error.value = messageError(cause); }
   } finally { if (sendLockToken === lock) sendLocked.value = false; }
 }
 
@@ -391,9 +359,7 @@ async function retryPending(): Promise<void> {
 
 function discardPendingOperation(): void {
   const operation = pendingOperation.value;
-  if (operation?.kind === 'regenerate') {
-    messages.value = messages.value.map(item => item.id === operation.previousId ? { ...item, selected: true } : item).filter(item => item.id !== operation.assistantId);
-  }
+  if (operation) restorePrevious(operation);
   pendingOperation.value = null;
 }
 
@@ -403,7 +369,7 @@ async function stop(): Promise<void> {
   scope.stopRequested = true;
   const assistant = messages.value.find(item => item.id === scope.operation.assistantId && item.status === 'generating');
   if (assistant && isGenerationOwner(scope)) updateMessage(assistant.id, { status: 'stopped' });
-  pendingOperation.value = null;
+  clearPending(scope.operation);
   scope.controller.abort();
   await scope.finished;
 }
@@ -425,9 +391,6 @@ async function regenerate(): Promise<void> {
   pendingOperation.value = operation;
   try { await runGeneration(operation); }
   finally {
-    if (pendingOperation.value !== operation) {
-      messages.value = messages.value.map(item => item.id === previous.id ? { ...item, selected: true } : item).filter(item => item.id !== operation.assistantId);
-    }
     if (sendLockToken === lock) sendLocked.value = false;
   }
 }
@@ -464,7 +427,7 @@ async function removeConversation(conversation: Conversation): Promise<void> {
   try {
     await chatApi.deleteConversation(conversation.id, conversation.version);
     if (!isOwnerCurrent(owner)) return;
-    conversations.value = conversations.value.filter(item => item.id !== conversation.id);
+    history.remove(conversation.id);
     if (currentConversation.value?.id === conversation.id) { clearActive(); await router.replace('/'); }
   } catch (cause) { if (isOwnerCurrent(owner)) error.value = messageError(cause); }
 }
@@ -483,21 +446,21 @@ async function initializeForUser(scope: OwnerScope): Promise<void> {
   if (!isOwnerCurrent(scope)) return;
   if (routeConversationId.value) await loadConversation(routeConversationId.value, scope);
 }
-function clearOwnerState(clearDraft: boolean): void {
+function clearOwnerState(): void {
+  const pending = pendingOperation.value;
+  if (pending?.kind === 'message' && sessionStore.state.expiry?.userId === pending.owner.userId) preservePending(pending.content);
   invalidateGeneration();
   pendingOperation.value = null;
-  modelsLoading.value = false; historyLoading.value = false; loading.value = false; modelChangePending.value = false;
-  groups.value = []; conversations.value = []; clearActive(); selectedGroupId.value = null; selectedModelId.value = null;
-  if (clearDraft) setDraft('');
+  modelSelection.reset(); history.reset(); loading.value = false; modelChangePending.value = false;
+  clearActive();
 }
 
 watch(() => [sessionStore.state.status, sessionStore.state.user?.id] as const, ([status, userId]) => {
   const key = `${status}:${userId ?? ''}`;
   if (key === observedOwnerKey) return;
-  const previousWasAuthenticated = observedOwnerKey.startsWith('authenticated:');
   observedOwnerKey = key;
   ownerEpoch += 1; detailEpoch += 1;
-  clearOwnerState(previousWasAuthenticated);
+  clearOwnerState();
   if (status === 'authenticated' && userId) void initializeForUser({ userId, epoch: ownerEpoch });
 }, { immediate: true });
 watch(routeConversationId, (id, previousId) => {
@@ -512,20 +475,12 @@ watch(routeConversationId, (id, previousId) => {
 }, { immediate: true });
 watch(visibleMessages, () => void scrollToBottom(), { deep: true });
 
-onMounted(() => {
-  const storedDraft = readStorage(DRAFT_KEY);
-  const storedOwner = readStorage(DRAFT_OWNER_KEY);
-  const currentUserId = sessionStore.state.status === 'authenticated' ? sessionStore.state.user?.id : null;
-  const allowed = storedOwner === 'anonymous' || Boolean(currentUserId && storedOwner === `user:${currentUserId}`);
-  if (storedDraft && allowed) draft.value = storedDraft;
-  else if (storedDraft) { removeStorage(DRAFT_KEY); removeStorage(DRAFT_OWNER_KEY); }
-});
 onBeforeUnmount(() => { disposed = true; pendingOperation.value = null; invalidateGeneration(); });
 </script>
 
 <template>
   <section class="chat-page" :class="{ 'chat-authenticated': isAuthenticated }">
-    <ChatSidebar :conversations="conversations" :active-id="routeConversationId" :loading="historyLoading" :mobile-open="mobileHistoryOpen" @new="newConversation" @select="openConversation" @rename="rename" @delete="removeConversation" @close="mobileHistoryOpen = false" />
+    <ChatSidebar :conversations="conversations" :active-id="routeConversationId" :loading="historyLoading" :loading-more="historyLoadingMore" :has-more="historyCursor !== null" :error="historyError" @load-more="loadMoreHistory" @retry="retryHistory" :mobile-open="mobileHistoryOpen" @new="newConversation" @select="openConversation" @rename="rename" @delete="removeConversation" @close="mobileHistoryOpen = false" />
     <button v-if="mobileHistoryOpen" type="button" class="chat-sidebar-scrim" aria-label="关闭聊天记录" @click="mobileHistoryOpen = false" />
     <div class="chat-main">
       <header class="chat-toolbar">

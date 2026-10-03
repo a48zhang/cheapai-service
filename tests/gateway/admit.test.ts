@@ -1,3 +1,7 @@
+import { parseRpmLimit, parseChannelLimits, UNLIMITED_RPM } from '../../apps/worker/config';
+import { consumeRateWindow } from '../../apps/worker/limits/rate-window';
+import { updateUser } from '../../apps/worker/admin/update-user';
+import { updateChannel } from '../../apps/worker/admin/channel-repository';
 import { runInDurableObject } from 'cloudflare:test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { admitRequest, GatewayAdmissionError } from '../../apps/worker/gateway/admit';
@@ -242,5 +246,79 @@ describe('G03 history constraints and retry exclusions', () => {
     const next = await admitRequest(testEnv, subject, request, { ...options(), excludeCandidates: [{ channelId: tried.channel.id, protocol: tried.mapping.protocol }] });
     try { expect(next.selected.candidate.channel.id).toBe('g03-channel'); }
     finally { await next.lease.release(); }
+  });
+});
+
+describe('BV02 finite RPM configuration and identity boundaries', () => {
+  it.each([1, 4096])('accepts finite %s consistently in config, admin writes and Gate admission', async limit => {
+    expect(parseRpmLimit(limit)).toBe(limit);
+    expect(parseChannelLimits({ rpmLimit: limit }).rpmLimit).toBe(limit);
+    expect(consumeRateWindow(null, { now, windowMs: 60000, limit, operationId: 'finite-operation' }).allowed).toBe(true);
+    await prepare(testEnv.DB, "UPDATE users SET role='admin' WHERE id='g03-user'").run();
+    const user = await updateUser(testEnv.DB, 'g03-user', 1, { rpmLimit: limit }, { actorId: 'g03-user', operationId: 'rpm-user-update', now });
+    const channel = await updateChannel(testEnv.DB, 'g03-channel', 1, { rpmLimit: limit }, { actorId: 'g03-user', operationId: 'rpm-channel-update', now });
+    expect(user.rpm_limit).toBe(limit); expect(channel.rpmLimit).toBe(limit);
+    subject = { ...subject, user: { ...subject.user, version: user.version, rpmLimit: limit } };
+    const admitted = await admitRequest(testEnv, subject, request, options());
+    expect(admitted.lease.user.handle.requestId).toBe(admitted.request.id);
+    expect((await admitted.lease.release()).complete).toBe(true);
+  });
+  it.each([4097, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])('rejects unsupported finite %s at both admin entry points', async limit => {
+    expect(() => parseRpmLimit(limit)).toThrow();
+    expect(() => parseChannelLimits({ rpmLimit: limit })).toThrow();
+    expect(() => consumeRateWindow(null, { now, windowMs: 60000, limit, operationId: 'invalid-operation' })).toThrow();
+    await expect(updateUser(testEnv.DB, 'g03-user', 1, { rpmLimit: limit }, { actorId: 'g03-user', operationId: 'bad-user-rpm', now })).rejects.toMatchObject({ code: 'invalid_request' });
+    await expect(updateChannel(testEnv.DB, 'g03-channel', 1, { rpmLimit: limit }, { actorId: 'g03-user', operationId: 'bad-channel-rpm', now })).rejects.toMatchObject({ code: 'invalid_request' });
+  });
+  it.each([undefined, null, 0, UNLIMITED_RPM])('preserves unlimited config form %#', value => {
+    expect(parseRpmLimit(value)).toBe(UNLIMITED_RPM);
+    expect(parseChannelLimits({ rpmLimit: value }).rpmLimit).toBe(UNLIMITED_RPM);
+  });
+  it.each(['user', 'channel'])('refuses stored over-limit %s RPM without registering a request', async kind => {
+    if (kind === 'user') {
+      await prepare(testEnv.DB, 'UPDATE users SET rpm_limit=4097').run();
+      subject = { ...subject, user: { ...subject.user, rpmLimit: 4097 } };
+    } else await prepare(testEnv.DB, 'UPDATE channels SET rpm_limit=4097').run();
+    await expect(admitRequest(testEnv, subject, request, options())).rejects.toBeInstanceOf(Error);
+    expect(await count()).toBe(0); expect(await active('user:g03-user')).toBe(0);
+  });
+  it.each(['', 'bad id', 'x'.repeat(129)])('rejects invalid internal logical RPM identity %#', async userRateOperationId => {
+    await expect(admitRequest(testEnv, subject, request, { ...options(), userRateOperationId })).rejects.toMatchObject({ code: 'invalid_request' });
+    expect(await count()).toBe(0);
+  });
+});
+
+describe('BV02 ambiguous acquisition recovery identity', () => {
+  it('recovers and releases using the original lease ID and logical rate parameters', async () => {
+    const calls: Parameters<ReturnType<LeaseBinding['get']>['acquire']>[0][] = [];
+    const names = new Map<string, string>();
+    let failed = false;
+    const gate: LeaseBinding = {
+      idFromName(name) { const id = testEnv.GATE.idFromName(name); names.set(id.toString(), name); return id; },
+      get(id) {
+        const native = testEnv.GATE.get(id);
+        return {
+          async acquire(input) {
+            if (names.get(id.toString()) === 'user:g03-user') calls.push(structuredClone(input));
+            const result = await native.acquire(input);
+            if (!failed) {
+              failed = true;
+              const dispose = (result as unknown as Record<symbol, unknown>)[(Symbol as SymbolConstructor & { readonly dispose: symbol }).dispose];
+              if (typeof dispose === 'function') dispose.call(result);
+              throw new Error('Lost acquisition acknowledgement');
+            }
+            return result;
+          },
+          renew: input => native.renew(input), release: input => native.release(input),
+        };
+      },
+    };
+    await expect(admitRequest({ ...testEnv, GATE: gate }, subject, request, { ...options(), userRateOperationId: 'logical-recovery-operation' }))
+      .rejects.toMatchObject({ cleanup: { complete: true } });
+    expect(calls).toHaveLength(2);
+    expect(calls[1]).toEqual(calls[0]);
+    expect(calls[0]?.rate?.operationId).toBe('logical-recovery-operation');
+    expect(calls[0]?.requestId).not.toBe('logical-recovery-operation');
+    expect(await active('user:g03-user')).toBe(0); expect(await count()).toBe(0);
   });
 });

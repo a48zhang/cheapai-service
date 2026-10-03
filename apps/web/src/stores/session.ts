@@ -1,3 +1,4 @@
+import type { SessionIdentity } from '../api/session-expiry.js';
 import { computed, reactive, readonly } from 'vue';
 import { ApiClientError } from '../api/client.js';
 import { authApi } from '../api/auth.js';
@@ -15,6 +16,7 @@ export class RegistrationIdentityError extends Error {
   }
 }
 export interface SessionState {
+  expiry: { readonly reason: 'expired'; readonly userId: string; readonly generation: number } | null;
   status: 'unknown' | 'anonymous' | 'authenticated' | 'unavailable';
   /** Last known identity may remain when status=unavailable; it is not fresh authorization. */
   user: PublicUser | null;
@@ -26,12 +28,25 @@ export interface SessionState {
 const asError = (value: unknown) => value instanceof Error ? value : new Error('会话请求失败。');
 
 export function createSessionStore(api: AuthApi = authApi) {
-  const state = reactive<SessionState>({ status: 'unknown', user: null, pending: null, error: null, publicSettings: null, settingsError: null });
+  const state = reactive<SessionState>({ expiry: null, status: 'unknown', user: null, pending: null, error: null, publicSettings: null, settingsError: null });
   let epoch = 0;
   let writes = 0;
   let writeTail: Promise<unknown> = Promise.resolve();
   let settingsEpoch = 0;
-  const applyUser = (user: PublicUser | null) => { state.user = user; state.status = user === null ? 'anonymous' : 'authenticated'; state.error = null; };
+  const applyUser = (user: PublicUser | null) => { state.expiry = null; state.user = user; state.status = user === null ? 'anonymous' : 'authenticated'; state.error = null; };
+
+  function requestIdentity(): SessionIdentity | null {
+    return state.status === 'authenticated' && state.user && state.pending === null
+      ? { generation: epoch, userId: state.user.id } : null;
+  }
+  function expire(identity: SessionIdentity): boolean {
+    if (identity.generation !== epoch || state.status !== 'authenticated' || state.user?.id !== identity.userId
+      || writes > 0 || state.pending !== null) return false;
+    epoch += 1;
+    state.expiry = { reason: 'expired', userId: identity.userId, generation: identity.generation };
+    state.user = null; state.status = 'anonymous'; state.pending = null; state.error = null;
+    return true;
+  }
 
   /** Cookie-changing requests are serialized as well as guarding state commits.
    * Aborting fetch alone cannot undo a Set-Cookie already sent by the server. */
@@ -86,7 +101,7 @@ export function createSessionStore(api: AuthApi = authApi) {
     state: readonly(state),
     isAuthenticated: computed(() => state.status === 'authenticated'),
     isAdmin: computed(() => state.status === 'authenticated' && state.user?.role === 'admin'),
-    bootstrap, restore,
+    bootstrap, restore, requestIdentity, expire,
     login: (input: LoginInput) => mutate('login', async () => { const user = await api.login(input); return { value: user, user }; }),
     logout: () => mutate('logout', async () => { await api.logout(); return { value: undefined, user: null }; }),
     register: (input: RegisterInput): Promise<RegistrationResult> => mutate('register', async () => {

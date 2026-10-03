@@ -15,7 +15,8 @@
     "test": "vitest run",
     "test:node": "vitest run --project node",
     "test:workers": "vitest run --project workers",
-    "check": "pnpm run typecheck && pnpm run test && pnpm run build"
+    "check": "pnpm run typecheck && pnpm run test && pnpm run build",
+    "staging:check": "pnpm --filter @sub2api/web run build && pnpm --filter @sub2api/worker exec wrangler deploy --env staging --dry-run --strict --outdir ../../.wrangler/build-staging"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "0.22.0",

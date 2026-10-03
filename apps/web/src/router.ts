@@ -9,9 +9,14 @@ export function safeReturnPath(value: unknown, fallback = '/'): string {
   if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//') || /[\\\u0000-\u0020\u007f]/u.test(value)) return fallback;
   let decoded: string; try { decoded = decodeURIComponent(value); } catch { return fallback; }
   if (decoded.startsWith('//') || /[\\\u0000-\u0020\u007f]/u.test(decoded)) return fallback;
-  const path = decoded.split(/[?#]/u)[0] ?? '';
+  // Normalize dot segments before checking application-only destinations.
+  let path: string;
+  try { path = new URL(decoded, 'https://app.invalid').pathname; } catch { return fallback; }
   if (path === '/api' || path.startsWith('/api/') || path === '/v1' || path.startsWith('/v1/') || path === '/login' || path === '/session-unavailable') return fallback;
   return value;
+}
+export function sessionLoginLocation(returnTo: unknown) {
+  return { path: '/login', query: { returnTo: safeReturnPath(returnTo) } };
 }
 const page = (title: string, description: string) => defineComponent({ setup: () => () => h('section', [h('h1', title), h('p', description)]) });
 const loginModules = import.meta.glob<{ default: Component }>('./views/LoginView.vue');
@@ -58,7 +63,7 @@ export function createAppRouter(history: RouterHistory = createWebHistory(), ses
     }
     if (to.meta.requiresAuth) {
       if (session.state.status === 'unavailable') return { path: '/session-unavailable', query: { returnTo: to.fullPath } };
-      if (session.state.status !== 'authenticated') return { path: '/login', query: { returnTo: to.fullPath } };
+      if (session.state.status !== 'authenticated') return sessionLoginLocation(to.fullPath);
     }
     if (to.meta.requiresAdmin && session.state.user?.role !== 'admin') return '/forbidden';
     if (to.path === '/login' && session.state.status === 'authenticated') return safeReturnPath(to.query.returnTo);

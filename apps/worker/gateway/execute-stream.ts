@@ -6,17 +6,43 @@ import { createResponsesUsageSession } from '@sub2api/apicompat/usage/responses'
 import { createMessagesUsageSession } from '@sub2api/apicompat/usage/messages';
 import type { RequestAdapter, StreamAdapter, StreamSession } from '@sub2api/apicompat/types/adapter';
 import type { ProtocolError, SseFrame, TerminalState, UsageSnapshot } from '@sub2api/apicompat/types/shared';
-import { readChannelForForwarding } from '../admin/channel-repository';
-import type { ChannelKeyring } from '../admin/channel-secrets';
+import { readChannelForForwarding } from '../catalog/channels';
+import type { ChannelKeyring } from '../catalog/channel-secrets';
 import { DEFAULT_CONFIG } from '../config';
-import { startLeaseLifecycle } from '../limits/lease-lifecycle';
-import type { LeaseLifecycle } from '../limits/lease-lifecycle';
+import { createRequestLifecycle } from './request-lifecycle';
+import type { RequestStopReason } from './request-lifecycle';
 import type { DualLeaseCleanupReport } from '../limits/dual-lease';
 import { finishRequest, getRequest, markRequestStarted } from './request-repository';
 import type { AdmittedRequest } from './admit';
 import { prepare } from '../db';
 import { sendUpstream, UpstreamTransportError } from './transport';
 import type { UpstreamExchange, UpstreamFetch, UpstreamRequestOptions } from './transport';
+
+/** Best-effort metadata hook: never consume the body or change transport errors. */
+async function observeUpstreamResponse(
+  callback: ((response: { channelId: string; status: number; retryAfter: string | null }) => void | Promise<void>) | undefined,
+  channelId: string, response: Response, signal: AbortSignal,
+): Promise<void> {
+  if (!callback) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: (() => void) | undefined;
+  try {
+    const observation = Object.freeze({ channelId, status: response.status, retryAfter: response.headers.get('retry-after') });
+    await Promise.race([
+      Promise.resolve().then(() => callback(observation)).catch(() => undefined),
+      new Promise<void>(resolve => { timer = setTimeout(resolve, 1_000); }),
+      new Promise<void>(resolve => {
+        onAbort = resolve;
+        signal.addEventListener('abort', onAbort, { once: true });
+        if (signal.aborted) resolve();
+      }),
+    ]);
+  } catch { /* Observation must never replace upstream classification or cleanup. */ }
+  finally {
+    if (timer !== undefined) clearTimeout(timer);
+    if (onAbort) signal.removeEventListener('abort', onAbort);
+  }
+}
 
 export interface StreamExecutionDependencies { database: D1Database; keyring: ChannelKeyring; fetch?: UpstreamFetch; now?: () => number }
 export interface StreamExecutionAdapters<Input, Output> { request: RequestAdapter<Input, Output>; stream: StreamAdapter<SseFrame, SseFrame> }
@@ -26,6 +52,8 @@ export interface StreamCompletion {
 }
 export interface StreamExecutionOptions {
   signal?: AbortSignal;
+  /** Internal, bounded metadata-only hook, invoked before reading any response body. */
+  onUpstreamResponse?: (response: { channelId: string; status: number; retryAfter: string | null }) => void | Promise<void>;
   transport?: Pick<UpstreamRequestOptions, 'headersTimeoutMs' | 'idleTimeoutMs' | 'maxDurationMs' | 'messages' | 'customHeaders' | 'downstreamHeaders'>;
   maxBufferedBytes?: number;
   maxFrameBytes?: number;
@@ -86,7 +114,6 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
       !await markRequestStarted(database, record.id, record.user_id, now())) throw new StreamExecutionError('invalid_admission');
   const usageSession = record.upstream_protocol === 'chat' ? createChatUsageSession()
     : record.upstream_protocol === 'responses' ? createResponsesUsageSession() : createMessagesUsageSession();
-  let lifecycle: LeaseLifecycle | undefined;
   let exchange: UpstreamExchange | undefined;
   let inputBytes: AsyncGenerator<Uint8Array, void, unknown> | undefined;
   let session: StreamSession<SseFrame, SseFrame> | undefined;
@@ -113,27 +140,23 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
   let lineHasBytes = false;
   let skipLf = false;
   const parser = new SseByteParser();
-  const stopController = new AbortController();
-  let stopReason: 'cancelled' | 'request_timeout' | undefined;
-  let totalTimer: ReturnType<typeof setTimeout> | undefined;
+  let stopReason: RequestStopReason | undefined;
   let yieldTimer: ReturnType<typeof setTimeout> | undefined;
   let resumeYield: (() => void) | undefined;
   const totalMs = options.transport?.maxDurationMs ?? DEFAULT_CONFIG.requestMaxDurationMs;
   const requestedCompletionMs = options.completionTimeoutMs ?? DEFAULT_CONFIG.settlementRetryBudgetMs;
   const completionMs = Number.isSafeInteger(requestedCompletionMs) && requestedCompletionMs > 0 && requestedCompletionMs <= 60_000
     ? requestedCompletionMs : DEFAULT_CONFIG.settlementRetryBudgetMs;
-  let rejectInterrupted!: (error: Error) => void;
-  const interrupted = new Promise<never>((_resolve, reject) => { rejectInterrupted = reject; });
-  void interrupted.catch(() => undefined);
-  async function bounded<T>(task: () => Promise<T>, onTimeout?: () => void): Promise<{ ok: true; value: T } | { ok: false }> {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    try {
-      return await Promise.race([
-        Promise.resolve().then(task).then(value => ({ ok: true as const, value }), () => ({ ok: false as const })),
-        new Promise<{ ok: false }>(resolve => { timer = setTimeout(() => { onTimeout?.(); resolve({ ok: false }); }, completionMs); }),
-      ]);
-    } finally { if (timer !== undefined) clearTimeout(timer); }
-  }
+  const lifecycle = createRequestLifecycle(admission.lease, {
+    ...(options.signal === undefined ? {} : { signal: options.signal }), clock: now,
+    maxDurationMs: totalMs, completionTimeoutMs: completionMs, onStop: stop,
+  });
+  const { interrupted, bounded } = lifecycle;
+  lifecycle.addCleanup(() => {
+    if (yieldTimer !== undefined) clearTimeout(yieldTimer);
+    yieldTimer = undefined;
+    resumeYield?.(); resumeYield = undefined;
+  });
   async function markNotChargeable(): Promise<boolean> {
     try {
       const result = await prepare(database, `UPDATE requests SET billing_status='not_chargeable',updated_at=max(updated_at,?)
@@ -142,11 +165,9 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
       return result.changes === 1;
     } catch { return false; }
   }
-  function stop(reason: 'cancelled' | 'request_timeout'): void {
+  function stop(reason: RequestStopReason): void {
     if (finalizing || stopReason !== undefined) return;
     stopReason = reason;
-    stopController.abort();
-    rejectInterrupted(new Error('Stream lifecycle interrupted.'));
     if (exchange) {
       const state: TerminalState = reason === 'cancelled' ? { status: 'cancelled' } : { status: 'failed', error: problem(reason) };
       try { session?.finish(reason === 'cancelled' ? { kind: 'cancelled' } : { kind: 'error', error: problem(reason) }); } catch { /* Cleanup still runs. */ }
@@ -154,22 +175,17 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
       void finish(state);
     }
   }
-  const onSourceAbort = () => stop('cancelled');
 
   function finish(state: TerminalState): Promise<StreamCompletion> {
     if (finalizing) return finalizing;
     terminal = state;
-    if (totalTimer !== undefined) clearTimeout(totalTimer);
-    totalTimer = undefined;
     if (yieldTimer !== undefined) clearTimeout(yieldTimer);
     yieldTimer = undefined;
     resumeYield?.(); resumeYield = undefined;
-    options.signal?.removeEventListener('abort', onSourceAbort);
     finalizing = Promise.resolve().then(async () => {
-      exchange?.cancel();
       // A producer that ignores cancellation must not block persistence/release.
       void inputBytes?.return().catch(() => undefined);
-      parser.finish();
+      try { parser.finish(); } catch { /* Parser failure cannot strand resource cleanup. */ }
       pendingFrame.cancel();
       for (const queued of queue) queued.cancel();
       queue.length = 0;
@@ -197,14 +213,13 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
           hookSucceeded = hook.ok;
         }
       } finally {
-        const cleanupResult = await bounded(() => lifecycle ? lifecycle.close() : admission.lease.release());
-        cleanup = cleanupResult.ok ? cleanupResult.value : { complete: false,
-          outcomes: [admission.lease.channel, admission.lease.user].map(held => ({ subject: held.handle.subject, status: 'uncertain', rpcAttempts: 0, errorCode: 'unavailable' })) };
+        cleanup = await lifecycle.close();
       }
       const completed = { ...result, cleanup, hookSucceeded };
       resolveCompletion(completed);
       return completed;
     });
+    lifecycle.beginFinalization(state.status === 'completed' || state.status === 'incomplete');
     return finalizing;
   }
   function observe(frame: SseFrame): void {
@@ -244,9 +259,7 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
   try {
     if (![maxFrameBytes, maxQueuedBytes, maxInputChunkBytes, maxAdapterBytes].every(value => Number.isSafeInteger(value) && value > 0 && value <= 16 * 1024 * 1024)) throw new Error('Invalid stream byte limits');
     if (!Number.isSafeInteger(totalMs) || totalMs <= 0 || totalMs > 2_147_483_647 || requestedCompletionMs !== completionMs) throw new Error('Invalid stream deadlines');
-    options.signal?.addEventListener('abort', onSourceAbort, { once: true });
-    if (options.signal?.aborted) stop('cancelled');
-    totalTimer = setTimeout(() => stop('request_timeout'), totalMs);
+    lifecycle.start();
     if (stopReason !== undefined) throw new Error('Already cancelled');
     if (adapters.request.from !== record.downstream_protocol || adapters.request.to !== record.upstream_protocol ||
         adapters.stream.from !== record.upstream_protocol || adapters.stream.to !== record.downstream_protocol) throw new Error('Adapter direction mismatch');
@@ -262,7 +275,6 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
     const boundedInput = { ...admission.requestForAdapter.request, stream: true };
     const converted = adapters.request.convert(boundedInput as Input, { targetModel: record.upstream_model });
     if (!converted.ok) { startupFailure = 'invalid_request'; throw new Error('Request conversion rejected.'); }
-    lifecycle = startLeaseLifecycle(admission.lease, { clock: now, signal: stopController.signal });
     try {
       exchange = await sendUpstream({ ...options.transport, baseUrl: channel.baseUrl, upstreamProtocol: record.upstream_protocol,
         upstreamKey: channel.upstreamKey, stream: true, body: JSON.stringify(converted.value), signal: lifecycle.signal },
@@ -275,6 +287,12 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
       upstreamDispatched = !(error instanceof UpstreamTransportError && error.execution === 'not_started');
       throw error;
     }
+    lifecycle.attachUpstream(() => exchange!.cancel());
+    await observeUpstreamResponse(options.onUpstreamResponse, record.channel_id, exchange.response, lifecycle.signal);
+    // Observation is an await boundary after transport ownership transfers.
+    // A stop here may have finalized before an output controller existed;
+    // never return a fresh body whose pull would then wait forever.
+    if (finalizing || lifecycle.signal.aborted) throw new Error('Stream stopped before response publication');
     if (!exchange.response.ok || !exchange.response.headers.get('content-type')?.toLowerCase().startsWith('text/event-stream') || !exchange.response.body) throw new Error('Expected upstream SSE');
     inputBytes = readBoundedBytes(exchange.response.body, new ByteBudget(maxInputChunkBytes), lifecycle.signal);
     void exchange.done.then(result => {

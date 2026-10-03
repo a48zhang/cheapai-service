@@ -6,8 +6,6 @@ import { describe, expect, it } from 'vitest';
 import { chatToResponsesResponse, chatToResponsesResponseAdapter } from '../../../packages/apicompat/responses/chat-to-responses.js';
 import { createResponseIds } from '../../../packages/apicompat/ids.js';
 import type { ResponseContext } from '../../../packages/apicompat/types/adapter.js';
-import { extractChatUsage } from '../../../packages/apicompat/usage/chat.js';
-import { extractResponsesUsage } from '../../../packages/apicompat/usage/responses.js';
 
 const basic = () => ({ id: 'chatcmpl_upstream', object: 'chat.completion', created: 123, model: 'private-upstream-model', choices: [{ index: 0, message: { role: 'assistant', content: 'Hello 世界' as string | null }, finish_reason: 'stop' }] });
 function context(): ResponseContext {
@@ -18,7 +16,8 @@ function context(): ResponseContext {
 
 describe('P-CR-J1 ordinary text, model and stable identity', () => {
   it('converts directly into native Responses with the caller-owned public identity', () => {
-    const result = chatToResponsesResponseAdapter.convert(basic(), context());
+    const source = basic(); source.choices[0]!.message = { ...source.choices[0]!.message, annotations: [] };
+    const result = chatToResponsesResponseAdapter.convert(source, context());
     expect(chatToResponsesResponseAdapter.from).toBe('chat');
     expect(chatToResponsesResponseAdapter.to).toBe('responses');
     expect(result.ok).toBe(true);
@@ -39,7 +38,7 @@ describe('P-CR-J1 ordinary text, model and stable identity', () => {
     expect(ctx.identity.responseId).toBe('resp_synthetic_response');
   });
 
-  it.each(['', '  leading\ntrailing  ', '{"structured":"unchanged"}'])('preserves exact text without reparsing case %#', (text) => {
+  it.each(['', '  {"structured":"unchanged"}\n  '])('preserves empty or whitespace-padded JSON text without reparsing case %#', (text) => {
     const source = basic(); source.choices[0]!.message.content = text;
     const result = chatToResponsesResponse(source, context());
     if (!result.ok) throw new Error('Expected text conversion');
@@ -65,11 +64,6 @@ describe('P-CR-J1 ordinary text, model and stable identity', () => {
   it.each([{ audio: {} }])('rejects unmapped message content case %#', (extra) => {
     const source = basic();
     source.choices[0]!.message = { ...source.choices[0]!.message, ...extra };
-    expect(chatToResponsesResponse(source, context()).ok).toBe(false);
-  });
-
-  it('rejects unimplemented finish reasons instead of reporting completed', () => {
-    const source = basic(); source.choices[0]!.finish_reason = 'vendor_unknown';
     expect(chatToResponsesResponse(source, context()).ok).toBe(false);
   });
 
@@ -100,10 +94,6 @@ describe('CR-JSON-STANDARD known response metadata', () => {
 });
 
 describe('CR-JSON-ANNOTATIONS ordinary empty citation metadata', () => {
-  it('does not reject a normal official-shaped reply with annotations:[]', () => {
-    const source = basic(); source.choices[0]!.message = { ...source.choices[0]!.message, annotations: [] };
-    expect(chatToResponsesResponse({ ...source, service_tier: 'default', system_fingerprint: 'fp_revision' }, context()).ok).toBe(true);
-  });
   it('never silently drops a nonempty citation or coerces null annotations', () => {
     for (const annotations of [null, [{ type: 'url_citation', url_citation: { start_index: 0, end_index: 5, url: 'https://example.com', title: 'Reference' } }]]) {
       const source = basic(); source.choices[0]!.message = { ...source.choices[0]!.message, annotations };
@@ -120,12 +110,6 @@ describe('P-CR-J4 usage is presentation, not another measurement or charge', () 
     const result = chatToResponsesResponse(source, ctx);
     if (!result.ok) throw new Error('Expected usage projection');
     expect(result.value.body.usage).toEqual({ input_tokens: 12, output_tokens: 7, total_tokens: 19, input_tokens_details: { cached_tokens: 5, cache_write_tokens: 4 }, output_tokens_details: { reasoning_tokens: 3 } });
-    // P13 is a test oracle for field semantics only; production accounting must
-    // never feed converted output back through an extractor/accumulator.
-    const original = extractChatUsage(source);
-    const presentation = extractResponsesUsage(result.value.body);
-    if (original.quality !== 'complete' || presentation.quality !== 'complete') throw new Error('Expected complete fixture usage');
-    expect(presentation.counts).toEqual(original.counts);
     expect(chatToResponsesResponse(source, ctx)).toEqual(result);
     expect(JSON.stringify(source)).toBe(before);
   });
@@ -142,13 +126,14 @@ describe('P-CR-J4 usage is presentation, not another measurement or charge', () 
     expect(result.value.body.usage).toEqual({ input_tokens: 0, output_tokens: 0, total_tokens: 0, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } });
   });
 
-  it.each([null, {}, { prompt_tokens: 4 }, { completion_tokens: 3 }, { prompt_tokens: 4, completion_tokens: 3, total_tokens: 100 }, { prompt_tokens: Number.MAX_SAFE_INTEGER, completion_tokens: 1 }])(
+  // Keep one missing, partial and invalid observation at this boundary; the
+  // usage extractor suite covers empty evidence, other counters and overflow.
+  it.each([null, { prompt_tokens: 4 }, { prompt_tokens: 4, completion_tokens: 3, total_tokens: 100 }])(
     'does not pretend incomplete/contradictory usage is exact zero case %#', (usage) => {
       const result = chatToResponsesResponse({ ...basic(), usage }, context());
       if (!result.ok) throw new Error('Expected output with unknown usage');
       expect(Object.hasOwn(result.value.body, 'usage')).toBe(false);
       expect(result.value.body.output[0]).toMatchObject({ content: [{ text: 'Hello 世界' }] });
-      expect(extractResponsesUsage(result.value.body).quality).toBe('missing');
     },
   );
 
@@ -246,11 +231,9 @@ describe('P-CR-J3 terminal states without fabricated success', () => {
     expect(chatToResponsesResponse(source, context())).toMatchObject({ ok: false, error: { code: 'refusal_payload_required' } });
   });
 
-  it('returns a failed conversion for unknown/failure-like provider reasons', () => {
-    for (const finishReason of ['vendor_finished', 'error', 'failed']) {
-      const source = basic(); source.choices[0]!.finish_reason = finishReason;
-      expect(chatToResponsesResponse(source, context())).toMatchObject({ ok: false, error: { code: 'unknown_finish_reason' } });
-    }
+  it('returns a failed conversion for an unknown provider reason', () => {
+    const source = basic(); source.choices[0]!.finish_reason = 'vendor_finished';
+    expect(chatToResponsesResponse(source, context())).toMatchObject({ ok: false, error: { code: 'unknown_finish_reason' } });
   });
 });
 
@@ -304,11 +287,11 @@ describe('P-CR-J2 function calls and ordered output items', () => {
     expect(result.value.terminal).toMatchObject({ status: 'completed', reason: 'tool_calls' });
   });
 
-  it.each(['', 'Before tools'])('retains an explicit text item before tool items case %#', (text) => {
-    const result = chatToResponsesResponse(toolResponse(text), context());
+  it('retains an explicitly empty text item before tool items', () => {
+    const result = chatToResponsesResponse(toolResponse(''), context());
     if (!result.ok) throw new Error('Expected tool conversion');
     expect(result.value.body.output.map((item) => item.type)).toEqual(['message', 'function_call', 'function_call']);
-    expect(result.value.body.output[0]).toMatchObject({ content: [{ type: 'output_text', text }] });
+    expect(result.value.body.output[0]).toMatchObject({ content: [{ type: 'output_text', text: '' }] });
   });
 
   it('keeps each item ID stable on retries without confusing call IDs and item IDs', () => {

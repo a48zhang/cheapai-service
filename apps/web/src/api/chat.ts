@@ -1,3 +1,4 @@
+import { captureSessionIdentity, notifySessionExpiry } from './session-expiry.js';
 import { ApiClientError, createApiClient, readCsrfCookie } from './client.js';
 import { authApi } from './auth.js';
 import type { ApiClientOptions, Page } from './types.js';
@@ -124,6 +125,7 @@ export interface ChatApiOptions extends Pick<ApiClientOptions, 'fetch'> {
 
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 const text = (value: unknown, max = 512): value is string => typeof value === 'string' && value.length <= max && value.trim() === value;
+const contentText = (value: unknown, max = 1_000_000): value is string => typeof value === 'string' && value.length <= max;
 const nonEmptyText = (value: unknown, max = 512): value is string => text(value, max) && value.length > 0;
 const count = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 const positive = (value: unknown): value is number => count(value) && value > 0;
@@ -162,7 +164,7 @@ export function decodeConversation(value: unknown): Conversation {
 
 export function decodeChatMessage(value: unknown): ChatMessage {
   if (!object(value) || !nonEmptyText(value.id, 128) || !nonEmptyText(value.conversationId, 128)
-    || !count(value.turnIndex) || !role(value.role) || !text(value.content, 1_000_000) || !messageStatus(value.status)
+    || !count(value.turnIndex) || !role(value.role) || (!contentText(value.content) || (value.role === 'user' && !value.content.trim())) || !messageStatus(value.status)
     || !positive(value.variant) || typeof value.selected !== 'boolean' || !nullableText(value.requestId, 256)
     || !nullableText(value.groupId, 128) || !nullableText(value.modelId, 256) || !count(value.createdAt) || !count(value.updatedAt)
     || value.updatedAt < value.createdAt) invalid();
@@ -241,7 +243,7 @@ async function readSse(response: Response, handlers: ChatStreamHandlers): Promis
         userMessage: parsed.data.userMessage === null ? null : decodeChatMessage(parsed.data.userMessage), assistantMessage: decodeChatMessage(parsed.data.assistantMessage) };
       await handlers.onMeta?.(meta);
     } else if (parsed.event === 'delta') {
-      if (!object(parsed.data) || !text(parsed.data.text, 1_000_000)) invalid();
+      if (!object(parsed.data) || !contentText(parsed.data.text)) invalid();
       await handlers.onDelta?.(parsed.data.text);
     } else if (parsed.event === 'done') {
       if (!object(parsed.data) || !Object.hasOwn(parsed.data, 'message') || (Object.hasOwn(parsed.data, 'billingStatus') && parsed.data.billingStatus !== undefined && !text(parsed.data.billingStatus, 128))) invalid();
@@ -305,6 +307,7 @@ export function createChatApi(options: ChatApiOptions = {}) {
   const conversationPath = (id: string) => `/api/v1/chat/conversations/${validId(id, '会话编号')}`;
 
   async function sendStream(path: string, body: Record<string, unknown>, handlers: ChatStreamHandlers = {}, signal?: AbortSignal): Promise<ChatSendResult> {
+    const sessionIdentity = captureSessionIdentity();
     let token: string | null | undefined;
     try { token = await csrfToken(); } catch (cause) { throw new ApiClientError('request', '无法读取请求验证令牌。', { cause }); }
     if (token === null || token === undefined || token === '') throw new ApiClientError('request', '缺少请求验证令牌，请刷新页面后重试。', { code: 'csrf_missing' });
@@ -316,6 +319,7 @@ export function createChatApi(options: ChatApiOptions = {}) {
       if (signal?.aborted || (cause instanceof Error && cause.name === 'AbortError')) throw new ApiClientError('aborted', '请求已取消。', { cause });
       throw new ApiClientError('network', '网络请求失败，请检查连接后重试。', { cause });
     }
+    if (response.status === 401) notifySessionExpiry(sessionIdentity, path);
     if (!response.ok) return responseError(response);
     const mediaType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() ?? '';
     if (mediaType === 'text/event-stream') return readSse(response, handlers);
@@ -350,7 +354,7 @@ export function createChatApi(options: ChatApiOptions = {}) {
       return (await client.delete(conversationPath(id), { version }, { decode: decodeDeleted })).data;
     },
     async sendMessage(id: string, input: ChatSendInput, handlers: ChatStreamHandlers = {}, signal?: AbortSignal): Promise<ChatSendResult> {
-      if (!positive(input.conversationVersion) || !nonEmptyText(input.operationId, 128) || !nonEmptyText(input.groupId, 128) || !nonEmptyText(input.modelId, 256) || !text(input.content, 1_000_000) || (input.maxOutputTokens !== undefined && !positive(input.maxOutputTokens))) throw new ApiClientError('request', '聊天请求参数无效。');
+      if (!positive(input.conversationVersion) || !nonEmptyText(input.operationId, 128) || !nonEmptyText(input.groupId, 128) || !nonEmptyText(input.modelId, 256) || (!contentText(input.content) || !input.content.trim()) || (input.maxOutputTokens !== undefined && !positive(input.maxOutputTokens))) throw new ApiClientError('request', '聊天请求参数无效。');
       return sendStream(`${conversationPath(id)}/messages`, bodyWithOutput({ operationId: input.operationId, conversationVersion: input.conversationVersion, groupId: input.groupId, modelId: input.modelId, content: input.content }, input.maxOutputTokens), handlers, signal);
     },
     async regenerate(id: string, input: ChatRegenerateInput, handlers: ChatStreamHandlers = {}, signal?: AbortSignal): Promise<ChatSendResult> {

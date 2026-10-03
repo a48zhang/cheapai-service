@@ -4,6 +4,7 @@ import type { GateCooldownClass, GateCooldownResult } from './gate';
 export const DEFAULT_RATE_COOLDOWN_MS = 60_000;
 export const DEFAULT_AUTH_COOLDOWN_MS = 30_000;
 export const MIN_CHANNEL_COOLDOWN_MS = 1_000;
+export const CHANNEL_COOLDOWN_WRITE_TIMEOUT_MS = 500;
 const RPC_DISPOSE = (Symbol as SymbolConstructor & { readonly dispose: symbol }).dispose;
 export interface CooldownBinding {
   idFromName(name: string): DurableObjectId;
@@ -14,10 +15,10 @@ export interface CooldownBinding {
 }
 export class CooldownClientError extends Error {
   readonly retryable: boolean;
-  constructor(readonly code: 'invalid_input' | 'invalid_response' | 'remote_rejected' | 'unavailable') {
+  constructor(readonly code: 'invalid_input' | 'invalid_response' | 'remote_rejected' | 'unavailable' | 'timeout') {
     super(`Channel cooldown: ${code}`);
     this.name = 'CooldownClientError';
-    this.retryable = code === 'unavailable';
+    this.retryable = code === 'unavailable' || code === 'timeout';
   }
 }
 export interface ChannelCooldownInput {
@@ -125,7 +126,17 @@ export async function recordChannelCooldown(
   // Even Retry-After: 0 gets a one-second local anti-hammering floor for these errors.
   const ttlMs = Math.max(MIN_CHANNEL_COOLDOWN_MS, parsed ?? (input.status === 429 ? DEFAULT_RATE_COOLDOWN_MS : DEFAULT_AUTH_COOLDOWN_MS));
   const stub = channelStub(binding, input.channelId);
-  const cooldown = await callCooldown(() => stub.setCooldown({ ttlMs, errorClass }), true);
-  if (!cooldown.active) throw new CooldownClientError('invalid_response');
-  return { applied: true, cooldown };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    // A deadline bounds the caller, not the RPC: a late write may still commit.
+    // callCooldown keeps ownership of late RPC-result disposal.
+    const cooldown = await Promise.race([
+      callCooldown(() => stub.setCooldown({ ttlMs, errorClass }), true),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new CooldownClientError('timeout')), CHANNEL_COOLDOWN_WRITE_TIMEOUT_MS);
+      }),
+    ]);
+    if (!cooldown.active) throw new CooldownClientError('invalid_response');
+    return { applied: true, cooldown };
+  } finally { if (timer !== undefined) clearTimeout(timer); }
 }

@@ -7,7 +7,7 @@ export interface DualLeaseInput {
   /** Trusted authenticated user ID. API Key IDs must never be used as this subject. */
   userId: string;
   channelId: string;
-  /** One server-generated ID per logical request; do not run competing lifecycles for it. */
+  /** One server-generated lease/D1 ID per candidate; do not run competing lifecycles for it. */
   requestId: string;
   user: Omit<LeaseAcquireInput, 'requestId'>;
   channel: Omit<LeaseAcquireInput, 'requestId'>;
@@ -63,12 +63,16 @@ function snapshot(requestId: string, limits: DualLeaseInput['user']): LeaseAcqui
   if (!Number.isSafeInteger(limits.limit) || limits.limit < 0 || !Number.isSafeInteger(limits.ttlMs) || limits.ttlMs <= 0
     || !Number.isSafeInteger(Date.now() + limits.ttlMs)) throw new LeaseClientError('invalid_input');
   if (limits.rate !== undefined) {
-    fields(limits.rate, ['limit', 'windowMs']);
+    fields(limits.rate, ['limit', 'windowMs'], ['operationId']);
+    if (limits.rate.operationId !== undefined && (typeof limits.rate.operationId !== 'string'
+      || limits.rate.operationId.length > 128 || !/^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(limits.rate.operationId))) {
+      throw new LeaseClientError('invalid_input');
+    }
     if (!Number.isSafeInteger(limits.rate.limit) || limits.rate.limit < 0 || limits.rate.limit > MAX_RATE_WINDOW_OPERATIONS
       || !Number.isSafeInteger(limits.rate.windowMs) || limits.rate.windowMs <= 0) throw new LeaseClientError('invalid_input');
   }
   return Object.freeze({ requestId, limit: limits.limit, ttlMs: limits.ttlMs,
-    ...(limits.rate === undefined ? {} : { rate: Object.freeze({ ...limits.rate }) }),
+    ...(limits.rate === undefined ? {} : { rate: Object.freeze({ ...limits.rate, operationId: limits.rate.operationId ?? requestId }) }),
   });
 }
 
