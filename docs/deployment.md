@@ -1,54 +1,38 @@
 # 部署步骤
 
-更新：2026-10-03；本轮实现基于 `54d71d5d74a6cadc83c3e6acdb3e9cb866efaa2a`，未执行推送或远程发布。CLI 用法与说明沿用 2026-09-06 在 Wrangler **4.129.0** 的历史核对；执行时仍需核对本机版本、目标环境和命令输出。本文是操作手册，不是本次远程发布成功记录。
+更新：2026-10-03；配置基线为 main `fd6ce3d37de87239a7474a04ab85b83c96f7df11`，本次清理移除共享 staging 的可执行入口。共享 staging 已于 2026-10-03 完成永久退役，相关 Worker、D1、KV 和 Gate DO 已删除并回读确认；这次文档更新不是删除或发布成功证明。历史资源与证据见[退役记录](staging-resources.md)。
 
-先读[管理员配置顺序](admin-guide.md)，再按本文准备和发布。仓库已有 staging 资源记录，production 仍含占位配置；不要重复创建已有资源。网页聊天 9 月 12 日的授权失败是[历史记录](web-chat-delivery.md)，今天的授权、部署版本与迁移水位应重新查询。
+先读[管理员配置顺序](admin-guide.md)。正式入口为 https://cheapai.dev，www 入口由 Worker 重定向至 canonical origin。分支验证使用[每个 PR 独立的预发](pr-previews.md)；不要重建旧共享 staging，也不要以历史验证结果代替本次验收。
 
-## 预发快速准备（本轮入口）
+## 发布前准备
 
-从仓库根目录执行 `pnpm run staging:check`。该命令先构建前端，再用锁定的 Wrangler 对 **staging** 执行 `deploy --dry-run --strict`，输出到忽略提交的 `.wrangler/build-staging`；不会上传、应用远程迁移、配置 Secrets 或发布。Windows 可用 `pnpm.cmd run staging:check`。它只验证打包和配置，不替代测试，也不证明云端可用。
+从仓库根目录执行 `pnpm run production:check`（Windows 可用 `pnpm.cmd`）。它先构建前端，再对 **production** 执行 `deploy --dry-run --strict`，输出到忽略提交的 `.wrangler/build-production`；不会上传、应用远程迁移、配置 Secrets 或发布。此检查只验证打包和配置，不证明线上功能可用。
 
-本轮 `staging:check` 退出 0（前端类型检查/构建及 staging dry-run 通过）。Wrangler 4.129.0 仍提示顶层 `send_email` 未继承、binding 名为 `undefined`；这里 staging 的空邮件绑定是有意配置，输出中没有 `EMAIL`。不要为消除提示添加 `.invalid` 发件身份或提前启用邮件。该警告不代表邮件已验证。
+发布者必须核对目标账户及现有资源，不能重复创建或替换：
 
-以下都是仓库已有的配置记录，本轮未修改或重新创建资源；发布者必须在目标账户复核其存在和归属：
-
-| staging 项目 | 已记录值 |
+| production 项目 | 配置值 |
 | --- | --- |
 | Cloudflare account | `4ac5221079fd3481ce2d92f1d1e049cd` |
-| Worker | `sub2api-cloudflare-staging` |
-| D1 / `DB` | `sub2api-cloudflare-staging` / `50fe8c8c-6945-4a15-a3f6-83904632aec2` |
-| KV / `CACHE` | `6fe5850647504132a0ce70f2c5bd2056` |
-| 公网 origin | `https://sub2api-cloudflare-staging.alphazhang689.workers.dev` |
+| Worker | `sub2api-cloudflare-production` |
+| D1 / `DB` | `sub2api-cloudflare-production` / `d85930ad-8e4f-41b7-9fb6-ddf97719e41d` |
+| KV / `CACHE` | `3da22af80f0946cdbb9cd85caee9810d` |
+| 公网 origin | `https://cheapai.dev` |
+| routes | `cheapai.dev/*`、`www.cheapai.dev/*` |
 
-2026-10-03 本轮准备环境的 `wrangler whoami` 返回 **未认证**。因此不能确认远程资源、现有部署、Secrets 名称清单和迁移水位；不是缺少 ID，也不是已部署成功。不要使用临时 preview 账户替代这个 staging 账户。
-
-部署者在自己的受控终端准备好现有 Cloudflare 身份后，可从仓库根目录做以下只读核对（不会读取 Secret 值）：
+以下为只读核对，不读取 Secret 值：
 
 ```sh
 pnpm --filter @sub2api/worker exec wrangler whoami
-pnpm --filter @sub2api/worker exec wrangler d1 info sub2api-cloudflare-staging --env staging
-pnpm --filter @sub2api/worker exec wrangler kv namespace list --env staging
-pnpm --filter @sub2api/worker exec wrangler d1 migrations list DB --env staging --remote
-pnpm --filter @sub2api/worker exec wrangler secret list --env staging
-pnpm --filter @sub2api/worker exec wrangler deployments list --env staging
+pnpm --filter @sub2api/worker exec wrangler d1 info sub2api-cloudflare-production --env production
+pnpm --filter @sub2api/worker exec wrangler kv namespace list --env production
+pnpm --filter @sub2api/worker exec wrangler d1 migrations list DB --env production --remote
+pnpm --filter @sub2api/worker exec wrangler secret list --env production
+pnpm --filter @sub2api/worker exec wrangler deployments list --env production
 ```
 
-若 Worker 尚未存在，最后两项可能返回不存在，按首次发布处理；不要因此重建已有 D1/KV。核对实际 workers.dev 子域名与上述 origin 相同后再发布。
+发布前确认账户权限、备份、23 份迁移水位、渠道 keyring 保留版本与活动版本；只检查 Secret 名称不等于验证值。生产和 PR 均默认关闭邮件，启用前必须验证发件身份、投递与获批收件人，不能只改 readiness。真实上游调用、负载及恢复验证另行限定目标、权限和预算。
 
-发布前还需：
-
-- **渠道密钥**：确认该环境有 `CHANNEL_KEYRING_JSON` 和 `CHANNEL_ACTIVE_KEY_VERSION`；保留旧版本以解密现有渠道。只检查名称不等于验证格式或密钥可用，不在聊天、日志或仓库提供值
-- **数据与权限**：确认目标账户访问、D1/KV/Worker/DO 操作权限、备份与 23 份迁移的水位；实际应用迁移、bootstrap 和发布按下文单独执行
-- **邮件分阶段启用**：当前 `send_email: []`、`EMAIL_VERIFICATION_READY: "false"`，可先验收已有/初始管理员登录与控制台。启用验证邮件才需 `EMAIL` binding、验证过的 `EMAIL_FROM`、`EMAIL_HMAC_KEY` 和获批测试收件人；保持注册关闭，不能只改 readiness 为 true
-- **上游验收**：管理员另行配置真实上游渠道凭据、模型映射/价格、用户额度及分组，限定付费测试预算后再做真实协议和网页聊天请求
-
-这次准备不新增云端身份、不保存凭据、不应用远程迁移，也不执行发布。以下章节保留部署者的完整手动流程。环境 bindings/vars 明确列在 `env.staging`，不依赖继承本地 binding；参考 [Wrangler 环境配置](https://developers.cloudflare.com/workers/wrangler/configuration/)。
-
-## 本轮发布门槛
-
-先完成[执行计划](implementation-plan.md)的模块验证、V-DOC 与最终 V-INTEGRATION。浏览器因 Chromium socket EPERM 受阻的项目仍需重新运行，不能用历史结果代替。
-
-发布顺序为 R01 核对目标/备份 → R02 获授权后配置 → V-CONFIG → R03 staging → V-CLOUD、V-UPSTREAM、V-MAIL、V-CAPACITY、V-RESTORE → R04 production → V-PROD → D06。真实上游、邮件收件人、负载预算、隔离恢复和部署分别满足相应环境与授权后执行。当前没有本轮远程发布结果。
+先完成类型、测试、构建和 PR 验证，再核对生产目标、备份、迁移与发布授权；部署后核对真实域名和功能。PR 默认没有邮件或 cron，不能用其 smoke test 代替这些能力的验收。需要完整隔离验证环境时另行明确配置并授权，不能复用已删除的共享资源。本文后续命令是操作手册，不代表已执行。
 
 ## 1. 发布单元和配置基线
 
@@ -59,12 +43,12 @@ pnpm --filter @sub2api/worker exec wrangler deployments list --env staging
 | Node / pnpm / Wrangler | 24.19.0 / 11.19.0 / 4.129.0；遵守锁文件，不临时升级 |
 | compatibility_date | `2026-08-15`；不要用 `--latest` 随发布漂移 |
 | 前端 | `apps/web/dist`；相对 Worker 配置为 `../web/dist`，必须先构建 |
-| 静态路由 | `ASSETS`；`/api`、`/api/*`、`/v1`、`/v1/*`、`/healthz` 先运行 Worker，未知 API 不能落成 SPA HTML |
+| 静态路由 | `ASSETS`；production 的 `run_worker_first: true` 确保 www 重定向先于静态资源；本地/PR 的 API 和 health 路径先运行 Worker，未知 API 不能落成 SPA HTML |
 | D1 / KV | 每环境独立 `DB` / `CACHE`；配置中的零前缀 ID 均是占位符 |
 | DO | `GATE` → `Gate`，`migrations` 的 `v1` 使用 `new_sqlite_classes: ["Gate"]` |
 | 邮件 | `EMAIL` / `send_email`；所有 `.invalid` 发件人和收件人都是占位符 |
-| 定时任务 | 顶层、staging、production 均显式配置每五分钟一次 |
-| 公网入口 | local/production 保留 `workers_dev: false`；staging 显式 `workers_dev: true` 且有 PUBLIC_BASE_URL。preview URLs 关闭；每次发布仍要核对实际域名与访问结果 |
+| 定时任务 | 顶层本地配置和 production 显式配置每五分钟一次；PR previews 无 cron |
+| 公网入口 | local/production 为 `workers_dev: false`；production 使用 cheapai.dev 路由，PR 使用独立 workers.dev。version preview URLs 关闭；每次发布仍要核对域名与访问结果 |
 
 `remote: false` 描述本地开发 binding 行为，不会让发布后的 Worker 使用本地数据库。远程 D1 操作仍必须明确 `--remote --env ...`。这与已安装 Wrangler schema 及[开发 binding 模式](https://developers.cloudflare.com/workers/local-development/bindings-per-env/)一致。
 
@@ -87,7 +71,7 @@ pnpm.cmd run typecheck
 pnpm.cmd exec vitest run --project node
 pnpm.cmd exec vitest run --project workers
 pnpm.cmd --filter @sub2api/web run build
-node $deploymentWrangler deploy --config $deploymentConfig --env staging --dry-run --outdir .wrangler/build-staging
+node $deploymentWrangler deploy --config $deploymentConfig --env production --dry-run --outdir .wrangler/build-production
 ```
 
 每一步失败都停止发布。保存提交标识、锁文件 SHA-256、命令退出码、测试结果、迁移清单和 dry-run 摘要；不要保存包含密码/Key 的终端转录。若测试池输出入口静态分析警告，记录警告及实际执行结果，不能把“启动测试命令”当成通过。dry-run 不验证远程权限、邮件投递、真实供应商或网络策略。
@@ -104,18 +88,11 @@ node $deploymentWrangler dev --config $deploymentConfig --local --persist-to $de
 
 最后一条保持本地服务运行，在另一个终端访问 `http://localhost:8787/__scheduled` 触发本地维护。该入口仅是 `--test-scheduled` 开发功能，不能添加为公网管理接口。上述 HTTP 地址用于本地维护测试；浏览器登录测试另需与 `PUBLIC_BASE_URL` 一致的可信 HTTPS 本地入口，以保留 Secure Cookie 约束。
 
-## 3. 首次环境准备
+## 3. 环境选择
 
-先确认目标 Cloudflare 账户和获批的环境。以下命令会创建远程资源，只由部署者在确认目标后执行；已有环境先核对既有资源，不重复创建：
+production 已有独立资源和域名，bindings/vars 明确位于 `env.production`；不要重新创建数据库或复用旧资源。新 PR 的资源由[预发工作流](pr-previews.md)生成，每个 PR 独立 Worker、D1、KV 和 Gate DO。PR 配置使用 `--config .wrangler/pr-preview-<PR号>.json`，不使用已移除的命名 staging 环境。
 
-```powershell
-node $deploymentWrangler d1 create sub2api-cloudflare-staging --config $deploymentConfig --env staging --update-config=false
-node $deploymentWrangler kv namespace create sub2api-cloudflare-staging-cache --config $deploymentConfig --env staging --update-config=false
-```
-
-把返回的真实 D1 UUID、数据库名与 KV namespace ID 填入 `env.staging`，保留 binding 名 `DB`、`CACHE`。production 使用独立资源和对应 `env.production`；不要复用旧四个 Worker、测试库或其 Secrets。DO namespace 由部署配置中的类声明建立，不手工复制测试 DO 数据。
-
-在选定环境核对公网入口和实际流量：staging 配置启用 workers.dev，并设置对应 PUBLIC_BASE_URL；production 仍需准备独立的真实路由/自定义域名或明确启用的入口，不能直接沿用 staging 地址。不要将“上传成功”记为外网可用。staging 的 send_email 为空且 EMAIL_VERIFICATION_READY 为 false；只有完成真实发件身份和投递验证后才启用验证邮件。production 的 `.invalid` 地址是占位符。
+生产 `send_email: []`、`EMAIL_VERIFICATION_READY: "false"`；只有验证真实发件身份和投递后才启用验证邮件。不要为消除 Wrangler 的 binding 继承提示添加虚假发件身份。
 
 ## 4. 环境值和 Secrets
 
@@ -123,7 +100,7 @@ node $deploymentWrangler kv namespace create sub2api-cloudflare-staging-cache --
 
 | 名称 | 类型与要求 |
 | --- | --- |
-| `ENVIRONMENT` | 环境 `vars`，必须与目标一致：staging 或 production |
+| `ENVIRONMENT` | 环境 `vars`：生产为 production，独立 PR 为 staging（安全模式名，不表示旧共享资源） |
 | `PUBLIC_BASE_URL` | 环境 `vars`，实际控制台的 canonical HTTPS origin，可有一个尾斜杠；无账号密码、路径、query、fragment |
 | `EMAIL_VERIFICATION_READY` | `vars`，初始设 `"false"`；真实发件身份/投递能力验证后才设 `"true"` |
 | `EMAIL_FROM` | `vars`，与已验证发件身份一致的地址 |
@@ -143,11 +120,11 @@ Secrets 由受控密钥工具生成并放入仓库外的临时部署文件或密
 
 ```powershell
 Get-ChildItem migrations -Filter '*.sql' | Sort-Object Name | Select-Object Name
-node $deploymentWrangler d1 migrations list DB --config $deploymentConfig --env staging --remote
-node $deploymentWrangler d1 migrations apply DB --config $deploymentConfig --env staging --remote
-node $deploymentWrangler d1 migrations list DB --config $deploymentConfig --env staging --remote
-node $deploymentWrangler d1 execute DB --config $deploymentConfig --env staging --remote --command "PRAGMA foreign_key_check;"
-node $deploymentWrangler d1 execute DB --config $deploymentConfig --env staging --remote --command "SELECT name,applied_at FROM d1_migrations ORDER BY id;"
+node $deploymentWrangler d1 migrations list DB --config $deploymentConfig --env production --remote
+node $deploymentWrangler d1 migrations apply DB --config $deploymentConfig --env production --remote
+node $deploymentWrangler d1 migrations list DB --config $deploymentConfig --env production --remote
+node $deploymentWrangler d1 execute DB --config $deploymentConfig --env production --remote --command "PRAGMA foreign_key_check;"
+node $deploymentWrangler d1 execute DB --config $deploymentConfig --env production --remote --command "SELECT name,applied_at FROM d1_migrations ORDER BY id;"
 ```
 
 执行前核对选定 `DB` binding 的数据库名和 UUID。也可改用已核实的数据库名作为 CLI 参数，以减少误指 binding 的风险。[D1 迁移约定](https://developers.cloudflare.com/d1/reference/migrations/)
@@ -158,29 +135,29 @@ node $deploymentWrangler d1 execute DB --config $deploymentConfig --env staging 
 
 从已应用 0018 的环境升级聊天时，需要依次应用 0019–0023，并发布匹配的 Worker/前端。0021 涉及 Key 表结构及关联约束，应先核对备份、外键与回滚兼容性；保留既有用户、密钥、价格和账务，不通过重新创建数据库升级。
 
-应用迁移后，在交互终端运行 A29：
+仅首次空环境需要管理员初始化；现有生产管理员不重复 bootstrap。必要时在交互终端运行 A29：
 
 ```powershell
 node scripts/bootstrap-admin.ts --help
-node scripts/bootstrap-admin.ts --remote --env staging
+node scripts/bootstrap-admin.ts --remote --env production
 ```
 
 脚本明确显示目标，交互输入邮箱和两次隐藏密码；不接受凭据命令行参数或管道。密码 6–128 个 Unicode 字符且最多 512 UTF-8 字节。它用实际 Argon2id 散列和一条条件 INSERT 创建零余额管理员；任何已有管理员（包括停用者）、重复邮箱或无可用默认组都会拒绝，不重置、不晋升旧用户。临时 SQL 含散列而非明文，脚本结束后删除；宿主机仍应使用受控临时目录和文件权限。若超时/确认丢失，先核对已存在管理员，不自动重试或改余额。
 
-## 6. 发布 staging，再发布 production
+## 6. 发布 production
 
 以下是实际发布命令，仅在资源、配置、迁移、Secret 文件和发布证据均核对后执行：
 
 ```powershell
-$deploymentSecretsFile = Read-Host '输入仓库外受控 staging Secrets 文件的绝对路径'
-node $deploymentWrangler deploy --config $deploymentConfig --env staging --strict --secrets-file $deploymentSecretsFile --message 'Reviewed staging release'
-node $deploymentWrangler deployments list --config $deploymentConfig --env staging --json
-node $deploymentWrangler versions list --config $deploymentConfig --env staging --json
+$deploymentSecretsFile = Read-Host '输入仓库外受控 production Secrets 文件的绝对路径'
+node $deploymentWrangler deploy --config $deploymentConfig --env production --strict --secrets-file $deploymentSecretsFile --message 'Reviewed production release'
+node $deploymentWrangler deployments list --config $deploymentConfig --env production --json
+node $deploymentWrangler versions list --config $deploymentConfig --env production --json
 ```
 
 不要把 secrets 文件内容或其导出值写入发布记录。保存本次 Worker **version ID**、deployment ID、提交、迁移水位、DO tag、密钥版本标签（非值）、域名和测试结果。确认同一个版本携带匹配的 web assets、API 和 `scheduled` 入口。
 
-production 在 staging 验收后独立重复资源核对、迁移、bootstrap（仅首次）和发布；命令的 `--env` 必须显式改为 `production`，并选择 production 的 Secret 文件。正常升级已经配置 Secrets 时可省略 `--secrets-file`，但仍必须核对活动 keyring 的保留版本兼容性。
+production 发布前完成独立 PR 验证及生产专属检查；上述命令始终显式选择 `production` 和对应 Secret 文件。正常升级已经配置 Secrets 时可省略 `--secrets-file`，但仍必须核对活动 keyring 的保留版本兼容性。
 
 ## 7. 发布后验证和维护
 
