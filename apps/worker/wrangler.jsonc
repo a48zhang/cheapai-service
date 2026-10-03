@@ -44,6 +44,8 @@
       "name": "sub2api-cloudflare-staging",
       "account_id": "4ac5221079fd3481ce2d92f1d1e049cd",
       "workers_dev": true,
+      // Use only the canonical staging origin; no per-version preview endpoints.
+      "preview_urls": false,
       "vars": {
         "ENVIRONMENT": "staging",
         "PUBLIC_BASE_URL": "https://sub2api-cloudflare-staging.alphazhang689.workers.dev",

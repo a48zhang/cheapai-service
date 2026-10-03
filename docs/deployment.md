@@ -4,6 +4,46 @@
 
 先读[管理员配置顺序](admin-guide.md)，再按本文准备和发布。仓库已有 staging 资源记录，production 仍含占位配置；不要重复创建已有资源。网页聊天 9 月 12 日的授权失败是[历史记录](web-chat-delivery.md)，今天的授权、部署版本与迁移水位应重新查询。
 
+## 预发快速准备（本轮入口）
+
+从仓库根目录执行 `pnpm run staging:check`。该命令先构建前端，再用锁定的 Wrangler 对 **staging** 执行 `deploy --dry-run --strict`，输出到忽略提交的 `.wrangler/build-staging`；不会上传、应用远程迁移、配置 Secrets 或发布。Windows 可用 `pnpm.cmd run staging:check`。它只验证打包和配置，不替代测试，也不证明云端可用。
+
+本轮 `staging:check` 退出 0（前端类型检查/构建及 staging dry-run 通过）。Wrangler 4.129.0 仍提示顶层 `send_email` 未继承、binding 名为 `undefined`；这里 staging 的空邮件绑定是有意配置，输出中没有 `EMAIL`。不要为消除提示添加 `.invalid` 发件身份或提前启用邮件。该警告不代表邮件已验证。
+
+以下都是仓库已有的配置记录，本轮未修改或重新创建资源；发布者必须在目标账户复核其存在和归属：
+
+| staging 项目 | 已记录值 |
+| --- | --- |
+| Cloudflare account | `4ac5221079fd3481ce2d92f1d1e049cd` |
+| Worker | `sub2api-cloudflare-staging` |
+| D1 / `DB` | `sub2api-cloudflare-staging` / `50fe8c8c-6945-4a15-a3f6-83904632aec2` |
+| KV / `CACHE` | `6fe5850647504132a0ce70f2c5bd2056` |
+| 公网 origin | `https://sub2api-cloudflare-staging.alphazhang689.workers.dev` |
+
+2026-10-03 本轮准备环境的 `wrangler whoami` 返回 **未认证**。因此不能确认远程资源、现有部署、Secrets 名称清单和迁移水位；不是缺少 ID，也不是已部署成功。不要使用临时 preview 账户替代这个 staging 账户。
+
+部署者在自己的受控终端准备好现有 Cloudflare 身份后，可从仓库根目录做以下只读核对（不会读取 Secret 值）：
+
+```sh
+pnpm --filter @sub2api/worker exec wrangler whoami
+pnpm --filter @sub2api/worker exec wrangler d1 info sub2api-cloudflare-staging --env staging
+pnpm --filter @sub2api/worker exec wrangler kv namespace list --env staging
+pnpm --filter @sub2api/worker exec wrangler d1 migrations list DB --env staging --remote
+pnpm --filter @sub2api/worker exec wrangler secret list --env staging
+pnpm --filter @sub2api/worker exec wrangler deployments list --env staging
+```
+
+若 Worker 尚未存在，最后两项可能返回不存在，按首次发布处理；不要因此重建已有 D1/KV。核对实际 workers.dev 子域名与上述 origin 相同后再发布。
+
+发布前还需：
+
+- **渠道密钥**：确认该环境有 `CHANNEL_KEYRING_JSON` 和 `CHANNEL_ACTIVE_KEY_VERSION`；保留旧版本以解密现有渠道。只检查名称不等于验证格式或密钥可用，不在聊天、日志或仓库提供值
+- **数据与权限**：确认目标账户访问、D1/KV/Worker/DO 操作权限、备份与 23 份迁移的水位；实际应用迁移、bootstrap 和发布按下文单独执行
+- **邮件分阶段启用**：当前 `send_email: []`、`EMAIL_VERIFICATION_READY: "false"`，可先验收已有/初始管理员登录与控制台。启用验证邮件才需 `EMAIL` binding、验证过的 `EMAIL_FROM`、`EMAIL_HMAC_KEY` 和获批测试收件人；保持注册关闭，不能只改 readiness 为 true
+- **上游验收**：管理员另行配置真实上游渠道凭据、模型映射/价格、用户额度及分组，限定付费测试预算后再做真实协议和网页聊天请求
+
+这次准备不新增云端身份、不保存凭据、不应用远程迁移，也不执行发布。以下章节保留部署者的完整手动流程。环境 bindings/vars 明确列在 `env.staging`，不依赖继承本地 binding；参考 [Wrangler 环境配置](https://developers.cloudflare.com/workers/wrangler/configuration/)。
+
 ## 本轮发布门槛
 
 先完成[执行计划](implementation-plan.md)的模块验证、V-DOC 与最终 V-INTEGRATION。浏览器因 Chromium socket EPERM 受阻的项目仍需重新运行，不能用历史结果代替。
