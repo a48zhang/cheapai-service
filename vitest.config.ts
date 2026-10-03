@@ -13,6 +13,7 @@ export default defineConfig(async () => {
   return {
     test: {
       projects: [
+        './apps/web/vitest.config.ts',
         {
           test: { name: 'node', root, environment: 'node', include: nodeTests, exclude: excluded },
         },

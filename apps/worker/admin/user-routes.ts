@@ -7,6 +7,7 @@ import { validateCsrfRequest } from '../auth/csrf';
 import { createUser } from './create-user';
 import type { CreateUserInput } from './create-user';
 import { updateUser } from './update-user';
+import { getAdminUserDetail } from './user-detail';
 import type { UpdateUserPatch } from './update-user';
 import { prepare } from '../db';
 import type { DbValue } from '../db';
@@ -140,6 +141,15 @@ export function createAdminUserRoutes(
       return noStore(apiSuccess({ items, nextCursor, snapshotAt }, context.get('requestId')));
     },
   );
+  app.get(`${ADMIN_USERS_PATH}/:id`, initialize,
+    (context, next) => requireSession(() => context.get('requestTime')!)(context, next), requireAdmin,
+    async context => {
+      const id = context.req.param('id');
+      if (!validId(id) || id.includes('/') || new URL(context.req.url).search !== '') throw new ApiError('invalid_request');
+      const user = await getAdminUserDetail(context.env.DB, id);
+      if (!user) throw new ApiError('not_found');
+      return noStore(apiSuccess(user, context.get('requestId')));
+    });
   app.post(ADMIN_USERS_PATH,
     initialize,
     (context, next) => requireSession(() => context.get('requestTime')!)(context, next),

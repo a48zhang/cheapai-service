@@ -8,7 +8,7 @@
     "pnpm": "11.19.0"
   },
   "scripts": {
-    "dev:web": "pnpm --filter ./apps/web run dev",
+    "dev:web": "node scripts/start-react-dev.mjs",
     "dev:worker": "pnpm --filter ./apps/worker run dev",
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",
@@ -16,7 +16,9 @@
     "test:node": "vitest run --project node",
     "test:workers": "vitest run --project workers",
     "check": "pnpm run typecheck && pnpm run test && pnpm run build",
-    "staging:check": "pnpm --filter @sub2api/web run build && pnpm --filter @sub2api/worker exec wrangler deploy --env staging --dry-run --strict --outdir ../../.wrangler/build-staging"
+    "staging:check": "pnpm --filter @cheapai/web run build && pnpm --filter @sub2api/worker exec wrangler deploy --env staging --dry-run --strict --outdir ../../.wrangler/build-staging",
+    "lint:web": "pnpm --filter @cheapai/web exec eslint src",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "0.22.0",
@@ -24,6 +26,8 @@
     "@vitest/runner": "4.1.11",
     "@vitest/snapshot": "4.1.11",
     "typescript": "5.9.3",
-    "vitest": "4.1.11"
+    "vitest": "4.1.11",
+    "@cheapai/api-client": "workspace:*",
+    "@cheapai/contracts": "workspace:*"
   }
 }

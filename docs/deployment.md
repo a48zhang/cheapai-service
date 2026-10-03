@@ -8,7 +8,7 @@
 
 从仓库根目录执行 `pnpm run staging:check`。该命令先构建前端，再用锁定的 Wrangler 对 **staging** 执行 `deploy --dry-run --strict`，输出到忽略提交的 `.wrangler/build-staging`；不会上传、应用远程迁移、配置 Secrets 或发布。Windows 可用 `pnpm.cmd run staging:check`。它只验证打包和配置，不替代测试，也不证明云端可用。
 
-本轮 `staging:check` 退出 0（前端类型检查/构建及 staging dry-run 通过）。Wrangler 4.129.0 仍提示顶层 `send_email` 未继承、binding 名为 `undefined`；这里 staging 的空邮件绑定是有意配置，输出中没有 `EMAIL`。不要为消除提示添加 `.invalid` 发件身份或提前启用邮件。该警告不代表邮件已验证。
+此前环境准备记录的 `staging:check` 在文档基准提交 `54d71d5d74a6cadc83c3e6acdb3e9cb866efaa2a` 上退出 0（当时的前端类型检查/构建及 staging dry-run 通过）。这是历史结果，不代表当前 React 切换后的 staging dry-run 或最终验证通过；当前 React 的最终验证仍在集中进行。Wrangler 4.129.0 当时提示顶层 `send_email` 未继承、binding 名为 `undefined`；staging 的空邮件绑定是有意配置，输出中没有 `EMAIL`。不要为消除提示添加 `.invalid` 发件身份或提前启用邮件。该警告不代表邮件已验证。
 
 以下都是仓库已有的配置记录，本轮未修改或重新创建资源；发布者必须在目标账户复核其存在和归属：
 
@@ -52,7 +52,7 @@ pnpm --filter @sub2api/worker exec wrangler deployments list --env staging
 
 ## 1. 发布单元和配置基线
 
-发布单元是同一个 Worker 的 HTTP 入口、`Gate` DO、`scheduled` handler 和 Vue 静态资源。当前配置在 [wrangler.jsonc](../apps/worker/wrangler.jsonc)，入口在 [index.ts](../apps/worker/index.ts)，binding 类型在 [env.ts](../apps/worker/env.ts)。
+发布单元是同一个 Worker 的 HTTP 入口、`Gate` DO、`scheduled` handler 和 React 静态资源。当前前端 workspace 为 `apps/web` / `@cheapai/web`；Worker 配置在 [wrangler.jsonc](../apps/worker/wrangler.jsonc)，入口在 [index.ts](../apps/worker/index.ts)，binding 类型在 [env.ts](../apps/worker/env.ts)。
 
 | 项目 | 当前值 / 发布要求 |
 | --- | --- |
@@ -86,7 +86,7 @@ pnpm.cmd install --frozen-lockfile --strict-peer-dependencies --registry=https:/
 pnpm.cmd run typecheck
 pnpm.cmd exec vitest run --project node
 pnpm.cmd exec vitest run --project workers
-pnpm.cmd --filter @sub2api/web run build
+pnpm.cmd --filter @cheapai/web run build
 node $deploymentWrangler deploy --config $deploymentConfig --env staging --dry-run --outdir .wrangler/build-staging
 ```
 

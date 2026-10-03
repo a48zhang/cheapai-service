@@ -50,7 +50,7 @@ jobs:
         if: github.event.action != 'closed'
         run: |
           node scripts/pr-preview.mjs --self-test
-          pnpm --filter @sub2api/web run build
+          pnpm --filter @cheapai/web run build
       - name: Deploy or retire isolated preview
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

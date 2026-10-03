@@ -2,6 +2,9 @@ packages:
   - apps/web
   - apps/worker
   - packages/apicompat
+  - packages/contracts
+  - packages/api-client
+  - packages/model-catalog
 
 engineStrict: true
 # Script execution must never install or update dependencies implicitly.

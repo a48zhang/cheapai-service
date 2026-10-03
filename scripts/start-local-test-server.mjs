@@ -34,8 +34,21 @@ function run(args, cwd = root) {
   });
 }
 const web = join(root, 'apps/web');
-await run([join(web, 'node_modules/vue-tsc/bin/vue-tsc.js'), '--project', join(web, 'tsconfig.json'), '--noEmit']);
-await run([join(web, 'node_modules/vite/bin/vite.js'), 'build'], web);
+if (process.env.CHEAPAI_E2E_REUSE_BUILD !== '1') {
+  // Browser checks run against the complete pinned React build.
+  const packageManager = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+  await new Promise((accept, reject) => {
+    const child = spawn(packageManager, ['run', 'build'], { cwd: web, env: environment, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    let output = '';
+    child.stdout.on('data', chunk => { output += chunk.toString(); });
+    child.stderr.on('data', chunk => { output += chunk.toString(); });
+    child.once('error', reject);
+    child.once('exit', async code => {
+      if (code === 0) accept();
+      else { await writeFile(join(work, 'setup-error.log'), output); reject(new Error(`Application build failed (exit ${code}); see .wrangler/e2e logs.`)); }
+    });
+  });
+}
 const source = ts.parseConfigFileTextToJson('wrangler.jsonc', await readFile(join(root, 'apps/worker/wrangler.jsonc'), 'utf8'));
 if (source.error) throw new Error('Could not parse local Wrangler configuration.');
 const config = source.config;

@@ -151,8 +151,8 @@ test('retries a response-loss operation with the same operation ID and one charg
     await textbox.fill('response loss should replay');
     await textbox.press('Enter');
     await expect.poll(() => sendRequests).toBe(1);
-    await expect(fixture.page.getByRole('button', { name: '重试', exact: true })).toBeVisible();
-    await fixture.page.getByRole('button', { name: '重试', exact: true }).click();
+    await expect(fixture.page.getByRole('button', { name: '重试确认', exact: true })).toBeVisible();
+    await fixture.page.getByRole('button', { name: '重试确认', exact: true }).click();
     await expect.poll(() => sendRequests).toBe(2);
     await expect(fixture.page.locator('main')).toContainText(answer);
     expect(new Set(operationIds).size).toBe(1);

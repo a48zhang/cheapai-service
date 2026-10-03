@@ -47,7 +47,7 @@ for (const mode of ['closed', 'open', 'invite'] as const) {
       await page.goto('/register');
       const email = `q03-${randomUUID()}@example.invalid`;
       if (mode === 'closed') {
-        await expect(page.getByText('当前未开放自助注册。已有账户可以直接登录。')).toBeVisible();
+        await expect(page.getByRole('link', { name: '返回登录' })).toBeVisible();
         await expect(page.locator('form')).toHaveCount(0);
         const settings = await page.context().request.get('/api/v1/settings/public');
         const token = (await settings.json()).data.csrfToken;
@@ -79,9 +79,10 @@ for (const mode of ['closed', 'open', 'invite'] as const) {
       await expect(secret).toBeVisible();
       expect((await secret.inputValue()).startsWith('s2a_key_')).toBe(true);
       await dialog.getByRole('button', { name: '已保存，关闭密钥' }).click();
-      await expect(page.locator('#new-key-secret')).toHaveCount(0);
+      await expect(page.getByLabel('完整密钥（仅显示一次）', { exact: true })).toHaveCount(0);
       expect(await page.evaluate(() => Object.values(localStorage).some(value => value.includes('s2a_key_')))).toBe(false);
-      await page.getByRole('button', { name: '退出登录', exact: true }).click();
+      await page.getByRole('button', { name: '账户菜单', exact: true }).click();
+      await page.getByRole('menuitem', { name: '退出登录', exact: true }).click();
       await expect(page).toHaveURL(/\/login$/);
       expect((await page.context().request.get('/api/v1/auth/me')).status()).toBe(401);
       await page.getByLabel('邮箱', { exact: true }).fill(email);
@@ -101,11 +102,11 @@ test('resend advances generation and the first verification code cannot register
   await page.getByRole('button', { name: '发送验证码', exact: true }).click();
   await expect(page.getByText(/验证码发送请求已受理/)).toBeVisible();
   const old = await mail(email);
-  await expect(page.getByRole('button', { name: /秒后可重发/ })).toBeDisabled();
+  await expect(page.getByRole('button', { name: /秒后重发/ })).toBeDisabled();
   const aged = await administrator.post('/__test__/age-challenge', { headers: { 'X-E2E-Control': connection.token }, data: { email } });
   expect(aged.status()).toBe(200);
   await page.clock.fastForward(61_000);
-  await page.getByRole('button', { name: '重新发送验证码', exact: true }).click();
+  await page.getByRole('button', { name: '发送验证码', exact: true }).click();
   await expect.poll(async () => (await mail(email)).count).toBe(2);
   const latest = await mail(email);
   // Random codes could collide; verify the server generation directly through
@@ -119,4 +120,38 @@ test('resend advances generation and the first verification code cannot register
   await page.getByLabel('邮箱验证码', { exact: true }).fill(latest.code);
   await page.getByRole('button', { name: '创建账户', exact: true }).click();
   await expect(page).toHaveURL(connection.baseURL + "/");
+});
+
+test('a session outage offers recovery without treating it as logout', async ({ page }) => {
+  await page.route('**/api/v1/auth/me', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'service_unavailable', message: 'Unavailable' }, request_id: 'identity-outage' }) }));
+  await page.goto('/dashboard');
+  await expect(page).toHaveURL(url => url.pathname === '/session-unavailable' && url.searchParams.get('returnTo') === '/dashboard');
+  await expect(page.getByRole('button', { name: /重试|恢复/ })).toBeVisible();
+  await page.unroute('**/api/v1/auth/me');
+  await page.getByRole('button', { name: /重试|恢复/ }).click();
+  await expect(page).toHaveURL(url => url.pathname === '/login' && url.searchParams.get('returnTo') === '/dashboard');
+});
+
+test('non-administrators cannot enter the management console', async ({ page }) => {
+  await policy('open', false);
+  const settings = await page.context().request.get('/api/v1/settings/public');
+  const response = await page.context().request.post('/api/v1/auth/register', { data: { email: `guard-${randomUUID()}@example.invalid`, password }, headers: { Origin: connection.baseURL, 'X-CSRF-Token': (await settings.json()).data.csrfToken } });
+  expect(response.status()).toBe(201);
+  await page.goto('/admin/channels');
+  await expect(page.getByRole('heading', { name: /403|无权|权限/ })).toBeVisible();
+  expect((await page.context().request.get('/api/v1/admin/channels')).status()).toBe(403);
+});
+
+test('login rejects an external return target and mobile navigation remains operable', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/login?returnTo=https%3A%2F%2Fevil.example%2F');
+  await page.getByLabel('邮箱', { exact: true }).fill(connection.adminEmail);
+  await page.getByLabel('密码', { exact: true }).fill(connection.adminPassword);
+  await page.getByRole('button', { name: '登录', exact: true }).click();
+  await expect(page).toHaveURL(url => url.origin === connection.baseURL && url.pathname === '/');
+  await page.goto('/dashboard');
+  await page.getByRole('button', { name: '打开导航' }).click();
+  await page.getByRole('dialog').getByRole('link', { name: 'API 接入' }).click();
+  await expect(page).toHaveURL(url => url.pathname === '/keys');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
 });

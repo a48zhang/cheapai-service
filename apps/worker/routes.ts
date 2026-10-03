@@ -111,6 +111,7 @@ routes.on(['GET', 'POST'], REGISTRATION_CODES_PATH, c => codeManagement(c.env).f
 routes.post(REGISTRATION_CODE_REVOKE_PATH, c => codeManagement(c.env).fetch(c.req.raw, { DB: c.env.DB }));
 routes.on(['GET', 'POST'], ADMIN_USERS_PATH, c => userManagement(c.env).fetch(c.req.raw, { DB: c.env.DB }));
 routes.patch(`${ADMIN_USERS_PATH}/:id`, c => userManagement(c.env).fetch(c.req.raw, { DB: c.env.DB }));
+routes.get(`${ADMIN_USERS_PATH}/:id`, c => userManagement(c.env).fetch(c.req.raw, { DB: c.env.DB }));
 routes.on(['GET', 'POST'], PLATFORM_KEYS_PATH, c => personalKeys.fetch(c.req.raw, c.env));
 routes.get('/api/v1/account/key-groups', c => personalKeys.fetch(c.req.raw, c.env));
 routes.on(['GET', 'PATCH'], `${PLATFORM_KEYS_PATH}/:id`, c => personalKeys.fetch(c.req.raw, c.env));
@@ -128,12 +129,15 @@ function groupManagement(env: Env) {
 }
 routes.on(['GET', 'POST'], ADMIN_CHANNELS_PATH, c => channels.fetch(c.req.raw, c.env));
 routes.patch(`${ADMIN_CHANNELS_PATH}/:id`, c => channels.fetch(c.req.raw, c.env));
+routes.get(`${ADMIN_CHANNELS_PATH}/:id`, c => channels.fetch(c.req.raw, c.env));
 // These narrow-binding factories clone their local env; pass only DB so a clone
 // cannot accidentally read Secret properties. Origin closures retain trusted env.
 routes.on(['GET', 'POST'], ADMIN_GROUPS_PATH, c => groupManagement(c.env).fetch(c.req.raw, { DB: c.env.DB }));
 routes.patch(`${ADMIN_GROUPS_PATH}/:id`, c => groupManagement(c.env).fetch(c.req.raw, { DB: c.env.DB }));
+routes.get(`${ADMIN_GROUPS_PATH}/:id`, c => groupManagement(c.env).fetch(c.req.raw, { DB: c.env.DB }));
 routes.on(['GET', 'POST'], ADMIN_MODELS_PATH, c => models.fetch(c.req.raw, c.env));
 routes.patch(`${ADMIN_MODELS_PATH}/:id`, c => models.fetch(c.req.raw, c.env));
+routes.get(`${ADMIN_MODELS_PATH}/:id`, c => models.fetch(c.req.raw, c.env));
 routes.on(['GET', 'POST'], ADMIN_MAPPINGS_PATH, c => mappings.fetch(c.req.raw, c.env));
 routes.patch(ADMIN_MAPPING_UPDATE_PATH, c => mappings.fetch(c.req.raw, c.env));
 
