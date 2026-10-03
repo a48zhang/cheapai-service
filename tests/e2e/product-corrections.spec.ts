@@ -271,3 +271,71 @@ test('channel selector mapping retries mapping reads independently and preserves
   await expect(save).toBeEnabled();
   expect(state.writes).toHaveLength(1); expect(state.unexpected).toEqual([]);
 });
+
+// Review regressions use intercepted APIs only; no live credentials or writes.
+test('model creation route leaves new and create IDs reachable @review-fixes', async ({ page }) => {
+  await setupPicker(page);
+  await page.route('**/api/v1/admin/models/**', async route => {
+    const path = new URL(route.request().url()).pathname;
+    const id = path.split('/')[5];
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({
+      data: path.endsWith('/mappings') ? { items: [] } : { ...pickerModel, publicModelId: id },
+      request_id: 'review-model',
+    }) });
+  });
+  await page.goto('/admin/models');
+  await page.getByRole('link', { name: '新增模型', exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/models\/actions\/create$/);
+  await expect(page.getByRole('heading', { name: '新增公开模型', exact: true })).toBeVisible();
+  for (const id of ['new', 'create']) {
+    await page.goto(`/admin/models/${id}`);
+    await expect(page.getByRole('heading', { name: id, exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: '保存模型', exact: true })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('heading', { name: id, exact: true })).toBeVisible();
+  }
+});
+
+for (const wizard of [false, true]) {
+  for (const outcome of ['network', 'invalid-response', 'server-error']) {
+    test(`channel ${wizard ? 'wizard' : 'form'} blocks ${outcome} retry and retains draft @review-fixes`, async ({ page }) => {
+      await setupPicker(page);
+      let posts = 0;
+      await page.route('**/api/v1/admin/channels', async route => {
+        if (route.request().method() !== 'POST') return route.fallback();
+        posts++;
+        // Explicit validation rejection can be corrected and resubmitted.
+        if (posts === 1) return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({
+          error: { code: 'invalid_request', message: 'Fixture validation' }, request_id: 'review-validation',
+        }) });
+        if (outcome === 'network') return route.abort('failed');
+        if (outcome === 'invalid-response') return route.fulfill({ status: 201, contentType: 'application/json', body: '{}' });
+        return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({
+          error: { code: 'service_unavailable', message: 'Fixture uncertainty' }, request_id: 'review-uncertain',
+        }) });
+      });
+      await page.goto('/admin/channels');
+      await page.getByRole('button', { name: wizard ? '渠道快速配置' : '创建渠道', exact: true }).click();
+      const dialog = page.getByRole('dialog');
+      await dialog.getByLabel('渠道名称', { exact: true }).fill('Retained channel');
+      await dialog.getByLabel('上游 Base URL', { exact: true }).fill('https://fixture.example.invalid');
+      await dialog.getByLabel('上游凭证', { exact: true }).fill('fixture-only-key');
+      await dialog.getByRole('button', { name: wizard ? '创建渠道并继续' : '创建渠道', exact: true }).click();
+      const retry = dialog.getByRole('button', { name: wizard ? '重试创建渠道' : '创建渠道', exact: true });
+      await expect(retry).toBeEnabled();
+      await expect(dialog.getByText('请求参数无效。', { exact: true })).toBeVisible();
+      await retry.click();
+      await expect(dialog.getByText(/渠道创建结果不明/)).toBeVisible();
+      await expect(dialog.getByRole('button', { name: wizard ? '等待核对创建结果' : '创建渠道', exact: true })).toBeDisabled();
+      await dialog.getByLabel('渠道名称', { exact: true }).fill('Retained edited channel');
+      await dialog.getByLabel('渠道名称', { exact: true }).press('Enter');
+      await page.keyboard.press('Escape');
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByLabel('渠道名称', { exact: true })).toHaveValue('Retained edited channel');
+      await expect(dialog.getByLabel('上游凭证', { exact: true })).toHaveValue('fixture-only-key');
+      await expect(dialog.getByText(/渠道创建结果不明/)).toBeVisible();
+      await expect(dialog.getByRole('link', { name: '在新标签页核对渠道' })).toHaveAttribute('target', '_blank');
+      expect(posts).toBe(2);
+    });
+  }
+}

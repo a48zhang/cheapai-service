@@ -8,6 +8,7 @@ import { Input } from '../../shared/ui/Input';
 import { Select } from '../../shared/ui/Select';
 import { Sheet } from '../../shared/ui/Sheet';
 import type { AdminChannelsApi } from './api';
+import { channelCreationMayHaveSucceeded, uncertainChannelCreationMessage } from './create-outcome';
 import { credentialInputError, credentialReplacement } from './credential-input';
 
 type LimitMode = 'unlimited' | 'finite';
@@ -109,24 +110,25 @@ export function ChannelForm({ open, channel, api, onOpenChange, onSaved }: Chann
   const [errors, setErrors] = useState<ChannelFormErrors>({});
   const [saveError, setSaveError] = useState<{ message: string; requestId?: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [creationUncertain, setCreationUncertain] = useState(false);
   const creating = channel === null;
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || creationUncertain) return;
     setDraft(createDraft(channel));
     setErrors({});
     setSaveError(null);
-  }, [open, channel]);
+  }, [open, channel, creationUncertain]);
 
   const updateDraft = <K extends keyof ChannelDraft>(key: K, value: ChannelDraft[K]) => {
     setDraft(current => ({ ...current, [key]: value }));
     setErrors(current => ({ ...current, [key]: undefined }));
-    setSaveError(null);
+    if (!creationUncertain) setSaveError(null);
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (saving) return;
+    if (saving || creationUncertain) return;
 
     const nextErrors: ChannelFormErrors = {};
     const nameError = cleanNameError(draft.name);
@@ -169,7 +171,9 @@ export function ChannelForm({ open, channel, api, onOpenChange, onSaved }: Chann
       onSaved(saved);
     } catch (cause) {
       const conflict = cause instanceof ApiClientError && (cause.status === 409 || cause.code === 'conflict');
-      const message = conflict
+      const uncertain = creating && channelCreationMayHaveSucceeded(cause);
+      if (uncertain) setCreationUncertain(true);
+      const message = uncertain ? uncertainChannelCreationMessage : conflict
         ? '此渠道已被其他操作修改。你的输入仍保留，请关闭后重新打开最新配置，再合并后保存。'
         : cause instanceof Error ? cause.message : '渠道配置未能保存，请重试。';
       setSaveError({
@@ -184,18 +188,18 @@ export function ChannelForm({ open, channel, api, onOpenChange, onSaved }: Chann
   return (
     <Sheet
       open={open}
-      onOpenChange={value => { if (!saving) onOpenChange(value); }}
+      onOpenChange={value => { if (!saving && !creationUncertain) onOpenChange(value); }}
       title={creating ? '创建渠道' : `编辑渠道：${channel.name}`}
       description={creating
         ? '填写安全连接信息与调度限额。凭证只提交给服务端，不会再次显示。'
         : channel.hasCredential
           ? '现有凭证不会显示。替换凭证时填写新值，留空会保留当前凭证。'
           : '此渠道尚未配置凭证。留空会保留当前状态。'}
-      closeButton={!saving}
+      closeButton={!saving && !creationUncertain}
       footer={(
         <>
-          <Button variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>取消</Button>
-          <Button type="submit" form={formId} busy={saving}>{creating ? '创建渠道' : '保存更改'}</Button>
+          <Button variant="outline" disabled={saving || creationUncertain} onClick={() => onOpenChange(false)}>取消</Button>
+          <Button type="submit" form={formId} busy={saving} disabled={creationUncertain}>{creating ? '创建渠道' : '保存更改'}</Button>
         </>
       )}
     >
@@ -206,6 +210,11 @@ export function ChannelForm({ open, channel, api, onOpenChange, onSaved }: Chann
             {saveError.requestId && <p className="mt-2 text-xs">请求编号：<code>{saveError.requestId}</code></p>}
           </div>
         )}
+
+        {creationUncertain && <p className="text-sm">
+          <a href="/admin/channels" target="_blank" rel="noreferrer" className="underline">在新标签页核对渠道</a>
+          {' · '}<a href="/admin/audit" target="_blank" rel="noreferrer" className="underline">查看审计记录</a>
+        </p>}
 
         <Field label="渠道名称" error={errors.name} required>
           <Input value={draft.name} onChange={event => updateDraft('name', event.currentTarget.value)} required disabled={saving} autoComplete="off" />

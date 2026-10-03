@@ -53,6 +53,7 @@ export function AppRoutes() {
             <Route path="/admin/channels" element={<ChannelsPage />} />
             <Route path="/admin/channels/:channelId" element={<ChannelDetailPage />} />
             <Route path="/admin/models" element={<ModelsPage />} />
+            <Route path="/admin/models/actions/create" element={<ModelDetailPage createMode />} />
             <Route path="/admin/models/:id" element={<ModelDetailPage />} />
             <Route path="/admin/groups" element={<GroupsPage />} />
             <Route path="/admin/groups/:id" element={<GroupDetailPage />} />

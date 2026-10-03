@@ -13,6 +13,7 @@ import { Select } from '../../shared/ui/Select';
 import { Sheet } from '../../shared/ui/Sheet';
 import type { ChannelSetupCommands, ChannelSetupProgress } from './setup-controller';
 import { createChannelSetupController } from './setup-controller';
+import { uncertainChannelCreationMessage } from './create-outcome';
 import { credentialInputError } from './credential-input';
 
 export interface ChannelSetupProps {
@@ -113,7 +114,7 @@ export function ChannelSetup({
 
   const submitChannel = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (progress.channel || busy) return;
+    if (progress.channel || busy || progress.creationUncertain) return;
     const priority = readPriority(channelDraft.priority);
     const credentialError = credentialInputError(channelDraft.upstreamKey, true);
     if (!cleanText(channelDraft.name, 200)) {
@@ -185,8 +186,8 @@ export function ChannelSetup({
 
   const currentStep = progress.step;
   const footer = progress.step === 'channel' ? (
-    <Button type="submit" form={channelFormId} busy={busy} disabled={busy || Boolean(progress.channel)}>
-      {progress.error ? '重试创建渠道' : '创建渠道并继续'}
+    <Button type="submit" form={channelFormId} busy={busy} disabled={busy || Boolean(progress.channel) || progress.creationUncertain}>
+      {progress.creationUncertain ? '等待核对创建结果' : progress.error ? '重试创建渠道' : '创建渠道并继续'}
     </Button>
   ) : progress.step === 'mapping' ? (
     <Button type="submit" form={mappingFormId} busy={busy} disabled={busy || !progress.channel || Boolean(progress.mapping)}>
@@ -205,10 +206,10 @@ export function ChannelSetup({
   return (
     <Sheet
       open={open}
-      onOpenChange={next => { if (!busy) onOpenChange(next); }}
+      onOpenChange={next => { if (!busy && !progress.creationUncertain) onOpenChange(next); }}
       title="渠道快速配置"
       description="分步保存渠道、模型映射和访问组关联。每步都会立即写入服务端；后续失败时，已保存资源会保留。"
-      closeButton={!busy}
+      closeButton={!busy && !progress.creationUncertain}
       footer={footer}
     >
       <div className="space-y-5">
@@ -227,22 +228,27 @@ export function ChannelSetup({
         )}
 
         {progress.error && <ApiErrorNotice error={progress.error} />}
+        {progress.creationUncertain && <div role="alert" className="space-y-2 text-sm">
+          <p>{uncertainChannelCreationMessage}</p>
+          <a href="/admin/channels" target="_blank" rel="noreferrer" className="underline">在新标签页核对渠道</a>
+          {' · '}<a href="/admin/audit" target="_blank" rel="noreferrer" className="underline">查看审计记录</a>
+        </div>}
         {validationError && <p role="alert" className="text-sm text-[var(--color-destructive)]">{validationError}</p>}
 
         {progress.step === 'channel' && (
           <form id={channelFormId} className="grid gap-4" onSubmit={submitChannel}>
             <p className="text-sm text-[var(--color-muted-foreground)]">先创建一条启用渠道，限额默认不限。凭证仅在此处提交，不会回显。</p>
             <Field label="渠道名称" required>
-              <Input value={channelDraft.name} onChange={event => setChannelDraft(current => ({ ...current, name: event.currentTarget.value }))} maxLength={200} required disabled={busy} />
+              <Input value={channelDraft.name} onChange={event => { const value = event.currentTarget.value; setChannelDraft(current => ({ ...current, name: value })); }} maxLength={200} required disabled={busy} />
             </Field>
             <Field label="上游 Base URL" required>
-              <Input value={channelDraft.baseUrl} onChange={event => setChannelDraft(current => ({ ...current, baseUrl: event.currentTarget.value }))} maxLength={2048} required inputMode="url" disabled={busy} />
+              <Input value={channelDraft.baseUrl} onChange={event => { const value = event.currentTarget.value; setChannelDraft(current => ({ ...current, baseUrl: value })); }} maxLength={2048} required inputMode="url" disabled={busy} />
             </Field>
             <Field label="上游凭证" required description="成功创建后会清空本地输入。">
-              <Input type="password" value={channelDraft.upstreamKey} onChange={event => setChannelDraft(current => ({ ...current, upstreamKey: event.currentTarget.value }))} autoComplete="new-password" maxLength={16_384} required disabled={busy} />
+              <Input type="password" value={channelDraft.upstreamKey} onChange={event => { const value = event.currentTarget.value; setChannelDraft(current => ({ ...current, upstreamKey: value })); }} autoComplete="new-password" maxLength={16_384} required disabled={busy} />
             </Field>
             <Field label="调度优先级" description="数值越高越优先；0 为默认值。" required>
-              <Input type="number" min={0} step={1} value={channelDraft.priority} onChange={event => setChannelDraft(current => ({ ...current, priority: event.currentTarget.value }))} required disabled={busy} />
+              <Input type="number" min={0} step={1} value={channelDraft.priority} onChange={event => { const value = event.currentTarget.value; setChannelDraft(current => ({ ...current, priority: value })); }} required disabled={busy} />
             </Field>
           </form>
         )}
@@ -268,7 +274,7 @@ export function ChannelSetup({
               </div>
             )}
             <Field label="公开模型 ID" description="此模型必须已存在于模型目录。" required>
-              <Input value={mappingDraft.publicModelId} onChange={event => setMappingDraft(current => ({ ...current, publicModelId: event.currentTarget.value }))} maxLength={128} required disabled={busy} />
+              <Input value={mappingDraft.publicModelId} onChange={event => { const value = event.currentTarget.value; setMappingDraft(current => ({ ...current, publicModelId: value })); }} maxLength={128} required disabled={busy} />
             </Field>
             <Field label="映射协议" required>
               <Select
@@ -281,7 +287,7 @@ export function ChannelSetup({
               />
             </Field>
             <Field label="上游模型 ID" required>
-              <Input value={mappingDraft.upstreamModel} onChange={event => setMappingDraft(current => ({ ...current, upstreamModel: event.currentTarget.value }))} maxLength={128} required disabled={busy} />
+              <Input value={mappingDraft.upstreamModel} onChange={event => { const value = event.currentTarget.value; setMappingDraft(current => ({ ...current, upstreamModel: value })); }} maxLength={128} required disabled={busy} />
             </Field>
             <p className="text-xs leading-5 text-amber-800">此快捷流程不声明工具、流式或其他能力。创建后请在模型详情确认实际能力配置。</p>
           </form>

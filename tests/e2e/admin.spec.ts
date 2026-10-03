@@ -125,7 +125,7 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
   await expect(channelRow).toContainText('已配置');
   await expect(channelRow).not.toContainText(upstreamKey);
 
-  await page.goto('/admin/models/new');
+  await page.goto('/admin/models/actions/create');
   await expect(page.getByRole('heading', { name: '新增公开模型' })).toBeVisible();
   await page.getByRole('textbox', { name: '公开模型 ID' }).fill(modelId);
   await page.getByRole('textbox', { name: '最低余额门槛（USD 最小单位）' }).fill('0');

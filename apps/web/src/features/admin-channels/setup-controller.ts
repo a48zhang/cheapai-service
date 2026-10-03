@@ -1,3 +1,4 @@
+import { channelCreationMayHaveSucceeded } from './create-outcome';
 import type { ChannelInput, ChannelView } from '@cheapai/api-client/channels';
 import type { ModelMappingInput, ModelMappingView } from '@cheapai/api-client/mappings';
 import type { GroupPatch, GroupView } from '@cheapai/api-client/groups';
@@ -16,12 +17,13 @@ export interface ChannelSetupProgress {
   readonly mapping: ModelMappingView | null;
   readonly group: GroupView | null;
   readonly error: Error | null;
+  readonly creationUncertain: boolean;
 }
 
 export type ChannelMappingDraft = Omit<ModelMappingInput, 'channelId'>;
 
 function initialProgress(): ChannelSetupProgress {
-  return { step: 'channel', channel: null, mapping: null, group: null, error: null };
+  return { step: 'channel', channel: null, mapping: null, group: null, error: null, creationUncertain: false };
 }
 
 function asError(cause: unknown): Error {
@@ -34,13 +36,13 @@ export function createChannelSetupController(commands: ChannelSetupCommands) {
   let active = false;
 
   async function createChannel(input: ChannelInput): Promise<ChannelSetupProgress> {
-    if (active || progress.channel) return progress;
+    if (active || progress.channel || progress.creationUncertain) return progress;
     active = true;
     try {
       const channel = await commands.createChannel(input);
       progress = { ...progress, channel, step: 'mapping', error: null };
     } catch (cause) {
-      progress = { ...progress, step: 'channel', error: asError(cause) };
+      progress = { ...progress, step: 'channel', error: asError(cause), creationUncertain: channelCreationMayHaveSucceeded(cause) };
     } finally {
       active = false;
     }
@@ -83,7 +85,7 @@ export function createChannelSetupController(commands: ChannelSetupCommands) {
   }
 
   function reset(): ChannelSetupProgress {
-    if (active) return progress;
+    if (active || progress.creationUncertain) return progress;
     progress = initialProgress();
     return progress;
   }

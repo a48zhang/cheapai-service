@@ -43,7 +43,7 @@ export default function ModelsPage() {
       eyebrow="资源配置"
       heading="模型与价格"
       description="管理公开模型目录、精确价格和渠道映射。目录启用状态与渠道可用性分别配置。"
-      actions={<Button asChild><Link to="/admin/models/new">新增模型</Link></Button>}
+      actions={<Button asChild><Link to="/admin/models/actions/create">新增模型</Link></Button>}
     />
     <FilterBar>
       <label className="grid min-w-44 gap-1.5 text-sm font-medium text-[var(--foreground)]">

@@ -12,14 +12,13 @@ import { AsyncState } from '../../shared/patterns/AsyncState';
 import { PageHeader } from '../../shared/patterns/PageHeader';
 import { Button } from '../../shared/ui/Button';
 
-/** Creates a model at /new, then uses the encoded public ID for its reloadable detail page. */
-export default function ModelDetailPage() {
+/** Creation has its own route; every public ID remains a valid detail route. */
+export default function ModelDetailPage({ createMode = false }: { createMode?: boolean }) {
   const { client, user, epoch } = useSession();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { id } = useParams();
   const actorId = user?.id ?? 'unknown-admin';
-  const createMode = id === 'new';
   const modelId = id ?? '';
   const [modelFeedback, setModelFeedback] = useState<string | null>(null);
   const [mappingFeedback, setMappingFeedback] = useState<string | null>(null);
@@ -41,7 +40,7 @@ export default function ModelDetailPage() {
     setMappingFeedback(`${mapping.channelId} · ${mapping.protocol} 映射已保存，configVersion v${mapping.configVersion}。`);
   }
 
-  if (!id) {
+  if (!createMode && !id) {
     return <section className="space-y-5">
       <PageHeader eyebrow="资源配置" heading="模型详情" description="模型 ID 不存在。" />
       <Button asChild variant="outline"><Link to="/admin/models">返回模型列表</Link></Button>
