@@ -36,7 +36,7 @@ pnpm --filter @sub2api/worker exec wrangler deployments list --env production
 
 ## 1. 发布单元和配置基线
 
-发布单元是同一个 Worker 的 HTTP 入口、`Gate` DO、`scheduled` handler 和 Vue 静态资源。当前配置在 [wrangler.jsonc](../apps/worker/wrangler.jsonc)，入口在 [index.ts](../apps/worker/index.ts)，binding 类型在 [env.ts](../apps/worker/env.ts)。
+发布单元是同一个 Worker 的 HTTP 入口、`Gate` DO、`scheduled` handler 和 React 静态资源。当前配置在 [wrangler.jsonc](../apps/worker/wrangler.jsonc)，入口在 [index.ts](../apps/worker/index.ts)，binding 类型在 [env.ts](../apps/worker/env.ts)。
 
 | 项目 | 当前值 / 发布要求 |
 | --- | --- |

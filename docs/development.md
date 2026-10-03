@@ -26,7 +26,7 @@ React 工作区的定点命令：
 | `pnpm run check` | 依次运行 typecheck、完整 Vitest 与 build，失败即停止；不含浏览器测试 |
 | `pnpm exec playwright test` | 使用独立临时数据库与测试 Worker 运行浏览器端到端测试 |
 
-截至 2026-10-03，完整 Vitest **198 个文件、3,847 项测试**、工作区类型检查、生产构建、Worker dry-run 与 React lint 已通过。同源 HTTPS 开发代理的登录、CSRF、Secure Cookie 和增量 SSE 已通过本地烟雾检查。浏览器链路正在集中复核；最终结果见[验收记录](validation/cheapai-react-final.md)。Playwright 需先安装 Chromium：
+截至 2026-10-03，完整 Vitest **198 个文件、3,847 项测试**、工作区类型检查、生产构建、Worker dry-run 与 React lint 已通过。同源 HTTPS 开发代理的登录、CSRF、Secure Cookie 和增量 SSE 已通过本地烟雾检查。37 项浏览器用例已覆盖通过：完整运行 35 项通过，剩余 2 项修正定位后定点通过；完整结果见[验收记录](validation/cheapai-react-final.md)。Playwright 需先安装 Chromium：
 
 ```sh
 pnpm exec playwright install chromium

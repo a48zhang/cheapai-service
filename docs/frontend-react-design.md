@@ -1,6 +1,6 @@
 # cheapai React 前端重构设计
 
-状态：设计方向已确认，React 已切换到正式 `apps/web`，最终浏览器验收进行中。已交付模块与待集中验证项见 [开发计划的当前进度](frontend-react-development-plan.md#当前实现进度2026-10-03)。
+状态：设计方向已确认，React 已切换到正式 `apps/web`，本地验收完成。模块交付和验证摘要见[开发计划的当前进度](frontend-react-development-plan.md#当前实现进度2026-10-03)，逐项结果与边界见[最终集中验证报告](validation/cheapai-react-final.md)。
 
 品牌决策：产品名称统一使用小写 **cheapai**。新版所有用户可见位置，包括 Logo 字标、导航、页面标题、登录注册页、空状态、接入示例和示例邮箱，均使用 cheapai，不出现旧产品品牌。示例邮箱统一为 `alex@cheapai.dev`。沿用已认可的靛蓝几何图标与浅色界面风格。
 

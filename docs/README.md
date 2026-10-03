@@ -1,6 +1,6 @@
 # 文档导航
 
-更新：2026-10-03；本轮修改基于 `54d71d5d74a6cadc83c3e6acdb3e9cb866efaa2a`，尚未推送或发布。
+更新：2026-10-03。当前前端为 cheapai React；本地验收、GitHub Actions 与线上发布分别记录。
 
 ## 按角色阅读
 
@@ -25,6 +25,8 @@
 3. [技术方案](architecture.md)：整体设计基线；阅读时结合下方专题和现行源码
 4. [身份与注册](registration-auth.md)、[计费与 KV](billing-cache.md)、[协议转换设计](protocol-compatibility.md)
 5. [协议源码基线](protocol-baseline.md)、[第三方声明](../THIRD_PARTY_NOTICES.md)
+6. [React 面板设计](frontend-react-design.md)、[微任务开发计划](frontend-react-development-plan.md)、[模块边界](frontend-react-module-boundaries.md)
+7. [React 集中验收](validation/cheapai-react-final.md)、[目录切换](frontend-react-cutover-manifest.md)、[迁移回滚](frontend-react-rollback.md)
 
 ## 当前状态怎么看
 
@@ -35,10 +37,10 @@
 | 当前有哪些功能和入口？ | [仓库 README](../README.md)、当前源码和迁移 |
 | 接口支持哪些字段？ | [协议支持矩阵](protocol-support.md)及对应测试 |
 | 当前提交是否通过检查？ | 对应提交的 [Actions](https://github.com/a48zhang/sub2api-cloudflare/actions)；明确区分 Vitest、构建和独立 Playwright |
-| 哪些事项还没完成？ | [实施记录](implementation-plan.md)、[聊天交付记录](web-chat-delivery.md) |
+| 本轮 React 迁移是否完成？ | [开发计划](frontend-react-development-plan.md)、[集中验收](validation/cheapai-react-final.md)；旧实施记录保留历史边界 |
 | 线上到底是什么版本？ | 目标环境的 Worker version/deployment ID、D1 migration list 和同一环境的新鲜验收记录；仓库文件不能单独证明 |
 
-当前源码包含 0001–0023 共 23 个 D1 迁移。部署配置保留本地模拟与使用真实独立资源的 production（cheapai.dev）；分支验证使用每个 PR 独立的预发配置。旧共享 staging 已于 2026-10-03 完成永久退役，相关 Worker、D1、KV 和 Gate DO 已删除并回读确认，相关操作入口已移除。配置存在不等于已部署、可访问或已通过真实上游验收。
+当前源码包含 0001–0023 共 23 个 D1 迁移。部署配置保留本地模拟与使用真实独立资源的 production（cheapai.dev）；分支验证使用独立的 PR Worker 与共享预览 D1/KV/Gate，详见[PR 预览](pr-previews.md)。旧共享 staging 已于 2026-10-03 完成永久退役，相关 Worker、D1、KV 和 Gate DO 已删除并回读确认，相关操作入口已移除。配置存在不等于已部署、可访问或已通过真实上游验收。
 
 ## 设计、变更和历史证据
 

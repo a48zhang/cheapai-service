@@ -240,8 +240,8 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
   expect(grantResponse.status(), await grantResponse.text()).toBe(201);
   await expect(grantDialog.getByRole('status')).toBeVisible();
   await grantDialog.getByRole('button', { name: '关闭', exact: true }).click();
-  const adminBalance = page.getByRole('term', { name: '余额', exact: true }).locator('xpath=following-sibling::dd');
-  await expect(adminBalance).toHaveText('1.00000000');
+  const adminBalance = page.getByRole('term').filter({ hasText: /^余额$/u }).locator('xpath=following-sibling::dd');
+  await expect(adminBalance).toHaveText('1.00000000 USD');
 
   await page.goto('/keys');
   await page.getByRole('button', { name: '创建 Key' }).click();
@@ -298,7 +298,7 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
   await expect(page.getByRole('heading', { name: '管理审计' })).toBeVisible();
   for (const action of ['registration.settings.update', 'channel.create', 'channel.update', 'model.create',
     'channel_model.create', 'group.update', 'user.create', 'user.update', 'balance.grant']) {
-    await expect(page.getByRole('row').filter({ hasText: action })).toBeVisible();
+    await expect(page.getByRole('row').filter({ has: page.getByRole('cell', { name: action, exact: true }) })).toBeVisible();
   }
   await expect(page.locator('body')).not.toContainText(upstreamKey);
   await expect(page.locator('body')).not.toContainText(platformKey);

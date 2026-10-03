@@ -1,20 +1,21 @@
 # cheapai React 重构开发计划
 
-状态：React 实现与目录切换已完成；最终集中验证仍在进行。本文保留原始任务拆分供追溯，并记录当前进度，不代表最终验收通过。设计依据为 [前端设计规格](frontend-react-design.md)，视觉依据为用户认可的 [cheapai 三屏稿](design/cheapai-panels.png)。
+状态：React 实现、目录切换与本地验收均已完成。本文保留原始 127 项任务拆分供追溯，并记录各完整模块的交付状态。汇总证据见[最终集中验证报告](validation/cheapai-react-final.md)。设计依据为 [前端设计规格](frontend-react-design.md)，视觉依据为用户认可的 [cheapai 三屏稿](design/cheapai-panels.png)。
 
 ## 当前实现进度（2026-10-03）
 
-以下是已交付任务和当前已知的部分验证记录，不代表最终集中验证通过：
+各首期模块均已交付并完成本地验收：
 
-| 任务 | 已交付范围 | 状态 |
+| 模块 | 已交付范围 | 状态 |
 | --- | --- | --- |
-| I-009、I-013、I-015 | 设计 tokens、基础样式、品牌常量、异步/标题/状态组件、金额/日期/安全返回工具 | 代码已交付；最终结果待归并 |
-| I-026、I-027 | 请求与账单契约、API client，包含管理员账单对账能力 | 代码已交付；最终结果待归并 |
-| I-050–I-052 | 请求筛选与查询、状态/用量/价格展示、个人请求列表和详情 | 代码已交付；最终结果待归并 |
-| I-053、I-057 | 个人账单与账户概览 | 代码已交付；最终结果待归并 |
-| T-010 | Key/邀请码一次性明文生命周期测试代码 | 测试代码已交付；最终结果待归并 |
+| 基础设施与身份 | React shell、design system、contracts/API client、session/auth、路由与安全返回 | 本地验收完成 |
+| 个人控制台 | Dashboard、API keys/once-secret、请求列表与详情、账单 | 本地验收完成 |
+| Chat | 会话历史、草稿、流式 controller、composer、停止与恢复 | 本地验收完成 |
+| 资源管理 | Channels、models、mappings、groups 与实体详情 | 本地验收完成 |
+| 管理运营 | Users/余额、请求与详情、账单/对账、registration/codes、audit | 本地验收完成 |
+| 目录切换与整合 | React 已在正式 `apps/web` workspace；Vue 完整归档到 `/workspace/cheapai-legacy-archive/react-cutover/apps-web`；CI/preview/Worker 路径已切换 | 本地验收完成 |
 
-另外已处理设计 token 别名、Tailwind CSS 入口、请求详情重复布局和共享账单表的管理员呈现。已知部分结果：核心模块部分测试 28 项通过、chat 测试 24 项通过，标准 React build 成功；浏览器流程仍有失败项正在修复。此处只记录部分结果，不宣称全量测试、类型检查、lint、构建或浏览器验证全部通过。M-121/M-122 目录切换已完成：React 位于正式 `apps/web` workspace，包名为 `@cheapai/web`；旧 Vue 应用完整归档到 `/workspace/cheapai-legacy-archive/react-cutover/apps-web`。最终集中验证结果待协调者汇总。
+本地验收摘要（完整证据与边界见[最终集中验证报告](validation/cheapai-react-final.md)）：全量 Vitest 为 198 个文件、3,847 项通过，另有 2 项新增 Key 用例通过，累计覆盖 3,849 项；最新 main 的 workspace typecheck、build、Worker dry-run、React lint 和 PR preview self-test 均通过；React 定点测试 8 个文件、35 项通过。浏览器共覆盖 37 项：首轮 35 项通过，之后对剩余两项管理链定点复跑 2/2 通过，合并证据覆盖全部 37 项；这不表示曾有单次 37/37 全通过运行。未执行生产发布。
 
 任务总数：**127 项**，包括 107 个实现任务、12 个必要测试编写/迁移任务、2 个目录搬迁任务、6 个集中验证任务。常规任务均限定为 1–3 个文件；目录搬迁是两项已说明原因的例外。
 
@@ -261,7 +262,7 @@ V 任务由专门 runner 领取，**只出报告，不顺手改业务代码或�
 | V-03 | I-060–I-075；T-001 的草稿部分、T-005/T-006/T-009/T-011；个人/身份代码 | 一次聊天模块 typecheck/build；SSE/controller/草稿/IME 用例；完整聊天浏览器链路（发送、断流、停止、幂等、版本、过期和换号恢复）。在同一轮检查桌面/移动滚动、键盘焦点及本地 Vite 同源代理的流式转发。 | `docs/validation/cheapai-react-chat.md` |
 | V-04 | I-080–I-099；T-007；T-008 的资源部分 | 一次资源管理 typecheck/build；只跑新增详情 Workers 用例；渠道→模型映射→访问组配置链路，包含真实深链刷新、多页候选、冲突、部分保存与模拟诊断。个人访问新详情接口的权限由此一起覆盖。 | `docs/validation/cheapai-react-catalog.md` |
 | V-05 | I-100–I-109；T-008 的运营部分；T-010/T-012 | 一次运营模块 typecheck/build；用户授权→Key→授额→请求/账本→结算/审计，注册策略→邀请码→注册两条完整链路；一次性凭据、余额重复提交与冲突。 | `docs/validation/cheapai-react-admin.md` |
-| V-06 | 所有 I/T/M 代码交付 | 目录已归位；执行根 typecheck、完整 Vitest、所有包 build/Worker dry-run、完整 Playwright 各一次，React import/Hook lint 集中一次；最后一轮统一视觉/无障碍/品牌/懒加载检查；若新增配置改变 staging 路径，再做 staging dry-run，绝不发布。最终状态仍待集中记录。 | `docs/validation/cheapai-react-final.md` |
+| V-06 | 所有 I/T/M 代码交付 | 已完成本地集中验收：workspace typecheck/build、Worker dry-run、React lint、完整 Vitest 与必要新增风险用例、React 定点测试、PR preview self-test、浏览器完整覆盖。浏览器结果按首轮与两项定点复跑合并记录；未执行生产发布。 | `docs/validation/cheapai-react-final.md` |
 
 V-01/V-02 如已有 suite 混有尚未迁移页面，按 case/标签选择本链路，报告排除范围；不删除或长期 skip 用例。V-06 所有相关用例必须被实际收集与执行，0 tests 不能当通过。新功能开发不会因某个模块 V 未执行而被迫逐任务等待；已发现的契约冲突由协调者立即反馈给受影响 lane。
 
@@ -323,7 +324,7 @@ M-121/M-122 是仅有的多文件源码操作例外：把整个应用移动按�
 - 共享写文件的其他顺序：controller I-063 → I-065；模型公共入口 I-090 → I-092；ChannelsPage I-085 → I-098；UsersPage I-100 → I-103；root Vitest I-007 → I-125；harness I-048 → I-125；依赖变更 I-002/003 → I-004 → I-123 → I-124。
 - 新模块只消费固定契约，不自行加导航项/Provider/全局样式；公共文件修改请求由其 owner 合并处理。
 - 每个模块完成时集中收取代码交付和必要 T 任务，再分派对应 V。V 与不相干模块编码可并行，但不和同目标文件的修改并行运行，以免测到混合产物。
-- 实现和目录切换已完成；最终 V-06 仍在集中收口。最终报告需明确通过/失败/未执行；存在问题建立小 FIX 批次。真实邮件/供应商和生产部署不纳入本前端本地验证。
+- 实现、目录切换和本地 V-06 验收均已完成；最终结果见 `docs/validation/cheapai-react-final.md`。真实邮件/供应商和生产部署不纳入本前端本地验证。
 - 最终交付：cheapai React 应用、共享契约/API 包、保留必要行为的测试代码、6 份集中验证记录、开发文档、目录切换清单。是否发布由后续发布任务处理，本计划不创建或执行部署。
 
 ## 14. 每个模块的业务最终状态摘要

@@ -17,7 +17,7 @@ cheapai 是运行在 Cloudflare 上的跨协议 AI API 网关，提供网页聊�
 
 工作树中包含 cheapai React 前端及其会话、聊天、用户 Key、请求、账单和管理功能。后端通过同源 `/api/v1` 管理 API 与 `/v1` 网关提供服务；支持 Chat Completions、Responses 和 Messages 协议，并按渠道、模型能力和[协议边界](docs/protocol-support.md)执行转换。
 
-React 已切换到正式 `apps/web`。完整 Vitest 的 198 个文件、3,847 项测试通过，工作区类型检查、生产构建、Worker dry-run 和 React lint 通过；浏览器链路正在集中复核。最新证据见[最终验收记录](docs/validation/cheapai-react-final.md)，开发入口见[本地开发](docs/development.md)。
+React 已切换到正式 `apps/web`。完整 Vitest 的 198 个文件、3,847 项测试通过，工作区类型检查、生产构建、Worker dry-run 和 React lint 通过；37 项浏览器用例已覆盖通过（完整运行 35 项通过，另 2 项修正测试定位后定点通过）。最新证据见[最终验收记录](docs/validation/cheapai-react-final.md)，开发入口见[本地开发](docs/development.md)。
 
 ## 本地开发
 

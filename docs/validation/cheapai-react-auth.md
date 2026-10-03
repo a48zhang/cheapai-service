@@ -1,18 +1,18 @@
-# V-01 身份链路：集中结果
+# cheapai React V-01 身份链路：通过
 
-**状态：单元测试、全工作区 typecheck/build、React lint 和 HTTPS proxy smoke 已通过；浏览器身份链路仍在复跑，V-01 尚未完成。**
+**模块状态：通过。身份浏览器用例 10/10 通过，相关单元与集成门也通过。37 条浏览器链路均已覆盖通过：完整批次 35/37，首轮失败的两项管理运营链路随后定向复跑 2/2 通过。这是分批覆盖，不是单次 37/37。**
 
-## 已记录的测试结果
+## 集成结果
 
-当前完整单元测试集合共 198 个测试文件、3,847 项通过。全工作区 typecheck 与 build 通过，React lint 通过，HTTPS proxy smoke 通过。以下较早的领域日志用于说明本模块覆盖边界，属于当前总数中的子集，不重复计数。
+- 全部单元测试：198 个测试文件、3,847 项通过。
+- 最新集成记录 /tmp/cheapai-integrated-final.log：全工作区 typecheck 通过；build 通过，Worker 部分为 Wrangler dry-run；React lint 通过；React 单测 8 个文件、35 项通过；PR preview self-test 通过。
+- HTTPS proxy smoke 通过。以上为本地工作区验证，不代表云生产环境或 CI 结果。
 
-| 来源日志 | 结果 | 与身份/通信相关的覆盖 |
-| --- | --- | --- |
-| `/tmp/cheapai-contracts-results.log` | Vitest 4.1.11，3 个测试文件、28 项通过；总耗时 5.51 秒。 | 其中 `tests/unit/api-client.node.test.ts` 的 9 项覆盖请求路径编码与拒绝绕过、CSRF 与幂等键、错误响应、401 失效回调及 cursor 解码。另两份文件的 19 项计入个人控制台/资源契约记录，见相应报告。 |
-| `/tmp/cheapai-react-results.log` | Vitest 4.1.11，7 个测试文件、26 项通过；总耗时 4.66 秒。 | React 集合包含 session 风险用例：请求身份快照与过期竞态、恢复请求 single-flight、迟到恢复不能覆盖新登录、登出失败时保留身份、unavailable 与 anonymous 的区分，以及安全返回路径限制。日志汇总未按领域给出单项数，故不拆分 26 项。 |
+## 身份与通信覆盖
 
-## 浏览器覆盖边界
+- 浏览器 tests/e2e/auth.spec.ts：10/10 通过，覆盖关闭/开放/邀请码注册与邮箱验证组合、验证代次、防止旧验证码注册、session outage 恢复、非管理员访问限制、外部返回地址拒绝及移动导航。
+- API client 单测覆盖请求路径编码与拒绝绕过、CSRF 与幂等键、错误响应、401 失效回调及 cursor 解码。
+- React session 风险用例覆盖请求身份快照与过期竞态、恢复请求 single-flight、迟到恢复不能覆盖新登录、登出失败时保留身份、unavailable 与 anonymous 区分，以及安全返回路径限制。
+- 较早领域日志 /tmp/cheapai-contracts-results.log（3 文件/28 项）和 /tmp/cheapai-react-results.log（7 文件/26 项）属于上述完整测试集合的子集，不另行计数。contracts 日志里的 API client 测试为 9 项；其余 19 项记录在个人控制台和管理资源报告中。
 
-- 浏览器身份链路仍在复跑，尚无最终结果可记录：登录/注册、401/403/5xx、CSRF、安全返回、移动导航，以及通过本地开发代理登录。
-- HTTPS proxy smoke 只记录代理连通性，不代替浏览器登录与身份状态链路。
-- 因此当前记录不表示 V-01 最终通过。
+首轮浏览器批次在 tests/e2e/admin.spec.ts 和 tests/e2e/product-corrections.spec.ts 有两项管理运营 UI locator 失败；随后两项定向复跑均通过，见`/tmp/cheapai-browser-operations-pass.log`。身份用例 10/10 均在主批次中通过。
