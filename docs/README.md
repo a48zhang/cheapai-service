@@ -38,7 +38,7 @@
 | 哪些事项还没完成？ | [实施记录](implementation-plan.md)、[聊天交付记录](web-chat-delivery.md) |
 | 线上到底是什么版本？ | 目标环境的 Worker version/deployment ID、D1 migration list 和同一环境的新鲜验收记录；仓库文件不能单独证明 |
 
-当前源码包含 0001–0023 共 23 个 D1 迁移。部署配置中 staging 有真实资源标识和 workers.dev 地址，production 仍含占位配置。配置存在不等于已部署、可访问或已通过真实上游验收。
+当前源码包含 0001–0023 共 23 个 D1 迁移。部署配置保留本地模拟与使用真实独立资源的 production（cheapai.dev）；分支验证使用每个 PR 独立的预发配置。旧共享 staging 已于 2026-10-03 完成永久退役，相关 Worker、D1、KV 和 Gate DO 已删除并回读确认，相关操作入口已移除。配置存在不等于已部署、可访问或已通过真实上游验收。
 
 ## 设计、变更和历史证据
 
@@ -52,7 +52,7 @@
 - [产品调整](product-adjustments-2026-09-09.md)、[界面调整](ui-redesign-2026-09-09.md)、[不限额策略](unlimited-limits-2026-09-10.md)
 - [内置模型目录](builtin-models.md)、[移除默认输出上限](remove-default-output.md)：参考模型信息与历史迁移说明；供应商能力和价格应在使用前重新核对
 - [聊天方案](web-chat-plan.md)、[聊天执行记录](web-chat-execution.md)、[聊天交付](web-chat-delivery.md)
-- [staging 资源记录](staging-resources.md)、[staging 基础部署证据](evidence/staging-deploy.md)、[聊天验收证据](evidence/web-chat.json)
+- [共享 staging 退役记录](staging-resources.md)、[staging 基础部署证据](evidence/staging-deploy.md)、[聊天验收证据](evidence/web-chat.json)
 
 `docs/evidence/` 中的截图、JSON 和文字记录只证明记录所注明的时间、版本、环境与用例。工作区里的未提交日志路径可能不在其他 checkout 中，不能当作可直接复现的交付文件。
 

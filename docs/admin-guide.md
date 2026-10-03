@@ -46,7 +46,7 @@
 
 ### 6. 最后开放注册
 
-在 `/admin/registration/settings` 设置关闭、开放或注册码注册。若开启邮箱验证，必须先配置真实发送能力，并完成实际投递检查。staging 仓库配置当前为 `EMAIL_VERIFICATION_READY: "false"`、`send_email: []`，不能直接视为邮件可用。
+在 `/admin/registration/settings` 设置关闭、开放或注册码注册。若开启邮箱验证，必须先配置真实发送能力，并完成实际投递检查。production 和独立 PR 配置默认均为 `EMAIL_VERIFICATION_READY: "false"`、`send_email: []`，不能直接视为邮件可用。
 
 仅在理解后果后调整邮箱验证开关；不要把 `EMAIL_VERIFICATION_READY` 改成 true 来绕过发送故障。注册码在 `/admin/registration/codes` 管理，明文只在生成时显示。
 
@@ -83,7 +83,7 @@
 - [ ] 固定源码提交与依赖；类型检查、Vitest、构建通过
 - [ ] 浏览器测试单独执行，覆盖用户和管理员完整流程
 - [ ] 备份/恢复与回滚方案匹配当前数据库和密钥版本
-- [ ] 核对目标环境的真实绑定、域名、Secrets、邮件开关，不能混用 staging/production
+- [ ] 核对目标环境的真实绑定、域名、Secrets、邮件开关，不能混用生产和 PR 独立资源；共享 staging 已于 2026-10-03 完成永久退役，相关 Worker、D1、KV 和 Gate DO 已删除并回读确认
 - [ ] 迁移后确认到 `0023` 且外键检查无异常；保存实际迁移水位
 - [ ] 记录 Worker version/deployment ID；检查网页与 API 来自同一版本
 - [ ] 经批准完成真实上游普通/流式/取消与结算验证；邮件开启时验证真实投递

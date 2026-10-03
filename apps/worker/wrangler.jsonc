@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  // Local uses placeholders; staging and production have isolated cloud resources.
+  // Local uses placeholders; production and generated PR previews use isolated resources.
   "name": "sub2api-cloudflare-local",
   "main": "index.ts",
   "compatibility_date": "2026-08-15",
@@ -39,38 +39,7 @@
     "remote": false
   }],
   "env": {
-    // Staging mail remains disabled until a real sender is configured and tested.
-    "staging": {
-      "name": "sub2api-cloudflare-staging",
-      "account_id": "4ac5221079fd3481ce2d92f1d1e049cd",
-      "workers_dev": true,
-      // Use only the canonical staging origin; no per-version preview endpoints.
-      "preview_urls": false,
-      "vars": {
-        "ENVIRONMENT": "staging",
-        "PUBLIC_BASE_URL": "https://sub2api-cloudflare-staging.alphazhang689.workers.dev",
-        "EMAIL_VERIFICATION_READY": "false"
-      },
-      // Explicit per-environment schedule; do not rely on inherited triggers.
-      "triggers": { "crons": ["*/5 * * * *"] },
-      "d1_databases": [{
-        "binding": "DB",
-        "database_name": "sub2api-cloudflare-staging",
-        "database_id": "50fe8c8c-6945-4a15-a3f6-83904632aec2",
-        "migrations_dir": "../../migrations",
-        "remote": false
-      }],
-      "kv_namespaces": [{
-        "binding": "CACHE",
-        "id": "6fe5850647504132a0ce70f2c5bd2056",
-        "remote": false
-      }],
-      "durable_objects": {
-        "bindings": [{ "name": "GATE", "class_name": "Gate" }]
-      },
-      "send_email": []
-    },
-    // Production is independent of staging. Enable mail only after verification.
+    // Production is independent of PR previews. Enable mail only after verification.
     "production": {
       "name": "sub2api-cloudflare-production",
       "account_id": "4ac5221079fd3481ce2d92f1d1e049cd",

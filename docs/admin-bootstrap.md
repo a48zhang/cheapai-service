@@ -4,7 +4,7 @@
 
 脚本只创建第一个管理员；存在任意管理员（包括已停用的管理员）时不再创建，不会重设密码或提升既有普通用户权限。没有公开初始化接口，也没有默认密码。
 
-先使用工程固定的 Node 版本并安装依赖，应用目标 D1 的全部缺失迁移，当前源码范围为 `0001`–`0023`；升级已有环境先读实际迁移水位并备份。默认组必须存在且启用。运行前核对 Wrangler 配置中的 DB 绑定；远程资源占位 ID 必须先替换。
+先使用工程固定的 Node 版本并安装依赖，应用目标 D1 的全部缺失迁移，当前源码范围为 `0001`–`0023`；升级已有环境先读实际迁移水位并备份。默认组必须存在且启用。运行前核对 Wrangler 配置中的 DB 绑定；生产使用现有真实资源；PR 必须先生成并核对该 PR 的配置，详见[PR 预发](pr-previews.md)。
 
 ```powershell
 node scripts/bootstrap-admin.ts --local
@@ -14,10 +14,10 @@ node scripts/bootstrap-admin.ts --local --persist-to .wrangler/my-local-state
 
 在交互终端输入邮箱及两次密码。密码不回显、不接收命令行或环境变量输入；复用业务的邮箱规范化、密码策略与 Argon2id 实现。管理员从零余额开始，邮箱保留未验证，不消耗注册码、不自动开放注册。登录验证使用与 `PUBLIC_BASE_URL` 一致的可信 HTTPS，保留 Secure Cookie 与 Origin/CSRF 约束。
 
-准备好远程资源后，部署者可显式执行以下命令。它会写入所选环境，日常本地实现和测试不会自动运行它：
+准备好远程资源后，部署者可按目标选择以下命令（示例 PR 号 3 必须替换为实际已部署的 PR，先按预发文档生成对应配置；已有生产管理员无需重复初始化）。它会写入所选环境，日常本地实现和测试不会自动运行它：
 
 ```powershell
-node scripts/bootstrap-admin.ts --remote --env staging
+node scripts/bootstrap-admin.ts --remote --preview 3
 node scripts/bootstrap-admin.ts --remote --env production
 ```
 
