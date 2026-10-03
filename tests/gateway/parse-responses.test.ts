@@ -25,8 +25,9 @@ describe('Responses entry parsing and history requirements', () => {
     expect(parsed.features.requiresHistoryBinding).toBe(true);
     expect(parsed.features.required.map(item => item.feature)).toContain('item_references');
   });
-  it.each([{ model: valid.model }, { ...valid, model: 'bad\n' }, { ...valid, stream: 'true' }, { ...valid, max_output_tokens: 0 }])('rejects malformed native input %#', async value => {
-    await expect(parseResponsesInput(input(value))).rejects.toMatchObject({ code: 'invalid_request', status: 400 });
+  // Field validation belongs to the native parser; this asserts HTTP error translation.
+  it('translates malformed native input to an HTTP 400', async () => {
+    await expect(parseResponsesInput(input({ model: valid.model }))).rejects.toMatchObject({ code: 'invalid_request', status: 400 });
   });
   it('rejects out-of-scope background generation before any execution', async () => {
     await expect(parseResponsesInput(input({ ...valid, background: true }))).rejects.toMatchObject({ protocolError: { kind: 'unsupported_feature', code: 'background_out_of_scope' } });

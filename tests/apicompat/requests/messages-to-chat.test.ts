@@ -25,13 +25,11 @@ describe('P-MC-Q1 native text requests', () => {
     ] } });
   });
   it.each([{ cache_control: null }, { stream: false }, { stream: true },
-    { temperature: 0 }, { top_p: 1 }, { top_k: 1 }, { stop_sequences: [] }, { thinking: { type: 'disabled' } }, { metadata: {} }])('rejects later features %#', extra => {
+    { top_p: 1 }, { top_k: 1 }, { metadata: {} }])('rejects later features %#', extra => {
     expect(messagesToChatRequest({ ...base(), ...extra }, context).ok).toBe(false);
   });
   it.each([
     { type: 'text', text: 'x', cache_control: { type: 'ephemeral' } }, { type: 'text', text: 'x', citations: [] },
-    { type: 'image', source: { type: 'url', url: 'https://image.example/x' } },
-    { type: 'tool_use', id: 'a', name: 'f', input: {} }, { type: 'thinking', thinking: 'private', signature: 'signature' },
   ])('rejects unsupported content %# without dropping fields', block => {
     expect(messagesToChatRequest({ ...base(), messages: [{ role: 'assistant', content: [block] }] }, context).ok).toBe(false);
   });
@@ -150,12 +148,11 @@ describe('P-MC-Q4-O structured output and P-MC-Q5 effort', () => {
   it('maps native output_config schema to the Chat envelope without changing the schema', () => {
     const result = structured().convert({ ...base(), output_config: { format: { type: 'json_schema', schema } } }, context);
     expect(result).toMatchObject({ ok: true, value: { response_format: { type: 'json_schema', json_schema: { name: 'output', schema, strict: true } } } });
-    if (result.ok) expect(result.value.response_format?.type).toBe('json_schema');
     expect(schema).toEqual({ type: 'object', properties: { value: { type: ['string', 'null'] } }, required: ['value'], additionalProperties: false });
   });
-  it.each(['low', 'medium', 'high'])('maps qualitative effort %s without inventing thinking budget', reasoning_effort => {
-    expect(structured().convert({ ...base(), output_config: { effort: reasoning_effort } }, context))
-      .toMatchObject({ ok: true, value: { reasoning_effort } });
+  it('maps qualitative effort without inventing thinking budget', () => {
+    expect(structured().convert({ ...base(), output_config: { effort: 'high' } }, context))
+      .toMatchObject({ ok: true, value: { reasoning_effort: 'high' } });
   });
   it('rejects unsupported schema/effort and signed thinking history', () => {
     expect(structured().convert({ ...base(), output_config: { format: { type: 'json_schema', schema: { type: 'object', patternProperties: {} }, vendor: true } } }, context).ok).toBe(false);

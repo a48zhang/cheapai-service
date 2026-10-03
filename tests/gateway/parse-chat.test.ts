@@ -21,9 +21,9 @@ describe('Chat gateway input -> wire parser -> capability requirements', () => {
     expect(parsed.request.vendor_setting).toEqual({ mode: 'native' });
     expect(parsed.features.extensions).toContainEqual({ scope: 'request', name: 'vendor_setting', path: '$.vendor_setting' });
   });
+  // Native field permutations live in apicompat/types; retain parser and feature-error wiring.
   it.each([
-    { ...valid, model: 'trailing\n' }, { ...valid, messages: [] }, { ...valid, stream: 'true' },
-    { ...valid, max_completion_tokens: -1 }, { ...valid, max_tokens: 10, max_completion_tokens: 11 },
+    { ...valid, messages: [] }, { ...valid, max_tokens: 10, max_completion_tokens: 11 },
   ])('rejects invalid wire/feature constraints %#', async payload => {
     await expect(parseChatInput(input(payload))).rejects.toMatchObject({ code: 'invalid_request', status: 400 });
   });

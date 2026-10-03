@@ -23,8 +23,9 @@ describe('Messages entry parsing and version boundary', () => {
     expect(parsed.request.output_config).toEqual({ effort: 'high' });
     expect(parsed.features.required.map(item => item.feature)).toContain('reasoning_effort');
   });
-  it.each([{ ...valid, max_tokens: 0 }, { ...valid, max_tokens: undefined }, { ...valid, messages: [] },
-    { ...valid, model: 'bad\n' }, { ...valid, thinking: { type: 'enabled', budget_tokens: 4096 } },
+  // Keep native-parser and capability-conflict failures, not the parser's full field matrix.
+  it.each([{ ...valid, max_tokens: undefined },
+    { ...valid, thinking: { type: 'enabled', budget_tokens: 4096 } },
   ])('rejects malformed blocks or conflicting output/thinking limits %#', async value => {
     await expect(parseMessagesInput(input(value))).rejects.toMatchObject({ code: 'invalid_request', status: 400 });
   });

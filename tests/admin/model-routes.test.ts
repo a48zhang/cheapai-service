@@ -75,7 +75,7 @@ describe('administrator model update and pricing CAS', () => {
   });
   it('allows only typed patches and rejects missing replacement prices or privilege claims', async () => {
     for (const patch of [{ version: 1 }, { version: 1, sellPrices: { input: '1' } }, { version: 1, sellPrices: { input: '1', output: '2', reasoning: null } },
-      { version: 1, publicModelId: 'other' }, { version: 1, actorId: 'c09-admin' }, { version: 1 }, { version: 1, admissionMinBalanceUnits: '1.2' }]) {
+      { version: 1, publicModelId: 'other' }, { version: 1, actorId: 'c09-admin' }, { version: 1, admissionMinBalanceUnits: '1.2' }]) {
       expect((await writes().request(target(), { method: 'PATCH', headers: headers(), body: JSON.stringify(patch) }, { DB: testEnv.DB })).status).toBe(400);
     }
     expect((await writes().request(target(), { method: 'PATCH', headers: headers(userCookie), body: '{"version":1,"status":"disabled"}' }, { DB: testEnv.DB })).status).toBe(403);

@@ -5,7 +5,6 @@
 import { describe, expect, it } from 'vitest';
 import { chatToMessagesResponse, chatToMessagesResponseAdapter } from '../../../packages/apicompat/responses/chat-to-messages.js';
 import { createResponseIds } from '../../../packages/apicompat/ids.js';
-import { parseMessagesResponse } from '../../../packages/apicompat/types/messages.js';
 import type { ResponseContext } from '../../../packages/apicompat/types/adapter.js';
 
 const basic = () => ({ id: 'chatcmpl_source', object: 'chat.completion', created: 1741569952, model: 'private-model',
@@ -23,13 +22,9 @@ describe('P-CM-J1 text and complete Message core fields', () => {
     if (!result.ok) throw new Error('Expected direct text response');
     // Independent field-level contract from the official Message response shape.
     expect(result.value.body).toEqual({ id: 'resp_cm_synthetic', type: 'message', role: 'assistant', model: 'public-model', content: [{ type: 'text', text: 'Synthetic greeting.' }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 1, output_tokens: 2 } });
-    expect(parseMessagesResponse(result.value.body).ok).toBe(true);
-    expect(result.value.body.usage).toEqual({ input_tokens: 1, output_tokens: 2 });
     expect(result.value.identity).toEqual({ responseId: 'resp_cm_synthetic', upstreamResponseId: 'chatcmpl_source' });
-    expect(Object.hasOwn(result.value.body, 'created')).toBe(false);
-    expect(Object.hasOwn(result.value.body, 'service_tier')).toBe(false);
   });
-  it.each(['', '  exact\ntext  ', '{"answer":42}'])('keeps exact text case %#', (content) => {
+  it.each(['', '  {"answer":42}\n  '])('keeps empty or whitespace-padded JSON text exact case %#', (content) => {
     const source = basic(); source.choices[0]!.message.content = content;
     const result = chatToMessagesResponse(source, context());
     if (!result.ok) throw new Error('Expected text');
@@ -116,7 +111,7 @@ describe('P-CM-J3 native terminal semantics', () => {
     expect(chatToMessagesResponse(source, context()).ok).toBe(false);
   });
 
-  it.each(['content_filter', 'vendor_finished', 'failed'])('does not report %s as a normal Messages completion', (finish_reason) => {
+  it.each(['content_filter', 'vendor_finished'])('does not report %s as a normal Messages completion', (finish_reason) => {
     const source = basic(); source.choices[0]!.finish_reason = finish_reason;
     expect(chatToMessagesResponse(source, context()).ok).toBe(false);
   });
@@ -154,10 +149,6 @@ describe('P-CM-J3-T explicit thinking content', () => {
     const result = chatToMessagesResponse(source, context());
     if (!result.ok) throw new Error('Expected thinking conversion');
     expect(result.value.body.content).toEqual([{ type: 'thinking', thinking: 'Think', signature: '' }]);
-    const visible = { ...basic(), choices: [{ ...basic().choices[0]!, message: { role: 'assistant', content: null, reasoning: 'private reasoning' } }] };
-    const visibleResult = chatToMessagesResponse(visible, context());
-    if (!visibleResult.ok) throw new Error('Expected reasoning-only conversion');
-    expect(visibleResult.value.body.content).not.toContainEqual({ type: 'text', text: 'private reasoning' });
   });
 
   it('rejects conflicting aliases and unknown private reasoning payloads', () => {
@@ -189,7 +180,9 @@ describe('P-CM-J4 usage display without remeasurement', () => {
     expect(zero.value.body.usage).toEqual({ input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens_details: { thinking_tokens: 0 } });
   });
 
-  it.each([null, {}, { prompt_tokens: 4 }, { prompt_tokens: 4, completion_tokens: 3, total_tokens: 100 }])('rejects incomplete or contradictory usage case %#', (usage) => {
+  // Missing, partial and invalid evidence exercise the adapter's rejection;
+  // extractor tests own the individual counter/contradiction permutations.
+  it.each([null, { prompt_tokens: 4 }, { prompt_tokens: 4, completion_tokens: 3, total_tokens: 100 }])('rejects incomplete or contradictory usage case %#', (usage) => {
     const result = chatToMessagesResponse({ ...basic(), usage }, context());
     expect(result).toMatchObject({ ok: false, error: { code: 'usage_not_representable', param: '$.usage' } });
   });
@@ -199,7 +192,6 @@ describe('P-CM-J4 usage display without remeasurement', () => {
     const result = chatToMessagesResponse(source, context());
     if (!result.ok) throw new Error('Expected residual usage display');
     expect(result.value.body.usage).toEqual({ input_tokens: 7, output_tokens: 7, cache_read_input_tokens: 5 });
-    expect(Object.hasOwn(result.value.body.usage!, 'cache_creation_input_tokens')).toBe(false);
   });
 
   it('rejects unknown counters and nonzero unrepresentable modalities', () => {

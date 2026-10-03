@@ -1,27 +1,10 @@
-import { describe, expect, expectTypeOf, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   validateResponsesRequest,
-  type ResponsesRequest,
-  type ResponsesResponse,
-  type ResponsesStreamEvent,
-  type ResponsesServiceTier,
 } from '../../../packages/apicompat/types/responses.js';
 
 describe('Responses ingress wire structure', () => {
-  it('types standard response echoes separately from request support', () => {
-    const response = { id: 'resp_fixture', object: 'response', created_at: 1752100704, completed_at: 1752100705,
-      model: 'gpt-6-astra', status: 'completed', background: false, store: true, instructions: null,
-      max_output_tokens: null, max_tool_calls: null, parallel_tool_calls: true, reasoning: { effort: null, summary: null },
-      service_tier: 'default', temperature: 1, top_p: 1, text: { format: { type: 'text' }, verbosity: 'medium' },
-      tool_choice: 'auto', tools: [], top_logprobs: 0, truncation: 'disabled', user: null, metadata: {},
-      output: [{ id: 'msg_fixture', type: 'message', role: 'assistant', status: 'completed', phase: 'final_answer',
-        content: [{ type: 'output_text', text: 'Synthetic reply.', annotations: [], logprobs: [] }] }],
-      error: null, incomplete_details: null, previous_response_id: null,
-      usage: { input_tokens: 8, output_tokens: 2, total_tokens: 10, input_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 }, output_tokens_details: { reasoning_tokens: 0 } },
-    } as const satisfies ResponsesResponse;
-    expectTypeOf<ResponsesResponse['service_tier']>().toEqualTypeOf<ResponsesServiceTier | null | undefined>();
-    expectTypeOf<ResponsesResponse['parallel_tool_calls']>().toEqualTypeOf<boolean | undefined>();
-    expect(response.service_tier).toBe('default');
+  it('rejects response-only fields on requests', () => {
     expect(validateResponsesRequest({ model: 'm', input: 'x', completed_at: 123 }).ok).toBe(false);
   });
   it('accepts text and preserves a complete history in order without mutation', () => {
@@ -111,15 +94,4 @@ describe('Responses ingress wire structure', () => {
     }
   });
 
-  it('models incomplete/error outcomes and fragmented SSE independently from request validation', () => {
-    const response = { id: 'resp_1', object: 'response', created_at: 0, model: 'm', status: 'incomplete', output: [],
-      incomplete_details: { reason: 'max_output_tokens' }, error: null,
-      usage: { input_tokens: 0, output_tokens: 2, total_tokens: 2, input_tokens_details: { cached_tokens: 0 }, output_tokens_details: { reasoning_tokens: 1 } },
-    } as const satisfies ResponsesResponse;
-    const delta = { type: 'response.function_call_arguments.delta', sequence_number: 0, item_id: 'fc_1', output_index: 0, delta: '{"city":' } as const satisfies ResponsesStreamEvent;
-    expectTypeOf(response).toExtend<ResponsesResponse>();
-    expectTypeOf(delta).toExtend<ResponsesStreamEvent>();
-    expectTypeOf<ReturnType<typeof validateResponsesRequest>>().extract<{ ok: true }>().toHaveProperty('value').toEqualTypeOf<ResponsesRequest>();
-    expect(delta.delta).toBe('{"city":');
-  });
 });

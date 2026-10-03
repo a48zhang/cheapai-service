@@ -84,7 +84,6 @@ describe('channel/model/protocol mappings on native D1', () => {
       { protocol: 'chat', features: ['stream_usage'] }, { protocol: 'chat', features: [], supported: true },
       { protocol: 'chat', features: [], converterReady: true }, { protocol: 'chat', features: [], maxOutputTokens: 0 },
       { protocol: 'chat', features: [], maxOutputTokens: Number.MAX_SAFE_INTEGER + 1 },
-      { protocol: 'chat', features: [], maxOutputTokens: 0 },
       { protocol: 'chat', features: [], reasoningEfforts: ['high'] },
       { protocol: 'chat', features: ['cache_control'], cacheTtls: ['24h'] },
       { protocol: 'chat', features: [], nativeExtensions: [{ scope: 'request', name: 'authorization' }] },

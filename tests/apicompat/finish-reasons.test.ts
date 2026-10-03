@@ -73,8 +73,21 @@ describe('native finish normalization', () => {
   });
 });
 
+// Target mapping consumes normalized semantics, so native aliases belong in the
+// normalization matrix above. Keep one source per semantic branch plus the
+// Messages context-window reason, whose native spelling must survive mapping.
+const targetMatrix: readonly [NativeFinishInput, string, string][] = [
+  [{ from: 'chat', rawReason: 'stop' }, 'completed', 'stop'],
+  [{ from: 'chat', rawReason: 'tool_calls' }, 'completed', 'tool_calls'],
+  [{ from: 'chat', rawReason: 'length' }, 'incomplete', 'length'],
+  [{ from: 'messages', rawReason: 'model_context_window_exceeded' }, 'incomplete', 'length'],
+  [{ from: 'chat', rawReason: 'content_filter' }, 'incomplete', 'content_filter'],
+  [{ from: 'messages', rawReason: 'refusal' }, 'incomplete', 'refusal'],
+  [{ from: 'chat', rawReason: 'future_reason' }, 'incomplete', 'unknown'],
+];
+
 describe('target terminal matrix', () => {
-  it.each(sourceMatrix)('maps %j without turning %s/%s into normal success', (input, status, reason) => {
+  it.each(targetMatrix)('maps %j without turning %s/%s into normal success', (input, status, reason) => {
     const source = value(normalizeFinish(input));
     for (const to of protocols) {
       const mapped = mapFinishToTarget(source, to);
