@@ -48,6 +48,22 @@ app.use('*', async (context, next) => {
   context.res = applySecurityHeaders(context.res, configuredOrigin(context.env), context.req.header('Origin'), context.req.path);
 });
 
+// Production's www alias is only an entry point: keep cookies, CSRF and API
+// requests on the configured canonical HTTPS origin, preserving path and query.
+app.use('*', async (context, next) => {
+  const origin = configuredOrigin(context.env);
+  if (context.env.ENVIRONMENT === 'production' && origin !== undefined) {
+    const canonical = new URL(origin);
+    const target = new URL(context.req.url);
+    if (target.hostname === `www.${canonical.hostname}`) {
+      target.protocol = canonical.protocol;
+      target.host = canonical.host;
+      return context.redirect(target.toString(), 308);
+    }
+  }
+  await next();
+});
+
 app.options('/v1/*', context => {
   const origin = configuredOrigin(context.env);
   const requestOrigin = context.req.header('Origin');

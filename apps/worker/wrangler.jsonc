@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  // Local and production retain placeholders; staging has isolated cloud resources.
+  // Local uses placeholders; staging and production have isolated cloud resources.
   "name": "sub2api-cloudflare-local",
   "main": "index.ts",
   "compatibility_date": "2026-08-15",
@@ -70,33 +70,45 @@
       },
       "send_email": []
     },
-    // Production placeholders are distinct. Keep mail restricted until the
-    // production sender is verified and recipient policy is explicitly configured.
+    // Production is independent of staging. Enable mail only after verification.
     "production": {
       "name": "sub2api-cloudflare-production",
-      "vars": { "ENVIRONMENT": "production" },
+      "account_id": "4ac5221079fd3481ce2d92f1d1e049cd",
+      "workers_dev": false,
+      "preview_urls": false,
+      "routes": [
+        { "pattern": "cheapai.dev/*", "zone_name": "cheapai.dev" },
+        { "pattern": "www.cheapai.dev/*", "zone_name": "cheapai.dev" }
+      ],
+      // www must redirect before Static Assets can serve any path directly.
+      "assets": {
+        "directory": "../web/dist",
+        "binding": "ASSETS",
+        "not_found_handling": "single-page-application",
+        "run_worker_first": true
+      },
+      "vars": {
+        "ENVIRONMENT": "production",
+        "PUBLIC_BASE_URL": "https://cheapai.dev",
+        "EMAIL_VERIFICATION_READY": "false"
+      },
       "triggers": { "crons": ["*/5 * * * *"] },
       "d1_databases": [{
         "binding": "DB",
         "database_name": "sub2api-cloudflare-production",
-        "database_id": "00000000-0000-0000-0000-000000000003",
+        "database_id": "d85930ad-8e4f-41b7-9fb6-ddf97719e41d",
         "migrations_dir": "../../migrations",
         "remote": false
       }],
       "kv_namespaces": [{
         "binding": "CACHE",
-        "id": "00000000000000000000000000000003",
+        "id": "3da22af80f0946cdbb9cd85caee9810d",
         "remote": false
       }],
       "durable_objects": {
         "bindings": [{ "name": "GATE", "class_name": "Gate" }]
       },
-      "send_email": [{
-        "name": "EMAIL",
-        "allowed_sender_addresses": ["production@example.invalid"],
-        "allowed_destination_addresses": ["production-recipient@example.invalid"],
-        "remote": false
-      }]
+      "send_email": []
     }
   }
 }
