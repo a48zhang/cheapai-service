@@ -1,11 +1,14 @@
+import { isFiniteRpmLimit, MAX_RATE_WINDOW_OPERATIONS } from './limits/rate-window';
+
 export type RegistrationMode = 'closed' | 'open' | 'invite';
 // Internal sentinel keeps old positive-integer storage/RPC formats compatible.
 // The public configuration uses 0 (or null) to express no business concurrency cap.
 export const UNLIMITED_CONCURRENCY = Number.MAX_SAFE_INTEGER;
 export const UNLIMITED_RPM = Number.MAX_SAFE_INTEGER;
 export function parseRpmLimit(value: unknown): number {
-  if (value === undefined || value === null || value === 0) return UNLIMITED_RPM;
-  return positiveInteger(value, 'rpmLimit');
+  if (value === undefined || value === null || value === 0 || value === UNLIMITED_RPM) return UNLIMITED_RPM;
+  if (!isFiniteRpmLimit(value)) throw new ConfigError('rpmLimit', `must be a safe integer from 1 to ${MAX_RATE_WINDOW_OPERATIONS}, or unlimited`);
+  return value;
 }
 export function parseConcurrencyLimit(value: unknown): number {
   if (value === undefined || value === null || value === 0) return UNLIMITED_CONCURRENCY;

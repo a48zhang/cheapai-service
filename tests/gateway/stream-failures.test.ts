@@ -1,3 +1,10 @@
+import { executeStream } from '../../apps/worker/gateway/execute-stream';
+import { admitRequest } from '../../apps/worker/gateway/admit';
+import { authenticatePlatformKey } from '../../apps/worker/auth/api-key-auth';
+import { chatRequestAdapter } from '../../packages/apicompat/passthrough/chat';
+import { chatStreamAdapter } from '../../packages/apicompat/passthrough/chat-stream';
+import { createRequestLifecycle } from '../../apps/worker/gateway/request-lifecycle';
+import type { DualLeasePermit } from '../../apps/worker/limits/dual-lease';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createExecutionContext, runInDurableObject, waitOnExecutionContext } from 'cloudflare:test';
 import { app } from '../../apps/worker/app';
@@ -113,6 +120,54 @@ describe('Q09 stream failure lifecycles through the real Worker HTTP entry', () 
     expect(await active(`user:${user}`)).toBe(0); expect(await active(`channel:${channel}`)).toBe(0);
   });
 
+  it.each([false, true])('real HTTP route writes cooldown before a malformed error body (stream=%s)', async stream => {
+    const upstream = vi.fn(async () => new Response('<html>rate limited</html>', { status: 429, headers: { 'Retry-After': '600' } }));
+    vi.stubGlobal('fetch', upstream);
+    const init = { ...authorized(), body: JSON.stringify({ model, messages: [{ role: 'user', content: 'cooldown' }], stream }) };
+    const first = await invoke(init);
+    await first.response.text(); await waitOnExecutionContext(first.context);
+    expect(upstream).toHaveBeenCalledOnce();
+    const gate = testEnv.GATE.get(testEnv.GATE.idFromName(`channel:${channel}`));
+    expect(await gate.getCooldown()).toMatchObject({ active: true, errorClass: 'rate_limited' });
+    expect((await gate.getCooldown()).retryAfterMs).toBeLessThanOrEqual(300_000);
+    const next = await invoke(init);
+    await next.response.text(); await waitOnExecutionContext(next.context);
+    expect(next.response.status).toBeGreaterThanOrEqual(400);
+    expect(upstream).toHaveBeenCalledOnce();
+    expect(await active(`user:${user}`)).toBe(0); expect(await active(`channel:${channel}`)).toBe(0);
+  });
+
+  it('rejects startup instead of publishing a hanging 200 when response observation is aborted', async () => {
+    const subject = await authenticatePlatformKey(testEnv.DB, new Request(origin, {
+      headers: { Authorization: `Bearer ${token}` },
+    }), Date.now());
+    const admission = await admitRequest(testEnv, subject, { protocol: 'chat', request: {
+      model, stream: true, messages: [{ role: 'user', content: 'observation abort' }],
+    } }, { adapterAvailable: () => true });
+    const encoded = JSON.parse(env.CHANNEL_KEYRING_JSON!).v1 as string;
+    const keyring = new Map([['v1', Uint8Array.from(atob(encoded), value => value.charCodeAt(0))]]);
+    const abort = new AbortController();
+    const cancel = vi.fn();
+    let upstreamSignal: AbortSignal | undefined;
+    const observe = vi.fn(async () => {
+      abort.abort();
+      await new Promise<void>(() => {});
+    });
+    const execution = executeStream({ database: testEnv.DB, keyring, fetch: async (_url, init) => {
+      upstreamSignal = init.signal as AbortSignal;
+      return streamResponse(new ReadableStream<Uint8Array>({ cancel }, { highWaterMark: 0 }));
+    } }, admission, { request: chatRequestAdapter, stream: chatStreamAdapter }, {
+      signal: abort.signal, onUpstreamResponse: observe,
+    });
+    await expect(execution).rejects.toMatchObject({ reason: 'stream_start_failed', dispatched: true,
+      completion: { terminal: { status: 'cancelled' }, cleanup: { complete: true } } });
+    expect(observe).toHaveBeenCalledOnce();
+    expect(upstreamSignal?.aborted).toBe(true);
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(await active(`user:${user}`)).toBe(0); expect(await active(`channel:${channel}`)).toBe(0);
+    expect(await state()).toMatchObject({ execution_status: 'cancelled' });
+  });
+
   it('keeps the request visible as settlement_pending when D1 batch fails after upstream output', async () => {
     let failWrites = false;
     const unavailable = new Proxy(testEnv.DB, { get(target, property, receiver) {
@@ -135,5 +190,66 @@ describe('Q09 stream failure lifecycles through the real Worker HTTP entry', () 
     expect(await state()).toMatchObject({ execution_status: 'succeeded', billing_status: 'settlement_pending', usage_quality: 'complete', cost_units: 800 });
     expect(await testEnv.DB.prepare('SELECT COUNT(*) AS n FROM billing_entries').first('n')).toBe(0);
     expect(await active(`user:${user}`)).toBe(0); expect(await active(`channel:${channel}`)).toBe(0);
+  });
+});
+
+describe('B07 bounded shared request ownership', () => {
+  function permit() {
+    const now = Date.now();
+    const release = vi.fn(async () => ({ complete: true, outcomes: [] }));
+    const renew = vi.fn(async () => { throw new Error('synthetic renewal loss'); });
+    const held = (kind: 'user' | 'channel') => ({ client: { renew }, handle: {
+      subject: { kind, id: kind }, requestId: 'owner-test', acquiredAt: now, expiresAt: now + 90_000,
+    } });
+    return { lease: { user: held('user'), channel: held('channel'), release } as unknown as DualLeasePermit, release, renew };
+  }
+
+  it('reports uncertain release after a bound and never starts duplicate release RPCs', async () => {
+    const fixture = permit();
+    fixture.release.mockImplementation(() => new Promise(() => {}));
+    const owner = createRequestLifecycle(fixture.lease, { completionTimeoutMs: 10 });
+    owner.start();
+    const first = owner.close();
+    expect(owner.close()).toBe(first);
+    expect(await first).toMatchObject({ complete: false, outcomes: [
+      { subject: { kind: 'channel' }, status: 'uncertain' }, { subject: { kind: 'user' }, status: 'uncertain' },
+    ] });
+    expect(fixture.release).toHaveBeenCalledOnce();
+  });
+
+  it('stops a hanging transport on lease renewal failure and clears all owner timers', async () => {
+    vi.useFakeTimers();
+    try {
+      const fixture = permit();
+      const cancel = vi.fn();
+      const owner = createRequestLifecycle(fixture.lease);
+      owner.start(); owner.attachUpstream(cancel);
+      const interrupted = owner.active(new Promise<void>(() => {})).catch(error => error);
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(owner.reason).toBe('lease_lost');
+      expect(await interrupted).toBeInstanceOf(Error);
+      expect(cancel).toHaveBeenCalledOnce();
+      expect((await owner.close()).complete).toBe(true);
+      expect(fixture.release).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('protects accepted normal finalization from late client abort while keeping a finite renewal budget', async () => {
+    vi.useFakeTimers();
+    try {
+      const fixture = permit();
+      const abort = new AbortController();
+      const owner = createRequestLifecycle(fixture.lease, { signal: abort.signal, completionTimeoutMs: 10 });
+      owner.start(); owner.beginFinalization(true);
+      abort.abort();
+      expect(owner.signal.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(40);
+      expect(owner.reason).toBe('request_timeout');
+      expect(owner.signal.aborted).toBe(true);
+      await owner.close();
+      expect(fixture.release).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
   });
 });

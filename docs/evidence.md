@@ -1,6 +1,28 @@
-# 当前依据与限制
+# 验证证据索引与旧系统调研
+
+## 2026-10-03 本轮状态
+
+本轮实现仍在本地工作树，未推送或部署。当前状态与全部任务见[执行计划](implementation-plan.md)，剩余验证见[已知问题](known-issues.md)。
+
+- 请求可靠性 B01–B07：Workers 170 项、Chat Node 10 项及额外启动回归 10 项局部回归通过，使用隔离存储/mock 上游
+- 前端 FE-D01–FE-D11：Node 20 项、管理契约 7 项及 Web 类型检查/构建通过；Chromium socket EPERM 导致浏览器验收受阻
+- 共享目录 A01–A07 与存储 S01–S02 已实现；AV01 38/38 通过，SV01 40/40 通过；本地 V-INTEGRATION 集中检查已完成
+- 15 份文档已整合，V-DOC 已通过：141 个本地文档链接/锚点、路径与状态/命令引用核对；真实云、上游、邮件、容量、恢复、生产发布与 V-PROD 尚未执行
+
+全包类型检查、Node 1859/1859（45 文件）、递归构建及 staging dry-run 通过；Workers 全量首轮为 2056 通过、1 失败（144 文件），失败为旧 lease-client 测试仍期待拒绝已支持的 operationId。仅更新 `tests/limits/client.test.ts` 后，受影响套件 28/28 通过，生产代码未变；最终唯一 Workers 用例数为 2058，未再整批重跑。 `git diff --check` 通过。详见[本地集成证据](evidence/release-local-2026-10.md)。staging dry-run 未部署，浏览器和全部远程验收仍待完成；后续发布记录须包含 Worker version/deployment ID、D1 水位与目标环境。
+
+## 历史证据
+
+- [基线 CI](https://github.com/a48zhang/sub2api-cloudflare/actions/runs/36874254293)：对应 `54d71d5` 的类型、Vitest 与构建，不含 Playwright 或部署
+- [聊天交付](web-chat-delivery.md)：9 月 12 日本地验证和当次授权失败，保留原日期/数量
+- [9 月 6 日审计](integration-audit-2026-09-06.md)、[9 月 8 日审计](integration-audit-2026-09-08.md)
+- [staging 记录](evidence/staging-deploy.md)、[聊天证据](evidence/web-chat.json)：只证明各自记录的版本与环境
+
+## 2026-09-05 旧系统调研
 
 核对日期：2026-09-05。
+
+> 本文调查的是重写前的四个 Worker 和当时的上游参考资料，不是当前 sub2api-cloudflare 的完整审计报告。以下“未完成”“本机源码不完整”等描述保留当时语境；现行功能、代码和验证入口见[仓库 README](../README.md)及[文档导航](README.md)。
 
 ## 现有四个 Worker
 

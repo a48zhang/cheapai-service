@@ -1,11 +1,11 @@
 import { getGroupById } from '../admin/group-repository';
 import type { GroupView } from '../admin/group-repository';
-import { getChannelById } from '../admin/channel-repository';
-import type { ChannelView } from '../admin/channel-repository';
-import { getModelById } from '../admin/model-repository';
-import type { ModelView } from '../admin/model-repository';
-import { listModelMappings, validateMappingCapabilities } from '../admin/model-mappings';
-import type { ModelMappingView } from '../admin/model-mappings';
+import { getChannelById } from '../catalog/channels';
+import type { ChannelView } from '../catalog/channels';
+import { getModelById } from '../catalog/models';
+import type { ModelView } from '../catalog/models';
+import { listModelMappings, validateMappingCapabilities } from '../catalog/model-mappings';
+import type { ModelMappingView } from '../catalog/model-mappings';
 import { validateUpstreamBaseUrl } from '../gateway/upstream-url';
 import { DEFAULT_CONFIG } from '../config';
 import { ApiError } from '../http';

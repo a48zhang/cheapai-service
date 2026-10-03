@@ -87,3 +87,21 @@ describe('channel-only cooldown binding adapter', () => {
     await expect(recordChannelCooldown(binding, { channelId: 'channel-1', status: 429 })).rejects.toMatchObject({ code: 'unavailable' });
   });
 });
+
+describe('BV02 cooldown write deadline', () => {
+  it('reports timeout as uncertain and still disposes a late committed RPC response', async () => {
+    let resolveWrite!: (value: unknown) => void;
+    const dispose = vi.fn();
+    const disposeSymbol = (Symbol as SymbolConstructor & { readonly dispose: symbol }).dispose;
+    const binding: CooldownBinding = {
+      idFromName: name => testEnv.GATE.idFromName(name),
+      get: () => ({ getCooldown: async () => ({ active: false, retryAfterMs: 0 }),
+        setCooldown: () => new Promise(resolve => { resolveWrite = resolve; }) }),
+    };
+    const pending = recordChannelCooldown(binding, { channelId: 'channel-1', status: 429 });
+    await expect(pending).rejects.toMatchObject({ code: 'timeout', retryable: true });
+    resolveWrite({ active: true, cooldownUntil: now + 60_000, retryAfterMs: 60_000, errorClass: 'rate_limited', [disposeSymbol]: dispose });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+});

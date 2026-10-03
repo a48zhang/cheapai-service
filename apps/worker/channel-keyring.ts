@@ -1,5 +1,5 @@
-import type { ChannelEncryptionKey } from './admin/channel-repository';
-import type { ChannelKeyring } from './admin/channel-secrets';
+import type { ChannelEncryptionKey } from './catalog/channels';
+import type { ChannelKeyring } from './catalog/channel-secrets';
 import type { Env } from './env';
 import { ApiError } from './http';
 

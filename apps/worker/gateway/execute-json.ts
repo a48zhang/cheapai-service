@@ -4,8 +4,8 @@ import { createResponseIds } from '@sub2api/apicompat/ids';
 import { extractChatUsage } from '@sub2api/apicompat/usage/chat';
 import { extractResponsesUsage } from '@sub2api/apicompat/usage/responses';
 import { extractMessagesUsage } from '@sub2api/apicompat/usage/messages';
-import { readChannelForForwarding } from '../admin/channel-repository';
-import type { ChannelKeyring } from '../admin/channel-secrets';
+import { readChannelForForwarding } from '../catalog/channels';
+import type { ChannelKeyring } from '../catalog/channel-secrets';
 import { settleRequest } from '../billing/settlement';
 import type { SettlementOptions } from '../billing/settlement';
 import { saveSettlementRecovery } from '../billing/recovery';
@@ -18,6 +18,33 @@ import { finishRequest, getRequest, markRequestStarted } from './request-reposit
 import type { RequestRecord } from './request-repository';
 import { sendUpstream, UpstreamTransportError } from './transport';
 import type { UpstreamExchange, UpstreamFetch, UpstreamRequestOptions } from './transport';
+import { createRequestLifecycle } from './request-lifecycle';
+
+/** Best-effort metadata hook: never consume the body or change transport errors. */
+async function observeUpstreamResponse(
+  callback: ((response: { channelId: string; status: number; retryAfter: string | null }) => void | Promise<void>) | undefined,
+  channelId: string, response: Response, signal: AbortSignal,
+): Promise<void> {
+  if (!callback) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: (() => void) | undefined;
+  try {
+    const observation = Object.freeze({ channelId, status: response.status, retryAfter: response.headers.get('retry-after') });
+    await Promise.race([
+      Promise.resolve().then(() => callback(observation)).catch(() => undefined),
+      new Promise<void>(resolve => { timer = setTimeout(resolve, 1_000); }),
+      new Promise<void>(resolve => {
+        onAbort = resolve;
+        signal.addEventListener('abort', onAbort, { once: true });
+        if (signal.aborted) resolve();
+      }),
+    ]);
+  } catch { /* Observation must never replace upstream classification or cleanup. */ }
+  finally {
+    if (timer !== undefined) clearTimeout(timer);
+    if (onAbort) signal.removeEventListener('abort', onAbort);
+  }
+}
 
 export interface JsonExecutionDependencies {
   database: D1Database; keyring: ChannelKeyring; fetch?: UpstreamFetch; now?: () => number;
@@ -29,6 +56,8 @@ export interface JsonExecutionAdapters<Input, Wire, Upstream, Output> {
 }
 export interface JsonExecutionOptions {
   signal?: AbortSignal;
+  /** Internal, bounded metadata-only hook, invoked before reading any response body. */
+  onUpstreamResponse?: (response: { channelId: string; status: number; retryAfter: string | null }) => void | Promise<void>;
   transport?: Pick<UpstreamRequestOptions, 'headersTimeoutMs' | 'idleTimeoutMs' | 'maxDurationMs' | 'downstreamHeaders' | 'messages' | 'customHeaders'>;
   settlement?: SettlementOptions;
   maxResponseBytes?: number;
@@ -76,10 +105,8 @@ export async function executeJson<Input, Wire, Upstream, Output>(dependencies: J
   if (consumed.has(admission.lease)) throw new JsonExecutionError('already_started', requestId, admission.request.billing_status, null);
   consumed.add(admission.lease);
   const clock = () => { const time = (dependencies.now ?? Date.now)(); if (!Number.isSafeInteger(time) || time < 0) throw new Error(); return time; };
-  const controller = new AbortController();
-  const externalAbort = () => controller.abort();
-  options.signal?.addEventListener('abort', externalAbort, { once: true });
-  if (options.signal?.aborted) controller.abort();
+  const lifecycle = createRequestLifecycle(admission.lease, { ...(options.signal === undefined ? {} : { signal: options.signal }),
+    clock, ...(options.transport?.maxDurationMs === undefined ? {} : { maxDurationMs: options.transport.maxDurationMs }) });
   let request: RequestRecord | null = null;
   let claimed = false; let cleanupAllowed = true; let dispatched = false; let terminalSaved = false;
   let exchange: UpstreamExchange | undefined;
@@ -89,35 +116,14 @@ export async function executeJson<Input, Wire, Upstream, Output>(dependencies: J
   let failure: JsonExecutionError['reason'] | undefined;
   let resultBody: Output | undefined;
   let upstreamResponseId: string | undefined; let upstreamRequestId: string | undefined;
-  let renewTimer: ReturnType<typeof setTimeout> | undefined;
-  let renewing: Promise<void> | undefined;
-  let stopped = false; let leaseLost = false;
-  let userHandle = admission.lease.user.handle; let channelHandle = admission.lease.channel.handle;
+  const userHandle = admission.lease.user.handle; const channelHandle = admission.lease.channel.handle;
   const recover = async () => {
     if (!request) return;
-    const result = await saveSettlementRecovery(dependencies.database, { requestId, userId: request.user_id, usage }, clock());
+    const result = await lifecycle.persist(() => saveSettlementRecovery(dependencies.database, { requestId, userId: request!.user_id, usage }, clock()));
     billingStatus = result.billingStatus;
   };
-  function startRenewal() {
-    const ttl = Math.min(userHandle.expiresAt - userHandle.acquiredAt, channelHandle.expiresAt - channelHandle.acquiredAt);
-    const interval = Math.max(1, Math.min(DEFAULT_CONFIG.gateRenewIntervalMs, Math.floor(ttl / 3)));
-    const schedule = () => {
-      if (stopped) return;
-      renewTimer = setTimeout(() => {
-        renewing = (async () => {
-          try {
-            const [user, channel] = await Promise.allSettled([admission.lease.user.client.renew(userHandle, ttl), admission.lease.channel.client.renew(channelHandle, ttl)]);
-            if (user.status !== 'fulfilled' || channel.status !== 'fulfilled' || !user.value.renewed || !channel.value.renewed) throw new Error();
-            userHandle = user.value.handle; channelHandle = channel.value.handle;
-            schedule();
-          } catch { leaseLost = true; controller.abort(); }
-        })();
-      }, interval);
-    };
-    schedule();
-  }
   try {
-    request = await getRequest(dependencies.database, requestId, admission.request.user_id);
+    request = await lifecycle.persist(() => getRequest(dependencies.database, requestId, admission.request.user_id));
     if (!request || ['user_id', 'api_key_id', 'channel_id', 'public_model_id', 'upstream_model', 'downstream_protocol', 'upstream_protocol', 'price_snapshot'].some(
       (field) => request![field as keyof RequestRecord] !== admission.request[field as keyof RequestRecord])) {
       failure = 'admission_invalid'; throw new Error();
@@ -125,7 +131,7 @@ export async function executeJson<Input, Wire, Upstream, Output>(dependencies: J
     if (request.execution_status !== 'admitted' || request.started_at !== null || request.billing_status !== 'awaiting_usage') {
       cleanupAllowed = false; failure = 'already_started'; throw new Error();
     }
-    if (!await markRequestStarted(dependencies.database, requestId, request.user_id, clock())) {
+    if (!await lifecycle.persist(() => markRequestStarted(dependencies.database, requestId, request!.user_id, clock()))) {
       cleanupAllowed = false; failure = 'already_started'; throw new Error();
     }
     claimed = true;
@@ -137,8 +143,8 @@ export async function executeJson<Input, Wire, Upstream, Output>(dependencies: J
         || userHandle.expiresAt <= clock() || channelHandle.expiresAt <= clock()
         || admission.requestForAdapter.protocol !== request.downstream_protocol || admission.requestForAdapter.request.model !== request.public_model_id
         || (admission.outputTokenLimit !== undefined && (!Number.isSafeInteger(admission.outputTokenLimit) || admission.outputTokenLimit < 1))) { failure = 'admission_invalid'; throw new Error(); }
-    if (controller.signal.aborted) { failure = 'cancelled'; throw new Error(); }
-    startRenewal();
+    if (lifecycle.signal.aborted) { failure = 'cancelled'; throw new Error(); }
+    lifecycle.start();
     if (adapters.request.from !== request.downstream_protocol || adapters.request.to !== request.upstream_protocol
         || adapters.response.from !== request.upstream_protocol || adapters.response.to !== request.downstream_protocol) { failure = 'service_failure'; throw new Error(); }
     failure = 'service_failure';
@@ -149,7 +155,7 @@ export async function executeJson<Input, Wire, Upstream, Output>(dependencies: J
     if (request.upstream_protocol === 'chat') delete wire.stream_options;
     const body = JSON.stringify(wire);
     failure = 'service_failure';
-    const upstream = await readChannelForForwarding(dependencies.database, request.channel_id, dependencies.keyring);
+    const upstream = await lifecycle.active(readChannelForForwarding(dependencies.database, request.channel_id, dependencies.keyring));
     if (!upstream || upstream.configVersion !== selected.channel.configVersion || upstream.status !== 'active') throw new Error();
     const maxBytes = options.maxResponseBytes ?? DEFAULT_CONFIG.gatewayBodyMaxBytes;
     if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) throw new Error();
@@ -158,22 +164,26 @@ export async function executeJson<Input, Wire, Upstream, Output>(dependencies: J
       // Conservatively assume dispatch unless G02 explicitly proves not_started.
       dispatched = true;
       exchange = await sendUpstream({ ...options.transport, baseUrl: upstream.baseUrl, upstreamProtocol: request.upstream_protocol,
-        upstreamKey: upstream.upstreamKey, stream: false, body, signal: controller.signal }, dependencies.fetch ? { fetch: dependencies.fetch } : {});
+        upstreamKey: upstream.upstreamKey, stream: false, body, signal: lifecycle.signal }, dependencies.fetch ? { fetch: dependencies.fetch } : {});
     } catch (error) {
       if (error instanceof UpstreamTransportError && error.execution === 'not_started') dispatched = false;
       throw error;
     }
-    const raw = await readJson(exchange.response, maxBytes);
-    const completion = await exchange.done;
+    lifecycle.attachUpstream(() => exchange!.cancel());
+    await observeUpstreamResponse(options.onUpstreamResponse, request.channel_id, exchange.response, lifecycle.signal);
+    const raw = await lifecycle.active(readJson(exchange.response, maxBytes));
+    const completion = await lifecycle.active(exchange.done);
     if (!completion.ok) throw completion.error;
     upstreamRequestId = nativeId(exchange.response.headers.get('request-id') ?? exchange.response.headers.get('x-request-id'));
     upstreamResponseId = nativeId(raw !== null && typeof raw === 'object' ? (raw as Record<string, unknown>).id : undefined);
     const extracted = request.upstream_protocol === 'chat' ? extractChatUsage(raw) : request.upstream_protocol === 'responses' ? extractResponsesUsage(raw) : extractMessagesUsage(raw);
     usage = JSON.parse(JSON.stringify(extracted)) as UsageSnapshot;
     failure = 'service_failure';
+    if (lifecycle.signal.aborted) throw new Error();
+    lifecycle.beginFinalization(true);
     if (usage.quality === 'complete') {
       try {
-        const outcome = await settleRequest(dependencies.database, request, usage, { ...options.settlement, now: clock });
+        const outcome = await lifecycle.persist(() => settleRequest(dependencies.database, request!, usage, { ...options.settlement, now: clock }));
         if (outcome.status === 'settled') billingStatus = 'settled';
         else { if (outcome.inFlight) dependencies.waitUntil?.(outcome.inFlight); await recover(); }
       } catch (error) {
@@ -182,7 +192,7 @@ export async function executeJson<Input, Wire, Upstream, Output>(dependencies: J
       }
     } else await recover();
     if (!exchange.response.ok) { failure = 'upstream_failed'; throw new Error(); }
-    if (controller.signal.aborted) { failure = leaseLost ? 'lease_lost' : 'cancelled'; throw new Error(); }
+    if (lifecycle.signal.aborted) { failure = lifecycle.reason === 'lease_lost' ? 'lease_lost' : 'cancelled'; throw new Error(); }
     failure = 'conversion_failed';
     const ids = createResponseIds({ seed: requestId, ...(upstreamResponseId === undefined ? {} : { upstreamResponseId }) });
     if (!ids.ok) throw new Error();
@@ -191,40 +201,35 @@ export async function executeJson<Input, Wire, Upstream, Output>(dependencies: J
     if (!output.ok || output.value.identity.responseId !== ids.value.identity.responseId || output.value.body === undefined) throw new Error();
     if (output.value.terminal.status === 'failed' || output.value.terminal.status === 'cancelled') throw new Error();
     resultBody = output.value.body;
-    if (!await finishRequest(dependencies.database, requestId, request.user_id, { status: 'succeeded',
-      ...(upstreamResponseId === undefined ? {} : { responseId: upstreamResponseId }), ...(upstreamRequestId === undefined ? {} : { upstreamRequestId }) }, clock())) throw new Error();
+    if (!await lifecycle.persist(() => finishRequest(dependencies.database, requestId, request!.user_id, { status: 'succeeded',
+      ...(upstreamResponseId === undefined ? {} : { responseId: upstreamResponseId }), ...(upstreamRequestId === undefined ? {} : { upstreamRequestId }) }, clock()))) throw new Error();
     terminalSaved = true; failure = undefined;
   } catch {
-    failure = leaseLost ? 'lease_lost' : controller.signal.aborted ? 'cancelled' : failure ?? 'service_failure';
+    failure = lifecycle.reason === 'lease_lost' ? 'lease_lost' : lifecycle.reason === 'cancelled' || options.signal?.aborted ? 'cancelled' : failure ?? 'service_failure';
+    lifecycle.beginFinalization(false);
+    lifecycle.stop('failed');
     if (claimed && request && !terminalSaved) {
       try {
         if (dispatched) { if (billingStatus !== 'settled') await recover(); }
         else {
-          const marked = await prepare(dependencies.database, `UPDATE requests SET billing_status='not_chargeable',updated_at=max(updated_at,?)
-            WHERE id=? AND user_id=? AND billing_status='awaiting_usage' AND NOT EXISTS(SELECT 1 FROM billing_entries WHERE request_id=requests.id AND kind='consumption')`, [clock(), requestId, request.user_id]).run();
+          const marked = await lifecycle.persist(() => prepare(dependencies.database, `UPDATE requests SET billing_status='not_chargeable',updated_at=max(updated_at,?)
+            WHERE id=? AND user_id=? AND billing_status='awaiting_usage' AND NOT EXISTS(SELECT 1 FROM billing_entries WHERE request_id=requests.id AND kind='consumption')`, [clock(), requestId, request!.user_id]).run());
           if (marked.changes !== 1) throw new Error();
           billingStatus = 'not_chargeable';
         }
       } catch { failure = 'service_failure'; }
       try {
-        terminalSaved = await finishRequest(dependencies.database, requestId, request.user_id, {
+        terminalSaved = await lifecycle.persist(() => finishRequest(dependencies.database, requestId, request!.user_id, {
           status: failure === 'cancelled' ? 'cancelled' : 'failed',
           errorCode: failure === 'cancelled' ? 'client_cancelled' : dispatched ? 'upstream_error' : 'internal_error',
           ...(upstreamResponseId === undefined ? {} : { responseId: upstreamResponseId }), ...(upstreamRequestId === undefined ? {} : { upstreamRequestId }),
-        }, clock());
+        }, clock()));
         if (!terminalSaved) failure = 'service_failure';
       } catch { failure = 'service_failure'; }
     }
   } finally {
-    stopped = true;
-    if (renewTimer !== undefined) clearTimeout(renewTimer);
-    options.signal?.removeEventListener('abort', externalAbort);
-    exchange?.cancel();
-    if (renewing) await renewing;
-    if (cleanupAllowed) {
-      try { cleanup = await admission.lease.release(); }
-      catch { cleanup = { complete: false, outcomes: [] }; }
-    }
+    const report = await lifecycle.close(cleanupAllowed);
+    if (cleanupAllowed) cleanup = report;
   }
   if (failure || !cleanup) throw new JsonExecutionError(failure ?? 'service_failure', requestId, billingStatus, cleanup, dispatched);
   return { requestId, body: resultBody as Output, usage, billingStatus, cleanup };

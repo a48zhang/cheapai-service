@@ -1,66 +1,70 @@
 # Sub2API on Cloudflare
 
-面向 Cloudflare 的跨协议 API 网关。已完成一期设计、微任务拆分和首批 8 个基础任务；注册、计费、实际协议转换和云部署仍待后续实现。
+一个运行在 Cloudflare 上的跨协议 AI API 网关，同时提供网页聊天、用户控制台和管理后台。后端使用 TypeScript/Hono，前端使用 Vue 3/Vite；一个 Worker 提供前端静态资源、管理 API、模型网关和定时维护。
 
-## 一期目标
+## 从哪里开始
 
-用户通过开放注册或注册码注册，并按设置完成邮箱验证；登录后管理平台 API Key。管理员配置 OpenAI-compatible 或 Anthropic Messages 渠道。下游 Chat Completions、Responses、Messages 与三种上游协议的九种组合全部实现普通和流式转换，参考 Sub2API 的行为与测试。
+| 你想做什么 | 入口 |
+| --- | --- |
+| 使用网页聊天或接入自己的客户端 | [用户上手指南](docs/user-guide.md) |
+| 配置渠道、模型、分组和用户余额 | [管理员上手指南](docs/admin-guide.md) |
+| 在本地开发、运行测试 | [本地开发](docs/development.md) |
+| 部署或升级已有环境 | [部署步骤](docs/deployment.md) → [备份恢复](docs/backup-restore.md) / [回滚](docs/rollback.md) |
+| 了解支持的协议字段与限制 | [协议支持矩阵](docs/protocol-support.md) |
+| 查找设计、历史验收或实施任务 | [文档导航](docs/README.md) |
 
-计费采用预付费准入、请求结束后扣费，允许少量透支。D1 保存真实余额与账单，KV 为路由、价格和短期余额快照提供缓存。上游只用 Base URL/API Key，不涉及 OAuth。
+## 当前实现与验证边界
 
-## 简化架构
+更新：2026-10-03。本轮基于 `54d71d5d74a6cadc83c3e6acdb3e9cb866efaa2a` 实施修复；以下状态指本地工作树，尚未推送或发布。
 
-一个 Worker 部署，同时提供静态前端、管理 API、模型网关与 Cron。
+- 已实现注册策略、邮箱验证码流程、登录会话、平台 API Key、用户/分组/渠道/模型管理、余额授额、请求记录、账单与审计
+- 网关入口：`GET /v1/models`，以及 `POST /v1/chat/completions`、`POST /v1/responses`、`POST /v1/messages`
+- Chat Completions、Responses、Messages 三种上下游协议的九个组合均有直接适配器，分别处理普通 JSON 和 SSE；具体字段仍受模型/渠道能力及[支持边界](docs/protocol-support.md)约束
+- 网页聊天包含历史会话、流式回答、停止生成、最后一轮重新生成及回答版本选择；使用登录会话，不需要用户先创建 API Key
+- D1 迁移已到 `0023_request_source_group.sql`；迁移中的内置模型目录不等于已配置可调用渠道
 
-- D1：用户、注册、Key、渠道、余额、请求及账单的唯一持久业务数据源。
-- KV：可失效、可回源的缓存，不保存唯一账单、不执行余额增减。
-- 轻量 Durable Object：用户/渠道并发租约与限流，无独立账本或渠道数据库。
-- Email Service：发送验证邮件。
-- 一期不使用 Queues、Outbox、异步查询投影或独立 jobs 服务；R2 按后续归档需求引入。
+本轮请求可靠性 B01–B07 与前端 FE-D01–FE-D11 已实现：聊天正文保真、操作收尾、会话过期/草稿恢复、历史分页、完整渠道选择器，以及逻辑请求 RPM、渠道冷却和有界资源释放。共享目录与存储拆分已实现；完整范围与状态见[执行计划](docs/implementation-plan.md)。
 
-## 文档
+已完成的局部检查：后端 Workers 170 项、Chat Node 10 项，前端 Node 20 项、管理契约 7 项及 Web 类型检查/构建通过。Chromium 启动遇到 socket EPERM，本轮浏览器验收未通过。完整代码的集中检查与真实云、上游、邮件、容量及恢复验收仍待完成。
 
-1. [一期目标与验收](docs/phase-1.md)
-2. [完整技术方案 v1.0](docs/architecture.md)：架构、数据表、注册鉴权、九种协议组合、计费/KV、接口、故障恢复、部署和验收。
-3. [计费与 KV 策略](docs/billing-cache.md)
-4. [注册与身份](docs/registration-auth.md)
-5. [协议转换矩阵](docs/protocol-compatibility.md)
-6. [实施顺序](docs/implementation-plan.md)
-7. [现有实现与参考资料](docs/evidence.md)
-8. [工具链与本机运行步骤](docs/toolchain.md)
-9. [协议源码基线](docs/protocol-baseline.md)与[第三方声明](THIRD_PARTY_NOTICES.md)
+原基线的 [GitHub Actions](https://github.com/a48zhang/sub2api-cloudflare/actions/runs/36874254293) 与 [9 月 12 日聊天交付](docs/web-chat-delivery.md)保留为历史证据。旧 507 节点中的 `CHAT-RELEASE` 和 26 项后置验收仍未关闭；本地实现不等于已发布。剩余事项见[已知问题与验证边界](docs/known-issues.md)。
 
-## 工程布局
+## 本地检查
 
-```text
-apps/
-  web/                  注册、用户与管理界面
-  worker/               一个 Worker 的代码
-    auth/               注册、会话、权限
-    admin/              管理 API
-    gateway/            路由、转发与取消
-    billing/            准入、结算与余额查询
-    cache/              KV 读取、失效与回源
-    limits/             并发租约 DO
-    scheduled/          过期数据和异常请求检查
-packages/
-  apicompat/            独立测试的协议转换模块
-migrations/             D1 版本迁移
-tests/                  契约、集成、故障与端到端测试
-docs/                   目标与设计
+先按 `.node-version` 和 `package.json` 使用 Node **24.19.0**、pnpm **11.19.0**，在仓库根目录执行：
+
+```sh
+pnpm install --frozen-lockfile --strict-peer-dependencies --registry=https://registry.npmjs.org
+pnpm run check
 ```
 
-TypeScript、Hono、Wrangler；前端采用 Vue 3/Vite 并评估复用 Sub2API 页面。使用 pnpm workspace 管理前端、Worker 和转换包，其他业务先用普通模块，不拆独立服务和发布包。现已固定 Node 24.19.0/pnpm 11.19.0、依赖和锁文件，并加入 strict 类型配置、Worker 健康入口、前端构建配置和协议类型契约；具体命令及 Windows Path 处理见工具链说明。
+`check` 依次运行类型检查、Vitest、构建；Worker 构建使用 `wrangler deploy --dry-run`，不会发布。浏览器端到端测试单独运行，完整的可登录本地环境还需要 D1 迁移、可信 HTTPS、`PUBLIC_BASE_URL` 和本地配置，见[本地开发](docs/development.md)。仅运行 Vite 或访问 `/healthz` 不能证明注册、聊天和网关可用。
 
-首批验证：三个工作区类型检查、协议声明构建、健康入口与未知 API 的 13 项本地断言通过。前端入口 F09、资源绑定 F06 和后续业务尚未完成，不能将这些结果视为全工程构建、协议兼容或生产验收通过。
+## 架构与目录
 
-完整方案已给出实施默认值：USD 定点记账、调用后原子扣费；路由/价格缓存先启用，余额 KV 保留开关、初始关闭，若启用则使用十五秒业务快照期限。这些是待实测的工程默认值，后续按运行数据调整。
+- **D1**：用户、身份、渠道、模型、聊天、请求和账务的持久业务数据；余额与账单在此正式提交
+- **KV**：可失效、可回源的路由/价格等缓存，不承担独立账本或余额增减
+- **Gate Durable Object**：并发租约与限流
+- **Email binding**：发送注册验证码，必须由部署者配置并验证投递能力
+- **Cron**：到期身份清理、异常请求检查和结算重试
 
-## 约束
+```text
+apps/web/              Vue 用户与管理界面、网页聊天
+apps/worker/           Hono API、网关、鉴权、计费、聊天与维护
+packages/apicompat/    协议校验和普通/流式直接转换
+packages/model-catalog/ 内置模型参考元信息
+migrations/            D1 顺序迁移
+scripts/               初始化、测试和运维辅助脚本
+tests/                 单元、Workers、集成与浏览器测试
+docs/                  使用指南、运行手册、设计与历史证据
+```
 
-- 纯 Cloudflare，不依赖 VPS、外部 PostgreSQL 或 Redis。
-- 新工程使用独立测试资源，保留原来的四个 Worker。
-- 金额允许短暂负数，但不能重复扣费、丢失已提交账单或用 KV 覆盖真实余额。
-- 管理权限、注册码核销、Key 撤销等安全约束不因允许透支而放松。
-- 上游代码固定参考提交并记录来源和许可证；密钥不提交到 Git。
-- 当前只有本地 Git 工程，未建立 GitHub 远程。
+## 使用前要知道
+
+- 新用户和初始管理员余额都是零；注册码只提供注册资格，不附带余额。管理员授额后才能正常调用
+- 内置模型仍需启用渠道、模型映射、分组关联与用户授权；“暂无可用模型”应按[管理员检查清单](docs/admin-guide.md#没有可用模型时的检查顺序)逐项排查
+- 计费是预付费准入、请求后结算，允许少量透支；网页聊天和 API 共用用户余额，分组倍率会影响费用
+- 上游接入使用 Base URL/API Key，不包含账号 OAuth；密码找回、自助支付、独立图片生成、Realtime/WebSocket 不在当前一期范围
+- 不依赖 VPS、PostgreSQL、Redis、Queues 或独立 jobs 服务；密钥、数据库导出和本地状态不得提交到 Git
+
+协议参考来源与许可见[源码基线](docs/protocol-baseline.md)和[第三方声明](THIRD_PARTY_NOTICES.md)。

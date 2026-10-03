@@ -6,8 +6,10 @@ import type { ProtocolRequest } from '@sub2api/apicompat/capabilities/check';
 import { authenticatePlatformKey } from '../auth/api-key-auth';
 import type { InternalPlatformKeyAuth } from '../auth/key-repository';
 import { API_ERRORS, ApiError } from '../http';
-import type { ChannelKeyring } from '../admin/channel-secrets';
+import type { ChannelKeyring } from '../catalog/channel-secrets';
 import { prepare } from '../db';
+import { recordChannelCooldown, CooldownClientError } from '../limits/cooldown';
+import type { ChannelCooldownInput, CooldownBinding } from '../limits/cooldown';
 import { admitRequest, GatewayAdmissionError } from './admit';
 import type { AdmissionBindings, AdmittedRequest, CandidateExclusion } from './admit';
 import { parseChatInput } from './parse-chat';
@@ -25,6 +27,7 @@ import type { ObservationSink, RequestObserver } from './observability';
 import type { RequestSource } from './request-repository';
 
 export interface GatewayDispatchDependencies extends AdmissionBindings {
+  readonly GATE: AdmissionBindings['GATE'] & CooldownBinding;
   /** Resolve secrets only after authentication and successful body parsing. */
   readonly keyring: ChannelKeyring | (() => ChannelKeyring | Promise<ChannelKeyring>);
   readonly registry?: ProtocolRegistry;
@@ -145,6 +148,8 @@ export async function dispatchGatewayRequest(dependencies: GatewayDispatchDepend
   }): Promise<Response> {
   let now: () => number = Date.now;
   let requestId: string = crypto.randomUUID();
+  // One server-owned user RPM identity survives candidate admission retries.
+  const userRateOperationId = crypto.randomUUID();
   let admission: AdmittedRequest | undefined;
   let observer: RequestObserver | undefined;
   let transferred = false;
@@ -165,7 +170,7 @@ export async function dispatchGatewayRequest(dependencies: GatewayDispatchDepend
     const excluded: CandidateExclusion[] = [];
     for (let attempt = 0; attempt < MAX_UNREGISTERED_CANDIDATE_ATTEMPTS; attempt++) {
       try {
-        admission = await admitRequest(dependencies, subject, original, { now, signal: request.signal, excludeCandidates: excluded,
+        admission = await admitRequest(dependencies, subject, original, { now, signal: request.signal, excludeCandidates: excluded, userRateOperationId,
           requireChatStreamUsage: true, source: trusted?.source ?? 'api', adapterAvailable: direction => registry.available(direction) });
         break;
       } catch (error) {
@@ -196,12 +201,23 @@ export async function dispatchGatewayRequest(dependencies: GatewayDispatchDepend
     if (parsed.protocol === 'messages' && parsed.betas.length > 0 && upstream !== 'messages') throw new ApiError('invalid_request');
     const transport = { ...dependencies.transport, downstreamHeaders: request.headers,
       messages: dependencies.messagesPolicy ?? { allowedBetas: [] } };
+    const onUpstreamResponse = (response: ChannelCooldownInput): Promise<void> => {
+      const work = recordChannelCooldown(dependencies.GATE, response, { clock: now }).then(() => undefined, error => {
+        // Timeout/transport failure cannot prove whether the write committed.
+        // Never log provider headers, body, credentials, or raw exception text.
+        try { console.warn(JSON.stringify({ event: 'channel_cooldown_write_uncertain', request_id: requestId,
+          channel_id: response.channelId, upstream_status: response.status,
+          error_code: error instanceof CooldownClientError ? error.code : 'unavailable' })); } catch { /* Best effort. */ }
+      });
+      own(work);
+      return work;
+    };
     const executionDependencies = { database: dependencies.DB, keyring, now,
       ...(dependencies.fetch ? { fetch: dependencies.fetch } : {}), waitUntil: own };
     if (!parsed.stream) {
       transferred = true;
       observer.mark('upstream_started');
-      const result = await executeJson(executionDependencies, admission, resolved.value, { signal: request.signal, transport });
+      const result = await executeJson(executionDependencies, admission, resolved.value, { signal: request.signal, transport, onUpstreamResponse });
       const finalization = finalizationFromJson(result); // G07 already settled and released; do not run G11 again.
       observer.mark('first_byte', { usage: result.usage });
       observer.mark('settlement', { usage: result.usage, finalization });
@@ -211,7 +227,7 @@ export async function dispatchGatewayRequest(dependencies: GatewayDispatchDepend
     const finalizer = createRequestFinalizer({ database: dependencies.DB, request: admission.request, now, waitUntil: own });
     transferred = true;
     const execution = await executeStream(executionDependencies, admission,
-      streamingAdapters(resolved.value, downstream, upstream, showUsage), { signal: request.signal, transport, onComplete: finalizer.onComplete });
+      streamingAdapters(resolved.value, downstream, upstream, showUsage), { signal: request.signal, transport, onUpstreamResponse, onComplete: finalizer.onComplete });
     own(execution.completion); // Covers EOF, cancellation and bounded accounting after HTTP consumption.
     observer.mark('upstream_started');
     observer.mark('first_byte');

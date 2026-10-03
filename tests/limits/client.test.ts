@@ -75,14 +75,22 @@ describe('typed internal lease binding client', () => {
     },
   );
 
-  it.each([{ now: 0 }, { leaseToken: 'a'.repeat(64) }, { operationId: 'client-id' }, { ttlMs: 0 }, { limit: -1 }, { requestId: 'bad\n' }, { rate: { limit: 1, windowMs: 60_000, operationId: 'forged' } }])(
-    'rejects caller-supplied clock/token/operation IDs and malformed parameters (case %#)', async (extra) => {
+  it.each([{ now: 0 }, { leaseToken: 'a'.repeat(64) }, { operationId: 'client-id' }, { ttlMs: 0 }, { limit: -1 }, { requestId: 'bad\n' }, { rate: { limit: 1, windowMs: 60_000, operationId: 'bad\n' } }])(
+    'rejects caller-supplied clock/token/top-level operation IDs and malformed parameters (case %#)', async (extra) => {
       const call = vi.fn(async () => undefined);
       const client = new LeaseClient(responseBinding(call), scope);
       await expect(client.acquire({ ...input, ...extra })).rejects.toMatchObject({ code: 'invalid_input', retryable: false });
       expect(call).not.toHaveBeenCalled();
     },
   );
+
+  it('forwards a trusted logical rate operation ID independently of the attempt request ID', async () => {
+    const call = vi.fn(async () => ({ granted: false, reason: 'rate_limit', retryAfterMs: 1 }));
+    const client = new LeaseClient(responseBinding(call), scope);
+    const args = { ...input, rate: { limit: 1, windowMs: 60_000, operationId: 'logical-request-1' } };
+    await expect(client.acquire(args)).resolves.toEqual({ granted: false, reason: 'rate_limit', retryAfterMs: 1 });
+    expect(call).toHaveBeenCalledExactlyOnceWith(args);
+  });
 
   it.each([null, {}, { granted: 'true' }, { granted: false, reason: 'capacity', retryAfterMs: -1 },
     { granted: true, duplicate: false, lease: { requestId: 'wrong-request', leaseToken: 'a'.repeat(64), acquiredAt: 1, expiresAt: 2 } },

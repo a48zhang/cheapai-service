@@ -44,6 +44,26 @@ export class ChatGatewayStreamError extends Error {
   }
 }
 
+/** Bounds waiting only: D1 cannot cancel an issued write. Late results are
+ * observed, but never get to choose another terminal state. */
+export function boundedChatWork<T>(work: Promise<T>, timeoutMs = 5000, signal?: AbortSignal): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const cleanup = () => {
+      if (timer !== undefined) clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
+    };
+    const abort = () => { cleanup(); reject(new ChatGatewayStreamError('cancelled', 'Chat generation was cancelled.')); };
+    work.then(value => { cleanup(); resolve(value); }, error => { cleanup(); reject(error); });
+    if (signal?.aborted) { abort(); return; }
+    signal?.addEventListener('abort', abort, { once: true });
+    timer = setTimeout(() => {
+      cleanup();
+      reject(new ChatGatewayStreamError('chat_timeout', 'The chat request timed out.'));
+    }, timeoutMs);
+  });
+}
+
 function safeErrorCode(value: unknown): string {
   if (typeof value !== 'string' || !/^[A-Za-z0-9_.:-]{1,64}$/u.test(value)) return 'gateway_error';
   return value;
@@ -116,7 +136,10 @@ function parseFrame(event: string | undefined, data: string): ChatGatewayEvent {
 }
 
 async function* responseEvents(response: Response, signal?: AbortSignal): AsyncGenerator<ChatGatewayEvent, void, unknown> {
-  if (!response.ok) throw new ChatGatewayStreamError('upstream_error', 'The chat upstream failed.');
+  if (!response.ok) {
+    void response.body?.cancel().catch(() => undefined);
+    throw new ChatGatewayStreamError('upstream_error', 'The chat upstream failed.');
+  }
   const body = response.body;
   if (!body) throw new ChatGatewayStreamError('invalid_upstream_stream', 'The chat stream was empty.');
   const reader = body.getReader();
@@ -124,6 +147,12 @@ async function* responseEvents(response: Response, signal?: AbortSignal): AsyncG
   let buffer = '';
   let event: string | undefined;
   let data: string[] = [];
+  let exhausted = false;
+  const cancelReader = () => {
+    try { void reader.cancel().catch(() => undefined); } catch { /* already released */ }
+    try { reader.releaseLock(); } catch { /* A late generator finally also releases. */ }
+  };
+  signal?.addEventListener('abort', cancelReader, { once: true });
   const flush = function* (): Generator<ChatGatewayEvent> {
     if (data.length === 0) return;
     const parsed = parseFrame(event, data.join('\n'));
@@ -134,7 +163,7 @@ async function* responseEvents(response: Response, signal?: AbortSignal): AsyncG
     while (true) {
       if (signal?.aborted) throw new ChatGatewayStreamError('cancelled', 'Chat generation was cancelled.');
       const next = await reader.read();
-      if (next.done) break;
+      if (next.done) { exhausted = true; break; }
       buffer += decoder.decode(next.value, { stream: true });
       let newline: number;
       while ((newline = buffer.search(/\r?\n/u)) >= 0) {
@@ -152,7 +181,11 @@ async function* responseEvents(response: Response, signal?: AbortSignal): AsyncG
       else if (buffer.startsWith('event:')) event = buffer.slice(6).trim();
     }
     yield* flush();
-  } finally { try { reader.releaseLock(); } catch { /* body already released */ } }
+  } finally {
+    signal?.removeEventListener('abort', cancelReader);
+    if (!exhausted) cancelReader();
+    try { reader.releaseLock(); } catch { /* body already released */ }
+  }
 }
 
 async function* sourceEvents(source: ChatGatewaySource, signal?: AbortSignal): AsyncGenerator<ChatGatewayEvent, void, unknown> {
@@ -161,9 +194,25 @@ async function* sourceEvents(source: ChatGatewaySource, signal?: AbortSignal): A
     yield* responseEvents(new Response(source as ReadableStream<Uint8Array>, { headers: { 'Content-Type': 'text/event-stream' } }), signal);
     return;
   }
-  for await (const event of source as AsyncIterable<ChatGatewayEvent>) {
-    if (signal?.aborted) throw new ChatGatewayStreamError('cancelled', 'Chat generation was cancelled.');
-    yield event;
+  const iterator = (source as AsyncIterable<ChatGatewayEvent>)[Symbol.asyncIterator]();
+  let exhausted = false;
+  let returning = false;
+  const release = () => {
+    if (returning || exhausted) return;
+    returning = true;
+    try { void boundedChatWork(Promise.resolve(iterator.return?.()), 1000).catch(() => undefined); } catch { /* best effort */ }
+  };
+  signal?.addEventListener('abort', release, { once: true });
+  try {
+    while (true) {
+      if (signal?.aborted) throw new ChatGatewayStreamError('cancelled', 'Chat generation was cancelled.');
+      const next = await boundedChatWork(iterator.next(), 120_000, signal);
+      if (next.done) { exhausted = true; return; }
+      yield next.value;
+    }
+  } finally {
+    signal?.removeEventListener('abort', release);
+    release();
   }
 }
 
@@ -175,96 +224,95 @@ function sse(event: string, value: unknown): Uint8Array {
 export function createChatSseStream(meta: ChatSseMeta, execution: ChatGatewayExecution, callbacks: ChatSseCallbacks,
   options: ChatSseOptions = {}): ReadableStream<Uint8Array> {
   const controller = new AbortController();
-  const stop = () => controller.abort();
-  options.signal?.addEventListener('abort', stop, { once: true });
   let state: 'open' | 'closing' | 'finished' = 'open';
   let closePromise: Promise<void> | null = null;
+  let cancelPromise: Promise<void> | null = null;
   let outputController: ReadableStreamDefaultController<Uint8Array> | undefined;
   let doneMarker = false;
   let eventBillingStatus: string | undefined;
   let queuedText = '';
   let lastPersist = Date.now();
+  const iterator = sourceEvents(execution.source, controller.signal)[Symbol.asyncIterator]();
 
   const schedule = (work: Promise<unknown>): void => {
-    try { options.waitUntil?.(work.then(() => undefined, () => undefined)); } catch { /* execution context may already be closed */ }
+    const observed = work.then(() => undefined, () => undefined);
+    try { options.waitUntil?.(observed); } catch { /* execution context may already be closed */ }
   };
-  const emit = (output: ReadableStreamDefaultController<Uint8Array> | undefined, event: string, value: unknown): void => {
-    try { output?.enqueue(sse(event, value)); } catch { /* client disconnected */ }
+  const emit = (event: string, value: unknown): void => {
+    try { outputController?.enqueue(sse(event, value)); } catch { /* client disconnected */ }
   };
-  const closeOutput = (output?: ReadableStreamDefaultController<Uint8Array>): void => {
-    try { output?.close(); } catch { /* client disconnected */ }
+  const cancelExecution = (): Promise<void> => {
+    if (cancelPromise) return cancelPromise;
+    // Abort before any persistence wait. The gateway alone owns billing and
+    // leases; neither a broken cancel hook nor its completion can block SSE.
+    controller.abort();
+    let work: Promise<void>;
+    try { work = Promise.resolve(execution.cancel?.()); } catch { work = Promise.resolve(); }
+    cancelPromise = boundedChatWork(work, 1000).then(() => undefined, () => undefined);
+    schedule(cancelPromise);
+    return cancelPromise;
   };
-  const markFinished = (): void => {
-    state = 'finished';
-    options.signal?.removeEventListener('abort', stop);
-  };
-  const flushQueued = async (): Promise<void> => {
+  const flushQueued = async (timeoutMs = 5000, signal?: AbortSignal): Promise<void> => {
     if (queuedText.length === 0) return;
     const text = queuedText;
     queuedText = '';
-    await callbacks.onDelta(text);
+    await boundedChatWork(Promise.resolve().then(() => callbacks.onDelta(text)), timeoutMs, signal);
   };
+  const stop = (): void => { void finish('cancelled'); };
 
-  /** Every terminal callback is bounded by a finally-like close path.  A D1
-   * failure must remain visible to the browser and cannot strand SSE open. */
-  const finishFailure = (code: string, message: string, output?: ReadableStreamDefaultController<Uint8Array>): Promise<void> => {
+  /** Claim the terminal state synchronously. All races join the same promise,
+   * and a late abort cannot turn an accepted success into a stopped answer. */
+  const finish = (kind: 'completed' | 'failed' | 'cancelled', code = 'gateway_error',
+    message = 'The chat request failed.', billingStatus?: string): Promise<void> => {
     if (closePromise) return closePromise;
-    closePromise = (async () => {
-      state = 'closing';
+    state = 'closing';
+    options.signal?.removeEventListener('abort', stop);
+    closePromise = Promise.resolve().then(async () => {
       let persistenceError = false;
-      try { await flushQueued(); } catch { persistenceError = true; }
+      let final: ChatMessage | null = null;
       const safeCode = safeErrorCode(code);
       const safeMessage = safeErrorMessage(message);
-      let final: ChatMessage | null = null;
-      const failed = Promise.resolve().then(() => callbacks.onFailed(safeCode, safeMessage));
-      schedule(failed);
-      try { final = await failed; } catch { persistenceError = true; }
-      markFinished();
-      emit(output, 'error', { code: persistenceError ? 'persistence_error' : safeCode,
-        message: persistenceError ? 'The chat answer could not be saved.' : safeMessage, ...(final ? { messageId: final.id } : {}) });
-      closeOutput(output);
-    })();
-    return closePromise;
-  };
-
-  const finishCancelled = (output?: ReadableStreamDefaultController<Uint8Array>): Promise<void> => {
-    if (closePromise) return closePromise;
-    closePromise = (async () => {
-      state = 'closing';
-      let persistenceError = false;
-      try { await flushQueued(); } catch { persistenceError = true; }
-      let final: ChatMessage | null = null;
-      const cancelled = Promise.resolve().then(() => callbacks.onCancelled());
-      schedule(cancelled);
-      try { final = await cancelled; } catch { persistenceError = true; }
-      markFinished();
-      if (persistenceError) emit(output, 'error', { code: 'persistence_error', message: 'The chat answer could not be saved.' });
-      else emit(output, 'done', { message: final, ...(final ? { stopped: true } : {}) });
-      closeOutput(output);
-    })();
-    return closePromise;
-  };
-
-  const finishCompleted = (billingStatus: string | undefined, output?: ReadableStreamDefaultController<Uint8Array>): Promise<void> => {
-    if (closePromise) return closePromise;
-    closePromise = (async () => {
-      state = 'closing';
-      let final: ChatMessage | null = null;
-      const completed = Promise.resolve().then(() => callbacks.onDone(billingStatus));
-      schedule(completed);
-      try { final = await completed; } catch {
-        const failed = Promise.resolve().then(() => callbacks.onFailed('persistence_error', 'The chat answer could not be saved.'));
-        schedule(failed);
-        try { final = await failed; } catch { /* error remains visible below */ }
-        markFinished();
-        emit(output, 'error', { code: 'persistence_error', message: 'The chat answer could not be saved.', ...(final ? { messageId: final.id } : {}) });
-        closeOutput(output);
-        return;
+      try {
+        if (kind !== 'completed') await cancelExecution();
+        // Give the final write its own budget even if a checkpoint is stuck.
+        // onDelta incorporates the text before awaiting its checkpoint write.
+        try { await flushQueued(1500); } catch { persistenceError = true; await cancelExecution(); }
+        const savingCompleted = kind === 'completed' && !persistenceError;
+        const saveDeadline = Date.now() + 3500;
+        const save = Promise.resolve().then(() => kind === 'completed'
+          ? persistenceError ? callbacks.onFailed('persistence_error', 'The chat answer could not be saved.') : callbacks.onDone(billingStatus)
+          : kind === 'cancelled' ? callbacks.onCancelled() : callbacks.onFailed(safeCode, safeMessage));
+        try { final = await boundedChatWork(save, 3500); } catch (error) {
+          persistenceError = true;
+          await cancelExecution();
+          // A rejected write may be repaired. A timed-out write is unknown;
+          // never race it with a conflicting failed terminal write.
+          if (savingCompleted && !(error instanceof ChatGatewayStreamError && error.code === 'chat_timeout') && Date.now() < saveDeadline) {
+            try {
+              final = await boundedChatWork(Promise.resolve().then(() => callbacks.onFailed('persistence_error', 'The chat answer could not be saved.')),
+                Math.max(1, saveDeadline - Date.now()));
+            } catch { /* The persistence error remains visible. */ }
+          }
+        }
+        if (persistenceError) {
+          await cancelExecution();
+          emit('error', { code: 'persistence_error', message: 'The chat answer could not be saved.', ...(final ? { messageId: final.id } : {}) });
+        } else if (kind === 'failed') {
+          emit('error', { code: safeCode, message: safeMessage, ...(final ? { messageId: final.id } : {}) });
+        } else {
+          emit('done', { message: final, ...(kind === 'cancelled' && final ? { stopped: true } : {}),
+            ...(billingStatus === undefined ? {} : { billingStatus }) });
+        }
+      } finally {
+        state = 'finished';
+        controller.abort();
+        // Async iterator return may wait for a pending next()/cancel hook.
+        // Observe it with a bound rather than letting it own termination.
+        try { schedule(boundedChatWork(Promise.resolve(iterator.return?.()), 1000)); } catch { /* already closed */ }
+        try { outputController?.close(); } catch { /* client disconnected */ }
       }
-      markFinished();
-      emit(output, 'done', { message: final, ...(billingStatus === undefined ? {} : { billingStatus }) });
-      closeOutput(output);
-    })();
+    });
+    schedule(closePromise);
     return closePromise;
   };
 
@@ -272,55 +320,55 @@ export function createChatSseStream(meta: ChatSseMeta, execution: ChatGatewayExe
     start(output) {
       outputController = output;
       output.enqueue(sse('meta', meta));
-      void (async () => {
+      options.signal?.addEventListener('abort', stop, { once: true });
+      if (options.signal?.aborted) { stop(); return; }
+      const pump = (async () => {
         try {
-          for await (const event of sourceEvents(execution.source, controller.signal)) {
+          while (state === 'open') {
+            // The abort race also covers custom iterators that ignore cancel.
+            const next = await boundedChatWork(iterator.next(), 120_000, controller.signal);
             if (state !== 'open') return;
+            if (next.done) break;
+            const event = next.value;
             if (event.type === 'error') throw new ChatGatewayStreamError(event.code, event.message);
             if (event.type === 'delta') {
               if (!event.text) continue;
-              const delta = event.text;
-              queuedText += delta;
+              queuedText += event.text;
               const now = Date.now();
               if (queuedText.length >= 2048 || now - lastPersist >= 1500) {
-                const persisted = queuedText; queuedText = ''; lastPersist = now;
-                await callbacks.onDelta(persisted);
+                lastPersist = now;
+                try { await flushQueued(5000, controller.signal); } catch (error) {
+                  if (state !== 'open') return;
+                  await finish('failed', 'persistence_error', 'The chat answer could not be saved.');
+                  return;
+                }
               }
-              // Persistence batching is independent from presentation. Every
-              // upstream delta is emitted exactly once, even when it also
-              // closes a checkpoint batch.
-              output.enqueue(sse('delta', { text: delta }));
+              if (state !== 'open') return;
+              output.enqueue(sse('delta', { text: event.text }));
             }
             if (event.type === 'done') { doneMarker = true; eventBillingStatus = event.billingStatus; }
           }
-          await flushQueued();
           if (state !== 'open') return;
-          const terminal = execution.resolveTerminal === undefined ? undefined : await execution.resolveTerminal();
+          const terminal = execution.resolveTerminal === undefined ? undefined
+            : await boundedChatWork(Promise.resolve().then(() => execution.resolveTerminal!()), 10_000, controller.signal);
+          if (state !== 'open') return;
           const terminalState = terminal?.terminal ?? execution.terminal;
           const billingStatus = terminal?.billingStatus ?? execution.billingStatus ?? eventBillingStatus;
-          // A typed [DONE] is sufficient upstream terminal evidence. EOF is
-          // sufficient only when `terminalState` came from gateway authority;
-          // absent authority remains incomplete and cannot become completed.
           if (terminalState === 'failed' || terminalState === 'stopped' || (!doneMarker && terminalState !== 'completed')) {
-            await finishFailure(terminalState === 'stopped' ? 'cancelled' : 'incomplete_stream', 'The chat stream did not complete.', output);
+            await finish('failed', terminalState === 'stopped' ? 'cancelled' : 'incomplete_stream', 'The chat stream did not complete.');
             return;
           }
-          await finishCompleted(billingStatus, output);
+          await finish('completed', undefined, undefined, billingStatus);
         } catch (error) {
-          if (controller.signal.aborted || options.signal?.aborted) {
-            try { await execution.cancel?.(); } catch { /* cancellation is best effort */ }
-            await finishCancelled(output);
-            return;
-          }
-          await finishFailure(error instanceof ChatGatewayStreamError ? error.code : 'gateway_error', error instanceof ChatGatewayStreamError ? error.safeMessage : 'The chat request failed.', output);
+          if (state !== 'open') return;
+          if (options.signal?.aborted) { await finish('cancelled'); return; }
+          await finish('failed', error instanceof ChatGatewayStreamError ? error.code : 'gateway_error',
+            error instanceof ChatGatewayStreamError ? error.safeMessage : 'The chat request failed.');
         }
       })();
+      schedule(pump);
     },
-    async cancel() {
-      stop();
-      try { await execution.cancel?.(); } catch { /* cancellation is best effort */ }
-      await finishCancelled(outputController);
-    },
+    cancel() { return finish('cancelled'); },
   });
 }
 

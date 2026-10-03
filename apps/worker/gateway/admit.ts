@@ -4,7 +4,7 @@ import type { InternalPlatformKeyAuth } from '../auth/key-repository';
 import { checkBalanceAdmission } from '../billing/admission';
 import type { BalanceAdmissionOptions } from '../billing/admission';
 import { createPriceSnapshot } from '../billing/fingerprint';
-import { getModelById } from '../admin/model-repository';
+import { getModelById } from '../catalog/models';
 import { readPrices } from '../cache/prices';
 import { readRoutes } from '../cache/routes';
 import { DEFAULT_CONFIG, UNLIMITED_RPM } from '../config';
@@ -28,6 +28,8 @@ export interface AdmissionOptions {
   adapterAvailable?: SelectionOptions['adapterAvailable'];
   signal?: AbortSignal;
   leaseTtlMs?: number;
+  /** Internal dispatch identity shared only by candidates of this logical call. */
+  userRateOperationId?: string;
   /** Omit protocol to exclude the whole channel. Used by the later retry owner. */
   excludeCandidates?: readonly CandidateExclusion[];
   /** Trusted gateway accounting policy; never a client opt-out. */
@@ -91,6 +93,8 @@ export async function admitRequest(bindings: AdmissionBindings, subject: Interna
   };
   const ttlMs = options.leaseTtlMs ?? DEFAULT_CONFIG.gateLeaseTtlMs;
   if (!Number.isSafeInteger(ttlMs) || ttlMs <= 0) throw new ApiError('invalid_request');
+  if (options.userRateOperationId !== undefined && (typeof options.userRateOperationId !== 'string'
+    || options.userRateOperationId.length > 128 || !/^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(options.userRateOperationId))) throw new ApiError('invalid_request');
   const excluded = options.excludeCandidates ?? [];
   if (!Array.isArray(excluded) || excluded.length > 1000 || excluded.some(item => !item || typeof item.channelId !== 'string' ||
       !item.channelId.trim() || item.channelId.length > 128 ||
@@ -154,7 +158,7 @@ export async function admitRequest(bindings: AdmissionBindings, subject: Interna
   try {
     acquired = await acquireDualLease(bindings.GATE, { userId: subject.user.id, channelId: selected.candidate.channel.id,
       requestId: registration.requestId,
-      user: { limit: subject.user.concurrencyLimit, ttlMs, ...(subject.user.rpmLimit === UNLIMITED_RPM ? {} : { rate: { limit: subject.user.rpmLimit, windowMs: 60_000 } }) },
+      user: { limit: subject.user.concurrencyLimit, ttlMs, ...(subject.user.rpmLimit === UNLIMITED_RPM ? {} : { rate: { limit: subject.user.rpmLimit, windowMs: 60_000, operationId: options.userRateOperationId ?? registration.requestId } }) },
       channel: { limit: selected.candidate.channel.concurrencyLimit, ttlMs, ...(selected.candidate.channel.rpmLimit === UNLIMITED_RPM ? {} : { rate: { limit: selected.candidate.channel.rpmLimit, windowMs: 60_000 } }) },
     }, options.signal === undefined ? {} : { signal: options.signal });
   } catch { throw new ApiError('service_unavailable'); }

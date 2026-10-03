@@ -1,122 +1,116 @@
-# 本地开发与统一检查命令（R01/R02）
+# 本地开发与检查
 
-核对日期：2026-09-07。本文是当前工程的本地命令入口。工程固定 Node.js **24.19.0**、pnpm **11.19.0**、Vitest **4.1.11**、Wrangler **4.129.0**；版本以 `.node-version`、根 `package.json`、锁文件和 `apps/worker/package.json` 为准。先阅读 [toolchain.md](toolchain.md) 处理 Windows `Path` 大小写、安装策略和证据目录。
+更新：2026-10-03；本轮修改基于 `54d71d5d74a6cadc83c3e6acdb3e9cb866efaa2a`。命令从仓库根目录执行；Windows 中可把 `pnpm` 换为 `pnpm.cmd`。工具链安装与历史 Windows `Path` 问题见[工具链记录](toolchain.md)。
 
-当前代码仍有任务图中的未实现或未完成入口。下面的检查命令会真实返回失败并阻止交付；不要用 `--passWithNoTests`、跳过失败项目或把静态分析警告改写成通过。命令可执行不等于所有产品模块或真实云环境已验收，真实邮件、上游、部署、恢复和负载证据仍按各自任务后置。
+## 1. 固定版本，安装和检查
 
-## 固定工具链与安装
+使用 `.node-version` 指定的 Node **24.19.0** 和根 `package.json` 指定的 pnpm **11.19.0**，不要复制他人机器上的 Node 绝对路径。
 
-在全新 checkout 的工程根目录执行。Windows/Codex bundled Node 的路径是本机运行时路径；其他机器应按 `.node-version` 选择自己的 Node 24.19.0，不要复制该用户路径。以下只修改当前 PowerShell 进程：
-
-```powershell
-$toolchainOriginalPath = $env:Path
-Remove-Item Env:PATH -ErrorAction SilentlyContinue
-$env:Path = 'C:\Users\a4871\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin;' + $toolchainOriginalPath
-$env:WRANGLER_SEND_METRICS = 'false'
-$env:WRANGLER_LOG_PATH = Join-Path (Get-Location).Path '.wrangler/development.log'
-
+```sh
 node --version
-pnpm.cmd --version
+pnpm --version
+pnpm install --frozen-lockfile --strict-peer-dependencies --registry=https://registry.npmjs.org
+pnpm run check
 ```
 
-输出必须是 `v24.19.0` 和 `11.19.0`。在 POSIX 环境使用选定的 Node 24.19.0 与 pnpm 11.19.0 后，等价命令中的 `pnpm.cmd` 写作 `pnpm`。安装严格使用锁文件和官方 HTTPS registry：
+`pnpm-workspace.yaml` 的 engineStrict、依赖年龄与 allowBuilds 策略继续生效。安装失败先检查版本和 registry，不删除锁文件、不用 ignore-scripts 或全局放宽构建脚本策略来伪造通过。
 
-```powershell
-pnpm.cmd install --frozen-lockfile --strict-peer-dependencies --registry=https://registry.npmjs.org
-```
-
-`pnpm-workspace.yaml` 的 `engineStrict`、`verifyDepsBeforeRun` 和依赖策略会拒绝版本漂移或隐式安装。若安装失败，先修正 Node/pnpm 版本和 registry；不要删除锁文件，也不要把 `--ignore-scripts`、年龄检查覆盖或新的 `allowBuilds` 写进项目配置。
-
-## 日常开发
-
-根脚本按 workspace 运行，开发者不需要切换到子包目录：
-
-```powershell
-# 两个开发服务器按需分别运行
-pnpm.cmd run dev:web
-pnpm.cmd run dev:worker
-```
-
-Worker 本地开发需要明确的状态目录和本地 binding。要先应用迁移时，在另一个终端执行：
-
-```powershell
-$projectRoot = (Get-Location).Path
-$workerWrangler = Join-Path $projectRoot 'apps/worker/node_modules/wrangler/bin/wrangler.js'
-$workerConfig = Join-Path $projectRoot 'apps/worker/wrangler.jsonc'
-$localState = Join-Path $projectRoot '.wrangler/development-state'
-$env:WRANGLER_SEND_METRICS = 'false'
-$env:WRANGLER_LOG_PATH = Join-Path $projectRoot '.wrangler/development.log'
-
-node $workerWrangler d1 migrations apply DB --config $workerConfig --local --persist-to $localState
-node $workerWrangler d1 migrations list DB --config $workerConfig --local --persist-to $localState
-node $workerWrangler dev --config $workerConfig --local --persist-to $localState --port 8787
-```
-
-`wrangler dev` 默认只连本地模拟 binding；不要为日常开发添加 `--remote`。本地服务可访问 `http://localhost:8787/healthz`，定时任务测试另需显式加入 `--test-scheduled`，参照 [deployment.md](deployment.md)。管理员初始化是交互操作，不属于 CI：
-
-```powershell
-node scripts/bootstrap-admin.ts --local --persist-to $localState
-```
-
-前端构建产物位于 `apps/web/dist`，Worker dry-run 会读取该目录；开发时优先使用根 `build`，不要把 `dist/` 或 `.wrangler/` 构建状态提交到 Git。
-
-## 统一检查命令
-
-根 `package.json` 提供下面的固定入口：
-
-| 命令 | 作用 | 是否访问远程资源 |
+| 命令 | 内容 | 边界 |
 | --- | --- | --- |
-| `pnpm.cmd run typecheck` | 三个 workspace 的严格 TypeScript/Vue 类型检查 | 否 |
-| `pnpm.cmd run test` | `vitest run`，运行 `node` 与 `workers` 两个项目 | 否；Workers 测试禁用外网 |
-| `pnpm.cmd run test:node` | 只运行纯 Node 项目 | 否 |
-| `pnpm.cmd run test:workers` | 只运行本地 D1/KV/DO Workers 项目 | 否；使用本地 bindings |
-| `pnpm.cmd run build` | 递归构建协议包、前端和 Worker dry-run bundle | 否；Worker 使用 `--dry-run` |
-| `pnpm.cmd run check` | 依次执行 typecheck、全量测试和 build | 否 |
+| `pnpm run typecheck` | 三个 workspace 类型检查 | 不运行浏览器 |
+| `pnpm run test` | Vitest 的 node 与 workers 两个项目 | 本地 D1/KV/DO 和模拟上游；不是真实云验收 |
+| `pnpm run test:node` / `test:workers` | 单独项目定位问题 | 不能代替全量测试 |
+| `pnpm run build` | 协议包、Vue 前端和 Worker dry-run bundle | 不发布到 Cloudflare |
+| `pnpm run check` | typecheck → test → build，任一步失败停止 | 不包含 Playwright |
+| `pnpm --filter @sub2api/web run test:e2e` | Playwright 浏览器测试 | 独立隔离环境，见下文 |
 
-开发提交前的最小检查：
+前端产物在 `apps/web/dist`，Worker dry-run 会读取它。优先使用根 `build` 保证顺序，不把 dist、.wrangler、test-results 提交到 Git。
 
-```powershell
-pnpm.cmd run typecheck
-pnpm.cmd run test
-pnpm.cmd run build
+## 2. 先区分三种启动方式
+
+### A. 前端样式开发
+
+```sh
+pnpm run dev:web
 ```
 
-或使用同一组检查的串行入口：
+这是 Vite 前端服务器。当前 `apps/web/vite.config.ts` 没有 `/api` 代理或开发 HTTPS 配置，API 客户端使用相对路径；因此只启动 Vite 不能得到可登录的完整应用。不要把“页面显示出来”当成鉴权和聊天已跑通。
 
-```powershell
-pnpm.cmd run check
+### B. 完整本地 Worker
+
+Worker 同源提供构建后的前端和 API。首次启动至少需要：前端构建、本地 D1 全部迁移、本地配置、管理员及与 PUBLIC_BASE_URL 一致的 HTTPS 地址。
+
+1. 创建只用于本地的 `apps/worker/.dev.vars`。该路径受 `.gitignore` 保护；不要覆盖已有文件或复制生产 Secrets。最小身份配置为：
+
+```dotenv
+PUBLIC_BASE_URL=https://127.0.0.1:8787
+EMAIL_VERIFICATION_READY=false
 ```
 
-`check` 使用 `&&`，任一步骤退出非零都会停止。`test` 保留 `vitest run` 的显式行为：没有匹配测试、测试失败或 Workers 项目失败都必须使命令失败。`test:node`/`test:workers` 用于定位故障，不是跳过另一个项目后宣布全量通过的替代品。
+只有登录/管理读取并不要求邮件就绪。配置真实或本地模拟上游渠道时，还需要 `CHANNEL_KEYRING_JSON` 与 `CHANNEL_ACTIVE_KEY_VERSION`：keyring 为版本名到 canonical base64 32 字节随机 AES key 的 JSON 对象，活动版本必须存在。它们是本地 Secret，应使用安全生成方式写入 `.dev.vars`，不要粘贴生产值或把占位字符串当作有效密钥。详细格式见[部署配置](deployment.md#4-环境值和-secrets)。
 
-构建脚本只生成检查结果和本地 bundle：`packages/apicompat` 执行 TypeScript build，`apps/web` 执行 `vue-tsc` 与 Vite build，`apps/worker` 执行 `wrangler deploy --dry-run --outdir dist`。真正的 `wrangler deploy`、远程 D1 migration、Secret 文件和域名只允许在 [deployment.md](deployment.md) 的受控发布流程中执行。
+2. 使用同一个状态目录迁移、初始化并启动。以下参数取自仓库脚本和配置；不使用 `--remote`：
 
-## 本地恢复核对
-
-恢复 SQL、隔离数据库和密钥版本标签的边界见 [backup-restore.md](backup-restore.md)。只读检查可在本地迁移库上运行：
-
-```powershell
-node scripts/verify-restored-database.ts --local `
-  --database DB `
-  --config apps/worker/wrangler.jsonc `
-  --persist-to .wrangler/r05-restore-verify `
-  --json
+```sh
+pnpm --filter @sub2api/web run build
+node apps/worker/node_modules/wrangler/bin/wrangler.js d1 migrations apply DB --config apps/worker/wrangler.jsonc --local --persist-to .wrangler/development-state
+node apps/worker/node_modules/wrangler/bin/wrangler.js d1 migrations list DB --config apps/worker/wrangler.jsonc --local --persist-to .wrangler/development-state
+node scripts/bootstrap-admin.ts --local --persist-to .wrangler/development-state
+node apps/worker/node_modules/wrangler/bin/wrangler.js dev --config apps/worker/wrangler.jsonc --local --persist-to .wrangler/development-state --ip 127.0.0.1 --port 8787 --local-protocol https
 ```
 
-脚本固定使用 `wrangler d1 execute` 的 SELECT/PRAGMA 查询，不会 restore、export、migrate 或写入 D1。远程恢复副本必须额外使用 `--remote --isolated`，且脚本会拒绝 production-like 目标；R06/R07 的真实云端恢复和 key 解密不在本地命令中。
+初始化管理员要求交互终端，只创建第一个管理员。已有管理员时不要重复初始化；它不能用于重置密码。随后按[管理员指南](admin-guide.md)完成渠道、模型、分组授权和授额。
 
-## CI 边界
+3. 使用与 `PUBLIC_BASE_URL` 完全一致的地址访问。浏览器必须信任开发 HTTPS 证书；若出现安全警告，先正确配置/信任本地开发证书，不要通过降低 Cookie/CSRF 安全要求来解决。`localhost` 和 `127.0.0.1` 是不同 origin，HTTP 与 HTTPS 也不同。
 
-[`.github/workflows/check.yml`](../.github/workflows/check.yml) 是本地检查工作流：checkout、设置 Node 24.19.0、设置 pnpm 11.19.0、冻结安装，然后分别运行 typecheck、test 和 build。它不配置 `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`、生产 Secret、远程 binding、`wrangler deploy` 或真实上游请求；GitHub Actions 因此不会改变 Cloudflare 状态。
+仓库配置的本地默认 vars 只有 `ENVIRONMENT=local`。直接执行 `pnpm run dev:worker` 不会自动补 PUBLIC_BASE_URL、迁移或业务数据；`/healthz` 只是存活探针，不检查数据库、邮件、渠道和余额。
 
-工作流触发于 push、pull request 和手动运行，只有 `contents: read` 权限；同一 ref 的旧检查在新提交到达时取消。它使用 GitHub Actions 的 pnpm 缓存，但缓存命中不能绕过 `--frozen-lockfile`。检查步骤保持分开，便于定位失败，并且任一步非零都会阻止该工作流通过。
+本地 bindings 不会自动投递真实邮件。若需要完整邮件/模型模拟链路，使用下面的测试环境；不要为本地验证临时接入生产数据库、生产 Key 或公网测试控制接口。
 
-工作流使用 pnpm lockfile cache 和 `--frozen-lockfile`。依赖 postinstall 仍由锁定的 `allowBuilds` 规则控制，CI 不通过命令行覆盖策略。Cloudflare 的外部 CI 认证需要 API token 与 account ID，并应放在 CI Secret 中；本地检查工作流不需要这些权限。参阅 [Cloudflare GitHub Actions](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/) 与 [D1 Wrangler commands](https://developers.cloudflare.com/d1/wrangler-commands/)。
+### C. 隔离浏览器测试
 
-## 失败处理与证据
+```sh
+# 首次在本机运行时准备 Playwright 浏览器
+pnpm exec playwright install chromium
+pnpm --filter @sub2api/web run test:e2e
+```
 
-命令失败时保留失败的命令、Node/pnpm/Wrangler 版本、提交标识和不含凭据的摘要。修复后重新运行受影响的检查；源码、迁移、锁文件或配置发生变化时，不复用旧测试/构建证据。Workers 测试可能打印入口静态导出分析警告；要同时记录实际测试退出码和独立构建结果，不能单凭“测试进程启动”记为通过。
+`playwright.config.ts` 启动 `scripts/start-local-test-server.mjs`。它会重新构建前端，创建独立的 `.wrangler/e2e/run-*` 状态目录，应用全部迁移、创建测试管理员，并挂载 `tests/helpers/http-test-worker.ts`。上游和邮件是模拟的，不代表真实供应商可用。
 
-本地日志和构建状态使用 `.wrangler/`、`dist/`、`coverage/`、`test-results/` 等 `.gitignore` 路径。发布证据可放在工作区的 `work/`，但不要把导出的 D1、Secret 文件、Authorization、密码、上游 Key 或完整请求/响应正文复制进仓库或 CI 日志。
+默认地址为 `https://127.0.0.1:9789`；可用 `SUB2API_E2E_PORT` 选择本地端口。测试配置允许本地测试证书；这不是生产 TLS 配置。脚本生成的连接信息和测试控制 token 位于被 Git 忽略的目录，不能发布或分享。测试 Worker 含 `/__test__/*` 控制路由，不得作为生产入口部署。
 
-本文件只定义可重复的本地命令和 CI 门禁。任务图中尚未完成的业务入口、协议方向、真实上游、邮件、远程 D1/DO、浏览器和负载验收仍需各自证据，不能因为这些命令可执行而标记一期产品完成。
+2026-10-03 的浏览器尝试因 Chromium socket EPERM 启动失败，未完成本轮浏览器验收。需在允许本地进程/套接字的环境重新运行；不能将 Node 逻辑测试替代为浏览器通过。
+
+Linux 缺浏览器系统依赖时按 Playwright 的实际报错准备环境；不要把浏览器未启动或被跳过记为测试通过。Windows 优先使用配置中探测到的 Edge，否则需要可用 Playwright 浏览器。浏览器报告写入 `test-results/browser-results.json`，失败 trace 保留在测试结果目录。
+
+## 3. 定时维护和恢复检查
+
+要在本地测试 Cron，在完整 Worker 启动命令上增加 `--test-scheduled`，然后用相同 HTTPS origin 访问 `/__scheduled`。它是开发功能，不是公开管理 API。不要混用不同本地状态目录。
+
+本地恢复的只读验证示例：
+
+```sh
+node scripts/verify-restored-database.ts --local --database DB --config apps/worker/wrangler.jsonc --persist-to .wrangler/development-state --json
+```
+
+它执行 SELECT/PRAGMA 验证，不自动恢复、迁移或写入数据库。完整流程与真实恢复演练见[备份与恢复](backup-restore.md)。
+
+## 4. CI 和验收记录
+
+[Local checks](../.github/workflows/check.yml) 在 push、pull request、手动触发时冻结安装，然后分别执行 typecheck、Vitest 和 build。它没有 Playwright 步骤，也没有 Cloudflare 发布或真实模型/邮件调用。
+
+`54d71d5` 的[检查结果](https://github.com/a48zhang/sub2api-cloudflare/actions/runs/36874254293)已通过上述三个检查；修改后的代码必须重新检查，不能沿用旧提交结果。本轮按模块完成后集中验证，开发任务不夹带测试；最终完整代码另行执行 V-INTEGRATION。局部回归结果与浏览器受阻状态见[执行计划](implementation-plan.md)。
+
+失败记录至少包含提交、环境、版本、命令、退出码和脱敏摘要。保留通过/失败/未运行的区分；局部回归不能代表全量通过。涉及部署、迁移或 Secrets 时使用[部署流程](deployment.md)，不要在日常 check 中加入有远程写入副作用的命令。
+
+## 常见本地启动问题
+
+| 现象 | 先检查 |
+| --- | --- |
+| Vite 页面正常但 API 报错 | 当前 Vite 无 API proxy；使用完整 Worker 或专门配置开发集成 |
+| 登录/注册写请求 403 | origin 与 PUBLIC_BASE_URL 是否精确一致、HTTPS/CSRF Cookie 是否有效 |
+| 服务不可用但 healthz 正常 | PUBLIC_BASE_URL、本地迁移/绑定、所操作功能需要的 Secret |
+| 初始化的账户无法找到 | bootstrap、migration、dev 是否用了相同 persist-to |
+| 登录后暂无可用模型或余额不足 | 完成渠道/映射/组授权与授额；初始化只创建零余额管理员 |
+| Worker 提示静态资源不存在 | 先构建 apps/web，检查 assets.directory |
+| Windows 找不到项目内命令 | 确认使用固定版本及项目依赖，参阅工具链中的历史 Path 排查 |

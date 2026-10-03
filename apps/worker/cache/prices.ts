@@ -1,4 +1,4 @@
-import { getModelById } from '../admin/model-repository';
+import { getModelById } from '../catalog/models';
 import { BILLABLE_BUCKETS } from '../billing/pricing';
 import type { PriceTable } from '../billing/pricing';
 import { parseUsdToUnits } from '../billing/money';

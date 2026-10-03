@@ -3,6 +3,11 @@ export const MAX_RATE_WINDOW_OPERATIONS = 4096;
 export const MAX_RATE_OPERATION_ID_LENGTH = 128;
 export const MAX_RATE_WINDOW_STATE_BYTES = 64 * 1024;
 
+/** Shared finite business RPM range; unlimited sentinels belong to config. */
+export function isFiniteRpmLimit(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 1 && value <= MAX_RATE_WINDOW_OPERATIONS;
+}
+
 export class RateWindowError extends Error {
   constructor(readonly code: "invalid_parameters" | "invalid_state" | "state_limit_exceeded" | "clock_regression" | "configuration_changed") {
     super(`Fixed rate window: ${code}`);
@@ -47,7 +52,7 @@ function validId(value: unknown): value is string {
 
 function validSettings(windowMs: unknown, limit: unknown): boolean {
   return nonnegativeInteger(windowMs) && windowMs > 0 &&
-    nonnegativeInteger(limit) && limit <= MAX_RATE_WINDOW_OPERATIONS;
+    (limit === 0 || isFiniteRpmLimit(limit));
 }
 
 function checkSize(state: RateWindowState): void {

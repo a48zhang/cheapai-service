@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createChatSseStream } from '../../apps/worker/chat/stream';
 import type { ChatGatewayEvent } from '../../apps/worker/chat/stream';
 import type { Message } from '../../apps/worker/chat/types';
@@ -104,5 +104,102 @@ describe('web chat SSE persistence bridge', () => {
         onDelta: async () => undefined, onDone: async () => message(), onFailed: async () => null, onCancelled: async () => null,
       });
     expect(await new Response(incomplete).text()).toContain('incomplete_stream');
+  });
+});
+
+describe('B01 termination ownership and bounded failures', () => {
+  it('cancels execution before saving a checkpoint failure and closes the reader', async () => {
+    const order: string[] = [];
+    const source = new ReadableStream<Uint8Array>({ start(controller) {
+      controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'delta', text: 'x'.repeat(2048) })}\n\n`));
+    }, cancel() { order.push('reader-cancel'); } });
+    const body = createChatSseStream({ conversation: {}, userMessage: null, assistantMessage: message() },
+      { requestId: 'checkpoint', source, cancel() { order.push('execution-cancel'); } }, {
+        onDelta: async () => { throw new Error('checkpoint rejected'); },
+        onDone: async () => { throw new Error('must not complete'); },
+        onFailed: async () => { order.push('failed-save'); return message(); },
+        onCancelled: async () => { throw new Error('must not classify failure as user cancel'); },
+      });
+    const wire = await new Response(body).text();
+    expect(order.indexOf('execution-cancel')).toBeLessThan(order.indexOf('failed-save'));
+    expect(order.filter(value => value === 'execution-cancel')).toHaveLength(1);
+    expect(order).toContain('reader-cancel');
+    expect(source.locked).toBe(false);
+    expect(wire.match(/event: error/g)).toHaveLength(1);
+    expect(wire).not.toContain('event: done');
+  });
+
+  it('request abort wakes a hanging read without requiring downstream cancel', async () => {
+    const abort = new AbortController();
+    const cancel = vi.fn();
+    const onCancelled = vi.fn(async () => message());
+    const source = new ReadableStream<Uint8Array>({ pull: () => new Promise<void>(() => {}), cancel });
+    const body = createChatSseStream({ conversation: {}, userMessage: null, assistantMessage: message() },
+      { requestId: 'hanging-read', source, cancel }, {
+        onDelta: async () => {}, onDone: async () => message(), onFailed: async () => null, onCancelled,
+      }, { signal: abort.signal });
+    const wire = new Response(body).text();
+    abort.abort();
+    expect(await wire).toContain('event: done');
+    expect(onCancelled).toHaveBeenCalledOnce();
+    expect(source.locked).toBe(false);
+  });
+
+  it('does not let a late abort overwrite completion already being saved', async () => {
+    const abort = new AbortController();
+    let saved!: (value: Message) => void;
+    let started!: () => void;
+    const saving = new Promise<void>(resolve => { started = resolve; });
+    const onCancelled = vi.fn(async () => null);
+    const cancel = vi.fn();
+    const source = (async function* (): AsyncGenerator<ChatGatewayEvent> { yield { type: 'done' }; })();
+    const body = createChatSseStream({ conversation: {}, userMessage: null, assistantMessage: message() },
+      { requestId: 'late-abort', source, cancel }, {
+        onDelta: async () => {}, onDone: () => { started(); return new Promise(resolve => { saved = resolve; }); },
+        onFailed: async () => null, onCancelled,
+      }, { signal: abort.signal });
+    const wire = new Response(body).text();
+    await saving;
+    abort.abort();
+    saved(message());
+    expect(await wire).toContain('event: done');
+    expect(onCancelled).not.toHaveBeenCalled();
+    expect(cancel).not.toHaveBeenCalled();
+  });
+
+  it('bounds hung cancellation and final saving without duplicate finalization or timers', async () => {
+    vi.useFakeTimers();
+    try {
+      const cancel = vi.fn(() => new Promise<void>(() => {}));
+      const onFailed = vi.fn(() => new Promise<Message | null>(() => {}));
+      const source = (async function* (): AsyncGenerator<ChatGatewayEvent> { yield { type: 'error', code: 'upstream_error', message: 'failed' }; })();
+      const body = createChatSseStream({ conversation: {}, userMessage: null, assistantMessage: message() },
+        { requestId: 'hung-save', source, cancel }, {
+          onDelta: async () => {}, onDone: async () => message(), onFailed, onCancelled: async () => null,
+        });
+      const wire = new Response(body).text();
+      await vi.advanceTimersByTimeAsync(6000);
+      expect(await wire).toContain('persistence_error');
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(onFailed).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('does not start a conflicting failed write when completed persistence times out', async () => {
+    vi.useFakeTimers();
+    try {
+      const onFailed = vi.fn(async () => null);
+      const source = (async function* (): AsyncGenerator<ChatGatewayEvent> { yield { type: 'done' }; })();
+      const body = createChatSseStream({ conversation: {}, userMessage: null, assistantMessage: message() },
+        { requestId: 'unknown-save', source }, {
+          onDelta: async () => {}, onDone: () => new Promise<Message>(() => {}), onFailed, onCancelled: async () => null,
+        });
+      const wire = new Response(body).text();
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(await wire).toContain('persistence_error');
+      expect(onFailed).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
   });
 });

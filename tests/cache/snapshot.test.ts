@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { decodeSnapshot, encodeSnapshot, readSnapshot, writeSnapshot } from '../../apps/worker/cache/snapshot';
 import type { Snapshot } from '../../apps/worker/cache/snapshot';
+import * as codec from '../../apps/worker/cache/snapshot-codec';
+import * as kvAdapter from '../../apps/worker/platform/kv-snapshots';
 import { DEFAULT_CONFIG } from '../../apps/worker/config';
 import { testEnv } from '../helpers/database';
 
@@ -15,6 +17,14 @@ const snapshot: Snapshot<Data> = { schema_version: 1, observed_at: observed, dat
 const freshness = { now: observed, maxAgeMs: 15_000 };
 
 describe('snapshot codec and application freshness', () => {
+  it('keeps legacy exports identical to the codec and KV adapter entry points', () => {
+    expect(encodeSnapshot).toBe(codec.encodeSnapshot);
+    expect(decodeSnapshot).toBe(codec.decodeSnapshot);
+    expect(readSnapshot).toBe(kvAdapter.readSnapshot);
+    expect(writeSnapshot).toBe(kvAdapter.writeSnapshot);
+    expect(kvAdapter.MIN_KV_EXPIRATION_TTL_SECONDS).toBe(60);
+  });
+
   it('round trips exact money strings and the source observation time', () => {
     expect(decodeSnapshot(encodeSnapshot(snapshot), freshness, validateData)).toEqual(snapshot);
     expect(DEFAULT_CONFIG.balanceCacheEnabled).toBe(false);

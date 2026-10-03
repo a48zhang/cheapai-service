@@ -1,6 +1,14 @@
-# 部署步骤（R04）
+# 部署步骤
 
-核对日期：2026-09-06。本文基于当前源码、已安装 Wrangler **4.129.0** 的 `--help` / 配置 schema 与 Cloudflare 官方资料。本文没有创建云资源、部署 Worker、应用远程迁移、读取真实 Secrets 或执行真实上游调用。CLI 参数可用不等于云端验收通过；完整入口、邮件、供应商兼容和恢复演练仍按任务证据验收。
+更新：2026-10-03；本轮实现基于 `54d71d5d74a6cadc83c3e6acdb3e9cb866efaa2a`，未执行推送或远程发布。CLI 用法与说明沿用 2026-09-06 在 Wrangler **4.129.0** 的历史核对；执行时仍需核对本机版本、目标环境和命令输出。本文是操作手册，不是本次远程发布成功记录。
+
+先读[管理员配置顺序](admin-guide.md)，再按本文准备和发布。仓库已有 staging 资源记录，production 仍含占位配置；不要重复创建已有资源。网页聊天 9 月 12 日的授权失败是[历史记录](web-chat-delivery.md)，今天的授权、部署版本与迁移水位应重新查询。
+
+## 本轮发布门槛
+
+先完成[执行计划](implementation-plan.md)的模块验证、V-DOC 与最终 V-INTEGRATION。浏览器因 Chromium socket EPERM 受阻的项目仍需重新运行，不能用历史结果代替。
+
+发布顺序为 R01 核对目标/备份 → R02 获授权后配置 → V-CONFIG → R03 staging → V-CLOUD、V-UPSTREAM、V-MAIL、V-CAPACITY、V-RESTORE → R04 production → V-PROD → D06。真实上游、邮件收件人、负载预算、隔离恢复和部署分别满足相应环境与授权后执行。当前没有本轮远程发布结果。
 
 ## 1. 发布单元和配置基线
 
@@ -16,7 +24,7 @@
 | DO | `GATE` → `Gate`，`migrations` 的 `v1` 使用 `new_sqlite_classes: ["Gate"]` |
 | 邮件 | `EMAIL` / `send_email`；所有 `.invalid` 发件人和收件人都是占位符 |
 | 定时任务 | 顶层、staging、production 均显式配置每五分钟一次 |
-| 公网入口 | 当前 `workers_dev: false`、`preview_urls: false`，且未配置真实域名；不能假定 deploy 后已有可访问 URL |
+| 公网入口 | local/production 保留 `workers_dev: false`；staging 显式 `workers_dev: true` 且有 PUBLIC_BASE_URL。preview URLs 关闭；每次发布仍要核对实际域名与访问结果 |
 
 `remote: false` 描述本地开发 binding 行为，不会让发布后的 Worker 使用本地数据库。远程 D1 操作仍必须明确 `--remote --env ...`。这与已安装 Wrangler schema 及[开发 binding 模式](https://developers.cloudflare.com/workers/local-development/bindings-per-env/)一致。
 
@@ -67,7 +75,7 @@ node $deploymentWrangler kv namespace create sub2api-cloudflare-staging-cache --
 
 把返回的真实 D1 UUID、数据库名与 KV namespace ID 填入 `env.staging`，保留 binding 名 `DB`、`CACHE`。production 使用独立资源和对应 `env.production`；不要复用旧四个 Worker、测试库或其 Secrets。DO namespace 由部署配置中的类声明建立，不手工复制测试 DO 数据。
 
-在选定环境中配置真实路由/自定义域名，并核对实际流量落到对应 Worker。由于本项目关闭 `workers.dev` 和 preview URL，未配置域名时不要将“上传成功”记为外网可用。邮件发件身份和允许的收件策略需在目标账户单独验证，移除 `.invalid` 占位符后再部署。
+在选定环境核对公网入口和实际流量：staging 配置启用 workers.dev，并设置对应 PUBLIC_BASE_URL；production 仍需准备独立的真实路由/自定义域名或明确启用的入口，不能直接沿用 staging 地址。不要将“上传成功”记为外网可用。staging 的 send_email 为空且 EMAIL_VERIFICATION_READY 为 false；只有完成真实发件身份和投递验证后才启用验证邮件。production 的 `.invalid` 地址是占位符。
 
 ## 4. 环境值和 Secrets
 
@@ -91,7 +99,7 @@ Secrets 由受控密钥工具生成并放入仓库外的临时部署文件或密
 
 ## 5. D1 迁移与初始管理员
 
-本次核对源码迁移为 `0001_groups_settings.sql` 至 `0017_key_groups.sql`。发布时重新列出目录，按顺序应用全部未应用文件，不只执行最后一份：
+当前源码迁移为 `0001_groups_settings.sql` 至 `0023_request_source_group.sql`，共 23 份。新环境应用全部迁移；升级环境先查实际水位，再按顺序应用所有未应用文件，不只执行最后一份：
 
 ```powershell
 Get-ChildItem migrations -Filter '*.sql' | Sort-Object Name | Select-Object Name
@@ -106,7 +114,9 @@ node $deploymentWrangler d1 execute DB --config $deploymentConfig --env staging 
 
 `migrations apply` 没有本项目自定义的“整批 down”命令。Wrangler help 明确：某一迁移失败会回滚该迁移，前面已成功的迁移仍保留；交互确认在非交互执行时可能省略。因此发布程序应在命令前完成审阅，不能把交互提示当成 CI 的保护条件。
 
-关键结构包括注册原子触发器 `0012`、记账原子触发器 `0013`、默认数据 `0014`、注册码批次 `0015`、Key 创建幂等记录 `0016`。`0014` 只设置默认组和 closed 注册配置，不创建管理员、不授额、不覆盖现有配置。
+关键结构包括注册原子触发器 `0012`、记账原子触发器 `0013`、默认数据 `0014`、注册码批次 `0015`、Key 创建幂等记录 `0016`、Key 分组 `0017`、内置模型 `0018`。`0019` 移除默认输出配置，`0020` 添加分组倍率，`0021` 调整 web_chat 内部 Key，`0022` 添加聊天存储，`0023` 添加请求来源/分组记录。`0014` 不创建管理员、不授额；`0018` 不创建渠道映射或开放用户授权。
+
+从已应用 0018 的环境升级聊天时，需要依次应用 0019–0023，并发布匹配的 Worker/前端。0021 涉及 Key 表结构及关联约束，应先核对备份、外键与回滚兼容性；保留既有用户、密钥、价格和账务，不通过重新创建数据库升级。
 
 应用迁移后，在交互终端运行 A29：
 
@@ -138,9 +148,10 @@ production 在 staging 验收后独立重复资源核对、迁移、bootstrap（
 
 1. 实际 HTTPS 域名上的 `/healthz` 返回 JSON；静态页面可加载，未知 `/api/*`、`/v1/*` 返回结构化错误而非 HTML。
 2. 管理员登录/退出、安全 Cookie、Origin/CSRF 和普通用户越权拒绝通过；未配置邮件时注册保持 closed，不能用 readiness 标志冒充投递实测。
-3. 对每个已挂载协议入口完成普通与增量 SSE、小输出、取消、超时、原生 usage 和账单一致性检查。尚未挂载或未实现的适配器不能因模块测试通过就标为入口可用。
+3. 对三个协议入口完成普通与增量 SSE、小输出、取消、超时、原生 usage 和账单一致性检查。当前源码已挂载 Chat Completions、Responses、Messages 和模型列表，但实际供应商/SDK/部署环境仍需独立验证，不能从模块测试推定线上可用。
 4. 管理员渠道诊断只有显式 POST 才会调用真实上游，最多 16 输出 token，但仍可能花费供应商额度；需要事先限定测试账户和预算，不把 `userBalanceCharged:false` 解读为供应商免费。
-5. 验证 `scheduled_maintenance` 三项报告：到期身份清理、异常请求扫描、待结算重试。日志只看状态/计数，禁用调试原始正文日志。
+5. 验证网页聊天：首页和历史会话、分组倍率、停止/重新生成、请求来源与计费；内部 web_chat Key 不应出现在普通 Key 列表或被用作 Bearer 凭据。
+6. 验证 `scheduled_maintenance` 三项报告：到期身份清理、异常请求扫描、待结算重试。日志只看状态/计数，禁用调试原始正文日志。
 
 B21 每次运行分别处理有界一页：结算默认 20、异常请求 20、身份清理 50；总预算默认 25 秒。结算最多五轮，退避为 1/5/15/60 分钟，耗尽后保留人工检查记录。异常请求按“最长请求时间 + 宽限”标记 `usage_unknown`，不编造零用量；只清理过期会话与邮箱 challenge，不删除账单或请求。`waitUntil` 与 `uncertain` 状态不是持久任务队列或成功证明。
 

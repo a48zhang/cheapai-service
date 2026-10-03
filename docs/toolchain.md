@@ -1,6 +1,12 @@
-# 工具链与依赖锁（F03）
+# 工具链与依赖锁（F03 历史记录）
+
+> 本文保留 2026-09-05 的依赖锁定和 Windows 安装证据。文中的作者机器路径、当时未完成任务和早期测试数量仅属于该次记录；新 checkout 请先使用[本地开发指南](development.md)，当前功能见[README](../README.md)。不要把当时的“尚未具备”解读为当前源码状态。
 
 本工程固定 Node.js **24.19.0**、pnpm **11.19.0**；版本分别见 `.node-version`、根 `package.json` 的 `packageManager` / `engines`。`pnpm-workspace.yaml` 启用 `engineStrict` 和 `verifyDepsBeforeRun: error`，运行脚本不会隐式安装依赖。
+
+## 本轮执行约定
+
+2026-10-03 仍使用上述固定版本。开发任务与验证任务分开：先完成模块，再按计划执行局部回归；全部模块和文档完成后运行集中检查。当前结果见[实施状态](implementation-plan.md)，下方安装日志与数量仍属于 9 月历史。Linux 的 Chromium socket EPERM 是本轮浏览器环境阻塞，尚未取得浏览器通过结果。
 
 ## 本机与跨机器启动
 

@@ -1,9 +1,24 @@
 # Sub2API on Cloudflare 一期完整技术方案
 
 版本：v1.0 · 2026-09-05  
-状态：实施基线。首批 8 个基础任务已完成，包含固定依赖、类型配置、健康入口、前端构建配置、协议契约和源码基线；业务实现及云部署仍待后续任务。实际完成状态与验证范围见 [实施进度](implementation-plan.md)。
+状态：设计实施基线，包含后续修订。本文不是当前完成清单或线上验收记录；“首批基础任务”阶段已过去，当前源码已包含注册、计费、三协议网关和网页聊天等实现。功能和验证范围以[仓库 README](../README.md)、[协议支持矩阵](protocol-support.md)及[实施记录](implementation-plan.md)为入口。设计中的目标或恢复策略只有在对应运行链路与测试接通后才能称为已实现。
+
+后续使用与部署请优先阅读[用户指南](user-guide.md)、[管理员指南](admin-guide.md)和[部署步骤](deployment.md)。当前迁移已到 0023，聊天与分组倍率的追加背景见[聊天交付记录](web-chat-delivery.md)。
 
 本文是整体设计主文档，统一架构、数据、接口、运行时行为和验收标准。产品范围以 [一期核心目标](phase-1.md) 为准；[计费](billing-cache.md)、[注册](registration-auth.md)、[协议转换](protocol-compatibility.md) 文档提供专题细节。文中的初始数值是工程建议，可配置、须实测，不代表已经验证的容量或平台保证。
+
+## 2026-10-03 组件整理
+
+本轮状态见[执行计划](implementation-plan.md)。27 项代码开发已实现，共享目录 AV01 38/38 通过，存储 SV01 40/40 通过；最终集中检查与真实发布验收尚待完成。
+
+- `gateway/request-lifecycle.ts` 统一取消、超时、定时器/监听清理和一次性租约释放；JSON/SSE executor 保留协议解析、SSE 背压、D1 CAS、记录与结算顺序
+- `limits` 分离逻辑调用的用户 RPM operationId 与候选租约身份；`dispatch` 复用逻辑身份，401/403/429 冷却在读错误体前有界写入 Gate
+- `catalog/models.ts`、`channels.ts`、`model-mappings.ts`、`channel-secrets.ts` 承担共享读取、校验和凭据操作；`admin` 保留权限、写入、审计、版本 CAS 和兼容转导出
+- `chat/storage.ts` 定义契约，`chat/d1-storage.ts` 装配 D1 实现；`service.ts` 保留生成编排、默认装配与兼容导出
+- `cache/snapshot-codec.ts` 负责类型、编解码与 freshness，`platform/kv-snapshots.ts` 负责 KV I/O；适配器单向依赖 codec，`cache/snapshot.ts` 保留兼容导出
+- 前端 `useChatDraft`、`useConversationHistory`、`useChatModelSelection` 分离草稿、分页历史与模型选择，`ChatView` 保留生成与版本化 PATCH 编排；会话过期通知不依赖 router/store
+
+Chat 沿用原有 HTTP/SSE 网关调用，不引入内部执行接口。本轮不增加首次调用引导、连接配置区或测试请求入口；数据库、`db.ts` 与 `limits/storage.ts` 边界保持原位。D1 权限重查、账单幂等、缓存故障回源及少量透支语义不变。
 
 ## 1. 目标与设计取舍
 

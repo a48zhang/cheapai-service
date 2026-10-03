@@ -144,3 +144,92 @@ describe('management API client contracts', () => {
     expect(new URL(server.requests[1]!.url).searchParams.get('cursor')).toBe('page_2');
   });
 });
+
+// FE-V01: transport expiry is independent of response-body decoding.
+describe('protected session expiry notices', () => {
+  it('notifies on protected JSON and non-JSON 401, but not public auth failures or non-401', async () => {
+    const { bindSessionExpiry } = await import('../../apps/web/src/api/session-expiry.js');
+    const notices: unknown[] = [];
+    const unbind = bindSessionExpiry(() => ({ generation: 7, userId: 'user-7' }), value => notices.push(value));
+    try {
+      for (const contentType of ['application/json', 'text/html']) {
+        const client = createApiClient({ fetch: async () => new Response('broken', { status: 401, headers: { 'content-type': contentType } }) });
+        await expect(client.get('/api/v1/chat/models')).rejects.toMatchObject({ status: 401 });
+      }
+      for (const path of ['/api/v1/auth/login', '/api/v1/auth/register', '/api/v1/auth/send-verify-code', '/api/v1/settings/public']) {
+        const client = createApiClient({ fetch: async () => new Response('no', { status: 401 }) });
+        await expect(client.get(path)).rejects.toMatchObject({ status: 401 });
+      }
+      const client = createApiClient({ fetch: async () => new Response('no', { status: 403 }) });
+      await expect(client.get('/api/v1/keys')).rejects.toMatchObject({ status: 403 });
+      expect(notices).toEqual(Array.from({ length: 2 }, () => ({ generation: 7, userId: 'user-7', path: '/api/v1/chat/models' })));
+    } finally { unbind(); }
+  });
+
+  it('keeps the identity captured before CSRF work and coalesces stale/concurrent expiry', async () => {
+    const { bindSessionExpiry } = await import('../../apps/web/src/api/session-expiry.js');
+    const { createSessionStore } = await import('../../apps/web/src/stores/session.js');
+    const user = { id: 'one', email_normalized: 'one@example.invalid', role: 'user' as const, status: 'active' as const,
+      group_id: 'g', group_status: 'active' as const, balance_units: '0' as any, email_verified_at: null };
+    const api = { me: async () => user, login: async () => user, logout: async () => undefined } as any;
+    const session = createSessionStore(api);
+    await session.restore();
+    const old = session.requestIdentity()!;
+    const accepted: boolean[] = [];
+    const unbind = bindSessionExpiry(session.requestIdentity, value => accepted.push(session.expire(value)));
+    let release!: () => void;
+    const tokenGate = new Promise<void>(resolve => { release = resolve; });
+    const client = createApiClient({ getCsrfToken: async () => { await tokenGate; return csrf; }, fetch: async () => new Response('no', { status: 401 }) });
+    try {
+      const request = client.post('/api/v1/keys', {}).catch(error => error);
+      await session.login({ email: 'one@example.invalid', password: 'fixture' });
+      release(); await request;
+      expect(accepted).toEqual([false]);
+      expect(session.state.status).toBe('authenticated');
+      expect(session.expire(old)).toBe(false);
+      const current = session.requestIdentity()!;
+      expect(session.expire(current)).toBe(true);
+      expect(session.expire(current)).toBe(false);
+      expect(session.state.expiry).toMatchObject({ reason: 'expired', userId: 'one' });
+    } finally { release(); unbind(); }
+  });
+});
+
+it('constrains expired-session return paths after decoding and path normalization', async () => {
+  const { safeReturnPath } = await import('../../apps/web/src/router.js');
+  for (const path of ['https://evil.example/', '//evil.example/', '/%2Fexample', '/x/../api/v1/auth/me', '/x/%2e%2e/login', '/api/v1/keys', '/v1/chat', '/login', '/session-unavailable', '/x\\evil']) {
+    expect(safeReturnPath(path)).toBe('/');
+  }
+  expect(safeReturnPath('/chat/one?view=history')).toBe('/chat/one?view=history');
+});
+
+it('persists editing immediately, restores only the expired owner, and clears explicit logout', async () => {
+  const { effectScope, reactive, nextTick } = await import('../../apps/web/node_modules/vue/index.mjs');
+  const { useChatDraft } = await import('../../apps/web/src/composables/chat/useChatDraft.js');
+  const storage = new Map<string, string>();
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: { sessionStorage: {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => storage.set(key, value), removeItem: (key: string) => storage.delete(key),
+  } } });
+  const scope = effectScope();
+  try {
+    const state = reactive({ status: 'authenticated', userId: 'one' as string | null, expiredUserId: null as string | null });
+    const draft = scope.run(() => useChatDraft(() => ({ ...state })))!;
+    draft.setDraft('  unsent\ntext  ');
+    expect(storage.get('sub2api.chat.draft')).toBe('  unsent\ntext  ');
+    state.status = 'anonymous'; state.userId = null; state.expiredUserId = 'one'; await nextTick();
+    expect(draft.draft.value).toBe(''); expect(storage.get('sub2api.chat.draft.owner')).toBe('user:one');
+    state.status = 'authenticated'; state.userId = 'one'; state.expiredUserId = null; await nextTick();
+    expect(draft.draft.value).toBe('  unsent\ntext  ');
+    state.status = 'anonymous'; state.userId = null; await nextTick();
+    expect(storage.has('sub2api.chat.draft')).toBe(false);
+    state.status = 'authenticated'; state.userId = 'one'; await nextTick(); draft.setDraft('private');
+    state.status = 'anonymous'; state.userId = null; state.expiredUserId = 'one'; await nextTick();
+    state.status = 'authenticated'; state.userId = 'two'; state.expiredUserId = null; await nextTick();
+    expect(draft.draft.value).toBe(''); expect(storage.size).toBe(0);
+  } finally {
+    scope.stop();
+    if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow); else Reflect.deleteProperty(globalThis, 'window');
+  }
+});

@@ -16,11 +16,12 @@ export interface LeaseBinding {
 export interface LeaseSubject { readonly kind: 'user' | 'channel'; readonly id: string }
 export interface LeaseHandle extends Lease { readonly subject: LeaseSubject }
 export interface LeaseAcquireInput {
-  /** Server-generated logical operation ID; never copy a request body/header ID. */
+  /** Server-generated lease/D1 request ID; never copy a request body/header ID. */
   requestId: string;
   limit: number;
   ttlMs: number;
-  rate?: { limit: number; windowMs: number };
+  /** Optional server-generated rate identity, independent of the lease identity. */
+  rate?: { limit: number; windowMs: number; operationId?: string };
 }
 export type LeaseAcquireOutcome =
   | { granted: true; duplicate: boolean; handle: LeaseHandle }
@@ -148,11 +149,15 @@ export class LeaseClient {
       || !safeInteger(input.limit, 0) || !safeInteger(input.ttlMs, 1)) throw new LeaseClientError('invalid_input');
     let rate: GateAcquireInput['rate'];
     if (input.rate !== undefined) {
-      record(input.rate, ['limit', 'windowMs'], [], 'invalid_input');
+      record(input.rate, ['limit', 'windowMs'], ['operationId'], 'invalid_input');
+      const operationId = input.rate.operationId ?? input.requestId;
+      if (typeof operationId !== 'string' || operationId.length < 1 || operationId.length > 128
+        || !/^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(operationId)
+        || (input.rate.operationId !== undefined && typeof input.rate.operationId !== 'string')) throw new LeaseClientError('invalid_input');
       if (!safeInteger(input.rate.limit, 0) || input.rate.limit > MAX_RATE_WINDOW_OPERATIONS || !safeInteger(input.rate.windowMs, 1)) {
         throw new LeaseClientError('invalid_input');
       }
-      rate = { limit: input.rate.limit, windowMs: input.rate.windowMs, operationId: input.requestId };
+      rate = { limit: input.rate.limit, windowMs: input.rate.windowMs, operationId };
     }
     const rpcInput: GateAcquireInput = { requestId: input.requestId, limit: input.limit, ttlMs: input.ttlMs, ...(rate ? { rate } : {}) };
     return this.#call(() => this.#stub.acquire(rpcInput), (raw): LeaseAcquireOutcome => {
