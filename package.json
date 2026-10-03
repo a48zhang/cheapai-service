@@ -16,9 +16,9 @@
     "test:node": "vitest run --project node",
     "test:workers": "vitest run --project workers",
     "check": "pnpm run typecheck && pnpm run test && pnpm run build",
-    "staging:check": "pnpm --filter @cheapai/web run build && pnpm --filter @sub2api/worker exec wrangler deploy --env staging --dry-run --strict --outdir ../../.wrangler/build-staging",
     "lint:web": "pnpm --filter @cheapai/web exec eslint src",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "production:check": "pnpm --filter @cheapai/web run build && pnpm --filter @sub2api/worker exec wrangler deploy --env production --dry-run --strict --outdir ../../.wrangler/build-production"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "0.22.0",

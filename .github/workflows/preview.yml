@@ -8,9 +8,9 @@ permissions:
   contents: read
   pull-requests: read
 
-# Never cancel a migration halfway through. Each PR owns independent resources.
+# All PRs share preview storage; serialize migrations and Gate host updates.
 concurrency:
-  group: pr-preview-${{ github.repository_id }}-${{ github.event.pull_request.number }}
+  group: pr-preview-shared-${{ github.repository_id }}
   cancel-in-progress: false
 
 jobs:
@@ -51,7 +51,7 @@ jobs:
         run: |
           node scripts/pr-preview.mjs --self-test
           pnpm --filter @cheapai/web run build
-      - name: Deploy or retire isolated preview
+      - name: Deploy or retire branch preview
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
