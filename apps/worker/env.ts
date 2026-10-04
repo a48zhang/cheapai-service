@@ -5,7 +5,11 @@ export interface Env {
   DB: D1Database;
   CACHE: KVNamespace;
   GATE: DurableObjectNamespace<Gate>;
-  EMAIL: SendEmail;
+  EMAIL?: SendEmail;
+  /** Defaults to Cloudflare for existing deployments. */
+  EMAIL_PROVIDER?: 'cloudflare' | 'resend';
+  /** Resend sending credential; provision only as a Worker Secret. */
+  RESEND_API_KEY?: string;
   ASSETS: Fetcher;
   ENVIRONMENT: 'local' | 'staging' | 'production';
   /** Trusted HTTPS console origin; never derive it from request headers. */
