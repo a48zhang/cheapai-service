@@ -14,7 +14,7 @@ import {
  * credentials file or exposed to the renderer.
  */
 export class DesktopCredentialProvider extends LocalCredentialProvider {
-  static override Config = LocalCredentialProvider.Config
+  static override Config: typeof LocalCredentialProvider.Config = LocalCredentialProvider.Config
 
   private readonly bridge: DesktopCredentialBridgeClient
 
