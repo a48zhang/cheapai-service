@@ -45,8 +45,11 @@ export function parseUsdToUnits(value: unknown): bigint {
   return checkedSafeUnits(negative ? -magnitude : magnitude);
 }
 
-/** Format exact integer USD units as a decimal string with eight places. */
-export function formatUnitsToUsd(value: string | bigint): string {
+/** Format integer USD units, rounding half away from zero when reducing display precision. */
+export function formatUnitsToUsd(value: string | bigint, decimals = MONEY_DECIMALS): string {
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > MONEY_DECIMALS) {
+    throw new MoneyError('display precision must be between zero and eight');
+  }
   if (typeof value !== 'string' && typeof value !== 'bigint') {
     throw new MoneyError('units must be a bigint or canonical integer string');
   }
@@ -55,6 +58,9 @@ export function formatUnitsToUsd(value: string | bigint): string {
   }
   const units = typeof value === 'bigint' ? value : BigInt(value);
   const negative = units < 0n;
-  const digits = (negative ? -units : units).toString().padStart(MONEY_DECIMALS + 1, '0');
-  return `${negative ? '-' : ''}${digits.slice(0, -MONEY_DECIMALS)}.${digits.slice(-MONEY_DECIMALS)}`;
+  const divisor = 10n ** BigInt(MONEY_DECIMALS - decimals);
+  const magnitude = ((negative ? -units : units) + divisor / 2n) / divisor;
+  const digits = magnitude.toString().padStart(decimals + 1, '0');
+  const amount = decimals === 0 ? digits : `${digits.slice(0, -decimals)}.${digits.slice(-decimals)}`;
+  return `${negative && magnitude !== 0n ? '-' : ''}${amount}`;
 }

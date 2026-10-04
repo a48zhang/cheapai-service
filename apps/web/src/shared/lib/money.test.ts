@@ -24,4 +24,14 @@ describe('exact USD amounts', () => {
     expect(formatUnitsToUsd('1234567890123456')).toBe('12345678.90123456');
     expect(formatUnitsToUsd('-1')).toBe('-0.00000001');
   });
+
+  it('rounds balance displays to cents without floating-point ties or negative zero', () => {
+    expect(formatUnitsToUsd('0', 2)).toBe('0.00');
+    expect(formatUnitsToUsd('100500000', 2)).toBe('1.01');
+    expect(formatUnitsToUsd('999499999', 2)).toBe('9.99');
+    expect(formatUnitsToUsd('999500000', 2)).toBe('10.00');
+    expect(formatUnitsToUsd('-100500000', 2)).toBe('-1.01');
+    expect(formatUnitsToUsd('-1', 2)).toBe('0.00');
+    expect(formatUnitsToUsd('9007199254740991', 2)).toBe('90071992.55');
+  });
 });

@@ -12,13 +12,13 @@ export interface BalanceCardProps {
   readonly onRetry?: (() => void) | undefined;
 }
 
-function exactBalance(balance: AccountBalance): string | null {
-  try { return formatUnitsToUsd(balance.balance_units); } catch { return null; }
+function displayedBalance(balance: AccountBalance): string | null {
+  try { return formatUnitsToUsd(balance.balance_units, 2); } catch { return null; }
 }
 
 /** The balance view reads the server's exact unit string and never estimates spending power. */
 export function BalanceCard({ balance, loading, refreshing, error, onRetry }: BalanceCardProps) {
-  const amount = balance ? exactBalance(balance) : null;
+  const amount = balance ? displayedBalance(balance) : null;
   return <section className="flex min-h-64 flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-7" aria-labelledby="balance-heading">
     <div className="mb-6 flex items-center justify-between gap-3">
       <div>
