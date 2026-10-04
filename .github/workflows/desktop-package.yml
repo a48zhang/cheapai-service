@@ -84,7 +84,32 @@ jobs:
             pnpm-lock.yaml
             apps/desktop/src-tauri/Cargo.lock
       - name: Build complete desktop package
+        # Reserve the last 10 minutes for retaining outputs and failure evidence.
+        timeout-minutes: 50
         run: pnpm package:desktop -- --runtime node --target '${{ matrix.target }}'
+      - name: Preserve compiled macOS application
+        if: always() && runner.os == 'macOS'
+        run: |
+          app='apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/macos/cheapai.dev.app'
+          if [ -d "$app" ]; then
+            test -x "$app/Contents/MacOS/sub2api-desktop"
+            test -f "$app/Contents/Info.plist"
+            ditto -c -k --sequesterRsrc --keepParent "$app" 'desktop-app-${{ matrix.target }}.zip'
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always() && runner.os == 'macOS'
+        with:
+          name: desktop-app-${{ matrix.target }}-${{ github.sha }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: desktop-app-${{ matrix.target }}.zip
+      - uses: actions/upload-artifact@v4
+        if: always() && runner.os == 'Windows'
+        with:
+          name: desktop-native-binary-${{ matrix.target }}-${{ github.sha }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: apps/desktop/src-tauri/target/${{ matrix.target }}/release/sub2api-desktop.exe
       - name: Verify build preserved source and dependency locks
         run: |
           git diff --exit-code

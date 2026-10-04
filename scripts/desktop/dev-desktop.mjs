@@ -323,7 +323,9 @@ async function main() {
     env,
   )
   const bundle = process.platform === 'darwin' ? 'dmg' : 'nsis'
-  await runProcess('Tauri package build', process.execPath, [tauriCli, 'build', '--target', target, '--bundles', bundle], desktopRoot, env)
+  // Tauri only emits installer subprocess stdout/stderr at verbose level.
+  // Keep that evidence when hdiutil or NSIS fails after a successful Rust build.
+  await runProcess('Tauri package build', process.execPath, [tauriCli, 'build', '--verbose', '--target', target, '--bundles', bundle], desktopRoot, env)
 }
 
 main().catch(error => {

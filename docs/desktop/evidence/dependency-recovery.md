@@ -60,3 +60,13 @@ Tauri 启动入口也已执行，尚未打开原生窗口。本 Linux 缺 gobjec
 Tauri 补充：`db1ca55` ARM 构建已越过 runtime/wry，但较新的 macros 2.7.1 生成了 Tauri 2.8.5 不存在的 `UnexpectedMenuKind`。继续按官方 2.8.5 发布锁完整配对内部族：macros/codegen/plugin 2.4.0、utils 2.7.0（runtime 2.8.0、runtime-wry 2.8.1、build 2.4.1）；应用插件版本不变。全部由官方 `cargo update --precise` 生成，fetch/metadata --locked 通过。Tauri/Tauri-build 声明采用 CLI 实际写回的空 features 表形式，避免构建仅因声明格式被改写而污染源文件；版本和功能不变。
 
 `c1ffab0` 常规 CI 全部成功；ARM 安装包已通过 Tauri 内部依赖编译，暴露应用源码 6 个编译错误。本次补齐 updater 的 DshLifecycleState 导入、launch 错误代码借用，并将 runtime status 与三个 updater 异步 command 包装为 Tauri 要求的 Result。Ok 仍序列化为原来的状态对象，既有 updater 业务错误仍保留在对象内，认证/更新逻辑不变。完整原生编译和安装包仍由后续 CI 验收。
+
+`1d012f3` 常规 CI 全部成功。ARM macOS 原生 release 编译成功并生成 `.app`，随后 `bundle_dmg.sh` 失败；尚无成功 DMG，不能宣称安装/启动通过。核对固定 Tauri CLI 2.8.4 源码：封装子进程 stdout/stderr 仅在 debug/verbose 日志输出，默认错误丢弃底层信息。因此打包入口增加官方 `--verbose`，用于保留 hdiutil/NSIS 的真实失败原因；不修改封装目标、检查或签名策略。
+
+按追加要求，macOS 构建后独立保留真实 `.app` ZIP（检查可执行文件和 Info.plist，使用 ditto 保留 macOS 元数据），即使 DMG 失败也可上传供后续实机验证。原 DMG 失败仍导致 job 失败，原安装包检查保持不变；归档存在不等于安装、签名/公证或原生启动已验收。
+
+同轮 Windows 也完成 release 编译并生成原生 `.exe`，其后打包未完成，最终 cancelled；尚无 NSIS 安装包通过证据。取消发生在约 60 分钟，但可用日志未给出明确触发原因，不据此断言为超时。详细日志改动用于区分真正的封装错误与资源处理耗时。
+
+Intel macOS 同轮 release 编译及 `.app` 生成也通过，在 `bundle_dmg.sh` 阶段最终 cancelled（同样约 60 分钟，触发原因未确认）。因此三平台均已有真实原生编译成功日志，三平台安装包仍未成功。
+
+Windows 同时独立保留原生 `.exe` 编译产物；它不包含完整 Runtime，不能当作可独立安装的发行包。打包步骤上限设为 50 分钟，在原有 60 分钟 job 内留出归档/上传时间，超时/封装失败仍导致任务失败。
