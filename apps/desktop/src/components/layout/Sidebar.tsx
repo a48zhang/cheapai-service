@@ -189,7 +189,7 @@ export function Sidebar({
       </nav>
 
       <footer style={{ display: 'grid', gap: 'var(--space-2)', borderTop: '1px solid var(--color-border)', paddingTop: 'var(--space-3)' }}>
-        <AccountSettingsButton authStore={authStore} fallbackLabel={accountLabel} onClick={onOpenAccountSettings} />
+        <AccountSettingsButton {...(authStore === undefined ? {} : { authStore })} fallbackLabel={accountLabel} onClick={onOpenAccountSettings} />
         <Button onClick={onOpenSettings} style={{ justifyContent: 'flex-start', width: '100%' }} variant="quiet">
           设置
         </Button>

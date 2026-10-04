@@ -122,13 +122,13 @@
       "title": "接入 workspace 并隔离云端命令",
       "work": "把 desktop、desktop-runtime、desktop-contracts 加入显式 workspace 清单；只生成一次本批依赖锁。保留现有 Node/pnpm、年龄和 allowBuilds 规则，仅按实际依赖添加精确例外。将既有云端 build/typecheck/check 明确限定原有云端包，增加桌面独立命令，避免现有 Linux CI 顺带要求 Rust/WebView。 新增 typecheck:desktop 与 build:desktop；原生 package:desktop 留给 N09。",
       "final_state": "依赖关系落在同一个 pnpm lock；云端和桌面有清晰命令入口；没有自动安装依赖的运行脚本。生成锁文件属于此任务，不附带测试/构建执行。",
-      "status": "blocked_network",
+      "status": "completed",
       "write_locks": [
         "pnpm-workspace.yaml",
         "package.json",
         "pnpm-lock.yaml"
       ],
-      "execution_note": "2026-10-04 second diagnosis: managed environment reports network unrestricted/enforced but shell proxy connection refused; direct DNS unavailable. No install/lock mutation; trusted registry tarballs/metadata unavailable."
+      "execution_note": "2026-10-04 dependency recovery: official registry pnpm lock generated on 28a59a6; frozen strict-peer install passes with age and script policy preserved. See evidence/dependency-recovery.md."
     },
     {
       "id": "F06",
@@ -877,13 +877,13 @@
       "title": "收口原生依赖与开发命令",
       "work": "集中生成本批 Cargo.lock，增加 dev:desktop、build:desktop、package:desktop 独立命令；脚本负责按依赖顺序准备资源、启动，不嵌入自动测试。桌面安装命令与 Cloudflare 部署命令没有隐式互调。 package:desktop 接受 --target <Rust target triple>；图标准备在 Runtime/安装包资源装配前运行。",
       "final_state": "宿主、前端、Runtime 有完整命令编排；锁文件统一由该任务写入。",
-      "status": "blocked_tooling",
+      "status": "completed",
       "write_locks": [
         "apps/desktop/src-tauri/Cargo.lock",
         "package.json",
         "scripts/desktop/dev-desktop.mjs"
       ],
-      "execution_note": "Independent dev/package scripts authored including manifest preparation; Cargo.lock cannot be generated: cargo/rustup and registry access unavailable. Never fabricated."
+      "execution_note": "2026-10-04 official Rust/Cargo 1.99.0 installed; genuine Cargo.lock generated and cargo fetch --locked passes. Native check remains blocked on Linux system libraries; runtime bootstrap exposes DSH ModuleLoader/ESM integration mismatch."
     },
     {
       "id": "NT01",
@@ -1787,10 +1787,8 @@
     },
     "all_file_budgets_within_three": true,
     "by_status": {
-      "completed": 70,
-      "blocked_network": 1,
+      "completed": 72,
       "partial": 5,
-      "blocked_tooling": 1,
       "blocked_target": 2
     }
   },
@@ -2406,12 +2404,10 @@
   "last_checkpoint": {
     "date": "2026-10-04",
     "branch": "feat/cheapai-desktop",
-    "batch_status": "full_plan_source_handoff_complete_with_external_blockers",
+    "batch_status": "dependency_locks_recovered_with_runtime_startup_blocker",
     "active_subagents": 0,
-    "validation": "cloud type/build and contracts pass; 49 Node files/1776 pass with one missing-dependency suite; final affected desktop 4 files/21 pass; full native/model/D1 blocked",
+    "validation": "frozen strict install, cloud/desktop typecheck and JS builds pass; Node 50 files/1782 pass; full Workers/CI pending; actual Runtime bootstrap fails on DSH client module format",
     "next_tasks": [
-      "F05",
-      "N09",
       "RV01",
       "UV01",
       "NV01",

@@ -57,7 +57,7 @@ export function createDesktopUpdateAdapter(): DesktopUpdateAdapter {
   if (!isTauri()) return createUnavailableDesktopUpdateAdapter()
 
   let currentOfferId: number | undefined
-  return Object.freeze({
+  return Object.freeze<DesktopUpdateAdapter>({
     available: true,
     check: async (): Promise<DesktopUpdateCheckResult> => {
       // A new check invalidates every prior in-memory offer, even if its RPC fails.

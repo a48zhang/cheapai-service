@@ -7,10 +7,16 @@ import {
   type FormEvent,
 } from 'react'
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { AskUserQuestionAnswer, AskUserQuestionRequestEvent } from '@deepseek-ai/dsh-user-questions/types'
-import type { ApprovalOutcome, ApprovalRequestEvent } from '@deepseek-ai/dsh-user-approval/types'
+import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions/types'
+import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval/types'
+import type { TypertClientEventListener } from '@deepseek-ai/dsh-typert-protocol'
+import { markdownLabels } from './MessageBody'
 import type { DshClient } from '../../adapters/dsh/client'
 import type { ConversationSessionId } from './session-store'
+
+// Remote events project Host Agent objects into client Context handles.
+type AskUserQuestionRequestEvent = Parameters<TypertClientEventListener<'user-questions/request'>>[0]
+type ApprovalRequestEvent = Parameters<TypertClientEventListener<'approval/request'>>[0]
 
 type InteractionValue = AskUserQuestionAnswer | ApprovalOutcome
 type RemoteEventNext<T> = () => Promise<T>
@@ -41,7 +47,7 @@ interface PendingInteractionBase {
   readonly id: string
   readonly logicalKey: string
   readonly signal: AbortSignal | undefined
-  readonly callId: string | undefined
+  readonly callId: Parameters<DshClient['remote']['userQuestions']['answer']>[1] | undefined
   readonly promise: Promise<InteractionValue>
   readonly settled: () => boolean
   readonly delegate: () => void
@@ -214,7 +220,7 @@ export const DshInteraction = forwardRef<DshInteractionHandle, DshInteractionPro
         readonly request: AskUserQuestionRequestEvent | ApprovalRequestEvent
         readonly next: RemoteEventNext<T>
         readonly signal: AbortSignal | undefined
-        readonly sessionId?: ConversationSessionId
+        readonly sessionId?: ConversationSessionId | undefined
       }): { readonly item: PendingInteraction; readonly promise: Promise<T> } => {
         const result = deferred<T>()
         let isSettled = false
@@ -481,7 +487,7 @@ export const DshInteraction = forwardRef<DshInteractionHandle, DshInteractionPro
                     <fieldset key={`${question.id}:${String(index)}`}>
                       <legend>{question.header ?? question.question}</legend>
                       {question.header !== undefined && <p>{question.question}</p>}
-                      {question.detail !== undefined && <MarkdownText text={question.detail} />}
+                      {question.detail !== undefined && <MarkdownText text={question.detail} labels={markdownLabels} />}
                       {(question.options ?? []).map(option => {
                         const checked = draft.selected.includes(option.label)
                         return (

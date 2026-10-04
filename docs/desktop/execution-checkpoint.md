@@ -1,5 +1,11 @@
 # Desktop 全计划执行检查点
 
+## 依赖恢复追加检查点（2026-10-04）
+
+已在最新并发分支 `dbf9dcd` 上生成真实 pnpm/Cargo 锁；F05/N09 的网络/工具链阻塞解除。frozen + strict peers 安装、云端/桌面类型及 JS 构建通过；Node 50 文件/1782 用例通过。原生应用尚未启动：实际 Runtime bootstrap 暴露固定 DSH `/client` 发布物为 ModuleLoader 插件、并非 ESM named exports；本机 Cargo check 缺 gobject/GTK/WebKit。完整测试首次 3843/3844 通过，唯一旧统计字段断言已同步，CI 终态见后续记录。
+
+本轮未新增测试、保留供应链保护；保留并发任务新增的自动安装包 workflow。详情见[依赖恢复证据](evidence/dependency-recovery.md)。以下原交接记录为恢复前历史状态，不代表最新安装结论。
+
 更新：2026-10-04 UTC。按用户要求持续推进全计划，复用六个 `gpt-6-luna` / `max` 子代理，未在中间批次停止。所有可在本环境完成的实现、接线、测试作者和文档已交接；状态和实际证据随分支保存。
 
 79 项：**70 completed、F05 blocked_network、N09 blocked_tooling、5 partial validation、2 blocked_target validation**。completed 仅表示产物完成，不能理解为对应端到端已通过。七份验证报告均已写出；外部阻塞保留，未伪造锁文件或安装包。

@@ -56,7 +56,7 @@ export type WorkspaceDirectoryAdapter =
 
 export interface DshWorkspaceDirectoryScope {
   /** ID of the real DSH Session whose header cwd scopes WorkspaceFiles calls. */
-  readonly sessionId: string
+  readonly sessionId: Parameters<DshWorkspaceFilesRemote['list']>[0]
   readonly cwd: string
 }
 

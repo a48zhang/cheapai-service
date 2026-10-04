@@ -66,6 +66,7 @@ async function writeNewFile(path, contents, options = {}) {
 async function createFixture(directory) {
   const workspace = join(directory, 'workspace')
   const fixtureId = randomUUID()
+  const executableName = process.platform === 'win32' ? 'run-fixture.cmd' : 'run-fixture'
   const createdFiles = []
   let directoryCreated = false
   let workspaceCreated = false
@@ -95,7 +96,6 @@ async function createFixture(directory) {
       'This file can be changed during an isolated desktop runtime exercise.',
       '',
     ].join('\n')
-    const executableName = process.platform === 'win32' ? 'run-fixture.cmd' : 'run-fixture'
     const executable = process.platform === 'win32'
       ? '@echo off\r\necho cheapai desktop fixture ran\r\n'
       : '#!/bin/sh\nprintf \'%s\\n\' \'cheapai desktop fixture ran\'\n'

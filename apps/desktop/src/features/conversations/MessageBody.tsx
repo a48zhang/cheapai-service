@@ -10,7 +10,7 @@ export interface MessageBodyProps {
   readonly interrupted?: boolean
 }
 
-const markdownLabels: MarkdownLabels = Object.freeze({
+export const markdownLabels: MarkdownLabels = Object.freeze({
   code: {
     copyLabel: '复制代码',
     copiedLabel: '已复制',
