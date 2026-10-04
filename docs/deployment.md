@@ -104,6 +104,8 @@ production 已有独立资源和域名，bindings/vars 明确位于 `env.product
 | `PUBLIC_BASE_URL` | 环境 `vars`，实际控制台的 canonical HTTPS origin，可有一个尾斜杠；无账号密码、路径、query、fragment |
 | `EMAIL_VERIFICATION_READY` | `vars`，初始设 `"false"`；真实发件身份/投递能力验证后才设 `"true"` |
 | `EMAIL_FROM` | `vars`，与已验证发件身份一致的地址 |
+| `EMAIL_PROVIDER` | `vars`，`cloudflare`（未设置时默认）或 `resend`；Resend 不需要 `EMAIL` binding |
+| `RESEND_API_KEY` | 仅 Resend 使用的 Worker Secret；由用户在安全配置界面输入 Sending access key，不放进 `vars` 或前端 |
 | `EMAIL_HMAC_KEY` | Secret，标准 canonical base64，解码 32–512 个随机字节；不与渠道 AES 密钥共用 |
 | `CHANNEL_KEYRING_JSON` | Secret，JSON 对象；键为保留版本名，值为标准 canonical base64 的 **32 字节** AES-256 key（44 字符、尾部 `=`） |
 | `CHANNEL_ACTIVE_KEY_VERSION` | Secret，当前写入版本名，必须存在于 keyring 中 |
@@ -113,6 +115,18 @@ production 已有独立资源和域名，bindings/vars 明确位于 `env.product
 Secrets 由受控密钥工具生成并放入仓库外的临时部署文件或密钥管理系统；本文不要求输出其值。使用 JSON secrets 文件时，`CHANNEL_KEYRING_JSON` 本身是一个 JSON **字符串**，不是外层嵌套对象。文件应包含本环境的完整保留版本集合和活动版本，并单独保存可恢复的受控副本。
 
 首次发布使用已安装 CLI 支持的 `deploy --secrets-file` 将代码和 Secrets 一并提交。不要假定不存在的 Worker 可以预先 `secret put`。普通 `secret put` 会建立并立即部署新版本；需要只准备版本时另评估 `versions secret put`，不能把前者当成无发布副作用的配置写入。[官方 Secrets 说明](https://developers.cloudflare.com/workers/configuration/secrets/)
+
+### Resend 验证码邮件
+
+生产配置已准备 `EMAIL_PROVIDER: "resend"`、`EMAIL_FROM: "noreply@mail.cheapai.dev"`，`EMAIL_VERIFICATION_READY` 仍为 `"false"`，`send_email` 保持空数组。此变更不部署、不发送邮件、不添加数据库迁移，也不实现密码找回。
+
+1. 在 Resend 完成 `mail.cheapai.dev` 的发信域名验证；发件地址必须属于已验证域名。沿用可用于该域名的 Sending access key，无需为了接入再创建 key。不要将 key 粘贴到聊天、仓库、日志或 CheapAI 管理界面。
+2. 用户自行打开 Cloudflare Dashboard → Workers & Pages → `sub2api-cloudflare-production` → Settings → Variables and Secrets → Add，选择 **Secret**，名称填 **`RESEND_API_KEY`**，值由用户私下输入。`EMAIL_HMAC_KEY` 是原有验证码 HMAC Secret，需另行安全配置（canonical base64，解码 32–512 字节），不能复用 Resend key；已有值不需要读取或复制。Dashboard 保存部署和 CLI `secret put` 可能发布版本，应在获准的发布窗口操作；本次只准备代码和参数名。[Cloudflare Secret 配置](https://developers.cloudflare.com/workers/configuration/secrets/)
+3. 本 PR 合并并获准部署后，先完成隔离环境投递验收，再在正式环境将 `EMAIL_VERIFICATION_READY` 设为 `"true"`。将该非敏感开关同步至 `env.production.vars`，避免下一次 Wrangler 发布恢复为 false；当前 PR 故意不打开它。`PUBLIC_BASE_URL` 沿用 `https://cheapai.dev`。不要将生产 Secrets 注入 PR 预览。
+4. CheapAI 现有管理后台继续控制 `registrationMode`（closed/open/invite）和 `emailVerificationEnabled`。要求邮箱验证时，只有 provider、from、HMAC 和 readiness 完整才允许依赖邮件的注册；发信还要求注册未关闭且验证开启。不要用关闭邮箱验证来绕过发信故障。
+5. 获准真实验收后检查验证码接受/收件、注册消费、旧码失效、60 秒重发限制和失败提示；服务 accepted 不等于已投递。当前不执行真实发送，不更改套餐或按量付费。需要停用邮件时关闭 readiness；已有用户登录不依赖邮件就绪状态。
+
+协议参考：[Resend Send Email](https://resend.com/docs/api-reference/emails/send-email)、[错误语义](https://resend.com/docs/api-reference/errors)。HTTP provider 使用固定端点，不跟随重定向、不自动重试，错误响应正文不读取或记录。
 
 ## 5. D1 迁移与初始管理员
 

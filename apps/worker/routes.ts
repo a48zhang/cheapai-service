@@ -12,6 +12,8 @@ import { createRegisterRoutes, REGISTER_PATH } from './auth/register-routes';
 import { createSendCodeRoutes, SEND_VERIFY_CODE_PATH } from './auth/send-code';
 import { createSessionRoutes } from './auth/session-routes';
 import { normalizeEmail } from './auth/email-proof';
+import { resolveEmailSender } from './auth/email-provider';
+import type { EmailSenderBinding } from './auth/email-sender';
 import { createRegistrationSettingsRoutes, ADMIN_REGISTRATION_SETTINGS_PATH } from './admin/registration-settings-routes';
 import { createRegistrationCodeRoutes, REGISTRATION_CODES_PATH, REGISTRATION_CODE_REVOKE_PATH } from './admin/registration-code-routes';
 import { createAdminUserRoutes, ADMIN_USERS_PATH } from './admin/user-routes';
@@ -73,9 +75,11 @@ function trustedEmailConfiguration(env: Env) {
   const emailAvailable = ready === true || ready === 'true';
   let hmacKey: Uint8Array | undefined;
   let emailFrom: string | undefined;
+  let email: EmailSenderBinding | undefined;
   if (emailAvailable) {
+    email = resolveEmailSender(env);
     if (typeof env.EMAIL_HMAC_KEY !== 'string' || env.EMAIL_HMAC_KEY.length > 684 || typeof env.EMAIL_FROM !== 'string'
-      || !env.EMAIL || typeof env.EMAIL.send !== 'function') unavailable();
+      || !email) unavailable();
     try {
       const decoded = atob(env.EMAIL_HMAC_KEY);
       if (decoded.length < 32 || decoded.length > 512 || btoa(decoded) !== env.EMAIL_HMAC_KEY) unavailable();
@@ -83,7 +87,7 @@ function trustedEmailConfiguration(env: Env) {
       emailFrom = normalizeEmail(env.EMAIL_FROM);
     } catch { return unavailable(); }
   }
-  return { emailAvailable, hmacKey, emailFrom };
+  return { emailAvailable, hmacKey, emailFrom, email };
 }
 
 // Each factory owns authentication and write protection. Origin resolvers are
@@ -274,9 +278,9 @@ for (const path of paths) {
             ...(config.hmacKey === undefined ? {} : { hmacKey: config.hmacKey }) }),
         }).fetch(request, env);
       }
-      if (!config.emailAvailable || config.hmacKey === undefined || config.emailFrom === undefined) unavailable();
+      if (!config.emailAvailable || config.hmacKey === undefined || config.emailFrom === undefined || !config.email) unavailable();
       return await createSendCodeRoutes({ ...common, trustedOrigin,
-        trustedIp: req => trustedClientIp(env, req), email: env.EMAIL, emailFrom: config.emailFrom, hmacKey: config.hmacKey,
+        trustedIp: req => trustedClientIp(env, req), email: config.email, emailFrom: config.emailFrom, hmacKey: config.hmacKey,
       }).fetch(request, env);
     } catch {
       const response = apiError(new ApiError('service_unavailable'), createRequestId());

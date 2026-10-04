@@ -59,6 +59,9 @@
       "vars": {
         "ENVIRONMENT": "production",
         "PUBLIC_BASE_URL": "https://cheapai.dev",
+        "EMAIL_PROVIDER": "resend",
+        "EMAIL_FROM": "noreply@mail.cheapai.dev",
+        // RESEND_API_KEY and EMAIL_HMAC_KEY belong in Worker Secrets, never vars.
         "EMAIL_VERIFICATION_READY": "false"
       },
       "triggers": { "crons": ["*/5 * * * *"] },
