@@ -7,6 +7,7 @@ use tauri_plugin_updater::{Update, UpdaterExt};
 use tokio::sync::{oneshot, Mutex};
 
 use crate::runtime::{RuntimeHost, RuntimeProcessState};
+use crate::protocol::DshLifecycleState;
 
 const UPDATE_ENDPOINT_ENV: &str = "SUB2API_DESKTOP_UPDATE_ENDPOINT";
 const UPDATE_PUBKEY_ENV: &str = "SUB2API_DESKTOP_UPDATE_PUBKEY";
@@ -83,6 +84,13 @@ enum UpdaterConfiguration {
 
 #[tauri::command]
 pub(crate) async fn desktop_update_check(
+    app: AppHandle,
+    service: State<'_, UpdateService>,
+) -> Result<UpdateCheckResult, UpdateError> {
+    Ok(check_update(app, service).await)
+}
+
+async fn check_update(
     app: AppHandle,
     service: State<'_, UpdateService>,
 ) -> UpdateCheckResult {
@@ -176,6 +184,14 @@ pub(crate) async fn desktop_update_download(
     app: AppHandle,
     service: State<'_, UpdateService>,
     offer_id: u64,
+) -> Result<UpdateActionResult, UpdateError> {
+    Ok(download_update(app, service, offer_id).await)
+}
+
+async fn download_update(
+    app: AppHandle,
+    service: State<'_, UpdateService>,
+    offer_id: u64,
 ) -> UpdateActionResult {
     let update = {
         let mut state = service.state.lock().await;
@@ -256,6 +272,15 @@ pub(crate) async fn desktop_update_download(
 
 #[tauri::command(rename_all = "camelCase")]
 pub(crate) async fn desktop_update_install(
+    app: AppHandle,
+    service: State<'_, UpdateService>,
+    host: State<'_, RuntimeHost>,
+    offer_id: u64,
+) -> Result<UpdateActionResult, UpdateError> {
+    Ok(install_update(app, service, host, offer_id).await)
+}
+
+async fn install_update(
     app: AppHandle,
     service: State<'_, UpdateService>,
     host: State<'_, RuntimeHost>,

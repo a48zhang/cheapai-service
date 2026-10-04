@@ -58,3 +58,5 @@ Tauri 启动入口也已执行，尚未打开原生窗口。本 Linux 缺 gobjec
 桌面 typecheck/build、现有 5 文件 23 用例通过。本机真实 Chromium 分别打开 production preview 与 Vite dev：均无未捕获异常，React 已挂载并显示“桌面服务不可用／请使用桌面应用”的正确浏览器限制提示。该验证证明 Renderer 初始化错误解除，不代表 Tauri WebView、原生 IPC 或真实 DSH 会话通过。`db1ca55` 常规 CI 已全部成功（198 文件、3844 用例），安装包与本追加变更的 CI 另跟踪。
 
 Tauri 补充：`db1ca55` ARM 构建已越过 runtime/wry，但较新的 macros 2.7.1 生成了 Tauri 2.8.5 不存在的 `UnexpectedMenuKind`。继续按官方 2.8.5 发布锁完整配对内部族：macros/codegen/plugin 2.4.0、utils 2.7.0（runtime 2.8.0、runtime-wry 2.8.1、build 2.4.1）；应用插件版本不变。全部由官方 `cargo update --precise` 生成，fetch/metadata --locked 通过。Tauri/Tauri-build 声明采用 CLI 实际写回的空 features 表形式，避免构建仅因声明格式被改写而污染源文件；版本和功能不变。
+
+`c1ffab0` 常规 CI 全部成功；ARM 安装包已通过 Tauri 内部依赖编译，暴露应用源码 6 个编译错误。本次补齐 updater 的 DshLifecycleState 导入、launch 错误代码借用，并将 runtime status 与三个 updater 异步 command 包装为 Tauri 要求的 Result。Ok 仍序列化为原来的状态对象，既有 updater 业务错误仍保留在对象内，认证/更新逻辑不变。完整原生编译和安装包仍由后续 CI 验收。

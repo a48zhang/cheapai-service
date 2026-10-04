@@ -329,7 +329,7 @@ impl RuntimeHost {
                 .update_process_state(RuntimeProcessState::Ready, None, &app, epoch)
                 .await,
             Ok(Ok(Err(error))) if !self.inner.intentional_shutdown.load(Ordering::SeqCst) => {
-                self.fail_launch(error.code, &app, epoch).await
+                self.fail_launch(&error.code, &app, epoch).await
             }
             Ok(Err(_)) if !self.inner.intentional_shutdown.load(Ordering::SeqCst) => {
                 self.fail_process("runtime-bootstrap-lost", &app, epoch).await
@@ -1165,8 +1165,8 @@ pub(crate) async fn runtime_stop(
 pub(crate) async fn runtime_status(
     app: AppHandle,
     host: State<'_, RuntimeHost>,
-) -> RuntimePublicStatus {
-    host.query_status(&app).await
+) -> Result<RuntimePublicStatus, NativeHostError> {
+    Ok(host.query_status(&app).await)
 }
 
 #[tauri::command]
