@@ -56,3 +56,5 @@ Tauri 启动入口也已执行，尚未打开原生窗口。本 Linux 缺 gobjec
 独立 QA 在 Renderer 构建产物中发现同类 ModuleLoader 入口错误。新增 Vite 适配只处理固定版本的四个官方 `/client` bundle（Connection、Gateway、Typert Registry、Session Controller），将真实 factory 与允许的静态依赖转为 ESM；开发模式排除这些非 ESM 原包的预打包。没有在浏览器执行 eval、新建假服务或修改账号/IPC 接口。
 
 桌面 typecheck/build、现有 5 文件 23 用例通过。本机真实 Chromium 分别打开 production preview 与 Vite dev：均无未捕获异常，React 已挂载并显示“桌面服务不可用／请使用桌面应用”的正确浏览器限制提示。该验证证明 Renderer 初始化错误解除，不代表 Tauri WebView、原生 IPC 或真实 DSH 会话通过。`db1ca55` 常规 CI 已全部成功（198 文件、3844 用例），安装包与本追加变更的 CI 另跟踪。
+
+Tauri 补充：`db1ca55` ARM 构建已越过 runtime/wry，但较新的 macros 2.7.1 生成了 Tauri 2.8.5 不存在的 `UnexpectedMenuKind`。继续按官方 2.8.5 发布锁完整配对内部族：macros/codegen/plugin 2.4.0、utils 2.7.0（runtime 2.8.0、runtime-wry 2.8.1、build 2.4.1）；应用插件版本不变。全部由官方 `cargo update --precise` 生成，fetch/metadata --locked 通过。Tauri/Tauri-build 声明采用 CLI 实际写回的空 features 表形式，避免构建仅因声明格式被改写而污染源文件；版本和功能不变。
