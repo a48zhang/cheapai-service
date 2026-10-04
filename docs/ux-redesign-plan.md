@@ -1,16 +1,16 @@
 # cheapai UX 重设计开发计划
 
-状态：开发计划，尚待按本计划实施。核对日期：2026-10-04。本轮仅整理此文档。
+状态：开发及本地集成验证完成，已创建 [draft PR #7](https://github.com/a48zhang/cheapai-service/pull/7)。核对日期：2026-10-04。实施分支：`codex/ux-redesign-20261004`。
 
 ## 1. 基线与执行规则
 
 - 仓库：`a48zhang/cheapai-service`，原名 `sub2api-cloudflare`，仓库 ID `1400110254`。
-- 只读核对的远端 `main` 基线为 `37493ee2d578eaf25e844d876504fddce562a092`。以下现状与文件范围以该提交为准；本轮不处理当前工作分支的既有业务改动。
+- 实施基线为 `37493ee2d578eaf25e844d876504fddce562a092`，核对时本地 HEAD 与远端 `main` 一致。以下现状以该提交为准，保留并继续当前分支已有的实施改动。
 - 组件边界沿用 `docs/frontend-react-module-boundaries.md`；发布复用 `docs/pr-previews.md` 与 `docs/deployment.md` 的当前机制。
 - 完整设计一次规划，不分 MVP。每个开发任务限定 1–3 个精确文件；新增、删除各计 1 个文件，移动按源、目标计 2 个。共享文件按依赖串行。
 - 开发任务只实现目标。模块完整后进入独立验证节点，复用既有检查和用例，最后集中集成一次；不扩展测试体系。
 
-统一边界：本轮仅本地生成计划，不修改业务代码、不执行测试、不推送、不创建 PR、不发布。开发、验证及 P01–P03 均为后续工作节点。设计不含安全审查、刁钻场景、首次调用引导、聊天内部执行路径改造或 desktop 分支工作。保留服务端技术限制、外部 API 参数和现有结算机制；前端命令层仅删除输出上限字段及透传。
+统一边界：用户已授权使用 gpt-6-luna、max、priority 子代理完成实施、模块验证、推送独立分支、创建 draft PR 并跟进 CI；不合并、不发布生产，P01–P03 保留为未来发布节点。设计不含安全审查、刁钻场景、首次调用引导、聊天内部执行路径改造或 desktop 分支工作。保留服务端技术限制、外部 API 参数和现有结算机制；前端命令层仅删除输出上限字段及透传。
 
 ## 2. 信息架构与页面骨架
 
@@ -300,8 +300,85 @@ CHEAPAI_E2E_REUSE_BUILD=1 pnpm run test:e2e
 - [x] 每个开发任务明确 ID、依赖、1–3 个精确文件和目标状态。
 - [x] 文档、开发、模块验证、集中集成、发布分别列出。
 - [x] 静态核对：依赖无环且无缺失 ID，开发任务均为 1–3 文件，共享文件修改顺序明确；已核对价格解码、费用刷新和 Key 选择的调用方。
-- [ ] 开发实施：N01–N08、M01–M06、H01–H07、B01–B07、K01–K06、U01–U03。
-- [ ] 模块验证与最后一次集中集成。
+- [x] 开发实施：N01–N08、M01–M06、H01–H07、B01–B07、K01–K06、U01–U03。
+- [x] 模块验证与最后一次集中集成。
 - [ ] 经授权的发布与验收。
 
-计划制定无剩余阻塞。
+开发完成情况以下方逐项源码核验为准；真实预发业务链路的未验范围另列，不作为已完成验收。
+
+## 10. 本分支实施记录（恢复自 `86f7c96`）
+
+- 使用六个 `gpt-6-luna`、`max` 子代理并行完成独立模块，使用可用的 `priority` 档位；共享文件按任务依赖串行。
+- 模型目录相关现有检查：4 个文件、26 项通过。
+- 聊天输入、控制器和客户端现有检查：3 个文件、17 项通过。
+- 费用条目与使用记录分页现有检查：4 个文件、31 项通过。
+- API Key 生命周期现有检查：2 个文件、10 项通过。
+- 模块完成后适配现有测试的旧控件、文案及响应断言；未新增测试框架或测试矩阵。
+- 集成检查发现并修正费用组件可选属性类型；全仓类型、两项 lint、格式检查通过，207 个测试文件共 3,876 项通过，前端构建与 Worker dry-run 通过。Worker 首次 dry-run 遇到本机默认配置目录不可写，使用临时 `XDG_CONFIG_HOME` 后通过，未修改仓库配置。
+- 既有浏览器套件 44 条全部通过：首轮 43 条通过，1 条旧侧栏导航断言改为顶部链接/头像菜单后单独重跑通过。测试数量保持不变。
+- 使用构建产物完成一次桌面 1440×1000、移动端 390×844 正常流程验收：匿名草稿登录后手动发送、真实组/模型选择、行内改名、费用日期/类型/期间汇总、五列使用记录与详情展开、API 同源地址及授权示例。未添加仓库测试文件。截图复核后修正用户消息复制按钮对齐和窄屏 Key 状态换行。
+- 已推送独立分支并创建 [draft PR #7](https://github.com/a48zhang/cheapai-service/pull/7)，实现提交为 `5d27f074242f64e6b59f5f6923e2991e621f623a`。最终提交的 CI 和预发状态以该 PR 的 Checks 为准，结果同步到 PR 描述；尚未合并或发布生产。
+
+
+## 11. 接续核验与证据（2026-10-04）
+
+只读核对远端后确认：实现提交为 `5d27f074242f64e6b59f5f6923e2991e621f623a`，`86f7c96c438534cd599c9a7e9c841479f11b4804` 记录实施和本地验证；WIP `9ea33aa1a6f48b87ca22849ac235d1d5d90e1104` 相对它仅修改本文，错误恢复“尚待实施”并删除实施记录。接续修复恢复准确状态，不重做既有业务。
+
+### 11.1 已核实的验证及范围
+
+- `86f7c96` 的 [push Local checks](https://github.com/a48zhang/cheapai-service/actions/runs/37202311792)、[PR Local checks](https://github.com/a48zhang/cheapai-service/actions/runs/37202316125) 和 [PR preview](https://github.com/a48zhang/cheapai-service/actions/runs/37202316108) 均为 `completed/success`，已从 GitHub 回读结果。
+- PR Local checks 的实际日志为 207 个测试文件、3,876 项测试通过，44 条浏览器用例一次运行全部通过；typecheck、全工作区 build（含 Worker dry-run）、两项 lint 和格式检查各步骤均成功。这比第 10 节的历史本地运行记录提供了独立 CI 证据。
+- WIP `9ea33aa` 的 [push Local checks](https://github.com/a48zhang/cheapai-service/actions/runs/37203176258) 与 [PR Local checks](https://github.com/a48zhang/cheapai-service/actions/runs/37203180448) 亦已核实 `completed/success`。其 [预发运行](https://github.com/a48zhang/cheapai-service/actions/runs/37203180160) 成功，日志明确部署该 SHA。实际入口为 https://sub2api-c45a9034a6-pr-7.alphazhang689.workers.dev ，共享 D1/KV/Gate 名称为 `sub2api-c45a9034a6-preview`，以本次日志为准。接续核验再次只读 GET `/healthz` 返回 `{"status":"ok"}`。
+- 既有浏览器测试运行于本地 HTTPS 测试服务，包含接口 mock 和本地 fixture 上游；不能据此声明真实供应商已验收。第 10 节的手动宽窄屏验收为保留的历史记录，本次未重新执行或冒充独立复现。
+- 未验真实链路：预发真实账号登录后的聊天发送/停止/重答、真实供应商调用与账单结算、真实 API Key 调用。预发邮件及 cron 关闭，未验邮件投递或调度；未运行本次生产专属检查，未合并或发布生产，P01–P03 仍未完成。
+- 本次仅文档修复时不重复本地整套测试；提交前执行 `git diff --check` 并核对任务表与文件差异，推送前再次读取远端 head。修复提交的最终 CI/preview 结果回填现有 PR #7 描述，按其确切 head 核对，避免为写入自身 SHA 再制造一轮文档提交。
+
+### 11.2 37 项开发任务的源码证据
+
+以下路径缩写沿用第 3 节；完成表示目标已在当前代码中实现，不等于已通过真实预发业务验收。核验基于源码与调用链，未以计划勾选代替证据。
+
+| ID | 结论 | 源码依据及实现行为 |
+| --- | --- | --- |
+| B01 | 已实现 | `C/billing.ts:22` 定义可空模型/来源、可选汇总和解码器；`A/billing.ts:10` 导出类型及解码器，兼容管理响应省略汇总。 |
+| B02 | 已实现 | `S/billing/entry-queries.ts:110` 按用户和日期独立聚合消费，`:130` 左连请求事实；`S/billing/entry-routes.ts:19` 解析日期、首屏序列化汇总。 |
+| B03 | 已实现 | `W/features/billing/filters.ts:27` 本地月份及排他结束边界、URL；`W/features/billing/api.ts:31` 无限查询、mount/focus 重取、余额及按用户失效函数。 |
+| B04 | 已实现 | `W/features/billing/BillingSummary.tsx:26` 直接格式化精确单位字符串；余额和期间消费仅失败时提供重试。 |
+| B05 | 已实现 | `W/features/billing/BillingTable.tsx:47` 保留管理技术列，`:114` 个人时间、类型/模型、来源、金额、记录链接及空态。 |
+| B06 | 已实现 | `W/pages/billing/BillingPage.tsx:54` 默认本月、日期/类型即时 URL 更新、兼容旧 requestId；`:213` 筛选与两种空态，首屏 summary 提供独立汇总。 |
+| B07 | 已实现 | `W/features/billing/public.ts:1` 公开失效函数；`W/features/chat/hooks/useChatController.ts:38` 在既有 onDetailConfirmed 回调失效当前用户余额/账单，控制器执行结构保留。 |
+| U01 | 已实现 | `W/features/request-history/presentation.ts:16` 集中来源、结果及未知费用文案；`W/features/request-history/RequestTable.tsx:56` 个人五列及详情链接，管理技术列独立。 |
+| U02 | 已实现 | `W/pages/requests/RequestsPage.tsx:55` 沿用分页及 URL，`:129` 时间/模型和更多筛选分层；标题与两种空态同步。 |
+| U03 | 已实现 | `W/pages/requests/RequestDetailPage.tsx:40` 五项摘要，`:107` 技术详情，`:184` 可展开 Token/价格快照；管理路径及 returnTo 保留。 |
+| M01 | 已实现 | `C/chat.ts:23` 复用价格 schema；`C/keys.ts:16` 补倍率和 modelPrices，字段可选兼容旧响应，现有解码器传递字段。 |
+| M02 | 已实现 | `S/chat/models.ts:76` 授权 SQL 读取并校验 sell_prices_json，返回基价/倍率，保留组身份、授权过滤及技术上限。 |
+| M03 | 已实现 | `S/auth/key-groups.ts:39` 从获授权组及活跃渠道模型生成目录，保留 models 并添加倍率与模型基价。 |
+| M04 | 已实现 | `W/shared/lib/model-price.ts:1` 用 BigInt 精确乘十进制基价和倍率；缺少报价显示不可用，供聊天与 Key 表单共用。 |
+| M05 | 已实现 | `W/features/chat/model/model-options.ts:14` 以 group/model 元组平铺；`W/features/chat/hooks/useModelSelection.ts:143` 恢复按用户隔离的最近有效选择，历史身份独立保留。 |
+| M06 | 已实现 | `W/features/chat/components/ModelPicker.tsx:14` 同名附真实组名，`:38` 唯一选项静态显示，`:68` 多项统一选择及报价。 |
+| K01 | 已实现 | `W/features/api-access/key-form-model.ts:12` 默认可编辑名称；`W/features/api-access/useKeyForm.ts:151` 唯一组自动选，`:259` 编辑保存更新后关闭。 |
+| K02 | 已实现 | `W/features/api-access/KeyForm.tsx:115` 单组静态/多组真实选择和报价；`W/features/api-access/KeyTable.tsx:72` 回传实际 Key，`:139` 编辑和唯一撤销入口分离。 |
+| K03 | 已实现 | `W/features/api-access/KeySecretDialog.tsx:25` 一次性说明、完整 Key、复制与完成；完成沿用页面清除 secret。 |
+| K04 | 已实现 | `W/features/api-access/integration-model.ts:31` 同源地址、授权模型交集与三协议请求；`W/features/api-access/IntegrationGuide.tsx:56` 连接目录/Key 元数据及模型/协议选择。 |
+| K05 | 已实现 | `apps/web/vite.config.ts:51` 增加 `/v1` 到本地 Worker 的代理，保持同源地址。 |
+| K06 | 已实现 | `W/pages/keys/KeysPage.tsx:22` 同页地址、Key、示例组合，创建/编辑后传递真实 Key 元数据，移除外层标签页。 |
+| N01 | 已实现 | `W/features/session/AccountMenu.tsx:14` 统一 API、费用、使用记录、管理、退出/匿名登录入口；`W/features/session/public.ts:1` 公开组件。 |
+| N02 | 已实现 | `W/app/layouts/PersonalLayout.tsx:5` 组合品牌、账户导航与 Outlet，无个人侧栏。 |
+| N03 | 已实现 | `W/features/chat/components/ChatLayout.tsx:23` 接入账户导航，保留历史侧栏/移动抽屉，移除工作台切换。 |
+| N04 | 已实现 | `W/app/layouts/ConsoleLayout.tsx:11` 仅管理导航并返回聊天；`W/app/layouts/AdminLayout.tsx:3` 复用该布局。 |
+| N05 | 已实现 | `W/app/navigation.ts:10` 仅保留 adminNavigation；`W/app/guards/AdminBoundary.tsx:5` 非管理员提示返回聊天。 |
+| N06 | 已实现 | `W/app/router.tsx:57` 个人受保护路由用 PersonalLayout，旧 dashboard replace 到 billing；旧 DashboardPage 及引入已删除。 |
+| N07 | 已实现 | `W/features/dashboard/api.ts`、`W/features/dashboard/BalanceCard.tsx` 已删除，源码搜索无旧 feature 引用；余额由 billing 接管。 |
+| N08 | 已实现 | `W/pages/auth/LoginPage.tsx:20` 按公开注册设置控制入口；`W/pages/auth/RegisterPage.tsx` 和 `W/features/session/RegisterForm.tsx:41` 保留 returnTo、关闭注册一致文案。 |
+| H01 | 已实现 | `W/pages/chat/ChatPage.tsx:86` 匿名转登录，既有 useDraft 认领草稿；`:225` 单一 picker 放入 Composer；`W/features/chat/components/Composer.tsx:93` 生成显示停止；输出控件/参数移除。 |
+| H02 | 已实现 | `W/features/chat/model/controller.ts:33`、`operation.ts:82`、`regenerate.ts:9` 删除命令/快照输出上限与透传；对照基线 diff 仅删除这些片段，执行分支保持。 |
+| H03 | 已实现 | `A/chat.ts:168` 发送及重答请求体不再序列化输出上限，bodyWithOutput 删除；服务端兼容声明和外部协议保留。 |
+| H04 | 已实现 | `W/features/chat/components/Message.tsx:54` 实际模型与短状态；`MessageActions.tsx:26` 真实多版本控件；`MessageList.tsx:95` 仅最新轮提供重答。 |
+| H05 | 已实现 | `W/features/chat/components/ConversationRow.tsx:59` 行内 Enter 保存/Escape 取消；`W/pages/chat/ChatPage.tsx:163` 接 history.renameConversation，删除确认独立保留。 |
+| H06 | 已实现 | `W/features/chat/components/ConversationSidebar.tsx:45` 底部可见哨兵续页，失败暂停并提供重试；`W/features/chat/hooks/useHistory.ts:77` 保留锁和游标控制。 |
+| H07 | 已实现 | `W/features/chat/components/ChatNotice.tsx:14` 正常不渲染提示卡，失败短文案/恢复操作；`:40` 余额不足直达 billing。 |
+
+DOC02 亦核对已完成：`docs/user-guide.md` 与 `docs/frontend-react-contract-map.md` 的实际 diff 更新页面路径、注册入口、价格及费用汇总口径，删除旧工作台和网页输出上限说明。
+
+现有针对性证据包括 `tests/unit/web-chat-client.test.ts`（请求体）、`tests/chat/integration.test.ts` 和 `tests/auth/key-groups.test.ts`（目录价格）、`tests/billing/entry-queries.test.ts`/`entry-routes.test.ts`（日期与独立汇总）、`features/api-access/secret-lifecycle.test.tsx`（一次性 Key）及 `tests/e2e/product-corrections.spec.ts`（API 地址、组/模型与编辑）。其中 feature 测试路径位于 `apps/web/src` 下。CI 通过不表示每条展示要求都有单独断言：匿名草稿路径、行内改名、同名跨组价差等还依赖源码核验和既有人工验收记录；账单模型/来源 JOIN 未见独立字段断言。未扩展测试矩阵。
+
+另明确未验本地 Vite dev-server 的 `/v1` 代理运行，以及用户复制生成示例后对真实供应商的调用；构建通过不能替代这些链路。以上为验证边界，不是发现了开发缺项。接续核验三个 `gpt-6-luna/max` 子代理分别只读核查 15、12、10 项，合计 37 项，未改业务文件。
