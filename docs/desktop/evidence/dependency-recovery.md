@@ -50,3 +50,9 @@ Tauri 启动入口也已执行，尚未打开原生窗口。本 Linux 缺 gobjec
 `a23cc3f` 的 Local checks 全部成功（198 文件、3844 用例）。ARM macOS 与 Windows 均已越过真实 Runtime 资源装配和发行清单，随后在 `tauri-runtime-wry` 编译失败：宽松传递约束选中了不兼容的 `tauri-runtime 2.12.1` / `tauri-runtime-wry 2.9.3`，出现 trait 签名/缺失方法以及 Windows 类型版本冲突。
 
 参照官方 `tauri-v2.8.5` 发布的 Cargo.lock，使用真实 `cargo update --precise` 将 runtime/runtime-wry 配对为 2.8.0/2.8.1；其余应用依赖声明未变。官方 crates.io 下载、`cargo fetch --locked` 与 `cargo metadata --locked` 成功，未手写 checksum、取消 locked 或调整工作流。原生编译结论仍以新 SHA 三平台 CI 为准；本机 Linux 系统库限制仍在。
+
+## Renderer 发布物加载修复（2026-10-04）
+
+独立 QA 在 Renderer 构建产物中发现同类 ModuleLoader 入口错误。新增 Vite 适配只处理固定版本的四个官方 `/client` bundle（Connection、Gateway、Typert Registry、Session Controller），将真实 factory 与允许的静态依赖转为 ESM；开发模式排除这些非 ESM 原包的预打包。没有在浏览器执行 eval、新建假服务或修改账号/IPC 接口。
+
+桌面 typecheck/build、现有 5 文件 23 用例通过。本机真实 Chromium 分别打开 production preview 与 Vite dev：均无未捕获异常，React 已挂载并显示“桌面服务不可用／请使用桌面应用”的正确浏览器限制提示。该验证证明 Renderer 初始化错误解除，不代表 Tauri WebView、原生 IPC 或真实 DSH 会话通过。`db1ca55` 常规 CI 已全部成功（198 文件、3844 用例），安装包与本追加变更的 CI 另跟踪。
