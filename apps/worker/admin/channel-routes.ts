@@ -3,6 +3,7 @@ import type { MiddlewareHandler } from 'hono';
 import { requireSession } from '../auth/middleware';
 import type { AuthVariables } from '../auth/middleware';
 import { requireAdmin } from '../auth/roles';
+import { getChannelById } from '../catalog/channels';
 import { validateCsrfRequest } from '../auth/csrf';
 import { DEFAULT_CONFIG } from '../config';
 import { ApiError, apiError, apiSuccess, createRequestId, parsePagination } from '../http';
@@ -89,6 +90,13 @@ export function createChannelRoutes<B extends Bindings = Bindings>(dependencies:
     const result = await listChannels(context.env.DB, { limit: page.limit,
       ...(page.cursor === null ? {} : { cursor: page.cursor }), ...(status === null ? {} : { status }) });
     return apiSuccess(result, context.get('requestId'));
+  });
+  app.get(`${ADMIN_CHANNELS_PATH}/:id`, async (context) => {
+    const id = context.req.param('id');
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id) || new URL(context.req.url).search !== '') throw new ApiError('invalid_request');
+    const channel = await getChannelById(context.env.DB, id);
+    if (!channel) throw new ApiError('not_found');
+    return apiSuccess(channel, context.get('requestId'));
   });
   app.post(ADMIN_CHANNELS_PATH, async (context) => {
     await protectWrite(dependencies, context.env, context.req.raw);

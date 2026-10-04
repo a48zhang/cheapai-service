@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   check:
-    name: Typecheck, test and build
+    name: Typecheck, test, lint, build and browser checks
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -46,3 +46,14 @@ jobs:
 
       - name: Build all workspaces
         run: pnpm run build
+
+      - name: Check React and shared package style
+        run: pnpm run lint:web && pnpm run lint:shared && pnpm run format:check:web
+
+      - name: Install Playwright Chromium and system dependencies
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run browser flows against React application
+        env:
+          CHEAPAI_E2E_REUSE_BUILD: '1'
+        run: pnpm exec playwright test

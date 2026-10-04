@@ -1,24 +1,55 @@
 {
-  "name": "@sub2api/web",
+  "name": "@cheapai/web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --project tsconfig.json --noEmit && vite build",
-    "typecheck": "vue-tsc --project tsconfig.json --noEmit",
-    "test:e2e": "playwright test --config ../../playwright.config.ts"
+    "build": "tsc --project tsconfig.json --noEmit && vite build",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
-    "markdown-it": "15.0.2",
-    "vue": "3.5.42",
-    "vue-router": "4.6.4"
+    "@cheapai/api-client": "workspace:*",
+    "@cheapai/contracts": "workspace:*",
+    "@cheapai/model-catalog": "workspace:*",
+    "@hookform/resolvers": "5.9.1",
+    "@radix-ui/react-dialog": "1.1.23",
+    "@radix-ui/react-dropdown-menu": "2.1.24",
+    "@radix-ui/react-label": "2.1.15",
+    "@radix-ui/react-select": "2.3.7",
+    "@radix-ui/react-slot": "1.3.3",
+    "@radix-ui/react-tabs": "1.1.21",
+    "@tanstack/react-query": "5.104.1",
+    "@tanstack/react-table": "8.21.3",
+    "lucide-react": "1.50.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-hook-form": "7.89.0",
+    "react-markdown": "10.1.0",
+    "react-router-dom": "7.18.4",
+    "rehype-sanitize": "6.0.0",
+    "remark-gfm": "4.0.1",
+    "zod": "4.6.5"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.7",
     "@types/node": "24.13.3",
-    "@vitejs/plugin-vue": "6.0.8",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "eslint": "10.11.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "jsdom": "30.1.1",
+    "tailwindcss": "4.3.3",
     "typescript": "5.9.3",
+    "typescript-eslint": "8.71.0",
     "vite": "8.2.2",
-    "vue-tsc": "3.3.11"
+    "vitest": "4.1.11"
   }
 }

@@ -90,6 +90,14 @@ export function createModelRoutes<B extends Bindings = Bindings>(dependencies: M
     const last = selected.at(-1);
     return apiSuccess({ items, nextCursor: result.rows.length > page.limit && last ? cursorEncode([1, last.created_at, last.public_model_id, status]) : null }, context.get('requestId'));
   });
+  app.get(`${ADMIN_MODELS_PATH}/:id`, async (context) => {
+    const id = context.req.param('id');
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$/.test(id) || id.split('/').some(part => !part || part === '.' || part === '..')
+      || new URL(context.req.url).search !== '') throw new ApiError('invalid_request');
+    const model = await getModelById(context.env.DB, id);
+    if (!model) throw new ApiError('not_found');
+    return apiSuccess(model, context.get('requestId'));
+  });
   app.post(ADMIN_MODELS_PATH, async (context) => {
     await protectWrite(dependencies, context.env, context.req.raw);
     if (new URL(context.req.url).search) throw new ApiError('invalid_request');

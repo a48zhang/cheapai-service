@@ -9,12 +9,13 @@ const edge = process.platform === 'win32' ? [
   'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
   'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
 ].find(existsSync) : undefined;
+const chromium = process.env.CHEAPAI_CHROMIUM_EXECUTABLE ?? edge;
 
 export default defineConfig({
   testDir: './tests/e2e', fullyParallel: false, workers: 1, retries: 0, timeout: 60_000,
   expect: { timeout: 10_000 }, reporter: [['list'], ['json', { outputFile: 'test-results/browser-results.json' }]],
   use: { baseURL, ignoreHTTPSErrors: true, actionTimeout: 10_000, trace: 'retain-on-failure',
-    launchOptions: edge ? { executablePath: edge } : {} },
+    launchOptions: chromium ? { executablePath: chromium } : {} },
   webServer: {
     command: `"${process.execPath}" "${join(root, 'scripts/start-local-test-server.mjs')}"`,
     cwd: root, url: `${baseURL}/healthz`, ignoreHTTPSErrors: true,

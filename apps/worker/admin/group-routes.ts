@@ -5,7 +5,7 @@ import type { AuthEnv } from '../auth/middleware';
 import { requireAdmin } from '../auth/roles';
 import { validateCsrfRequest } from '../auth/csrf';
 import { ApiError, apiError, apiSuccess, createRequestId, parsePagination } from '../http';
-import { createGroup, listGroups, updateGroup } from './group-repository';
+import { createGroup, getGroupById, listGroups, updateGroup } from './group-repository';
 import type { CreateGroupInput, GroupPatch } from './group-repository';
 
 export const ADMIN_GROUPS_PATH = '/api/v1/admin/groups';
@@ -75,6 +75,15 @@ export function createGroupRoutes(source: GroupDependencySource = env => ({ data
       const page = parsePagination(query);
       return noStore(apiSuccess(await listGroups(context.env.DB, { limit: page.limit,
         ...(page.cursor === null ? {} : { cursor: page.cursor }), ...(status === null ? {} : { status }) }), context.get('requestId')));
+    });
+  app.get(`${ADMIN_GROUPS_PATH}/:id`, initialize,
+    (context, next) => requireSession(() => context.get('requestTime')!)(context, next), requireAdmin,
+    async context => {
+      const id = context.req.param('id');
+      if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id) || new URL(context.req.url).search !== '') throw new ApiError('invalid_request');
+      const group = await getGroupById(context.env.DB, id);
+      if (!group) throw new ApiError('not_found');
+      return noStore(apiSuccess(group, context.get('requestId')));
     });
   app.post(ADMIN_GROUPS_PATH, initialize,
     (context, next) => requireSession(() => context.get('requestTime')!)(context, next), requireAdmin,

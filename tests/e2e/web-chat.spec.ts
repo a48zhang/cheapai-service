@@ -194,6 +194,38 @@ test('local web chat: groups, idempotency, history, versions, failure and mobile
     expect(selectOld.status()).toBe(200);
     expect((await json(selectOld)).data.messages.find((message: Message) => message.id === oldAssistant.id).selected).toBe(true);
 
+    // Refresh and narrow viewport after server history has been written. The
+    // browser check is intentionally content/layout oriented so it remains
+    // stable across the chat view's internal component decomposition.
+    const userPage: Page = await userContext.newPage();
+    await userPage.goto(`/chat/${fullConversation.id}`);
+    await expect(userPage.locator('main')).toContainText('deduplicate this');
+    await expect(userPage.locator('main')).toContainText(answer);
+    await expect(userPage.getByRole('textbox', { name: '消息内容' })).toBeVisible();
+    await expect(userPage.getByRole('button', { name: '发送消息', exact: true })).toBeVisible();
+    await expect(userPage.getByText('1 / 2', { exact: true })).toBeVisible();
+    await userPage.getByRole('button', { name: '下一个回答版本' }).click();
+    await expect(userPage.getByText('2 / 2', { exact: true })).toBeVisible();
+
+    const messageLog = userPage.getByRole('log', { name: '对话消息' });
+    const selectedAnswersBefore = await messageLog.getByText(answer, { exact: true }).count();
+    const composer = userPage.getByRole('textbox', { name: '消息内容' });
+    await composer.fill('React UI message');
+    await userPage.getByRole('button', { name: '发送消息', exact: true }).click();
+    await expect(userPage.locator('main')).toContainText('React UI message');
+    await expect(messageLog.getByText(answer, { exact: true })).toHaveCount(selectedAnswersBefore + 1);
+
+    await userPage.setViewportSize({ width: 390, height: 844 });
+    await userPage.reload();
+    await expect(userPage.locator('main')).toContainText('React UI message');
+    const layout = await userPage.evaluate(() => ({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth }));
+    expect(layout.scrollWidth).toBeLessThanOrEqual(layout.width + 1);
+    await userPage.getByRole('button', { name: '打开聊天记录', exact: true }).click();
+    await expect(userPage.getByRole('dialog', { name: '聊天记录' })).toBeVisible();
+    await expect(userPage.getByRole('button', { name: '关闭聊天记录', exact: true })).toBeVisible();
+    expect(await userPage.locator('main').innerText()).not.toMatch(/协议互转|创建 Key/);
+    await userPage.close();
+
     // Make one isolated local channel fail. The test Worker rejects all
     // origins outside e2e-upstream.example.invalid, so no provider is called.
     const channelPage = await json(await admin.get('/api/v1/admin/channels?limit=100'));
@@ -224,28 +256,6 @@ test('local web chat: groups, idempotency, history, versions, failure and mobile
       expect.objectContaining({ role: 'assistant', status: 'failed' }),
     ]));
     expect(await accountBalance(userApi)).toBe(beforeFailure);
-
-    // Refresh and narrow viewport after server history has been written. The
-    // browser check is intentionally content/layout oriented so it remains
-    // stable across the chat view's internal component decomposition.
-    const userPage: Page = await userContext.newPage();
-    await userPage.goto(`/chat/${fullConversation.id}`);
-    await expect(userPage.locator('main')).toContainText('deduplicate this');
-    await expect(userPage.locator('main')).toContainText(answer);
-    await expect(userPage.getByRole('textbox')).toBeVisible();
-    await expect(userPage.getByRole('button', { name: '发送消息', exact: true })).toBeVisible();
-    await userPage.setViewportSize({ width: 390, height: 844 });
-    await userPage.reload();
-    await expect(userPage.locator('main')).toContainText('deduplicate this');
-    const layout = await userPage.evaluate(() => ({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth }));
-    expect(layout.scrollWidth).toBeLessThanOrEqual(layout.width + 1);
-    const navToggle = userPage.getByRole('button', { name: '展开导航', exact: true });
-    if (await navToggle.count()) {
-      await navToggle.click();
-      await expect(userPage.getByRole('button', { name: '收起导航', exact: true })).toBeVisible();
-    }
-    expect(await userPage.locator('main').innerText()).not.toMatch(/协议互转|创建 Key/);
-    await userPage.close();
   } finally {
     await userContext?.close();
     await admin.dispose();

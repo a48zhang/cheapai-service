@@ -63,11 +63,19 @@ test('chat UI locks a new send before conversation creation and renders the stre
   await page.goto('/');
   const composer = page.getByRole('textbox', { name: '消息内容' });
   await expect(composer).toBeVisible();
+  await page.getByRole('combobox', { name: '模型组' }).click();
+  await page.getByRole('option', { name: 'UI group', exact: true }).click();
+  await page.getByRole('combobox', { name: '模型', exact: true }).click();
+  await page.getByRole('option', { name: 'ui-model', exact: true }).click();
   await composer.fill('double click prompt');
   const send = page.getByRole('button', { name: '发送消息' });
-  await Promise.all([send.click(), send.click()]);
+  await send.evaluate(button => {
+    const sendButton = button as HTMLButtonElement;
+    sendButton.click();
+    sendButton.click();
+  });
 
-  await expect(page.locator('main')).toContainText('UI answer');
+  await expect(page.getByRole('log', { name: '对话消息' })).toContainText('UI answer');
   expect(calls.conversationCreates).toBe(1);
   expect(calls.messagePosts).toBe(1);
   expect(calls.operationIds).toHaveLength(1);
@@ -102,12 +110,13 @@ for (const sameAccount of [true, false]) test(`FE-V01 expired streaming session 
   await expect(composer).toBeEnabled();
   await composer.fill('  restore this\nexact draft  ');
   await page.getByRole('button', { name: '发送消息' }).click();
-  await expect(page).toHaveURL(/\/login\?returnTo=%2Fchat%2Fconv-ui$/);
+  await expect(page).toHaveURL(url => url.pathname === '/login'
+    && url.searchParams.get('returnTo') === '/chat/conv-ui');
   if (!sameAccount) fixture.setIdentity('different-user');
   await page.getByLabel('邮箱', { exact: true }).fill('ui@example.invalid');
   await page.getByLabel('密码', { exact: true }).fill('fixture-password');
   await page.getByRole('button', { name: '登录', exact: true }).click();
-  await expect(page).toHaveURL(/\/chat\/conv-ui$/);
+  await expect(page).toHaveURL(url => url.pathname === '/chat/conv-ui');
   await expect(composer).toHaveValue(sameAccount ? '  restore this\nexact draft  ' : '');
 });
 
@@ -137,30 +146,36 @@ for (const mode of ['success', 'rejected', 'failed-after-meta', 'stopped'] as co
       + (mode === 'failed-after-meta' ? sse('error', { code: 'upstream_error', message: 'provider failed', messageId: replacement.id }) : sse('done', { message: replacement })) });
   });
   await page.goto('/chat/conv-ui');
-  await expect(page.locator('.message-markdown')).toHaveText('UI answer');
+  const messages = page.getByRole('log', { name: '对话消息' });
+  await expect(messages.getByText('UI answer', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: '重新生成', exact: true }).click();
-  await expect(page.locator('.message-markdown')).toHaveText(mode === 'rejected' ? 'UI answer' : 'replacement result');
-  if (mode !== 'rejected') await expect(page.locator('.version-count')).toHaveText('2 / 2');
+  await expect(messages.getByText(mode === 'rejected' ? 'UI answer' : 'replacement result', { exact: true })).toBeVisible();
+  if (mode !== 'rejected') await expect(page.getByText('2 / 2', { exact: true })).toBeVisible();
   await expect(page.getByRole('textbox', { name: '消息内容' })).toBeEnabled();
 });
 
 test('FE-V02 unknown regenerate retries reuse identity, successful new generation uses another identity', async ({ page }) => {
   const fixture = await mockedChat(page);
   const ids: string[] = [];
+  let version = conversation.version;
+  let variants = [{ ...answer }];
   await page.route('**/api/v1/chat/conversations/conv-ui/regenerate', async route => {
     ids.push(route.request().postDataJSON().operationId);
     if (ids.length === 1) return route.abort('failed');
-    const replacement = { ...answer, id: `answer-${ids.length}`, variant: ids.length, content: `result ${ids.length}` };
-    const detail = { conversation: { ...conversation, version: ids.length }, messages: [{ ...prompt }, { ...answer, selected: false }, replacement] };
+    version += 1;
+    const replacement = { ...answer, id: `answer-${ids.length}`, variant: variants.length + 1, selected: true, content: `result ${ids.length}` };
+    variants = [...variants.map(variant => ({ ...variant, selected: false })), replacement];
+    const detail = { conversation: { ...conversation, version }, messages: [{ ...prompt }, ...variants] };
     fixture.setDetail(detail);
     return fixture.fulfill(route, { ...detail, replayed: true });
   });
   await page.goto('/chat/conv-ui');
   await page.getByRole('button', { name: '重新生成', exact: true }).click();
-  await page.getByRole('button', { name: '重试', exact: true }).click();
-  await expect(page.locator('.message-markdown')).toHaveText('result 2');
+  await page.getByRole('button', { name: '重试确认', exact: true }).click();
+  const messages = page.getByRole('log', { name: '对话消息' });
+  await expect(messages.getByText('result 2', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: '重新生成', exact: true }).click();
-  await expect(page.locator('.message-markdown')).toHaveText('result 3');
+  await expect(messages.getByText('result 3', { exact: true })).toBeVisible();
   expect(ids[0]).toBe(ids[1]); expect(ids[2]).not.toBe(ids[1]);
 });
 
@@ -174,12 +189,15 @@ test('FE-V02 history appends deduplicated pages, retries the same failed cursor 
     if (fail) { fail = false; return route.fulfill({ status: 503, body: 'temporary' }); }
     return fixture.fulfill(route, { items: [conversation, second], nextCursor: null });
   });
-  await page.route('**/api/v1/chat/conversations', route => fixture.fulfill(route, { items: [conversation], nextCursor: 'page-two' }));
+  await page.route('**/api/v1/chat/conversations', route => fixture.fulfill(route, {
+    items: [conversation], nextCursor: route.request().method() === 'GET' ? 'page-two' : null,
+  }));
   await page.goto('/');
   await page.getByRole('button', { name: '加载更多', exact: true }).click();
-  await expect(page.locator('.history-item')).toHaveCount(1);
+  const history = page.getByRole('navigation', { name: '历史对话' });
+  await expect(history.getByRole('listitem')).toHaveCount(1);
   await page.getByRole('button', { name: '重试', exact: true }).click();
-  await expect(page.locator('.history-item')).toHaveCount(2);
+  await expect(history.getByRole('listitem')).toHaveCount(2);
   await expect(page.getByRole('button', { name: '加载更多', exact: true })).toHaveCount(0);
   expect(cursors).toEqual(['page-two', 'page-two']);
 });
@@ -189,7 +207,7 @@ test('FE-V02 history first-page failure is distinct from empty and supports retr
   let calls = 0;
   await page.route('**/api/v1/chat/conversations', route => ++calls === 1 ? route.fulfill({ status: 503, body: 'temporary' }) : fixture.fulfill(route, { items: [], nextCursor: null }));
   await page.goto('/');
-  await expect(page.locator('.history-empty')).toHaveCount(0);
+  await expect(page.getByText('还没有对话', { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: '重试', exact: true }).click();
-  await expect(page.locator('.history-empty')).toHaveText('还没有对话');
+  await expect(page.getByText('还没有对话', { exact: true })).toBeVisible();
 });

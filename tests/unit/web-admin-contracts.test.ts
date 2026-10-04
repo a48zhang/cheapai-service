@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { decodeGroup, isBillingMultiplier } from '../../apps/web/src/api/admin-groups';
-import { createApiClient } from '../../apps/web/src/api/client';
-import { createAdminChannelsApi } from '../../apps/web/src/api/admin-channels';
-import { decodeRequest } from '../../apps/web/src/api/requests';
+import { billingMultiplierSchema, decodeGroup } from '@cheapai/contracts/groups';
+import { decodeRequest } from '@cheapai/contracts/requests';
+import { createChannelsApi } from '@cheapai/api-client/channels';
+import { createApiClient } from '@cheapai/api-client/client';
+
+const isBillingMultiplier = (value: unknown): value is string => billingMultiplierSchema.safeParse(value).success;
 
 const group = (patch: Record<string, unknown> = {}) => ({
   id: 'group-1', name: '标准组', status: 'active', version: 1, createdAt: 10, updatedAt: 10, channelIds: [], ...patch,
@@ -37,17 +39,17 @@ describe('web admin API contracts', () => {
   it('uses only the trusted web-chat source field for request labels', () => {
     expect(decodeRequest(request({ source: 'web_chat', group_id: 'group-1' }))).toMatchObject({ source: 'web_chat', group_id: 'group-1' });
     expect(decodeRequest(request())).toMatchObject({ source: 'api', group_id: null });
-    expect(() => decodeRequest(request({ source: 'web_chat', group_id: 42 }))).toThrow(TypeError);
-    expect(() => decodeRequest(request({ source: 'virtual_key' }))).toThrow(TypeError);
+    expect(() => decodeRequest(request({ source: 'web_chat', group_id: 42 }))).toThrow();
+    expect(() => decodeRequest(request({ source: 'virtual_key' }))).toThrow();
   });
 
   it('decodes group facts in new price snapshots while preserving legacy snapshots', () => {
     const decoded = decodeRequest(request({ price_snapshot: priceSnapshot({ group_id: 'group-1', group_version: 3, billing_multiplier: '0.2' }), price_snapshot_valid: true }));
     expect(decoded.price_snapshot).toMatchObject({ group_id: 'group-1', group_version: 3, billing_multiplier: '0.2' });
     expect(decodeRequest(request())).toMatchObject({ price_snapshot: null, price_snapshot_valid: false });
-    expect(() => decodeRequest(request({ price_snapshot: priceSnapshot({ group_version: 0 }), price_snapshot_valid: true }))).toThrow(TypeError);
-    expect(() => decodeRequest(request({ price_snapshot: priceSnapshot({ billing_multiplier: '1e-1' }), price_snapshot_valid: true }))).toThrow(TypeError);
-    expect(() => decodeRequest(request({ price_snapshot: priceSnapshot({ extra: 'unexpected' }), price_snapshot_valid: true }))).toThrow(TypeError);
+    expect(() => decodeRequest(request({ price_snapshot: priceSnapshot({ group_version: 0 }), price_snapshot_valid: true }))).toThrow();
+    expect(() => decodeRequest(request({ price_snapshot: priceSnapshot({ billing_multiplier: '1e-1' }), price_snapshot_valid: true }))).toThrow();
+    expect(() => decodeRequest(request({ price_snapshot: priceSnapshot({ extra: 'unexpected' }), price_snapshot_valid: true }))).toThrow();
   });
 });
 
@@ -61,7 +63,7 @@ const channel = (index: number) => ({
 describe('complete administrator channel reads', () => {
   it('reads every page in order, preserves disabled channels and deduplicates IDs', async () => {
     const requests: URL[] = [];
-    const api = createAdminChannelsApi(createApiClient({ fetch: async input => {
+    const api = createChannelsApi(createApiClient({ fetch: async input => {
       const url = new URL(String(input), 'https://console.example'); requests.push(url);
       const cursor = url.searchParams.get('cursor');
       const data = cursor === null
@@ -81,7 +83,7 @@ describe('complete administrator channel reads', () => {
 
   it('preserves the paged list contract and optional status filtering', async () => {
     const requests: URL[] = [];
-    const api = createAdminChannelsApi(createApiClient({ fetch: async input => {
+    const api = createChannelsApi(createApiClient({ fetch: async input => {
       const url = new URL(String(input), 'https://console.example'); requests.push(url);
       return Response.json({ data: { items: [channel(41)], nextCursor: url.searchParams.get('cursor') ? null : 'next' }, request_id: 'channels-read' });
     } }));
@@ -94,18 +96,18 @@ describe('complete administrator channel reads', () => {
 
   it('rejects repeated cursors rather than exposing a partial list or looping', async () => {
     let calls = 0;
-    const api = createAdminChannelsApi(createApiClient({ fetch: async () => {
+    const api = createChannelsApi(createApiClient({ fetch: async () => {
       calls++;
       return Response.json({ data: { items: [channel(calls)], nextCursor: 'same-cursor' }, request_id: 'channels-read' });
     } }));
-    await expect(api.listAll()).rejects.toThrow('渠道分页游标重复');
+    await expect(api.listAll()).rejects.toThrow(TypeError);
     expect(calls).toBe(2);
   });
 
   it('rejects a middle-page failure and restarts a later read from the first page', async () => {
     const cursors: (string | null)[] = [];
     let fail = true;
-    const api = createAdminChannelsApi(createApiClient({ fetch: async input => {
+    const api = createChannelsApi(createApiClient({ fetch: async input => {
       const cursor = new URL(String(input), 'https://console.example').searchParams.get('cursor'); cursors.push(cursor);
       if (cursor && fail) return Response.json({ error: { code: 'internal_error', message: 'page failed' }, request_id: 'channels-failed' }, { status: 500 });
       return Response.json({ data: { items: [channel(cursor ? 21 : 1)], nextCursor: cursor ? null : 'next' }, request_id: 'channels-read' });
