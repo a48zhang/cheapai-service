@@ -9,6 +9,7 @@ export const keyFormSchema = z.object({
 });
 
 export type KeyFormValues = z.infer<typeof keyFormSchema>;
+export const DEFAULT_KEY_NAME = '我的 API Key';
 
 export function keyExpiryText(timestamp: number | null): string {
   return formatLocalDateTime(timestamp);
@@ -16,7 +17,7 @@ export function keyExpiryText(timestamp: number | null): string {
 
 export function initialKeyFormValues(key: KeyMetadata | null = null): KeyFormValues {
   return {
-    name: key?.name ?? '',
+    name: key?.name ?? DEFAULT_KEY_NAME,
     groupId: key?.groupId ?? '',
     expiresAt: keyExpiryText(key?.expiresAt ?? null),
   };

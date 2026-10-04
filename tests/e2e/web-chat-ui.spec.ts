@@ -63,12 +63,10 @@ test('chat UI locks a new send before conversation creation and renders the stre
   await page.goto('/');
   const composer = page.getByRole('textbox', { name: '消息内容' });
   await expect(composer).toBeVisible();
-  await page.getByRole('combobox', { name: '模型组' }).click();
-  await page.getByRole('option', { name: 'UI group', exact: true }).click();
-  await page.getByRole('combobox', { name: '模型', exact: true }).click();
-  await page.getByRole('option', { name: 'ui-model', exact: true }).click();
+  await expect(page.getByRole('group', { name: '当前模型', exact: true })).toContainText('ui-model');
+  await expect(page.getByRole('combobox', { name: '模型', exact: true })).toHaveCount(0);
   await composer.fill('double click prompt');
-  const send = page.getByRole('button', { name: '发送消息' });
+  const send = page.getByRole('button', { name: '发送', exact: true });
   await send.evaluate(button => {
     const sendButton = button as HTMLButtonElement;
     sendButton.click();
@@ -79,7 +77,7 @@ test('chat UI locks a new send before conversation creation and renders the stre
   expect(calls.conversationCreates).toBe(1);
   expect(calls.messagePosts).toBe(1);
   expect(calls.operationIds).toHaveLength(1);
-  expect(calls.maxOutputTokens).toEqual([64]);
+  expect(calls.maxOutputTokens).toEqual([]);
 });
 
 // FE-V01/02 use only browser mocks; no real provider or billing traffic.
@@ -109,7 +107,7 @@ for (const sameAccount of [true, false]) test(`FE-V01 expired streaming session 
   const composer = page.getByRole('textbox', { name: '消息内容' });
   await expect(composer).toBeEnabled();
   await composer.fill('  restore this\nexact draft  ');
-  await page.getByRole('button', { name: '发送消息' }).click();
+  await page.getByRole('button', { name: '发送', exact: true }).click();
   await expect(page).toHaveURL(url => url.pathname === '/login'
     && url.searchParams.get('returnTo') === '/chat/conv-ui');
   if (!sameAccount) fixture.setIdentity('different-user');
@@ -131,7 +129,7 @@ test('FE-V01 stores edits immediately and storage failure does not block composi
   await page.evaluate(() => { Storage.prototype.setItem = () => { throw new Error('storage denied'); }; });
   await composer.fill('still editable');
   await expect(composer).toHaveValue('still editable');
-  await expect(page.getByRole('button', { name: '发送消息' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: '发送', exact: true })).toBeEnabled();
 });
 
 for (const mode of ['success', 'rejected', 'failed-after-meta', 'stopped'] as const) test(`FE-V02 regenerate ${mode} keeps the correct selected variant`, async ({ page }) => {
@@ -148,7 +146,7 @@ for (const mode of ['success', 'rejected', 'failed-after-meta', 'stopped'] as co
   await page.goto('/chat/conv-ui');
   const messages = page.getByRole('log', { name: '对话消息' });
   await expect(messages.getByText('UI answer', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '重新生成', exact: true }).click();
+  await page.getByRole('button', { name: '重新回答', exact: true }).click();
   await expect(messages.getByText(mode === 'rejected' ? 'UI answer' : 'replacement result', { exact: true })).toBeVisible();
   if (mode !== 'rejected') await expect(page.getByText('2 / 2', { exact: true })).toBeVisible();
   await expect(page.getByRole('textbox', { name: '消息内容' })).toBeEnabled();
@@ -170,16 +168,16 @@ test('FE-V02 unknown regenerate retries reuse identity, successful new generatio
     return fixture.fulfill(route, { ...detail, replayed: true });
   });
   await page.goto('/chat/conv-ui');
-  await page.getByRole('button', { name: '重新生成', exact: true }).click();
+  await page.getByRole('button', { name: '重新回答', exact: true }).click();
   await page.getByRole('button', { name: '重试确认', exact: true }).click();
   const messages = page.getByRole('log', { name: '对话消息' });
   await expect(messages.getByText('result 2', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '重新生成', exact: true }).click();
+  await page.getByRole('button', { name: '重新回答', exact: true }).click();
   await expect(messages.getByText('result 3', { exact: true })).toBeVisible();
   expect(ids[0]).toBe(ids[1]); expect(ids[2]).not.toBe(ids[1]);
 });
 
-test('FE-V02 history appends deduplicated pages, retries the same failed cursor and hides the last-page button', async ({ page }) => {
+test('FE-V02 history automatically appends deduplicated pages and retries the same failed cursor', async ({ page }) => {
   const fixture = await mockedChat(page);
   const cursors: (string | null)[] = [];
   let fail = true;
@@ -193,7 +191,7 @@ test('FE-V02 history appends deduplicated pages, retries the same failed cursor 
     items: [conversation], nextCursor: route.request().method() === 'GET' ? 'page-two' : null,
   }));
   await page.goto('/');
-  await page.getByRole('button', { name: '加载更多', exact: true }).click();
+  await expect(page.getByRole('button', { name: '重试', exact: true })).toBeVisible();
   const history = page.getByRole('navigation', { name: '历史对话' });
   await expect(history.getByRole('listitem')).toHaveCount(1);
   await page.getByRole('button', { name: '重试', exact: true }).click();

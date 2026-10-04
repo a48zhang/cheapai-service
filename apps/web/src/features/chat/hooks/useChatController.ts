@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSession } from '../../session/public';
+import { invalidatePersonalBilling } from '../../billing/public';
 import {
   createChatFeatureApi,
   chatConversationDetailQueryOptions,
@@ -42,6 +43,7 @@ export function useChatController(options: UseChatControllerOptions) {
           void queryClient.invalidateQueries({
             queryKey: chatQueryKeys.lists(context.userId, context.epoch),
           });
+          void invalidatePersonalBilling(queryClient, context.userId);
         },
       }),
     [api, session, queryClient, context.userId, context.epoch],

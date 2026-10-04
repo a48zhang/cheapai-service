@@ -41,8 +41,24 @@ describe('production billing entry integration with native D1', () => {
     expect(await balance.json()).toMatchObject({ data: { balance_units: '-50', balance_usd: '-0.00000050', currency: 'USD', decimals: 8 } });
     expect(balance.headers.get('Cache-Control')).toBe('no-store');
     const entries = await invoke('/api/v1/billing/entries', { headers: { Cookie: ownerCookie } });
-    const page = await entries.json<{ data: { items: { deltaUnits: string }[] } }>();
+    const page = await entries.json<{
+      data: {
+        items: { deltaUnits: string }[];
+        summary?: {
+          currency: 'USD';
+          consumptionUnits: string;
+          createdFrom: number | null;
+          createdBefore: number | null;
+        };
+      };
+    }>();
     expect(page.data.items.map(item => item.deltaUnits).sort()).toEqual(['-150', '100']);
+    expect(page.data.summary).toEqual({
+      currency: 'USD',
+      consumptionUnits: '0',
+      createdFrom: null,
+      createdBefore: null,
+    });
     expect(await (await invoke('/api/v1/billing/entries', { headers: { Cookie: adminCookie } })).json()).toMatchObject({ data: { items: [] } });
     const global = await invoke(`/api/v1/admin/billing/entries?userId=${owner}`, { headers: { Cookie: adminCookie } });
     expect((await global.json<{ data: { items: unknown[] } }>()).data.items).toHaveLength(2);

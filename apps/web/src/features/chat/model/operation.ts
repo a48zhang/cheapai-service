@@ -39,7 +39,6 @@ export interface PrepareSendOperationInput {
   readonly groupId: string;
   readonly modelId: string;
   readonly content: string;
-  readonly maxOutputTokens?: number;
   readonly baselineMessageIds: readonly string[];
   readonly operationId?: string;
 }
@@ -50,7 +49,6 @@ export interface PrepareRegenerateOperationInput {
   readonly conversationVersion: number;
   readonly groupId: string;
   readonly modelId: string;
-  readonly maxOutputTokens?: number;
   readonly previousMessageId: string;
   readonly baselineMessageIds: readonly string[];
   readonly operationId?: string;
@@ -89,7 +87,6 @@ export function prepareSendOperation(input: PrepareSendOperationInput): ChatSend
     groupId: input.groupId,
     modelId: input.modelId,
     content: input.content,
-    ...(input.maxOutputTokens === undefined ? {} : { maxOutputTokens: input.maxOutputTokens }),
   });
   return Object.freeze({
     ...baseOperation({ ...input, operationId }),
@@ -107,7 +104,6 @@ export function prepareRegenerateOperation(
     conversationVersion: input.conversationVersion,
     groupId: input.groupId,
     modelId: input.modelId,
-    ...(input.maxOutputTokens === undefined ? {} : { maxOutputTokens: input.maxOutputTokens }),
   });
   return Object.freeze({
     ...baseOperation({ ...input, operationId }),

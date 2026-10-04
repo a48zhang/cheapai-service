@@ -1,13 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { FormEvent } from 'react';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { billingKindSchema } from '@cheapai/contracts/billing';
 import type { BillingKind } from '@cheapai/contracts/billing';
-import { billingListQueryOptions, createPersonalBillingApi } from '../../features/billing/api';
+import {
+  billingListQueryOptions,
+  createPersonalAccountApi,
+  createPersonalBillingApi,
+  personalBalanceQueryOptions,
+} from '../../features/billing/api';
+import {
+  billingDateBoundsFromInputs,
+  billingDateRangeFromSearch,
+  currentBillingMonthRange,
+} from '../../features/billing/filters';
+import { BillingSummary } from '../../features/billing/BillingSummary';
 import { BillingTable } from '../../features/billing/BillingTable';
 import { useSession } from '../../features/session/useSession';
-import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { PageHeader } from '../../shared/patterns/PageHeader';
 import { mergePageItems } from '../../shared/lib/pagination';
 
@@ -17,79 +26,183 @@ const kindLabels: Record<BillingKind, string> = {
   adjustment: '余额调整',
 };
 
+function validRequestId(value: string | null): string | undefined {
+  if (
+    !value ||
+    value.length > 128 ||
+    value.trim() !== value ||
+    !/^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/u.test(value)
+  ) {
+    return undefined;
+  }
+  return value;
+}
+
+function searchParamsForFilters(
+  bounds: { readonly createdFrom?: number; readonly createdBefore?: number },
+  kind: BillingKind | undefined,
+  requestId: string | undefined,
+): URLSearchParams {
+  const next = new URLSearchParams();
+  if (bounds.createdFrom !== undefined) next.set('createdFrom', String(bounds.createdFrom));
+  if (bounds.createdBefore !== undefined) next.set('createdBefore', String(bounds.createdBefore));
+  if (kind) next.set('kind', kind);
+  if (requestId) next.set('requestId', requestId);
+  return next;
+}
+
 export function BillingPage() {
   const { client, user, state: session } = useSession();
   const [searchParams, setSearchParams] = useSearchParams();
-  const requestId = searchParams.get('requestId') ?? '';
-  const kindValue = searchParams.get('kind') ?? '';
+  const searchKey = searchParams.toString();
+  const parsedParams = useMemo(() => new URLSearchParams(searchKey), [searchKey]);
+  const dateRange = useMemo(() => billingDateRangeFromSearch(parsedParams), [parsedParams]);
+  const defaultMonth = useMemo(() => currentBillingMonthRange(), []);
+  const kindValue = parsedParams.get('kind') ?? '';
   const parsedKind = kindValue ? billingKindSchema.safeParse(kindValue) : null;
   const kind = parsedKind?.success ? parsedKind.data : undefined;
+  const requestId = validRequestId(parsedParams.get('requestId'));
   const filters = useMemo(
     () => ({
+      ...(dateRange.createdFrom === undefined ? {} : { createdFrom: dateRange.createdFrom }),
+      ...(dateRange.createdBefore === undefined ? {} : { createdBefore: dateRange.createdBefore }),
       ...(kind ? { kind } : {}),
-      ...(requestId.trim() ? { requestId: requestId.trim() } : {}),
+      ...(requestId ? { requestId } : {}),
     }),
-    [kind, requestId],
+    [dateRange.createdBefore, dateRange.createdFrom, kind, requestId],
   );
-  const api = useMemo(() => createPersonalBillingApi(client), [client]);
+  const billingApi = useMemo(() => createPersonalBillingApi(client), [client]);
+  const accountApi = useMemo(() => createPersonalAccountApi(client), [client]);
   const userId = user?.id ?? 'anonymous';
+  const enabled = session.status === 'authenticated' && user !== null;
   const query = useInfiniteQuery({
-    ...billingListQueryOptions(api, userId, filters),
-    enabled: session.status === 'authenticated' && user !== null,
+    ...billingListQueryOptions(billingApi, userId, filters),
+    enabled,
   });
-  const [draftKind, setDraftKind] = useState(kind ?? '');
-  const [draftRequestId, setDraftRequestId] = useState(requestId);
-  const [filterError, setFilterError] = useState('');
+  const balanceQuery = useQuery({
+    ...personalBalanceQueryOptions(accountApi, userId),
+    enabled,
+  });
+  const rows = mergePageItems(query.data?.pages);
+  const [dateDraft, setDateDraft] = useState({
+    startDate: dateRange.startDate,
+    endDate: dateRange.endDate,
+  });
+  const [dateError, setDateError] = useState('');
 
   useEffect(() => {
-    setDraftKind(kind ?? '');
-    setDraftRequestId(requestId);
-    setFilterError('');
-  }, [kind, requestId]);
-  const rows = mergePageItems(query.data?.pages);
+    const normalized = searchParamsForFilters(dateRange, kind, requestId);
+    if (normalized.toString() !== searchKey) setSearchParams(normalized, { replace: true });
+  }, [dateRange, kind, requestId, searchKey, setSearchParams]);
 
-  function applyFilters(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setFilterError('');
-    const next = new URLSearchParams();
-    if (draftKind) {
-      const parsed = billingKindSchema.safeParse(draftKind);
-      if (!parsed.success) {
-        setFilterError('账单类型无效。');
-        return;
-      }
-      next.set('kind', parsed.data);
+  useEffect(() => {
+    setDateDraft({ startDate: dateRange.startDate, endDate: dateRange.endDate });
+    setDateError('');
+  }, [dateRange.endDate, dateRange.startDate, searchKey]);
+
+  const hasCustomDateRange =
+    dateRange.createdFrom !== defaultMonth.createdFrom ||
+    dateRange.createdBefore !== defaultMonth.createdBefore;
+  const hasActiveFilters = Boolean(kind || requestId || hasCustomDateRange);
+  const emptyMessage = hasActiveFilters ? '没有符合筛选条件的记录。' : '本期间暂无费用记录。';
+
+  function updateDate(field: 'startDate' | 'endDate', value: string) {
+    const nextDraft = { ...dateDraft, [field]: value };
+    setDateDraft(nextDraft);
+    const bounds = billingDateBoundsFromInputs(nextDraft.startDate, nextDraft.endDate);
+    if (!bounds) {
+      setDateError('请选择有效且按顺序排列的日期范围。');
+      return;
     }
-    const normalizedRequestId = draftRequestId.trim();
-    if (normalizedRequestId) {
-      if (
-        normalizedRequestId.length > 128 ||
-        !/^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/u.test(normalizedRequestId)
-      ) {
-        setFilterError('请求 ID 格式无效。');
-        return;
-      }
-      next.set('requestId', normalizedRequestId);
-    }
-    setSearchParams(next);
+    setDateError('');
+    setSearchParams(searchParamsForFilters(bounds, kind, requestId));
+  }
+
+  function clearFilters() {
+    setDateDraft({ startDate: defaultMonth.startDate, endDate: defaultMonth.endDate });
+    setDateError('');
+    setSearchParams(searchParamsForFilters(defaultMonth, undefined, undefined));
+  }
+
+  function retryBilling() {
+    void (query.isFetchNextPageError ? query.fetchNextPage() : query.refetch());
   }
 
   return (
-    <section className="space-y-5">
-      <PageHeader heading="账单明细" />
-      <form
-        onSubmit={applyFilters}
+    <section className="space-y-4">
+      <PageHeader heading="费用" />
+      <BillingSummary
+        balance={balanceQuery.data}
+        balanceLoading={balanceQuery.isPending}
+        balanceError={balanceQuery.error}
+        onRetryBalance={() => void balanceQuery.refetch()}
+        summary={query.data?.pages[0]?.summary}
+        summaryLoading={query.isPending}
+        summaryError={query.isFetchNextPageError ? undefined : query.error}
+        onRetrySummary={retryBilling}
+      />
+      <div
         className="flex flex-wrap items-end gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
-        aria-label="账单筛选"
+        aria-label="费用筛选"
       >
+        <fieldset className="flex flex-wrap items-end gap-3 border-0 p-0">
+          <legend className="mb-2 w-full text-xs font-medium text-[var(--color-foreground)]">
+            日期范围
+          </legend>
+          <label className="grid gap-1.5 text-xs font-medium text-[var(--color-foreground)]">
+            开始日期
+            <input
+              type="date"
+              value={dateDraft.startDate}
+              onChange={(event) => updateDate('startDate', event.currentTarget.value)}
+              className="min-h-10 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm"
+            />
+          </label>
+          <span className="pb-3 text-sm text-slate-500">至</span>
+          <label className="grid gap-1.5 text-xs font-medium text-[var(--color-foreground)]">
+            结束日期
+            <input
+              type="date"
+              value={dateDraft.endDate}
+              onChange={(event) => updateDate('endDate', event.currentTarget.value)}
+              className="min-h-10 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm"
+            />
+          </label>
+        </fieldset>
+        <button
+          type="button"
+          aria-pressed={!hasCustomDateRange}
+          className={`min-h-10 rounded-md border px-3 text-sm font-medium ${
+            hasCustomDateRange
+              ? 'border-[var(--color-border)] bg-white text-slate-700'
+              : 'border-indigo-200 bg-indigo-50 text-indigo-800'
+          }`}
+          onClick={() => {
+            setDateDraft({ startDate: defaultMonth.startDate, endDate: defaultMonth.endDate });
+            setDateError('');
+            setSearchParams(searchParamsForFilters(defaultMonth, kind, requestId));
+          }}
+        >
+          本月
+        </button>
         <label className="grid gap-1.5 text-xs font-medium text-[var(--color-foreground)]">
           类型
           <select
-            value={draftKind}
-            onChange={(event) => setDraftKind(event.currentTarget.value)}
+            value={kind ?? ''}
+            onChange={(event) => {
+              const value = event.currentTarget.value;
+              const nextKind = value ? billingKindSchema.safeParse(value) : null;
+              setSearchParams(
+                searchParamsForFilters(
+                  dateRange,
+                  nextKind?.success ? nextKind.data : undefined,
+                  requestId,
+                ),
+              );
+            }}
             className="min-h-10 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm"
           >
-            <option value="">全部</option>
+            <option value="">全部类型</option>
             {billingKindSchema.options.map((value) => (
               <option key={value} value={value}>
                 {kindLabels[value]}
@@ -97,54 +210,43 @@ export function BillingPage() {
             ))}
           </select>
         </label>
-        <label className="grid gap-1.5 text-xs font-medium text-[var(--color-foreground)]">
-          请求 ID（可选）
-          <input
-            value={draftRequestId}
-            onChange={(event) => setDraftRequestId(event.currentTarget.value)}
-            maxLength={128}
-            autoComplete="off"
-            className="min-h-10 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm"
-          />
-        </label>
-        <button
-          type="submit"
-          className="min-h-10 rounded-md bg-[var(--color-primary)] px-4 text-sm font-medium text-white"
-        >
-          应用筛选
-        </button>
-        <button
-          type="button"
-          className="min-h-10 rounded-md border border-[var(--color-border)] bg-white px-4 text-sm"
-          onClick={() => {
-            setDraftKind('');
-            setDraftRequestId('');
-            setFilterError('');
-            setSearchParams(new URLSearchParams());
-          }}
-        >
-          清除
-        </button>
-        {filterError && (
+        {requestId && (
+          <div className="flex min-h-10 items-center gap-2 rounded-md bg-slate-100 px-3 text-xs text-slate-700">
+            <span>请求 ID 筛选：{requestId}</span>
+            <button
+              type="button"
+              className="font-medium text-indigo-700 hover:underline"
+              aria-label="清除请求 ID 筛选"
+              onClick={() => setSearchParams(searchParamsForFilters(dateRange, kind, undefined))}
+            >
+              清除
+            </button>
+          </div>
+        )}
+        {hasActiveFilters && (
+          <button
+            type="button"
+            className="min-h-10 rounded-md px-3 text-sm font-medium text-indigo-700 hover:underline"
+            onClick={clearFilters}
+          >
+            清除筛选
+          </button>
+        )}
+        {dateError && (
           <p className="m-0 basis-full text-sm text-[var(--color-destructive)]" role="alert">
-            {filterError}
+            {dateError}
           </p>
         )}
-      </form>
-      {query.error && (
-        <ApiErrorNotice
-          error={query.error}
-          onRetry={() =>
-            void (query.isFetchNextPageError ? query.fetchNextPage() : query.refetch())
-          }
-        />
-      )}
+      </div>
       {(!query.error || rows.length > 0) && (
         <BillingTable
           rows={rows}
           loading={query.isPending}
           loadingMore={query.isFetchingNextPage}
           hasMore={query.hasNextPage}
+          error={query.isFetchNextPageError ? '费用读取失败。' : undefined}
+          emptyMessage={emptyMessage}
+          onRetry={retryBilling}
           onLoadMore={() => {
             void query.fetchNextPage();
           }}

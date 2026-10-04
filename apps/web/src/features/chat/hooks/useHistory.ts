@@ -70,7 +70,7 @@ export function useHistory({ context }: UseHistoryOptions) {
   const conversations = useMemo(() => mergeConversations(data), [data]);
   const errorMessage = repeatedCursor
     ? '历史分页位置重复，已停止继续加载。请刷新后重试。'
-    : error
+    : error || isFetchNextPageError
       ? '历史对话读取失败。'
       : null;
 

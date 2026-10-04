@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { sellPricesSchema } from './models.js';
 
 const countSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const positiveSchema = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
@@ -22,6 +23,8 @@ export const chatMessageStatusSchema = z.enum(['generating', 'completed', 'stopp
 export const chatModelSchema = z.object({
   publicModelId: nonEmptyTextSchema(256),
   maxOutputTokens: positiveSchema.optional(),
+  /** Price snapshot is display-only; missing values remain unavailable, never free. */
+  sellPrices: sellPricesSchema.optional(),
 });
 
 export const chatGroupSchema = z.object({

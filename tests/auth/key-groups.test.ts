@@ -41,7 +41,9 @@ beforeEach(async()=>{
 
 describe('administrator-granted Key groups on real D1 and Worker routing',()=>{
   it('lists only granted active groups with their models and rejects an ungranted selection',async()=>{
-    expect(await listAvailableKeyGroups(testEnv.DB,'group-user')).toEqual([{id:'gpt',name:'gpt',models:['model-gpt']}]);
+    expect(await listAvailableKeyGroups(testEnv.DB,'group-user')).toEqual([{
+      id:'gpt',name:'gpt',models:['model-gpt'],billingMultiplier:'1',modelPrices:{'model-gpt':{input:'1',output:'2'}},
+    }]);
     await expect(key('claude')).rejects.toThrow();
     expect(await testEnv.DB.prepare('SELECT count(*) AS count FROM api_keys').first('count')).toBe(0);
   });

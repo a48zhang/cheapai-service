@@ -10,9 +10,6 @@ function composerProps(overrides: Partial<ComponentProps<typeof Composer>> = {})
     onChange: vi.fn(),
     onSend: vi.fn(),
     onStop: vi.fn(),
-    maxOutputTokens: '32',
-    maxOutputTokensCeiling: 64,
-    onMaxOutputTokensChange: vi.fn(),
     ...overrides,
   };
 }
@@ -29,7 +26,7 @@ describe('chat composer input safety', () => {
 
     fireEvent.compositionEnd(textbox);
     fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter', isComposing: false });
-    expect(props.onSend).toHaveBeenCalledWith('输入中的中文', 32);
+    expect(props.onSend).toHaveBeenCalledWith('输入中的中文');
   });
 
   it('keeps Stop available during generation and never sends a second message', async () => {
@@ -43,6 +40,6 @@ describe('chat composer input safety', () => {
 
     expect(props.onStop).toHaveBeenCalledTimes(1);
     expect(props.onSend).not.toHaveBeenCalled();
-    expect(screen.queryByRole('button', { name: '发送消息' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '发送' })).not.toBeInTheDocument();
   });
 });

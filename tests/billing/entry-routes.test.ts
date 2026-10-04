@@ -55,6 +55,7 @@ describe('B10-A administrator billing GET', () => {
   it('returns global or filtered ledger summaries with safe amount/time types', async () => {
     const all = await adminGet(); expect(all.headers.get('Cache-Control')).toBe('no-store');
     const payload = await body(all); expect(payload.data.items).toHaveLength(3);
+    expect(payload.data.summary).toBeUndefined();
     expect(payload.data.items.every(item => typeof item.deltaUnits === 'string' && typeof item.createdAt === 'string')).toBe(true);
     expect(JSON.stringify(payload)).not.toMatch(/PRIVATE_|usage_snapshot|price_snapshot/);
     const filtered = await body(await adminGet('?userId=b10-other&kind=grant'));
@@ -83,7 +84,14 @@ describe('B10-A administrator billing GET', () => {
 
 describe('B10 owner billing GET', () => {
   it('supports exact [createdFrom,createdBefore) timestamps and rejects status as a ledger filter', async () => {
-    expect((await body(await get('?createdFrom=2000&createdBefore=2001'))).data.items).toHaveLength(2);
+    const bounded = await body(await get('?createdFrom=2000&createdBefore=2001'));
+    expect(bounded.data.items).toHaveLength(2);
+    expect(bounded.data.summary).toEqual({
+      currency: 'USD',
+      consumptionUnits: '0',
+      createdFrom: 2000,
+      createdBefore: 2001,
+    });
     expect((await body(await get('?createdBefore=2000'))).data.items).toEqual([]);
     expect((await body(await get('?createdFrom=2001'))).data.items).toEqual([]);
     expect((await get('?status=succeeded')).status).toBe(400);

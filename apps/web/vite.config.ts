@@ -54,6 +54,21 @@ export default defineConfig(({ command, mode }) => {
       strictPort: true,
       ...(https ? { https } : {}),
       proxy: {
+        '/v1': {
+          target: `http://127.0.0.1:${workerPort}`,
+          // Keep the browser's same-origin Origin, Cookie, and CSRF headers.
+          changeOrigin: false,
+          configure(proxy) {
+            // Vite's proxy pipes response streams; keep SSE responses unbuffered
+            // if a local reverse proxy sits in front of the development server.
+            proxy.on('proxyRes', (proxyResponse) => {
+              if (proxyResponse.headers['content-type']?.includes('text/event-stream')) {
+                proxyResponse.headers['cache-control'] ??= 'no-cache';
+                proxyResponse.headers['x-accel-buffering'] = 'no';
+              }
+            });
+          },
+        },
         '/api': {
           target: `http://127.0.0.1:${workerPort}`,
           // Keep the browser's same-origin Origin, Cookie, and CSRF headers.

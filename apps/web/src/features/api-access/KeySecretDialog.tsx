@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useId } from 'react';
 import { Button } from '../../shared/ui/Button';
 import { Dialog } from '../../shared/ui/Dialog';
 
@@ -9,22 +9,16 @@ export interface KeySecretDialogProps {
 }
 
 /** Receives a created token only for this mounted dialog's short lifetime. */
-export function KeySecretDialog({ secret, keyName, onClose }: KeySecretDialogProps) {
+export function KeySecretDialog({ secret, onClose }: KeySecretDialogProps) {
   const inputId = useId();
-  const [copyMessage, setCopyMessage] = useState('');
   const open = secret !== null;
-
-  useEffect(() => {
-    setCopyMessage('');
-  }, [secret]);
 
   const copy = async () => {
     if (secret === null) return;
     try {
       await navigator.clipboard.writeText(secret);
-      setCopyMessage('密钥已复制到剪贴板。');
     } catch {
-      setCopyMessage('无法自动复制，请选中密钥并手动复制。');
+      // Keep the one-time secret visible so the user can copy it manually.
     }
   };
 
@@ -35,26 +29,26 @@ export function KeySecretDialog({ secret, keyName, onClose }: KeySecretDialogPro
         if (!nextOpen) onClose();
       }}
       title="Key 已创建"
-      description={`“${keyName}”的完整密钥只显示这一次。关闭后无法再次取回。`}
+      description="完整 Key 仅显示一次，请复制保存。"
       closeLabel="关闭密钥对话框"
       className="max-w-2xl"
       footer={
         <>
           <Button variant="secondary" onClick={() => void copy()}>
-            复制密钥
+            复制
           </Button>
-          <Button onClick={onClose}>已保存，关闭密钥</Button>
+          <Button onClick={onClose}>完成</Button>
         </>
       }
     >
       {secret !== null && (
         <div className="space-y-3">
           <label htmlFor={inputId} className="block text-sm font-medium">
-            完整密钥（仅显示一次）
+            API Key
           </label>
           <textarea
             id={inputId}
-            aria-label="完整密钥（仅显示一次）"
+            aria-label="完整 API Key"
             value={secret}
             readOnly
             autoComplete="off"
@@ -62,13 +56,6 @@ export function KeySecretDialog({ secret, keyName, onClose }: KeySecretDialogPro
             rows={3}
             className="block w-full resize-y rounded-md border border-[var(--color-border)] bg-[var(--color-muted)] p-3 font-mono text-sm leading-6 outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
           />
-          <p
-            role="status"
-            aria-live="polite"
-            className="min-h-5 text-sm text-[var(--color-muted-foreground)]"
-          >
-            {copyMessage}
-          </p>
         </div>
       )}
     </Dialog>

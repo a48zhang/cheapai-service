@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { ApiClientError } from '@cheapai/api-client/errors';
 import type { KeysApi, KeyMetadata, KeyState } from '@cheapai/api-client/keys';
 import { formatDateTime } from '../../shared/lib/datetime';
@@ -7,7 +8,6 @@ import { CursorTable } from '../../shared/patterns/CursorTable';
 import { Button } from '../../shared/ui/Button';
 import { ConfirmAction } from '../../shared/ui/ConfirmAction';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
-import { useInfiniteQuery } from '@tanstack/react-query';
 import { keyListQueryOptions } from './api';
 import { mergePageItems } from '../../shared/lib/pagination';
 
@@ -16,6 +16,8 @@ export interface KeyTableProps {
   readonly userId: string;
   readonly onCreate: () => void;
   readonly onEdit: (key: KeyMetadata) => void;
+  readonly selectedKeyId: string | null;
+  readonly onSelectKey: (key: KeyMetadata | null) => void;
   readonly onChanged: (key: KeyMetadata) => void;
 }
 
@@ -33,11 +35,23 @@ function statusFor(key: KeyMetadata): { label: string; tone: 'success' | 'warnin
   return { label: '有效', tone: 'success' };
 }
 
+function canUseForExamples(key: KeyMetadata): boolean {
+  return key.status === 'active' && (key.expiresAt === null || key.expiresAt > Date.now());
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '暂时无法读取 Key 列表。';
 }
 
-export function KeyTable({ api, userId, onCreate, onEdit, onChanged }: KeyTableProps) {
+export function KeyTable({
+  api,
+  userId,
+  onCreate,
+  onEdit,
+  selectedKeyId,
+  onSelectKey,
+  onChanged,
+}: KeyTableProps) {
   const [state, setState] = useState<KeyState>('all');
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [operationMessage, setOperationMessage] = useState('');
@@ -46,10 +60,25 @@ export function KeyTable({ api, userId, onCreate, onEdit, onChanged }: KeyTableP
     ...keyListQueryOptions(api, userId, state),
     enabled: userId !== 'anonymous',
   });
-  const rows = mergePageItems(
-    query.data?.pages,
-    (candidate, current) => candidate.version - current.version,
+  const rows = useMemo(
+    () =>
+      mergePageItems(
+        query.data?.pages,
+        (candidate, current) => candidate.version - current.version,
+      ),
+    [query.data],
   );
+
+  useEffect(() => {
+    const usableKeys = rows.filter(canUseForExamples);
+    if (selectedKeyId === null) {
+      const firstUsableKey = usableKeys[0];
+      if (firstUsableKey) onSelectKey(firstUsableKey);
+      return;
+    }
+    const selectedRow = rows.find((key) => key.id === selectedKeyId);
+    if (selectedRow) onSelectKey(canUseForExamples(selectedRow) ? selectedRow : null);
+  }, [rows, selectedKeyId, onSelectKey]);
 
   const revoke = async (key: KeyMetadata) => {
     if (revokingId !== null) return;
@@ -92,7 +121,11 @@ export function KeyTable({ api, userId, onCreate, onEdit, onChanged }: KeyTableP
       header: '状态',
       cell: ({ row }) => {
         const status = statusFor(row.original);
-        return <StatusBadge tone={status.tone}>{status.label}</StatusBadge>;
+        return (
+          <StatusBadge tone={status.tone} className="whitespace-nowrap">
+            {status.label}
+          </StatusBadge>
+        );
       },
     },
     {
@@ -106,26 +139,36 @@ export function KeyTable({ api, userId, onCreate, onEdit, onChanged }: KeyTableP
       id: 'actions',
       header: '操作',
       cell: ({ row }) => (
-        <div className="flex min-w-48 flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => onEdit(row.original)}>
-            {row.original.status === 'revoked' ? '查看' : '编辑 / 撤销'}
+        <div className="flex min-w-52 flex-wrap items-center gap-2">
+          <Button
+            variant={selectedKeyId === row.original.id ? 'secondary' : 'outline'}
+            size="sm"
+            disabled={!canUseForExamples(row.original) || selectedKeyId === row.original.id}
+            onClick={() => onSelectKey(row.original)}
+          >
+            {selectedKeyId === row.original.id ? '当前示例 Key' : '用于示例'}
           </Button>
           {row.original.status !== 'revoked' && (
-            <ConfirmAction
-              trigger={
-                <Button variant="danger" size="sm">
-                  撤销 Key
-                </Button>
-              }
-              title="撤销 API Key"
-              description={`撤销“${row.original.name}”后，使用该 Key 的请求将无法继续。此操作不可恢复。`}
-              confirmLabel="确认撤销"
-              cancelLabel="暂不撤销"
-              busy={revokingId === row.original.id}
-              onConfirm={() => {
-                void revoke(row.original);
-              }}
-            />
+            <>
+              <Button variant="outline" size="sm" onClick={() => onEdit(row.original)}>
+                编辑
+              </Button>
+              <ConfirmAction
+                trigger={
+                  <Button variant="danger" size="sm">
+                    撤销
+                  </Button>
+                }
+                title="撤销 API Key"
+                description={`撤销“${row.original.name}”后，使用该 Key 的请求将无法继续。此操作不可恢复。`}
+                confirmLabel="确认撤销"
+                cancelLabel="暂不撤销"
+                busy={revokingId === row.original.id}
+                onConfirm={() => {
+                  void revoke(row.original);
+                }}
+              />
+            </>
           )}
         </div>
       ),
@@ -192,10 +235,7 @@ export function KeyTable({ api, userId, onCreate, onEdit, onChanged }: KeyTableP
       )}
       {!rows.length && !query.isPending && !query.isError ? (
         <div className="rounded-xl border border-dashed border-[var(--color-border)] p-5 text-sm text-[var(--color-muted-foreground)]">
-          <p>暂无 Key。创建独立密钥，用于你的应用或客户端。</p>
-          <Button variant="ghost" className="mt-2" onClick={onCreate}>
-            创建第一个 Key <span aria-hidden="true">→</span>
-          </Button>
+          <p>还没有 API Key。</p>
         </div>
       ) : (
         <CursorTable

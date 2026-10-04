@@ -14,12 +14,14 @@ export type {
   BillingEntry,
   BillingKind,
   BillingPage,
+  BillingSummary,
   BillingQuery,
 } from '@cheapai/contracts/billing';
 export {
   decodeBalanceReconciliationPage,
   decodeBillingEntry,
   decodeBillingPage,
+  decodeBillingSummary,
 } from '@cheapai/contracts/billing';
 
 export interface BillingApi {

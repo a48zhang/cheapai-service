@@ -202,7 +202,7 @@ test('local web chat: groups, idempotency, history, versions, failure and mobile
     await expect(userPage.locator('main')).toContainText('deduplicate this');
     await expect(userPage.locator('main')).toContainText(answer);
     await expect(userPage.getByRole('textbox', { name: '消息内容' })).toBeVisible();
-    await expect(userPage.getByRole('button', { name: '发送消息', exact: true })).toBeVisible();
+    await expect(userPage.getByRole('button', { name: '发送', exact: true })).toBeVisible();
     await expect(userPage.getByText('1 / 2', { exact: true })).toBeVisible();
     await userPage.getByRole('button', { name: '下一个回答版本' }).click();
     await expect(userPage.getByText('2 / 2', { exact: true })).toBeVisible();
@@ -211,7 +211,7 @@ test('local web chat: groups, idempotency, history, versions, failure and mobile
     const selectedAnswersBefore = await messageLog.getByText(answer, { exact: true }).count();
     const composer = userPage.getByRole('textbox', { name: '消息内容' });
     await composer.fill('React UI message');
-    await userPage.getByRole('button', { name: '发送消息', exact: true }).click();
+    await userPage.getByRole('button', { name: '发送', exact: true }).click();
     await expect(userPage.locator('main')).toContainText('React UI message');
     await expect(messageLog.getByText(answer, { exact: true })).toHaveCount(selectedAnswersBefore + 1);
 

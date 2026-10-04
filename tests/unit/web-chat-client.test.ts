@@ -27,7 +27,7 @@ function streamResponse(frames: readonly string[]): Response {
 }
 
 describe('React chat API stream client', () => {
-  it('parses CRLF frames and forwards metadata, deltas, CSRF, and output limits', async () => {
+  it('parses CRLF frames and omits output limits from web chat requests', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(streamResponse([
       'event: meta\r\ndata: ' + JSON.stringify({
         conversation,
@@ -57,7 +57,9 @@ describe('React chat API stream client', () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
     const [, init] = fetcher.mock.calls[0]!;
     expect(new Headers(init?.headers).get('x-csrf-token')).toBe('csrf-token');
-    expect(JSON.parse(String(init?.body))).toMatchObject({ operationId: 'operation-1', maxOutputTokens: 64 });
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    expect(body).toMatchObject({ operationId: 'operation-1' });
+    expect(body).not.toHaveProperty('maxOutputTokens');
   });
 
   it('decodes an idempotent replay without starting another generation', async () => {

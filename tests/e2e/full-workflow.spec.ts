@@ -49,11 +49,13 @@ test('real browser signup → key → funding → nine JSON/SSE pairs → overdr
     await page.getByRole('button', { name: '创建 Key' }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByLabel('名称', { exact: true }).fill('Full workflow key');
-    await dialog.getByRole('combobox', { name: '分组' }).selectOption('default');
+    await expect(dialog.locator('input[name="groupId"]')).toHaveValue('default');
+    await expect(dialog.getByRole('combobox', { name: '分组' })).toHaveCount(0);
+    await expect(dialog.getByText(/授权模型与价格/)).toBeVisible();
     await dialog.getByRole('button', { name: '创建 Key' }).click();
-    const secret = dialog.getByLabel('完整密钥（仅显示一次）', { exact: true });
+    const secret = dialog.getByLabel('完整 API Key', { exact: true });
     await expect(secret).toBeVisible(); const token = await secret.inputValue();
-    await dialog.getByRole('button', { name: '已保存，关闭密钥' }).click();
+    await dialog.getByRole('button', { name: '完成', exact: true }).click();
     const bearer = { Authorization: `Bearer ${token}`, 'anthropic-version': '2023-06-01' };
     const tag = randomUUID().slice(0, 8);
     const models = {} as Record<Protocol, string>;

@@ -9,7 +9,11 @@ import type { BillingEntrySummary, EntryQueryOptions, BillingEntryPage } from '.
 export const BILLING_ENTRIES_PATH = '/api/v1/billing/entries';
 export const ADMIN_BILLING_ENTRIES_PATH = '/api/v1/admin/billing/entries';
 export type BillingEntryItem = Omit<BillingEntrySummary, 'createdAt'> & { readonly createdAt: string };
-export interface BillingEntriesResponse { readonly items: readonly BillingEntryItem[]; readonly nextCursor: string | null }
+export interface BillingEntriesResponse {
+  readonly items: readonly BillingEntryItem[];
+  readonly nextCursor: string | null;
+  readonly summary?: BillingEntryPage['summary'];
+}
 const noStore = (response: Response): Response => { response.headers.set('Cache-Control', 'no-store'); return response; };
 
 function queryOptions(request: Request, admin = false): EntryQueryOptions {
@@ -34,7 +38,7 @@ function queryOptions(request: Request, admin = false): EntryQueryOptions {
     ...(requestId === null ? {} : { requestId }), ...(userId === null ? {} : { userId }), ...times };
 }
 function responsePage(page: BillingEntryPage): BillingEntriesResponse {
-  return { nextCursor: page.nextCursor, items: page.items.map(item => {
+  return { nextCursor: page.nextCursor, ...(page.summary === undefined ? {} : { summary: page.summary }), items: page.items.map(item => {
     if (!Number.isSafeInteger(item.createdAt) || item.createdAt < 0 || item.createdAt > 8_640_000_000_000_000) throw new ApiError('service_unavailable');
     return { ...item, createdAt: new Date(item.createdAt).toISOString() };
   }) };

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { Conversation } from '@cheapai/contracts/chat';
-import { Sparkles } from 'lucide-react';
 import { useSession } from '../../features/session/useSession';
 import { useDraft } from '../../features/chat/hooks/useDraft';
 import { useHistory } from '../../features/chat/hooks/useHistory';
@@ -16,7 +15,6 @@ import { ChatNotice } from '../../features/chat/components/ChatNotice';
 import { ChatLayout } from '../../features/chat/components/ChatLayout';
 import { Button } from '../../shared/ui/Button';
 import { Dialog } from '../../shared/ui/Dialog';
-import { Input } from '../../shared/ui/Input';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 
 export default function ChatPage() {
@@ -66,16 +64,10 @@ export default function ChatPage() {
         }
       : {}),
   });
-  const ceiling = selection.selectedModel?.maxOutputTokens;
-  const outputScope = `${userId}:${conversationId ?? ''}:${selection.selectedModel?.publicModelId ?? ''}:${ceiling ?? ''}`;
-  const [output, setOutput] = useState({ scope: '', value: '' });
-  const outputValue =
-    output.scope === outputScope ? output.value : ceiling === undefined ? '' : String(ceiling);
   const [action, setAction] = useState<{
-    kind: 'rename' | 'delete';
+    kind: 'delete';
     conversation: Conversation;
   } | null>(null);
-  const [title, setTitle] = useState('');
   const [actionError, setActionError] = useState<unknown>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const actionLock = useRef(false);
@@ -91,7 +83,7 @@ export default function ChatPage() {
     setActionError(null);
   }, [userId, epoch]);
 
-  const send = (content: string, maxOutputTokens?: number) => {
+  const send = (content: string) => {
     if (!authenticated) {
       navigate(`/login?returnTo=${encodeURIComponent(location.pathname + location.search)}`);
       return;
@@ -111,7 +103,6 @@ export default function ChatPage() {
         content,
         groupId: selection.selection.groupId,
         modelId: selection.selection.modelId,
-        ...(maxOutputTokens === undefined ? {} : { maxOutputTokens }),
       })
       .then((result) => {
         if (result === 'busy' || result === 'superseded')
@@ -123,17 +114,13 @@ export default function ChatPage() {
     navigate('/');
   };
   const submitAction = async () => {
-    if (!action || actionLock.current || (action.kind === 'rename' && !title.trim())) return;
+    if (!action || actionLock.current) return;
     actionLock.current = true;
     setActionBusy(true);
     setActionError(null);
     try {
-      if (action.kind === 'rename')
-        await history.renameConversation(action.conversation, title.trim());
-      else {
-        await history.deleteConversation(action.conversation);
-        if (conversationId === action.conversation.id) newConversation();
-      }
+      await history.deleteConversation(action.conversation);
+      if (conversationId === action.conversation.id) newConversation();
       setAction(null);
     } catch (error) {
       setActionError(error);
@@ -156,13 +143,6 @@ export default function ChatPage() {
               : undefined;
   return (
     <ChatLayout
-      controls={
-        authenticated ? (
-          <ModelPicker selection={selection} disabled={chat.busy} />
-        ) : (
-          <span className="text-sm text-[var(--color-muted-foreground)]">新的对话</span>
-        )
-      }
       sidebar={(close, mobile) => (
         <ConversationSidebar
           conversations={history.conversations}
@@ -180,11 +160,9 @@ export default function ChatPage() {
             navigate(`/chat/${encodeURIComponent(conversation.id)}`);
             close();
           }}
-          onRename={(conversation) => {
-            setAction({ kind: 'rename', conversation });
-            setTitle(conversation.title);
-            setActionError(null);
-          }}
+          onRename={(conversation, title) =>
+            history.renameConversation(conversation, title).then(() => undefined)
+          }
           onDelete={(conversation) => {
             setAction({ kind: 'delete', conversation });
             setActionError(null);
@@ -228,39 +206,9 @@ export default function ChatPage() {
             void chat.controller.regenerate({
               groupId: selection.selection.groupId,
               modelId: selection.selection.modelId,
-              ...(outputValue ? { maxOutputTokens: Number(outputValue) } : {}),
             });
         }}
-        emptyMessage={
-          <div className="mx-auto flex max-w-xl flex-col items-center px-2 py-6 text-center sm:px-6 sm:py-16">
-            <span className="mb-4 grid size-12 place-items-center rounded-2xl bg-indigo-50 text-indigo-600">
-              <Sparkles size={26} />
-            </span>
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">今天想做些什么？</h1>
-            <div className="mt-6 grid w-full gap-2 sm:grid-cols-2">
-              {[
-                '帮我整理一个清晰的开发计划',
-                '解释这段代码的工作原理',
-                '为我的想法写一份提纲',
-                '帮我分析一个复杂问题',
-              ].map((prompt) => (
-                <Button
-                  key={prompt}
-                  variant="outline"
-                  className="h-auto whitespace-normal p-3 text-left text-sm"
-                  onClick={() => draft.setDraft(prompt)}
-                >
-                  {prompt}
-                </Button>
-              ))}
-            </div>
-            {!authenticated && (
-              <p className="mt-6 text-xs text-[var(--color-muted-foreground)]">
-                登录后开始对话，输入内容会为你保留。
-              </p>
-            )}
-          </div>
-        }
+        emptyMessage="有什么想聊的？"
       />
       <div className="px-4 pb-2">
         <ChatNotice
@@ -281,31 +229,28 @@ export default function ChatPage() {
         onStop={() => {
           void chat.stop();
         }}
+        modelPicker={
+          authenticated ? <ModelPicker selection={selection} disabled={chat.busy} /> : null
+        }
+        sendLabel={authenticated ? '发送' : '登录后发送'}
         busy={chat.busy}
         disabled={Boolean(disabledReason)}
         {...(disabledReason ? { disabledReason } : {})}
-        maxOutputTokens={outputValue}
-        {...(ceiling === undefined ? {} : { maxOutputTokensCeiling: ceiling })}
-        onMaxOutputTokensChange={(value) => setOutput({ scope: outputScope, value })}
       />
       <Dialog
         open={action !== null}
         onOpenChange={(open) => {
           if (!open && !actionBusy) setAction(null);
         }}
-        title={action?.kind === 'rename' ? '重命名对话' : '删除对话'}
-        description={
-          action?.kind === 'delete'
-            ? '删除后无法恢复此对话及其消息。'
-            : '为这段对话设置一个便于查找的名称。'
-        }
+        title="删除对话"
+        description="删除后无法恢复此对话及其消息。"
         footer={
           <>
             <Button variant="outline" disabled={actionBusy} onClick={() => setAction(null)}>
               取消
             </Button>
             <Button
-              variant={action?.kind === 'delete' ? 'danger' : 'primary'}
+              variant="danger"
               busy={actionBusy}
               onClick={() => {
                 void submitAction();
@@ -316,16 +261,6 @@ export default function ChatPage() {
           </>
         }
       >
-        {action?.kind === 'rename' && (
-          <label className="grid gap-2 text-sm">
-            对话名称
-            <Input
-              value={title}
-              maxLength={512}
-              onChange={(event) => setTitle(event.target.value)}
-            />
-          </label>
-        )}
         {actionError != null && <ApiErrorNotice error={actionError} />}
       </Dialog>
     </ChatLayout>

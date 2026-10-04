@@ -70,7 +70,8 @@ async function loginThroughPage(page: Page): Promise<void> {
   await page.getByRole('button', { name: '登录' }).click();
   await expect(page).toHaveURL(`${connection.baseURL}/`);
   await page.goto('/dashboard');
-  await expect(page.getByRole('heading', { name: '账户概览' })).toBeVisible();
+  await expect(page).toHaveURL(/\/billing(?:\?|$)/);
+  await expect(page.getByRole('heading', { name: '费用', exact: true })).toBeVisible();
 }
 
 async function waitForEnabled(locator: Locator): Promise<void> {
@@ -247,17 +248,17 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
   await page.getByRole('button', { name: '创建 Key' }).click();
   const keyDialog = page.getByRole('dialog');
   await keyDialog.getByRole('textbox', { name: '名称' }).fill(`CheapAI gateway key ${suffix}`);
-  await keyDialog.getByLabel('分组').selectOption({ label: defaultGroup!.name });
+  await expect(keyDialog.locator('input[name="groupId"]')).toHaveValue(defaultGroup!.id);
   const keyCreateResponsePromise = page.waitForResponse(response =>
     new URL(response.url()).pathname === '/api/v1/keys' && response.request().method() === 'POST');
   await keyDialog.getByRole('button', { name: '创建 Key' }).click();
   const keyCreateResponse = await keyCreateResponsePromise;
   expect(keyCreateResponse.status(), await keyCreateResponse.text()).toBe(201);
-  const keySecret = page.getByLabel('完整密钥（仅显示一次）');
+  const keySecret = page.getByLabel('完整 API Key');
   await expect(keySecret).toBeVisible();
   const platformKey = await keySecret.inputValue();
   expect(platformKey).toMatch(/^s2a_key_[A-Za-z0-9_-]{43}$/u);
-  await page.getByRole('button', { name: '已保存，关闭密钥' }).click();
+  await page.getByRole('button', { name: '完成', exact: true }).click();
   await expect(keySecret).toHaveCount(0);
 
   const gateway = await administrator.post('/v1/chat/completions', {

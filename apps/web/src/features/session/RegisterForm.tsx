@@ -10,6 +10,7 @@ import { Field } from '../../shared/ui/Field';
 import { Input } from '../../shared/ui/Input';
 import { Button } from '../../shared/ui/Button';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
+import { safeReturnPath } from '../../shared/lib/return-path';
 
 const schema = z.object({
   email: z.string().trim().email('请输入有效邮箱'),
@@ -17,11 +18,12 @@ const schema = z.object({
   registrationCode: z.string(),
   emailCode: z.string(),
 });
-export function RegisterForm() {
+export function RegisterForm({ returnTo = '/' }: { returnTo?: string }) {
   const { session, publicSettings, settingsError, error, pending } = useSession();
   const [created, setCreated] = useState(false);
   const [codeBusy, setCodeBusy] = useState(false);
   const navigate = useNavigate();
+  const safeDestination = safeReturnPath(returnTo);
   const {
     register,
     handleSubmit,
@@ -46,13 +48,13 @@ export function RegisterForm() {
         />
       </>
     );
-  if (publicSettings.registrationMode === 'closed') return <p role="status">当前已关闭注册。</p>;
+  if (publicSettings.registrationMode === 'closed') return <p role="status">当前未开放注册</p>;
   if (created)
     return (
       <div role="status" className="space-y-4">
         <p>账户已创建，请登录或恢复会话继续。</p>
         <ApiErrorNotice error={error} />
-        <Link to="/login">前往登录</Link>
+        <Link to={`/login?returnTo=${encodeURIComponent(safeDestination)}`}>前往登录</Link>
       </div>
     );
   return (
@@ -83,7 +85,7 @@ export function RegisterForm() {
           setValue('password', '');
           setValue('emailCode', '');
           setValue('registrationCode', '');
-          if (result.session === 'created') navigate('/', { replace: true });
+          if (result.session === 'created') navigate(safeDestination, { replace: true });
         } catch (cause) {
           if (cause instanceof RegistrationIdentityError) {
             setCreated(true);

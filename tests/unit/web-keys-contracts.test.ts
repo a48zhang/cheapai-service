@@ -11,7 +11,13 @@ function keysApiFor(data: unknown) {
 
 describe('personal Key group response contract', () => {
   it('decodes groups from the standard success envelope data.items shape', async () => {
-    const group = { id: 'default', name: '默认分组', models: ['cheapai-chat'] };
+    const group = {
+      id: 'default',
+      name: '默认分组',
+      models: ['cheapai-chat'],
+      billingMultiplier: '1.25',
+      modelPrices: { 'cheapai-chat': { input: '0.1', output: '0.4' } },
+    };
 
     await expect(keysApiFor({ items: [group] }).groups()).resolves.toEqual([group]);
   });
