@@ -20,7 +20,7 @@ export function RegisterForm() {
   const { register, handleSubmit, watch, setValue, setError, formState: { errors, isSubmitting } } = useForm<z.infer<typeof schema>>({ resolver: zodResolver(schema), defaultValues: { email: '', password: '', registrationCode: '', emailCode: '' } });
   useEffect(() => { void session.bootstrap().catch(() => undefined); }, [session]);
   if (!publicSettings) return <><p role="status">正在读取注册策略…</p><ApiErrorNotice error={settingsError} onRetry={() => void session.bootstrap().catch(() => undefined)} /></>;
-  if (publicSettings.registrationMode === 'closed') return <div role="status" className="space-y-4"><p>当前已关闭注册。</p><Link to="/login">返回登录</Link></div>;
+  if (publicSettings.registrationMode === 'closed') return <p role="status">当前已关闭注册。</p>;
   if (created) return <div role="status" className="space-y-4"><p>账户已创建，请登录或恢复会话继续。</p><ApiErrorNotice error={error} /><Link to="/login">前往登录</Link></div>;
   return <form className="space-y-5" onSubmit={handleSubmit(async input => {
     if (created || codeBusy) return;
