@@ -1,12 +1,12 @@
 # cheapai PR #5 预发验证执行计划
 
-状态：执行中。六个验证代理的公开页面/API 检查已完成，关闭注册页的重复登录入口已修复。当前云会话缺少 Cloudflare 凭据，正在准备通过现有预发 CI 的 Wrangler 创建本轮新账号，并通过加密 artifact 交付账号凭据；尚未确认远程账号创建。
+状态：本轮可执行部分已完成。CI Wrangler 创建专属管理员，三个普通用户由管理 API 创建，六个代理已执行登录后的模块检查；临时普通用户及资源已清理/停用。修复重复登录入口并集中复验认证模块 10/10。auth 表单登录 503 尚未解决；渠道创建未确认成功、可用聊天模型为空，映射及真实推理链路明确阻塞。结果与截图见 [汇总报告](validation/cheapai-preview-summary.md)。
 
 ## 目标与部署基线
 
 - 预发地址：https://sub2api-13556ffb8b-pr-5.alphazhang689.workers.dev
-- 已确认的部署提交：`a68dc9d30c4c2a343ec62e3590548c9f05e08ccd`。
-- 部署证据：[PR preview 成功运行](https://github.com/a48zhang/sub2api-cloudflare/actions/runs/37141551749)，日志包含上述地址和提交。CI 的 HTML/健康检查不代表登录及业务链路已经通过。
+- 当前验证部署提交：`a3f7bdaab508253d10099c15f2215699ab3b3344`；早期公开证据对应 `a68dc9d30c4c2a343ec62e3590548c9f05e08ccd`。
+- 部署证据：[PR preview 成功运行](https://github.com/a48zhang/sub2api-cloudflare/actions/runs/37168472234)，日志包含上述地址和提交。CI 的 HTML/健康检查不代表登录及业务链路已经通过。
 - PR：[cheapai React 重构 #5](https://github.com/a48zhang/sub2api-cloudflare/pull/5)。
 - 分支 Worker：`sub2api-13556ffb8b-pr-5`；共享 D1、KV、Gate：`sub2api-13556ffb8b-preview`。其他 PR 使用相同存储，所有测试数据必须可归属到本轮运行。
 - 本轮验证真实 HTTPS 部署、React 页面和实际 Worker/D1 链路。邮件与 cron 在预发关闭；没有可用预发模型渠道时，真实推理链路记为阻塞。
@@ -25,7 +25,7 @@
 
 ## 阶段一：协调者准备
 
-下列任务按产物依赖顺序执行。当前计划阶段不执行这些远程操作。
+下列准备任务已按依赖顺序执行。管理员通过下述 CI 替代路径创建；真实供应商调用因没有预发渠道而未执行。
 
 | ID | 做什么 | 最终状态 |
 | --- | --- | --- |
@@ -43,7 +43,7 @@
 
 本地 Wrangler 未认证，但已成功部署的 CI 持有原有 Cloudflare 凭据。本轮通过临时 CI 步骤完成 P-02/P-04：沿用成功部署生成的配置，严格校验固定 PR、Account、Worker、D1/KV，再用 Wrangler 新增本轮管理员。CI 生成随机密码，只把 AES-GCM 加密、RSA-OAEP 包装密钥的账号 envelope 上传为一天有效的 artifact；RSA 私钥仅留在当前工作区受限目录，Cloudflare Token 留在 CI。已有邮箱若不是本轮 ID 则停止；同一本轮账号若已存在则不重置密码。协调者取得并核验 envelope 后通过产品 API 完成 P-05/P-06。
 
-临时准备写集为 `scripts/seed-preview-qa.ts`、公开 recipient 元数据 `scripts/preview-qa-fixture.json` 和 `.github/workflows/preview.yml`，共三个文件。账号准备及验证收敛后移除这三个文件中的临时步骤/产物，保留现有正常预发流水线。
+临时准备写集为 `scripts/seed-preview-qa.ts`、公开 recipient 元数据 `scripts/preview-qa-fixture.json` 和 `.github/workflows/preview.yml`，共三个文件。账号交付已成功，协调者已移除这三个文件中的临时步骤/产物，保留现有正常预发流水线；随最终验证报告一并提交。
 
 ## 阶段二：六个并行验证任务
 

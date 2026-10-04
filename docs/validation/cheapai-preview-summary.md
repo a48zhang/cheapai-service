@@ -1,52 +1,55 @@
-# cheapai PR #5 预发验证进度
+# cheapai PR #5 预发验证
 
-本轮完成公开预检，认证后的业务验证仍受 Cloudflare 凭据阻塞。测试账号尚未在远程创建，不能据此认定主要面板或真实推理链路已验证通过。
+本轮已创建隔离测试账号，由六个 `gpt-6-luna / max` 代理完成可执行的预发模块检查。真实供应商链路因没有可用渠道而阻塞，不能据此认定推理、SSE 或推理结算通过。
 
-## 部署与执行范围
+## 部署与账号
 
-- 目标：https://sub2api-13556ffb8b-pr-5.alphazhang689.workers.dev
-- 业务代码与已部署 SHA：`a68dc9d30c4c2a343ec62e3590548c9f05e08ccd`。
-- [对应 CI 部署](https://github.com/a48zhang/sub2api-cloudflare/actions/runs/37141551749)成功，日志确认地址与 SHA。
-- 日期：2026-10-04 UTC；运行标识：`qa-pr5-20261004`。
-- 并发：6 个 `gpt-6-luna / max` 验证代理，独立浏览器 context、附件目录及报告写集。
-- 所有浏览器访问保留环境 HTTPS 代理和 TLS 校验，不使用 `ignoreHTTPSErrors`。
-- 本轮初始证据对应上面的业务代码 SHA。V-06 发现关闭注册页有两个重复的登录入口；已交付仅修改 `RegisterForm.tsx` 的修复，保留父页面登录入口。修复后的部署与集中复验结果记录在 PR #5 的验证说明中，初始证据不自动继承到新版本。
+- 地址：<https://sub2api-13556ffb8b-pr-5.alphazhang689.workers.dev>。
+- 登录后业务及视觉证据对应 `a3f7bdaab508253d10099c15f2215699ab3b3344`，[部署及账号初始化 CI](https://github.com/a48zhang/sub2api-cloudflare/actions/runs/37168472234)成功。早期公开预检对应 `a68dc9d30c4c2a343ec62e3590548c9f05e08ccd`。
+- 日期：2026-10-04 UTC；运行标识 `qa-pr5-20261004`。六条 lane 使用独立浏览器 context、资源前缀和报告写集。
+- CI 沿用原有 Cloudflare 认证，通过 Wrangler D1 单条查询新增专属管理员，初始余额为 0；随机登录凭据经 AES-GCM/RSA-OAEP 加密后交付。协调者核对目标、提交和账号身份，再通过管理 API 创建 auth、personal、chat 三个普通用户。
+- 当前实例仍未绑定本地 Cloudflare Token；本轮账号准备已由 CI 完成，无需借此更改注册策略。临时初始化脚本、公开 recipient 元数据和 workflow 步骤已移除；凭据 artifact 已删除。
+- 浏览器保留 HTTPS 代理、原有 CA 与 TLS 校验。默认文件系统沙箱限制 NSS 数据库访问的问题，通过审核后的浏览器执行命令解决；没有更改 HOME 或绕过预发证书校验。
 
-## 已有证据与覆盖边界
+## 模块结果
 
-| 模块 | 已执行的公开预检 | 未执行的认证链路 | 记录 |
+| 模块 | 本轮实际覆盖 | 限制 | 报告 |
 | --- | --- | --- | --- |
-| 身份权限 | HTTPS 登录页、管理深链的 `returnTo`、公开配置/CSRF、匿名会话及管理 API 401、缺失/错配 CSRF 的写入 403。 | 登录、恢复、退出、普通用户管理权限、跨用户资源隔离。 | [V-01](cheapai-preview-auth.md) |
-| 个人控制台 | 五条个人页面深链实际回到登录页且保留路径/查询参数；会话及六个个人 API 返回 401。 | 概览、key 创建/一次性秘密/撤销、授权组限制、请求详情及账单。 | [V-02](cheapai-preview-personal.md) |
-| 聊天 | 公开 SPA 与聊天深链、匿名模型/会话 API 拒绝、静态资源加载。 | 会话写入、真实模型、SSE、停止、恢复、重试与变体，以及对应结算。 | [V-03](cheapai-preview-chat.md) |
-| 管理资源 | 渠道/模型/组列表与详情的匿名 API 保护、管理深链。 | 专属渠道→模型→映射→组配置；渠道提交结果不确定时的查回。 | [V-04](cheapai-preview-catalog.md) |
-| 管理运营 | 用户、账单、审计、注册与邀请码相关匿名 API 保护及页面深链。 | 用户创建/授权、额度幂等与账本审计、邀请码生成/撤销。 | [V-05](cheapai-preview-operations.md) |
-| 视觉交互 | 桌面/平板/手机的公开登录、关闭注册、表单原生校验、受保护路由与不存在路由。 | 聊天、个人控制台及管理面板的登录后布局与交互。 | [V-06](cheapai-preview-visual.md) |
+| 身份与权限 | API 登录、刷新、退出；普通用户管理页面/API 403；登录态 CSRF 403；自有 Key 200/他人 404；双向空会话自读 200/他人 404。 | auth 表单登录重试 503，成功后的表单回跳未覆盖；反向 Key fixture 与推理 request 所有权未执行。 | [V-01](cheapai-preview-auth.md) |
+| 个人控制台 | 登录、概览、Key 创建与组绑定、一次性明文关闭/刷新清理、撤销；请求及账单列表读取。 | 空请求列表不证明详情、游标下一页或请求账单关联。 | [V-02](cheapai-preview-personal.md) |
+| 聊天 | 草稿刷新恢复、合成 IME Enter 不发送、空会话创建/读取、重命名与删除 UI。 | 模型列表为空；真实发送、SSE、停止、重试、变体、请求记录和消费结算未执行；历史不足一页。 | [V-03](cheapai-preview-chat.md) |
+| 管理资源 | 独立模型创建/编辑/详情刷新/停用；自有组创建/倍率编辑/刷新/停用。 | 渠道唯一创建尝试返回非 2xx，精确库存为 0；未保存精确状态码。渠道映射和成功响应丢失专项未执行，需核实预发密钥环。 | [V-04](cheapai-preview-catalog.md) |
+| 管理运营 | 用户授权/限额/状态、独立副组授权与恢复、$0.01 授额和幂等重放、账本与审计；两枚邀请码一次性展示/刷新清理/撤销。 | 邮件和注册消费受当前预发配置限制；没有修改全局设置。 | [V-05](cheapai-preview-operations.md) |
+| 视觉交互 | 14 个登录后页面 × 桌面/平板/手机，共 42 个组合；另补拍 6 张主要面板图。未见横向溢出、旧品牌露出或 page error。 | 数据量较少；注册设置页显示邮件不可用 guard，与预发配置一致。 | [V-06](cheapai-preview-visual.md) |
 
-这些结果仅说明已执行案例的行为。匿名 401 不证明登录后的角色或所有权校验；登录页截图也不证明主要面板布局通过。已发现的产品问题是关闭注册页的重复登录入口，属于低影响视觉问题；修复保留关闭注册提示和父页面的登录入口，不新增测试。
+个人与聊天 lane 首次登录未成功，一次正常重试后恢复；个人 lane 捕获首次 HTTP 503，聊天首次仅记录导航超时。auth lane 的表单重试仍返回 `503 service_unavailable`，request ID `e4fe7899-dff9-45d9-8876-60f736fa76aa`，随后 `/auth/me` 401；一次限定的 API 登录成功，再以内存会话完成权限检查。其余个人与聊天账号也成功完成登录深链回跳。503 根因尚未确认，仍是本轮未解决的可用性观察项，不把 API 登录成功当作 auth 表单登录通过。没有发送错误密码负例或无限重试。
 
-该模块交付后的集中检查已完成：`pnpm --filter @cheapai/web build`（包含 TypeScript 检查）及 `pnpm --filter @cheapai/web lint` 均通过。没有为这一视觉调整执行本地全量测试或编写文案断言。
+## 修复与集中检查
 
-## 实际预发截图
+关闭注册页原有两个重复登录入口。本轮只调整 `RegisterForm.tsx`，保留状态提示和父页面唯一入口，真实预发三个视口复验均可从该入口跳转登录。该低影响视觉修复没有新增测试。
 
-以下截图来自本轮真实 HTTPS 部署，已检查不含密码、Cookie、CSRF token 或一次性秘密。
+现有认证 E2E 中两项仍按已删除链接的旧文案定位，导致首次 CI 浏览器阶段 42/44 通过。随后只修正已有用例：检查唯一 `/login` 入口、没有注册表单、注册 POST 返回 403，以及点击入口实际到达登录页。不新增文案比较用例。整个认证模块集中复跑 **10/10 通过**。
 
-- [桌面登录页，1440×1000](assets/cheapai-preview-login-desktop.png)
-- [平板登录页，768×1024](assets/cheapai-preview-login-tablet.png)
-- [手机登录页，390×844](assets/cheapai-preview-login-mobile.png)
-- [手机注册关闭状态](assets/cheapai-preview-register-mobile.png)
+对应 a3f 部署的 CI 已通过全工作区类型检查、**199 个单元测试文件 / 3,849 项**、构建和 lint；最终提交的 CI 状态可见 PR 检查。注册修复交付后协调者也集中执行了 React build（含 TypeScript）和 lint，均通过。没有把本地模拟供应商测试当作真实预发推理证据。
 
-## 环境阻塞及已处理项
+## 跨模块核对与清理
 
-1. 当前运行实例未提供 `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` 绑定。原生 `wrangler whoami` 返回未认证；正常代理路径的 Cloudflare 只读 API 请求也返回缺少认证。GitHub/CI 的已有权限不等于当前实例有 Cloudflare 权限。
-2. 已在环境配置草稿中保存 Token 需求（目标域 `api.cloudflare.com`）和 Account ID 建议值，保留已有脚本与配置；补充了预发验证及浏览器启动说明。草稿返回 `saved`、`requires_publish: true`。需要在环境设置中填入凭据、保存并发布，再核对运行实例与实际 Wrangler 操作。仅保存草稿没有解除阻塞。
-3. Chromium 在默认文件系统沙箱中曾报 `ERR_CERT_AUTHORITY_INVALID`。文件访问诊断显示其现有 NSS 数据库因只读挂载返回 `EROFS`；使用经权限审查的浏览器执行命令后，登录页返回 200、标题为 `cheapai`，各代理继续验证。保留原有 CA、代理与 TLS 校验，不更改 HOME。
-4. 预发当前注册策略为 `closed`。邮件和 cron 在预发关闭，本轮不修改全局策略，也不通过自行注册绕过账号准备。
+协调者已完成可执行的跨模块核对：管理员授予 personal 用户 `100` 最小单位（`$0.00000100`）→普通用户概览及账单→个人请求列表→管理员账本与审计→退出后 `/auth/me` 401。账本 entry `7273e209-63ef-4077-bc06-b34dc30575be` 与 operation `balance:a2d8ef6e7d996111aeeab61ba787fc7752938032a0048773ea1a76d5958165b8` 在两种身份下匹配，审计仅一行。
 
-## 账号、预算与续跑
+初次脚本在授额及个人账单成功后，用错请求 API 路径而得到 404；修正为 `/api/v1/usage/requests` 后继续，期间另一次浏览器登录未确认成功。最终用一次产品 API 登录建立普通用户会话，仅在内存传入独立浏览器 context，完成余下读取与退出，没有新增授额。两次授额路径使用同一个幂等 ID，余额始终为 `100`。该结果证明已执行的账面授额及所有权链路；真实推理、请求详情与消费结算仍受可用渠道限制。
 
-协调者已在仓库外的受限目录准备一个管理员及三个普通用户的本地随机身份，并编写三阶段账号准备脚本；未执行远程创建。脚本限定 PR 5 的 Worker、Account、共享预发 D1 与 PUBLIC_BASE_URL，新增管理员初始余额为 0；普通用户通过产品管理接口创建。
+管理运营的临时用户和独立副组已停用，两枚邀请码已撤销；资源 lane 的测试模型和组已停用，没有留下渠道或映射。两枚临时 Key 已撤销；权限 lane 的两条空会话已确认删除，聊天 lane 完成自有会话删除 UI 流程。协调者已通过管理员 API 停用 auth、personal、chat 三个普通用户。账本及审计保留，不清空共享 D1/KV/Gate。主测试管理员保留用于人工复查；凭据只留在仓库外受限文件，不进入报告、截图、日志或 Git。
 
-当前没有有效登录、预发业务数据写入或供应商调用，远程测试资源清理无需执行。CSRF 负例请求已被拒绝，未产生有效数据变更。没有秘密、浏览器 profile、原始响应或本地凭据进入本次提交。上游预算仍完整保留：最多 12 次、单次最多 128 输出 token、合计不超过 $0.10。
+真实上游调用总计 **0 次**，供应商费用 **$0**。账面测试授额合计 `$0.01000100`，不是供应商支出。
 
-凭据就绪后按[执行计划](../preview-validation-plan.md)继续：核对配置→Wrangler 新增专属管理员→创建普通用户与隔离资源/有限额度→重新触发六个代理完成各自模块→集中修复/复验→一次跨模块链路→清理临时 key、邀请码及衍生资源。各模块待运行脚本有凭据就绪门槛；其存在或语法检查结果不是业务验证证据。
+## 实际主要面板截图
+
+以下截图由协调者逐张审阅，账户邮箱已遮盖，不含密码、Cookie、CSRF、Key 或邀请码明文。它们是本轮预发实拍，聊天与渠道页面展示真实空状态。
+
+| 面板 | 桌面 | 手机 |
+| --- | --- | --- |
+| 聊天 | [1440×1000](assets/cheapai-preview-chat-desktop.png) | [390×844](assets/cheapai-preview-chat-mobile.png) |
+| 账户概览 | [1440×1000](assets/cheapai-preview-dashboard-desktop.png) | [390×844，完整页面](assets/cheapai-preview-dashboard-mobile.png) |
+| 管理渠道 | [1440×1000](assets/cheapai-preview-admin-channels-desktop.png) | [390×844](assets/cheapai-preview-admin-channels-mobile.png) |
+
+[关闭注册页修复后手机截图](assets/cheapai-preview-register-fixed-mobile.png)。早期登录截图及修复前注册图保留在 assets 中，证据阶段不同，不替代登录后的面板检查。

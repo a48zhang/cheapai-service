@@ -47,13 +47,21 @@ for (const mode of ['closed', 'open', 'invite'] as const) {
       await page.goto('/register');
       const email = `q03-${randomUUID()}@example.invalid`;
       if (mode === 'closed') {
-        await expect(page.getByRole('link', { name: '返回登录' })).toBeVisible();
+        const loginLink = page.locator('a[href="/login"]:visible');
+        await expect(loginLink).toHaveCount(1);
+        await expect(loginLink).toBeVisible();
         await expect(page.locator('form')).toHaveCount(0);
         const settings = await page.context().request.get('/api/v1/settings/public');
         const token = (await settings.json()).data.csrfToken;
         const rejected = await page.context().request.post('/api/v1/auth/register', { data: { email, password },
           headers: { Origin: connection.baseURL, 'X-CSRF-Token': token } });
-        expect(rejected.status()).toBe(403); return;
+        expect(rejected.status()).toBe(403);
+        await loginLink.click();
+        await expect(page).toHaveURL(url => url.pathname === '/login');
+        await expect(page.getByLabel('邮箱', { exact: true })).toBeVisible();
+        await expect(page.getByLabel('密码', { exact: true })).toBeVisible();
+        await expect(page.getByRole('button', { name: '登录', exact: true })).toBeVisible();
+        return;
       }
       await fillRegistration(page, email, mode === 'invite' ? await invitation() : undefined);
       if (verify) {

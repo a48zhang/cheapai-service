@@ -1,32 +1,37 @@
 # cheapai PR #5 preview visual check (V-06)
 
-**Result: unauthenticated visual checks passed with one low-priority UI issue; authenticated pages remain blocked on the test account.** Target: `https://sub2api-13556ffb8b-pr-5.alphazhang689.workers.dev`, deployment SHA `a68dc9d30c4c2a343ec62e3590548c9f05e08ccd`, run `qa-pr5-20261004`. Local checkout HEAD matches the deployed SHA. Checked 2026-10-04 UTC.
+**Result: the public and authenticated visual matrices completed against the current preview.** No horizontal overflow, legacy `sub2api` branding, or browser page errors appeared. The closed-registration page now shows a single login link. The registration-settings page displays the expected preview mail-service guard described below.
+
+Target: `https://sub2api-13556ffb8b-pr-5.alphazhang689.workers.dev`; deployment and local checkout SHA `a3f7bdaab508253d10099c15f2215699ab3b3344`; run `qa-pr5-20261004`; checked 2026-10-04 01:50 UTC.
 
 ## Browser and safety
 
-Used `/usr/bin/chromium` with Playwright, the inherited HTTPS proxy, and TLS verification enabled. The first launch under the default filesystem sandbox could not read Chromium's existing NSS trust database (`ERR_CERT_AUTHORITY_INVALID`). The coordinator confirmed this was the sandbox's read-only view (`W_OK EROFS`), not a missing CA. Re-running the browser command with the coordinator-approved filesystem permission could read the existing database and loaded the preview successfully. No certificate database, `HOME`, or TLS settings were changed.
+Playwright was loaded through the repository `package.json`; Chromium ran from `/usr/bin/chromium` with `--no-sandbox`, the inherited HTTPS proxy, the existing CA/NSS trust, and TLS verification enabled. The coordinator-authorized browser command could read Chromium's existing NSS database. No `HOME`, trust database, CA, proxy, or TLS settings were changed.
 
-The anonymous script blocks every request method other than `GET`, `HEAD`, and `OPTIONS`. It recorded no blocked writes and no page errors. No login credentials were used, registration was not submitted, no cookies or storage state were saved, and there were no remote writes or model calls. The login button was clicked only with blank fields; client validation displayed errors before any network request.
+The full matrix used one ephemeral admin session. The coordinator-requested screenshot review used a second ephemeral session. Each session sent one same-origin `POST /api/v1/auth/login`, returned `200`, and destroyed its browser context afterward. The browser route blocked every other non-read request; no blocked writes occurred and no logout was needed. No storage state, cookies, credentials, table values, or one-time secrets were saved to the repository. The credential reader selected only the admin record from the `0600` file.
 
-## Coverage and result
+The 42 full-matrix screenshots mask whole tables and form controls. The six review screenshots mask emails, sensitive-marked/code elements, and table body cells while leaving the empty chat composer and the empty channels table headers visible. Screenshot folders are mode `0700`; evidence and PNG files are mode `0600`. Raw artifacts remain under `/tmp/cheapai-preview-run/visual/`.
 
-Real preview screenshots were captured at desktop `1440×1000`, tablet `768×1024`, and mobile `390×844`. For every size, screenshots cover the login page, blank-login validation state, registration-closed page, protected-route redirect, and client-side not-found page. Files are in `/tmp/cheapai-preview-run/visual/`, mode `0600`; the directory is mode `0700`. Screenshots contain blank form fields and no passwords, cookies, tokens, or one-time secrets.
+## Coverage and results
 
-- **Login and brand:** The page shows the `cheapai` wordmark and welcome copy at all sizes. Email and password have visible, associated labels and expected autocomplete values. Keyboard order is brand link → email → password → login button → create-account link. Tab focus is visible on each step.
-- **Client validation:** Submitting the empty login form shows the linked field alerts `请输入有效邮箱` and `请输入密码`. No login request was sent.
-- **Registration:** `GET /api/v1/settings/public` returned `200`; the real preview reports registration closed. The page displays `当前已关闭注册。` at all sizes, so registration fields and registration validation were unavailable and no registration request was sent. The page's footer login link successfully navigates back to `/login`.
-- **Protected route:** Anonymous `GET /api/v1/auth/me` returned the expected `401`. Direct navigation to `/admin/channels?case=v06` redirected to `/login` and preserved the exact `returnTo=/admin/channels?case=v06` value.
-- **Not found:** A nonexistent client route displays the `cheapai · 404` page with a return-home link.
-- **Responsive layout:** No horizontal overflow was found on any captured page. `documentElement` and `body` widths matched their viewport widths: `1440`, `768`, and `390` pixels.
+The browser captured 14 routes at desktop `1440×1000`, tablet `768×1024`, and mobile `390×844`: chat (`/`), dashboard, keys, personal requests, personal billing, and admin channels, models, groups, users, requests, billing, audit, registration settings, and registration codes. Before capture, each route rendered its main heading without a pending loading status; the browser waited for network idle where available. All 42 document navigations returned `200`, matched their requested route, and had no horizontal overflow. Authenticated session and page API reads returned `200`; the pre-login session probe returned the expected `401`, and the login POST returned `200`. There were no browser page errors or blocked writes.
 
-The login and registration shell routes returned `200`; the public registration settings request returned `200`; anonymous session checks returned `401`. No persistent loading state or service error appeared. No artificial delay or mocked response was used.
+The authenticated state summary was 30 rendered pages, 9 expected empty states, and 3 registration-settings guard states. The guard appeared on desktop, tablet, and mobile: the settings read returned `200`, while the preview reports mail service unavailable and explains that an email-verification policy cannot be saved. This is an existing preview configuration restriction; no global registration settings were changed. The registration-codes page loaded normally.
 
-## Visual issue
+The logged-in chat page rendered its empty state with no available model group or model. The composer remained visible with its explanatory prompt, and sending was disabled without a model selection; the separate V-03 check confirmed draft editing remains available. No chat was sent and no inference call was made. The dashboard showed no recent requests, and the channels list showed its empty state. These are visual states only; this check does not validate CRUD, billing transactions, or chat inference.
 
-The closed-registration screen shows two links to login: an unstyled `返回登录` link inside the closed-state message and a second purple `登录` link in the page footer. This is a minor duplicate-navigation inconsistency, visible on desktop, tablet, and mobile. The closed-state link is in `apps/web/src/features/session/RegisterForm.tsx:23`; the always-rendered footer is in `apps/web/src/pages/auth/RegisterPage.tsx:6`. Suggested fix: keep one login action in the closed state, or make the shared footer conditional so the two prompts do not appear together. No product files were changed during validation.
+Across the captured controls, the browser recorded accessible names and form labels; the keyboard tab sequence showed visible focus on actionable controls. The mobile console header hides the wordmark in its compact layout, while the app document title remains `cheapai`; the chat mobile view shows the wordmark. No `sub2api` text was visible on the checked product pages.
 
-## Remaining blocker and evidence
+The public matrix was also rerun against this deployment at all three sizes. The login page exposed labeled email and password fields with the expected autocomplete values; Tab moved through the brand link, email, password, login button, and create-account link with visible focus. Submitting blank fields showed `请输入有效邮箱` and `请输入密码` without sending a login request. Registration settings returned `200`, and the closed-registration page showed one “登录” link that returned to `/login`, confirming the duplicate link from the earlier deployment is gone. Anonymous `GET /api/v1/auth/me` returned the expected `401`; direct navigation to `/admin/channels?case=v06` redirected to login and preserved that exact `returnTo` value. The not-found route rendered the `cheapai` page. These screenshots and sanitized metrics are in `/tmp/cheapai-preview-run/visual/`; the summary is `unauthenticated-evidence.json`.
 
-Dashboard, keys, requests, billing, chat, and management pages were not visited because the remote test accounts are not ready. The gated script `/tmp/cheapai-preview-run/visual/pending-auth-pages.js` is prepared for later; it refuses to run unless the manifest has `credentialsStatus: ready` and the coordinator authorization flag is set. It reads only the admin record from the protected account file, permits only the login POST, blocks other writes, masks tables and form controls in screenshots, and does not save session state.
+## Review screenshots
 
-The 15 anonymous screenshots are `login-{desktop,tablet,mobile}.png`, `login-validation-{desktop,tablet,mobile}.png`, `register-{desktop,tablet,mobile}.png`, `protected-admin-{desktop,tablet,mobile}.png`, and `not-found-{desktop,tablet,mobile}.png` in `/tmp/cheapai-preview-run/visual/`. The sanitized metrics and route statuses are in `unauthenticated-evidence.json`. The coordinator can select and sanitize these screenshots for attachment.
+The coordinator copied the six reviewed screenshots to repository assets:
+
+| Page | Desktop | Mobile |
+| --- | --- | --- |
+| Chat | [desktop](assets/cheapai-preview-chat-desktop.png) | [mobile](assets/cheapai-preview-chat-mobile.png) |
+| Dashboard | [desktop](assets/cheapai-preview-dashboard-desktop.png) | [mobile](assets/cheapai-preview-dashboard-mobile.png) |
+| Admin channels | [desktop](assets/cheapai-preview-admin-channels-desktop.png) | [mobile](assets/cheapai-preview-admin-channels-mobile.png) |
+
+The complete authenticated matrix, including tablet screenshots and sanitized route/API metrics, is in `/tmp/cheapai-preview-run/visual/auth/`. The six pre-copy review screenshots and their evidence are in `/tmp/cheapai-preview-run/visual/auth-review/`. Screenshots document the visual state only; passing this module does not establish that business writes or end-to-end workflows passed.

@@ -60,21 +60,3 @@ jobs:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_EVENT_ACTION: ${{ github.event.action }}
         run: node scripts/pr-preview.mjs
-      - name: 'Seed PR #5 preview QA account'
-        if: github.event.action != 'closed' && github.event.pull_request.number == 5
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-        run: node scripts/seed-preview-qa.ts
-      - name: 'Upload encrypted PR #5 QA credentials'
-        if: always() && github.event.action != 'closed' && github.event.pull_request.number == 5
-        uses: actions/upload-artifact@v4
-        with:
-          name: cheapai-pr5-qa-20261004
-          path: .wrangler/qa-preview-credentials.enc.json
-          include-hidden-files: true
-          retention-days: 1
-          if-no-files-found: ignore
