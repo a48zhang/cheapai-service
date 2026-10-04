@@ -1,8 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { spawn } from 'node:child_process';
 import { constants, createCipheriv, createPublicKey, publicEncrypt, randomBytes } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizeEmail } from '../apps/worker/auth/email-proof.ts';
@@ -137,57 +136,50 @@ async function validateTarget(): Promise<{ fixture: JsonRecord; target: Target; 
 }
 
 async function runWranglerSql(sql: string): Promise<unknown> {
-  const temporaryDirectory = await mkdtemp(join(tmpdir(), 'cheapai-pr5-qa-'));
-  const filename = join(temporaryDirectory, 'seed.sql');
-  try {
-    await writeFile(filename, sql, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
-    const cli = join(root, 'apps/worker/node_modules/wrangler/bin/wrangler.js');
-    const stdout = await new Promise<string>((accept, reject) => {
-      const child = spawn(process.execPath, [cli, 'd1', 'execute', 'DB', '--remote', '--config', configPath, '--file', filename, '--json'], {
-        cwd: root,
-        windowsHide: true,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...process.env, WRANGLER_SEND_METRICS: 'false' },
-      });
-      let captured = '';
-      let capturedBytes = 0;
-      let settled = false;
-      const finish = (error?: Error) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        if (error) reject(error);
-        else accept(captured);
-      };
-      const timer = setTimeout(() => {
-        child.kill();
-        finish(new Error('Wrangler D1 command timed out; the remote result may be unknown.'));
-      }, 60_000);
-      if (!child.stdout || !child.stderr) {
-        child.kill();
-        finish(new Error('Could not capture Wrangler D1 output safely.'));
-        return;
-      }
-      child.stdout.setEncoding('utf8');
-      child.stdout.on('data', (chunk: string) => {
-        capturedBytes += Buffer.byteLength(chunk, 'utf8');
-        if (capturedBytes > 2 * 1024 * 1024) {
-          child.kill();
-          finish(new Error('Wrangler D1 returned unexpected output; remote result may be unknown.'));
-        } else if (!settled) captured += chunk;
-      });
-      // Wrangler diagnostics can contain SQL text; never forward or retain stderr.
-      child.stderr.on('data', () => {});
-      child.on('error', () => finish(new Error('Could not start the Wrangler D1 command.')));
-      child.on('close', code => finish(code === 0 ? undefined : new Error('Wrangler D1 command failed; remote result may be unknown.')));
+  const cli = join(root, 'apps/worker/node_modules/wrangler/bin/wrangler.js');
+  const stdout = await new Promise<string>((accept, reject) => {
+    const child = spawn(process.execPath, [cli, 'd1', 'execute', 'DB', '--remote', '--config', configPath, '--command', sql, '--json'], {
+      cwd: root,
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, WRANGLER_SEND_METRICS: 'false' },
     });
-    try {
-      return JSON.parse(stdout) as unknown;
-    } catch {
-      throw new Error('Wrangler D1 output was not valid JSON; remote result may be unknown.');
+    let captured = '';
+    let capturedBytes = 0;
+    let settled = false;
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (error) reject(error);
+      else accept(captured);
+    };
+    const timer = setTimeout(() => {
+      child.kill();
+      finish(new Error('Wrangler D1 command timed out; the remote result may be unknown.'));
+    }, 60_000);
+    if (!child.stdout || !child.stderr) {
+      child.kill();
+      finish(new Error('Could not capture Wrangler D1 output safely.'));
+      return;
     }
-  } finally {
-    await rm(temporaryDirectory, { recursive: true, force: true });
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (chunk: string) => {
+      capturedBytes += Buffer.byteLength(chunk, 'utf8');
+      if (capturedBytes > 2 * 1024 * 1024) {
+        child.kill();
+        finish(new Error('Wrangler D1 returned unexpected output; remote result may be unknown.'));
+      } else if (!settled) captured += chunk;
+    });
+    // Wrangler diagnostics can contain SQL text; never forward or retain stderr.
+    child.stderr.on('data', () => {});
+    child.on('error', () => finish(new Error('Could not start the Wrangler D1 command.')));
+    child.on('close', code => finish(code === 0 ? undefined : new Error('Wrangler D1 command failed; remote result may be unknown.')));
+  });
+  try {
+    return JSON.parse(stdout) as unknown;
+  } catch {
+    throw new Error('Wrangler D1 output was not valid JSON; remote result may be unknown.');
   }
 }
 
