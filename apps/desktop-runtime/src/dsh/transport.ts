@@ -1,13 +1,8 @@
 /** Runtime-owned authenticated carrier into the pinned DSH Client Gateway. */
 
 import { Context } from '@deepseek-ai/cordis'
-import { apply as installGatewayClient } from '@deepseek-ai/dsh-api-gateway/client'
-import {
-  installConnection,
-  type ConnectionHandle,
-  type RpcFetch,
-} from '@deepseek-ai/dsh-client-connection/client'
-import { apply as installTypertClient } from '@deepseek-ai/dsh-typert-registry/client'
+import type { ConnectionHandle, RpcFetch } from '@deepseek-ai/dsh-client-connection/client'
+import { installConnection, installGatewayClient, installTypertClient } from './client-modules.ts'
 import WebSocket from 'ws'
 import type { DshConnectionInfo } from './connection-info.ts'
 import { RuntimeControlError } from '../host/control.ts'
@@ -136,10 +131,7 @@ class DshRuntimeTransportOwner implements DshRuntimeTransport {
       connection.start = () => ({ stop: () => {} })
       const gatewayFiber = this.context.plugin({
         name: 'desktop-runtime-dsh-gateway-client',
-        apply: (ctx) => {
-          installGatewayClient(ctx)
-          this.gatewayRemote = ctx.get('remote') as object | undefined
-        },
+        apply: installGatewayClient,
       })
       try {
         await gatewayFiber
@@ -148,6 +140,8 @@ class DshRuntimeTransportOwner implements DshRuntimeTransport {
         throw cause
       }
       this.gatewayDispose = () => gatewayFiber.dispose()
+      // Cordis publishes services when plugin setup commits, after the callback.
+      this.gatewayRemote = gatewayFiber.ctx.get('remote') as object | undefined
 
       const remote = this.gatewayRemote
       if (remote === undefined) throw incompatibleGateway()
@@ -466,6 +460,9 @@ function installGatewayGlobalsLease(connection: DshConnectionInfo): () => void {
           Origin: connection.origin,
         },
       })
+      // Match browser EventTarget semantics after the Gateway removes its
+      // listeners: closing a CONNECTING ws must not crash the Node sidecar.
+      this.on('error', () => {})
     }
   }
 

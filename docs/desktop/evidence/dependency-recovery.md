@@ -29,3 +29,18 @@
 Tauri 启动入口也已执行，尚未打开原生窗口。本 Linux 缺 gobject/GTK/WebKit 系统库；macOS/Windows 安装、原生 IPC、真实 DSH/模型调用和 Token/Key 链路均未在本机通过验收。没有创建账号或密钥、调用付费模型、部署生产或合并。
 
 后续应接入固定 DSH 官方客户端模块加载协议，再验收 Runtime bootstrap 和 IPC，而不是用类型断言或 external 配置掩盖运行时缺失。
+
+## Runtime 加载与装配追加修复（2026-10-04）
+
+基于 `70caf21ebc2af19ba1c7ead30b0e0dbd1091483a`，只修复 Runtime 客户端适配、资源清单收集和本文证据，未改安装包工作流、依赖锁或认证规则。
+
+- 固定的三个 DSH 客户端包由局部 `window.__ModuleLoader__.load` 注册接口执行真实发布 factory；校验包版本、注册 ID 和必要导出，仅向 factory 提供同一 Cordis 实例。不伪造 ESM 导出、不全局注入 window、不加载远端或用户输入代码。
+- Gateway 服务在 Cordis 插件 setup 提交后再读取。Node ws 保留错误监听，避免 Gateway 清理 CONNECTING 通道后触发无人处理的 EventEmitter error；错误仍由 Gateway 原有监听处理。
+- 清单递归使用同一累积数组，移除对整个目录子树的 `push(...files)`；真实闭包超过 V8 函数参数数量限制，不应通过提高堆栈上限掩盖。
+- 桌面三包 typecheck 通过，Runtime typecheck/build 通过；现有 `vitest run --project node tests/desktop` 5 文件、23 用例通过，无新增测试文件。
+- 源码 Runtime bootstrap 实际通过。无账号 fixture 加 `--development-key-mode` 请求 DSH start，仍正确返回 `account-required`（没有提供静态 Key）；没有削弱账号守卫或制造凭据。
+- 官方 Connection/Registry/Gateway 对未使用的 loopback fixture 完成初始化、销毁并恢复全局 hooks；禁止 HTTP 调用，无模型请求。这是初始化 smoke，不是真实 DSH/IPC E2E。
+- `node --use-env-proxy scripts/desktop/prepare-runtime.mjs --target x86_64-unknown-linux-gnu --runtime node` 实际通过。Node 使用环境已配置的正常代理，未改代理/DNS/TLS。清单覆盖 264,667 个文件，文件总字节 2,446,089,308，包含编译后 client-modules.js。
+- 随包官方 Node 启动资源目录内 `dist/src/index.js`，以标准 `host.startup/source=sidecar` 消息取得 `runtime.event/bootstrapped`，退出 0。原生窗口、真实账号/DSH任务与模型调用仍未通过验收。
+
+新提交的三平台安装包必须另看 CI 终态，Linux 资源装配成功不代表 macOS/Windows 安装包已生成或可安装。

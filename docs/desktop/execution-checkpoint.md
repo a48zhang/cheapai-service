@@ -1,5 +1,9 @@
 # Desktop 全计划执行检查点
 
+## Runtime 启动与装配追加检查点（2026-10-04）
+
+基于 `70caf21` 修复 DSH ModuleLoader 发布格式适配、Gateway 初始化时序及大型资源清单展开溢出。源码及随包 Runtime bootstrap 已通过；真实 Linux 资源清单覆盖 264,667 文件，装配成功。Runtime 类型/构建和现有桌面 5 文件/23 用例通过。无凭据 DSH start 仍为 `account-required`，原生/账号/模型 E2E 不算通过。详见[恢复证据追加节](evidence/dependency-recovery.md)。未修改并发任务工作流；平台结果以新 SHA CI 为准。
+
 ## 依赖恢复追加检查点（2026-10-04）
 
 已在最新并发分支 `dbf9dcd` 上生成真实 pnpm/Cargo 锁；F05/N09 的网络/工具链阻塞解除。frozen + strict peers 安装、云端/桌面类型及 JS 构建通过；Node 50 文件/1782 用例通过。原生应用尚未启动：实际 Runtime bootstrap 暴露固定 DSH `/client` 发布物为 ModuleLoader 插件、并非 ESM named exports；本机 Cargo check 缺 gobject/GTK/WebKit。完整测试首次 3843/3844 通过，唯一旧统计字段断言已同步，CI 终态见后续记录。

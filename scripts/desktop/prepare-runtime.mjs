@@ -193,9 +193,8 @@ async function extractArtifact(archivePath, artifact, destination) {
   return executable
 }
 
-async function collectFiles(root, current = root) {
+async function collectFiles(root, current = root, files = []) {
   const entries = await readdir(current, { withFileTypes: true })
-  const files = []
   for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
     const path = join(current, entry.name)
     const relativePath = relative(root, path).split(sep).join('/')
@@ -210,7 +209,9 @@ async function collectFiles(root, current = root) {
         target: relative(root, target).split(sep).join('/'),
       })
     } else if (stats.isDirectory()) {
-      files.push(...await collectFiles(root, path))
+      // A real DSH closure can exceed V8's function argument limit. Append to
+      // one inventory instead of spreading every descendant into Array.push.
+      await collectFiles(root, path, files)
     } else if (stats.isFile()) {
       files.push({
         path: relativePath,
