@@ -42,7 +42,7 @@ packageExtensions:
   '@deepseek-ai/dsh-client-store@0.2.1-alpha.1':
     dependencies:
       zustand: 4.4.7
-      immer: 10.1.1
+      immer: 10.2.0
 
 # Preserve pnpm 11's one-day release age check; exceptions are exact reviewed pins.
 minimumReleaseAge: 1440
