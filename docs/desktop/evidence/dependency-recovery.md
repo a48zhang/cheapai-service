@@ -44,3 +44,9 @@ Tauri 启动入口也已执行，尚未打开原生窗口。本 Linux 缺 gobjec
 - 随包官方 Node 启动资源目录内 `dist/src/index.js`，以标准 `host.startup/source=sidecar` 消息取得 `runtime.event/bootstrapped`，退出 0。原生窗口、真实账号/DSH任务与模型调用仍未通过验收。
 
 新提交的三平台安装包必须另看 CI 终态，Linux 资源装配成功不代表 macOS/Windows 安装包已生成或可安装。
+
+## Tauri 原生依赖配对修复（2026-10-04）
+
+`a23cc3f` 的 Local checks 全部成功（198 文件、3844 用例）。ARM macOS 与 Windows 均已越过真实 Runtime 资源装配和发行清单，随后在 `tauri-runtime-wry` 编译失败：宽松传递约束选中了不兼容的 `tauri-runtime 2.12.1` / `tauri-runtime-wry 2.9.3`，出现 trait 签名/缺失方法以及 Windows 类型版本冲突。
+
+参照官方 `tauri-v2.8.5` 发布的 Cargo.lock，使用真实 `cargo update --precise` 将 runtime/runtime-wry 配对为 2.8.0/2.8.1；其余应用依赖声明未变。官方 crates.io 下载、`cargo fetch --locked` 与 `cargo metadata --locked` 成功，未手写 checksum、取消 locked 或调整工作流。原生编译结论仍以新 SHA 三平台 CI 为准；本机 Linux 系统库限制仍在。
