@@ -36,7 +36,7 @@
 - 邮箱统一 trim/大小写规范化并设唯一键；不任意去掉 + 后缀或点号合并地址。
 - 关闭验证时创建的邮箱标记为未验证；之后开启开关不自动把旧邮箱变成已验证。
 
-发送选用 Cloudflare Email Service 的 send_email binding，保持纯 Cloudflare。上线前核对发送域名、账户能力、额度和退信处理。目前未配置或实际验证邮件；本地测试使用模拟发送。服务未就绪或发送失败不绕过邮箱验证。
+发送通过独立 `EmailSenderBinding` 注入：`EMAIL_PROVIDER` 未设置时沿用 Cloudflare Email Service 的 send_email binding；设为 `resend` 时使用 Workers 原生 HTTPS fetch 和 `RESEND_API_KEY` Secret，不需要 SDK 或 EMAIL binding。Resend 适配器仅支持当前纯文本邮件，不自动重试；明确拒绝记为 failed，网络中断、超时和不确定响应记为 unknown，返回有效 message ID 才记为 accepted（不代表收件箱投递成功）。验证码业务、限流、挑战状态和管理设置保持不变。配置步骤见[部署说明](deployment.md#resend-验证码邮件)。上线前核对发送域名、账户能力、额度和退信处理；本地验证使用模拟发送，服务未就绪或发送失败不绕过邮箱验证。密码找回仍未实现，新增 provider 不会启用密码恢复。
 
 ## 数据模型与原子边界
 
