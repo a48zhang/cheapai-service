@@ -83,11 +83,13 @@ describe('Email binding sender (injected mocks only)', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
-  it('does not log the verification message or provider error', async () => {
-    const spies = ['log', 'info', 'warn', 'error', 'debug'] as const;
-    const logs = spies.map((level) => vi.spyOn(console, level).mockImplementation(() => {}));
-    const outcome = await sendEmail({ send: vi.fn().mockRejectedValue(new Error(message.text)) }, message);
+  it('logs the original exception for Workers Logs without exposing it in the outcome', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const error = new Error('Resend connection failed');
+    const outcome = await sendEmail({ send: vi.fn().mockRejectedValue(error) }, message);
+    expect(log).toHaveBeenCalledExactlyOnceWith('Email send failed', error);
     expect(JSON.stringify(outcome)).not.toContain('654321');
-    for (const log of logs) expect(log).not.toHaveBeenCalled();
+    expect(JSON.stringify(outcome)).not.toContain(error.message);
+    expect(JSON.stringify(log.mock.calls)).not.toContain(message.text);
   });
 });

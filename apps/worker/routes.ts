@@ -282,7 +282,8 @@ for (const path of paths) {
       return await createSendCodeRoutes({ ...common, trustedOrigin,
         trustedIp: req => trustedClientIp(env, req), email: config.email, emailFrom: config.emailFrom, hmacKey: config.hmacKey,
       }).fetch(request, env);
-    } catch {
+    } catch (error) {
+      console.error('Auth route failed', { path }, error);
       const response = apiError(new ApiError('service_unavailable'), createRequestId());
       response.headers.set('Cache-Control', 'no-store');
       return response;

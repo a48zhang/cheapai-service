@@ -126,7 +126,17 @@ Secrets 由受控密钥工具生成并放入仓库外的临时部署文件或密
 4. CheapAI 现有管理后台继续控制 `registrationMode`（closed/open/invite）和 `emailVerificationEnabled`。要求邮箱验证时，只有 provider、from、HMAC 和 readiness 完整才允许依赖邮件的注册；发信还要求注册未关闭且验证开启。不要用关闭邮箱验证来绕过发信故障。
 5. 获准真实验收后检查验证码接受/收件、注册消费、旧码失效、60 秒重发限制和失败提示；服务 accepted 不等于已投递。当前不执行真实发送，不更改套餐或按量付费。需要停用邮件时关闭 readiness；已有用户登录不依赖邮件就绪状态。
 
-协议参考：[Resend Send Email](https://resend.com/docs/api-reference/emails/send-email)、[错误语义](https://resend.com/docs/api-reference/errors)。HTTP provider 使用固定端点，不跟随重定向、不自动重试，错误响应正文不读取或记录。
+协议参考：[Resend Send Email](https://resend.com/docs/api-reference/emails/send-email)、[错误语义](https://resend.com/docs/api-reference/errors)。HTTP provider 使用固定端点，不跟随重定向、不自动重试，错误响应详情和异常通过原生 `console.error` 写入 Cloudflare Workers Logs，对客户端仍返回通用错误。
+
+#### 发码返回 503，但 Resend 没有记录
+
+`POST /api/v1/auth/send-verify-code` 返回 `503` 且带 `Retry-After: 60`，表示发送结果为 `failed` 或 `unknown`，且该结果已经写回挑战记录。60 秒是应用重发冷却时间，不能据此推断 Resend 限流。Resend 无记录也不能单独证明 Worker 没有发起请求：鉴权失败、账户不匹配或网络故障仍需区分。
+
+生产配置已启用 Cloudflare Workers Observability，`head_sampling_rate: 1` 保留所有调用的日志。部署后，在 Cloudflare Dashboard → Workers & Pages → `sub2api-cloudflare-production` → Observability → Logs 查看请求及其 console 日志；也可以从 `apps/worker` 运行 `pnpm exec wrangler tail --env production --format json` 实时观察。历史请求不会补产生日志。
+
+发码请求开始和结束使用 `console.debug` 记录 `request_id`，可以与浏览器响应匹配；同一次 Worker invocation 下的日志由 Cloudflare 关联。发送流程的 `catch` 使用 `console.error` 保留原始异常及堆栈，HTTP 拒绝包含 Resend 状态码及错误响应正文。还会记录请求开始、收到响应、耗时、超时或缺失 message ID，数据库和路由 catch 也会记录异常。没有自定义日志后端、诊断类型或回调。
+
+排查时，401/403 看 Resend 错误正文以区分密钥、发送权限、域名或边缘拒绝；429 检查服务商限流；只有请求开始而没有响应日志时，查看随后的网络异常或超时。日志不主动打印 Worker Secrets、Authorization 请求头或验证码邮件请求体。对匿名客户端仍返回通用错误。
 
 ## 5. D1 迁移与初始管理员
 

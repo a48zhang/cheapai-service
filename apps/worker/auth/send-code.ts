@@ -113,6 +113,7 @@ export async function sendRegistrationCode(
   } catch (error) {
     // Preserve public typed decisions only. DB/Gate/crypto errors fail closed.
     if (error instanceof ApiError) throw error;
+    console.error('Registration email code failed', error);
     throw new ApiError("service_unavailable");
   }
 }
@@ -135,6 +136,7 @@ export function createSendCodeRoutes(dependencies: SendCodeRouteDependencies): H
     onError: () => apiError(new ApiError("payload_too_large"), createRequestId()),
   }), async (context) => {
     const requestId = createRequestId();
+    console.debug('Registration email request started', { request_id: requestId });
     try {
       if (context.req.header("content-type")?.split(";", 1)[0]?.trim().toLowerCase() !== "application/json") throw new ApiError("invalid_request");
       let body: unknown;
@@ -146,12 +148,14 @@ export function createSendCodeRoutes(dependencies: SendCodeRouteDependencies): H
       const result = await sendRegistrationCode(dependencies, {
         email: (body as { email: unknown }).email, trustedIp: await dependencies.trustedIp(context.req.raw),
       });
+      console.debug('Registration email request completed', { request_id: requestId, status: result.status });
       const response = result.status === "accepted"
         ? apiSuccess({ status: "accepted", retry_after_ms: result.retryAfterMs }, requestId, 202)
         : apiError(new ApiError("service_unavailable"), requestId);
       response.headers.set("Retry-After", Math.ceil(result.retryAfterMs / 1000).toString());
       return response;
     } catch (error) {
+      console.error('Registration email request failed', { request_id: requestId }, error);
       const response = apiError(error instanceof ApiError ? error : new ApiError("service_unavailable"), requestId);
       if (error instanceof SendCodeRateError) response.headers.set("Retry-After", Math.ceil(error.retryAfterMs / 1000).toString());
       return response;

@@ -42,6 +42,7 @@
     // Production is independent of PR previews. Enable mail only after verification.
     "production": {
       "name": "sub2api-cloudflare-production",
+      "observability": { "enabled": true, "head_sampling_rate": 1 },
       "account_id": "4ac5221079fd3481ce2d92f1d1e049cd",
       "workers_dev": false,
       "preview_urls": false,

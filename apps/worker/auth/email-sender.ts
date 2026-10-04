@@ -31,7 +31,8 @@ function classifyError(error: unknown): EmailSendOutcome {
 }
 
 /**
- * Await service acceptance, never claim mailbox delivery. No retry or logging.
+ * Await service acceptance, never claim mailbox delivery. No retry.
+ * Native console output is collected by Cloudflare Workers Logs.
  * The binding has no cancellation API: timeout cannot undo a submitted email.
  * Persist this outcome against the caller's challenge generation, not just email.
  */
@@ -47,7 +48,10 @@ export async function sendEmail(
 
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<EmailSendOutcome>((resolve) => {
-    timer = setTimeout(() => resolve({ status: 'unknown', reason: 'timeout' }), timeoutMs);
+    timer = setTimeout(() => {
+      console.error('Email send timed out', { timeoutMs });
+      resolve({ status: 'unknown', reason: 'timeout' });
+    }, timeoutMs);
   });
   // Attach both handlers before racing, so late rejections are consumed as well.
   const sending = Promise.resolve().then(() => binding.send(message)).then(
@@ -55,10 +59,13 @@ export async function sendEmail(
       if (result && typeof result.messageId === 'string' && result.messageId.trim()) {
         return { status: 'accepted', messageId: result.messageId };
       }
+      console.error('Email provider returned no valid message ID');
       return { status: 'unknown', reason: 'invalid_response' };
     },
-    classifyError,
-  );
+  ).catch((error: unknown): EmailSendOutcome => {
+    console.error('Email send failed', error);
+    return classifyError(error);
+  });
   try {
     return await Promise.race([sending, deadline]);
   } finally {

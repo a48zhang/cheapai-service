@@ -7,6 +7,7 @@ import { issueCsrfToken } from "../../apps/worker/auth/csrf";
 import { DEFAULT_CONFIG } from "../../apps/worker/config";
 import { prepare } from "../../apps/worker/db";
 import { testEnv } from "../helpers/database";
+import { resolveEmailSender } from "../../apps/worker/auth/email-provider";
 
 let now: number;
 const address = "user+tag@example.com";
@@ -232,5 +233,21 @@ describe("mountable anonymous send-code route", () => {
     const response = await app.request(origin + SEND_VERIFY_CODE_PATH, { method: "POST", headers, body: JSON.stringify({ email: address }) });
     expect(response.status).toBe(503);
     expect(await response.text()).not.toContain("sensitive-provider-detail");
+  });
+
+  it("keeps provider details in CF console logs and correlates the response within the invocation", async () => {
+    const debug = vi.spyOn(console, "debug").mockImplementation(() => {});
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ message: "API key is invalid" }, { status: 401 }));
+    const { app, headers } = route({ email: resolveEmailSender({ EMAIL_PROVIDER: "resend", RESEND_API_KEY: "fixture-key" })! });
+    const response = await app.request(origin + SEND_VERIFY_CODE_PATH, { method: "POST", headers, body: JSON.stringify({ email: address }) });
+    const body = await response.json<{ request_id: string }>();
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBe("60");
+    expect(debug).toHaveBeenCalledWith('Registration email request started', { request_id: body.request_id });
+    expect(debug).toHaveBeenCalledWith('Registration email request completed', { request_id: body.request_id, status: 'failed' });
+    expect(log).toHaveBeenCalledWith('Email send failed', expect.objectContaining({ message: expect.stringContaining('API key is invalid') }));
+    expect(JSON.stringify(body)).not.toContain('API key is invalid');
+    expect(await findEmailChallenge(testEnv.DB, address, "registration")).toMatchObject({ send_status: "failed" });
   });
 });

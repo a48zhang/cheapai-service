@@ -22,8 +22,13 @@ export function resolveEmailSender(
         throw Object.assign(new Error('Unsupported email message'), { code: 'E_VALIDATION_ERROR' });
       }
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 10_000);
+      const timer = setTimeout(() => {
+        console.error('Resend request timed out', { timeoutMs: 10_000 });
+        controller.abort();
+      }, 10_000);
+      const startedAt = Date.now();
       try {
+        console.debug('Resend request started', { method: 'POST', url: 'https://api.resend.com/emails' });
         // Native Workers fetch, fixed HTTPS destination, no redirects or retries.
         const response = await fetch('https://api.resend.com/emails', {
           method: 'POST',
@@ -32,14 +37,17 @@ export function resolveEmailSender(
           headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ from: message.from, to: [message.to], subject: message.subject, text: message.text }),
         });
+        console.debug('Resend response received', { status: response.status, elapsedMs: Date.now() - startedAt });
         if (!response.ok) {
-          // Do not read provider error bodies: they may echo credentials/content.
-          await response.body?.cancel();
-          // Request timeout/conflict and server errors cannot prove non-acceptance.
+          // Keep provider error details in Workers Logs; never return them to the client.
+          let detail = '';
+          try { detail = await response.text(); }
+          catch (error) { console.error('Failed to read Resend error response', error); }
+          const error = new Error(`Resend HTTP ${response.status}: ${detail}`);
           if (response.status >= 400 && response.status < 500 && ![408, 409].includes(response.status)) {
-            throw Object.assign(new Error('Email service rejected request'), { code: 'E_DELIVERY_FAILED' });
+            throw Object.assign(error, { code: 'E_DELIVERY_FAILED' });
           }
-          throw new Error('Email acceptance unconfirmed');
+          throw error;
         }
         const result: unknown = await response.json();
         return { messageId: typeof result === 'object' && result !== null && 'id' in result
