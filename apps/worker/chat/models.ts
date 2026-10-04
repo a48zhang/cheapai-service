@@ -1,6 +1,8 @@
 import { prepare } from '../db';
 import { ApiError } from '../http';
 import { parseBillingMultiplier, PricingError } from '../billing/pricing';
+import { validateModelPrices } from '../catalog/models';
+import type { PriceTable } from '../billing/pricing';
 
 /** The catalogue exposed to the browser.  This is deliberately a projection
  * of the current group access graph; it never contains channel credentials or
@@ -8,6 +10,7 @@ import { parseBillingMultiplier, PricingError } from '../billing/pricing';
 export interface ChatModel {
   readonly publicModelId: string;
   readonly maxOutputTokens: number;
+  readonly sellPrices: PriceTable;
 }
 
 export interface ChatGroup {
@@ -22,13 +25,17 @@ export interface AuthorizedChatSelection {
   readonly model: { readonly publicModelId: string; readonly maxOutputTokens: number };
 }
 
-interface CatalogRow {
+interface AuthorizedCatalogRow {
   group_id: string;
   group_name: string;
   group_version: number;
   billing_multiplier: string;
   public_model_id: string;
   max_output_tokens: number;
+}
+
+interface CatalogRow extends AuthorizedCatalogRow {
+  sell_prices_json: string;
 }
 
 const identifier = /^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$/u;
@@ -47,6 +54,11 @@ function safeInteger(value: unknown, minimum = 1): number {
   return value;
 }
 
+function sellPrices(value: string): PriceTable {
+  try { return validateModelPrices(JSON.parse(value)); }
+  catch { throw new ApiError('service_unavailable'); }
+}
+
 /** Multiplier validation is shared with billing. Missing or malformed values
  * are unavailable; the chat catalogue never turns a broken price into free. */
 export function normalizeBillingMultiplier(value: unknown): string {
@@ -54,7 +66,7 @@ export function normalizeBillingMultiplier(value: unknown): string {
   catch (error) { if (error instanceof PricingError) throw new ApiError('service_unavailable'); throw error; }
 }
 
-function rowToSelection(row: CatalogRow): AuthorizedChatSelection {
+function rowToSelection(row: AuthorizedCatalogRow): AuthorizedChatSelection {
   return Object.freeze({
     group: Object.freeze({ id: id(row.group_id), name: row.group_name, version: safeInteger(row.group_version), billingMultiplier: normalizeBillingMultiplier(row.billing_multiplier) }),
     model: Object.freeze({ publicModelId: id(row.public_model_id), maxOutputTokens: safeInteger(row.max_output_tokens) }),
@@ -63,7 +75,7 @@ function rowToSelection(row: CatalogRow): AuthorizedChatSelection {
 
 const catalogSql = `
   SELECT g.id AS group_id,g.name AS group_name,g.version AS group_version,
-    g.billing_multiplier AS billing_multiplier,m.public_model_id,
+    g.billing_multiplier AS billing_multiplier,m.public_model_id,m.sell_prices_json,
     MAX(CASE WHEN json_type(cm.capabilities_json,'$.maxOutputTokens')='integer'
       THEN MIN(m.max_output_tokens,CAST(json_extract(cm.capabilities_json,'$.maxOutputTokens') AS INTEGER))
       ELSE m.max_output_tokens END) AS max_output_tokens
@@ -78,7 +90,7 @@ const catalogSql = `
     AND access.created_at<=? AND u.created_at<=? AND g.created_at<=?
     AND EXISTS (SELECT 1 FROM json_each(cm.capabilities_json,'$.features') feature WHERE feature.value='streaming')
     AND (cm.protocol<>'chat' OR EXISTS (SELECT 1 FROM json_each(cm.capabilities_json,'$.features') usage WHERE usage.value='stream_usage'))
-  GROUP BY g.id,g.name,g.version,g.billing_multiplier,m.public_model_id
+  GROUP BY g.id,g.name,g.version,g.billing_multiplier,m.public_model_id,m.sell_prices_json
   ORDER BY CASE WHEN g.id=u.group_id THEN 0 ELSE 1 END,g.name,g.id,m.public_model_id`;
 
 async function readCatalog(database: D1Database, userId: string, now: number): Promise<CatalogRow[]> {
@@ -95,7 +107,7 @@ export async function listAuthorizedChatModels(database: D1Database, userId: str
   const groups = new Map<string, ChatGroup>();
   for (const row of await readCatalog(database, userId, now)) {
     const existing = groups.get(row.group_id);
-    const model: ChatModel = Object.freeze({ publicModelId: id(row.public_model_id), maxOutputTokens: safeInteger(row.max_output_tokens) });
+    const model: ChatModel = Object.freeze({ publicModelId: id(row.public_model_id), maxOutputTokens: safeInteger(row.max_output_tokens), sellPrices: sellPrices(row.sell_prices_json) });
     if (existing === undefined) {
       groups.set(row.group_id, { id: id(row.group_id), name: row.group_name, billingMultiplier: normalizeBillingMultiplier(row.billing_multiplier), models: [model] });
     } else if (!existing.models.some(item => item.publicModelId === model.publicModelId)) {
@@ -136,7 +148,7 @@ export async function authorizeChatSelection(database: D1Database, userId: strin
     GROUP BY g.id,g.name,g.version,g.billing_multiplier,m.public_model_id
     LIMIT 1`;
   try {
-    const row = await prepare<CatalogRow>(database, query, [...values.slice(0, 3), safeInteger(now, 0), now, now, maxOutputTokens ?? null, maxOutputTokens ?? null]).first();
+    const row = await prepare<AuthorizedCatalogRow>(database, query, [...values.slice(0, 3), safeInteger(now, 0), now, now, maxOutputTokens ?? null, maxOutputTokens ?? null]).first();
     if (row === null) throw new ApiError('forbidden');
     const result = rowToSelection(row);
     if (maxOutputTokens !== undefined && maxOutputTokens > result.model.maxOutputTokens) throw new ApiError('invalid_request');

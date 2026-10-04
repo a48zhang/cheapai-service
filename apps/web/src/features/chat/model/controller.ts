@@ -34,7 +34,6 @@ export interface ChatSendCommand {
   readonly content: string;
   readonly groupId: string;
   readonly modelId: string;
-  readonly maxOutputTokens?: number;
 }
 
 export type ChatRegenerateCommand = RegenerateCommand;
@@ -131,7 +130,6 @@ function validSendCommand(command: ChatSendCommand, operationId: string): boolea
     groupId: command.groupId,
     modelId: command.modelId,
     content: command.content,
-    ...(command.maxOutputTokens === undefined ? {} : { maxOutputTokens: command.maxOutputTokens }),
   }).success;
 }
 
@@ -363,9 +361,6 @@ export function createChatController(options: ChatControllerOptions) {
       groupId: command.groupId,
       modelId: command.modelId,
       content: command.content,
-      ...(command.maxOutputTokens === undefined
-        ? {}
-        : { maxOutputTokens: command.maxOutputTokens }),
       baselineMessageIds: detail.messages.map((message) => message.id),
       operationId: run.commandId,
     });
@@ -468,9 +463,6 @@ export function createChatController(options: ChatControllerOptions) {
       conversationVersion: prepared.input.conversationVersion,
       groupId: prepared.input.groupId,
       modelId: prepared.input.modelId,
-      ...(prepared.input.maxOutputTokens === undefined
-        ? {}
-        : { maxOutputTokens: prepared.input.maxOutputTokens }),
       previousMessageId: prepared.previousMessageId,
       baselineMessageIds: detail.messages.map((message) => message.id),
       operationId: commandId,

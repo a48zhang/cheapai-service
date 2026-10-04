@@ -1,3 +1,4 @@
+import { formatUsdPerMillionTokens } from '../../shared/lib/model-price';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { Button } from '../../shared/ui/Button';
 import { Dialog } from '../../shared/ui/Dialog';
@@ -74,7 +75,6 @@ export function KeyForm(props: KeyFormProps) {
       open={open}
       onOpenChange={close}
       title={mode === 'create' ? '创建 API Key' : '编辑 Key'}
-
       closeLabel={mode === 'create' ? '关闭创建 API Key' : '关闭编辑 Key'}
       closeButton={!busy}
       footer={footer}
@@ -112,30 +112,45 @@ export function KeyForm(props: KeyFormProps) {
             <Field label="名称" required error={errors.name?.message}>
               <Input autoComplete="off" maxLength={128} {...register('name')} />
             </Field>
-            <Field label="分组" required error={errors.groupId?.message}>
-              <select
-                {...register('groupId')}
-                required
-                disabled={groupsQuery.isLoading || fieldsDisabled}
-                className="min-h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <option value="" disabled>
-                  选择分组
-                </option>
-                {mode === 'edit' &&
-                  current &&
-                  !groups.some((group) => group.id === current.groupId) && (
-                    <option value={current.groupId} disabled>
-                      {current.groupName}（授权已撤回）
-                    </option>
-                  )}
-                {groups.map((group) => (
-                  <option key={group.id} value={group.id}>
-                    {group.name}
+            {groups.length === 1 && selectedGroup ? (
+              <div className="grid gap-1.5">
+                <p className="text-sm font-medium text-[var(--color-foreground)]">分组</p>
+                <div className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-muted)] px-3 py-2 text-sm">
+                  {selectedGroup.name}
+                </div>
+                <input type="hidden" {...register('groupId')} />
+                {errors.groupId?.message && (
+                  <p role="alert" className="text-xs text-[var(--color-destructive)]">
+                    {errors.groupId.message}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <Field label="分组" required error={errors.groupId?.message}>
+                <select
+                  {...register('groupId')}
+                  required
+                  disabled={groupsQuery.isLoading || fieldsDisabled}
+                  className="min-h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <option value="" disabled>
+                    选择分组
                   </option>
-                ))}
-              </select>
-            </Field>
+                  {mode === 'edit' &&
+                    current &&
+                    !groups.some((group) => group.id === current.groupId) && (
+                      <option value={current.groupId} disabled>
+                        {current.groupName}（授权已撤回）
+                      </option>
+                    )}
+                  {groups.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
             {groupsQuery.isLoading && (
               <p role="status" className="text-sm text-[var(--color-muted-foreground)]">
                 正在读取可用分组…
@@ -159,15 +174,34 @@ export function KeyForm(props: KeyFormProps) {
             )}
             {selectedGroup && (
               <div className="rounded-lg bg-[var(--color-muted)] p-3 text-sm">
+                <p className="font-medium">{selectedGroup.name} · 授权模型与价格</p>
                 {selectedGroup.models.length === 0 ? (
-                  <span>该分组尚未配置模型</span>
+                  <p className="mt-2 text-[var(--color-muted-foreground)]">该分组尚未配置模型</p>
                 ) : (
-                  <ul className="flex flex-wrap gap-2">
-                    {selectedGroup.models.map((model) => (
-                      <li key={model}>
-                        <code>{model}</code>
-                      </li>
-                    ))}
+                  <ul className="mt-2 space-y-2">
+                    {selectedGroup.models.map((model) => {
+                      const prices = selectedGroup.modelPrices?.[model];
+                      return (
+                        <li
+                          key={model}
+                          className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1"
+                        >
+                          <code>{model}</code>
+                          <span className="text-xs text-[var(--color-muted-foreground)]">
+                            输入{' '}
+                            {formatUsdPerMillionTokens(
+                              prices?.input,
+                              selectedGroup.billingMultiplier,
+                            )}
+                            {' · '}输出{' '}
+                            {formatUsdPerMillionTokens(
+                              prices?.output,
+                              selectedGroup.billingMultiplier,
+                            )}
+                          </span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </div>

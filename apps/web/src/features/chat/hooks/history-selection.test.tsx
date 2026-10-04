@@ -4,6 +4,7 @@ import type { PropsWithChildren } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ApiClient } from '@cheapai/api-client/types';
 import type { ChatApiContext } from '../api';
+import { modelOptionKey } from '../model/model-options';
 import { useHistory } from './useHistory';
 import { useModelSelection } from './useModelSelection';
 
@@ -264,7 +265,7 @@ describe('React chat model selection hook', () => {
       },
     );
     await waitFor(() => expect(result.current.selectedModel?.publicModelId).toBe('model-1'));
-    act(() => result.current.selectModel('model-2'));
+    act(() => result.current.selectOption(modelOptionKey('group-1', 'model-2')));
     expect(result.current.selection).toEqual({ groupId: 'group-1', modelId: 'model-2' });
     unmount();
 

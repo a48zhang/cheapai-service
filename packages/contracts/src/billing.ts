@@ -10,6 +10,10 @@ const amount = z
   .string()
   .max(128)
   .regex(/^(?:0|-?[1-9][0-9]*)$/u);
+const nonNegativeAmount = z
+  .string()
+  .max(128)
+  .regex(/^(?:0|[1-9][0-9]*)$/u);
 const count = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
 export const billingKindSchema = z.enum(['consumption', 'grant', 'adjustment']);
@@ -21,6 +25,8 @@ export const billingEntrySchema = z.object({
   kind: billingKindSchema,
   userId: text(),
   requestId: text().nullable(),
+  modelId: text().nullable().optional(),
+  source: z.enum(['api', 'web_chat']).nullable().optional(),
   currency: z.literal('USD'),
   deltaUnits: amount,
   createdBy: text().nullable(),
@@ -31,9 +37,17 @@ export const billingEntrySchema = z.object({
     .refine((value) => !Number.isNaN(Date.parse(value))),
 });
 
+export const billingSummarySchema = z.object({
+  currency: z.literal('USD'),
+  consumptionUnits: nonNegativeAmount,
+  createdFrom: count.nullable(),
+  createdBefore: count.nullable(),
+});
+
 export const billingPageSchema = z.object({
   items: z.array(billingEntrySchema),
   nextCursor: text(2048).nullable(),
+  summary: billingSummarySchema.optional(),
 });
 
 export const balanceReconciliationSchema = z.object({
@@ -54,6 +68,7 @@ export const balanceReconciliationPageSchema = z.object({
 
 export type BillingKind = z.infer<typeof billingKindSchema>;
 export type BillingEntry = z.infer<typeof billingEntrySchema>;
+export type BillingSummary = z.infer<typeof billingSummarySchema>;
 export type BillingPage = z.infer<typeof billingPageSchema>;
 export type BalanceReconciliation = z.infer<typeof balanceReconciliationSchema>;
 export type BalanceReconciliationPage = z.infer<typeof balanceReconciliationPageSchema>;
@@ -72,6 +87,12 @@ export interface AdminBillingQuery extends BillingQuery {
 
 export function decodeBillingEntry(value: unknown): BillingEntry {
   const result = billingEntrySchema.safeParse(value);
+  if (!result.success) throw new TypeError('Invalid billing response.');
+  return result.data;
+}
+
+export function decodeBillingSummary(value: unknown): BillingSummary {
+  const result = billingSummarySchema.safeParse(value);
   if (!result.success) throw new TypeError('Invalid billing response.');
   return result.data;
 }

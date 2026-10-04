@@ -1,4 +1,5 @@
 import { pageSchema } from './common.js';
+import { sellPricesSchema } from './models.js';
 import { z } from 'zod';
 
 const textSchema = (max = 128) => z.string().min(1).max(max);
@@ -16,6 +17,14 @@ export const keyGroupSchema = z.object({
   id: textSchema(),
   name: textSchema(),
   models: z.array(textSchema()),
+  /** Optional for compatibility with older cached account-group responses. */
+  billingMultiplier: z
+    .string()
+    .max(64)
+    .regex(/^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/u)
+    .optional(),
+  /** Base USD-per-million-token prices, keyed by public model ID. */
+  modelPrices: z.record(z.string(), sellPricesSchema).optional(),
 });
 
 export const keyMetadataSchema = z

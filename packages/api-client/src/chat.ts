@@ -94,13 +94,6 @@ function validId(value: string, label: string): string {
   return encodeURIComponent(value);
 }
 
-function bodyWithOutput<T extends Record<string, unknown>>(
-  body: T,
-  maxOutputTokens: number | undefined,
-): T & Record<string, unknown> {
-  return maxOutputTokens === undefined ? body : { ...body, maxOutputTokens };
-}
-
 export function createChatApi(options: ChatApiOptions = {}): ChatApi {
   const { client: injectedClient, ...clientOptions } = options;
   const authApi = createAuthApi(clientOptions);
@@ -180,16 +173,13 @@ export function createChatApi(options: ChatApiOptions = {}): ChatApi {
     ): Promise<ChatSendResult> {
       const parsed = chatSendInputSchema.safeParse(input);
       if (!parsed.success) throw new ApiClientError('request', '聊天请求参数无效。');
-      const body = bodyWithOutput(
-        {
-          operationId: parsed.data.operationId,
-          conversationVersion: parsed.data.conversationVersion,
-          groupId: parsed.data.groupId,
-          modelId: parsed.data.modelId,
-          content: parsed.data.content,
-        },
-        parsed.data.maxOutputTokens,
-      );
+      const body = {
+        operationId: parsed.data.operationId,
+        conversationVersion: parsed.data.conversationVersion,
+        groupId: parsed.data.groupId,
+        modelId: parsed.data.modelId,
+        content: parsed.data.content,
+      };
       return sendChatStream(conversationPath(id) + '/messages', body, {
         ...streamOptions,
         handlers,
@@ -204,15 +194,12 @@ export function createChatApi(options: ChatApiOptions = {}): ChatApi {
     ): Promise<ChatSendResult> {
       const parsed = chatRegenerateInputSchema.safeParse(input);
       if (!parsed.success) throw new ApiClientError('request', '重新生成参数无效。');
-      const body = bodyWithOutput(
-        {
-          operationId: parsed.data.operationId,
-          conversationVersion: parsed.data.conversationVersion,
-          groupId: parsed.data.groupId,
-          modelId: parsed.data.modelId,
-        },
-        parsed.data.maxOutputTokens,
-      );
+      const body = {
+        operationId: parsed.data.operationId,
+        conversationVersion: parsed.data.conversationVersion,
+        groupId: parsed.data.groupId,
+        modelId: parsed.data.modelId,
+      };
       return sendChatStream(conversationPath(id) + '/regenerate', body, {
         ...streamOptions,
         handlers,

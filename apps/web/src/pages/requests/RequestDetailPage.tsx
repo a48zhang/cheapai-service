@@ -4,11 +4,17 @@ import { requestDetailQueryOptions } from '../../features/request-history/api';
 import { PriceSnapshot } from '../../features/request-history/PriceSnapshot';
 import { RequestStatus } from '../../features/request-history/RequestStatus';
 import { UsageBreakdown } from '../../features/request-history/UsageBreakdown';
+import {
+  requestCostLabel,
+  requestResultPresentation,
+  requestSourceLabel,
+} from '../../features/request-history/presentation';
 import { useSession } from '../../features/session/useSession';
-import { safeReturnPath } from '../../shared/lib/return-path';
 import { formatDateTime } from '../../shared/lib/datetime';
+import { safeReturnPath } from '../../shared/lib/return-path';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { PageHeader } from '../../shared/patterns/PageHeader';
+import { StatusBadge } from '../../shared/ui/StatusBadge';
 
 export function RequestDetailPage() {
   const { id = '' } = useParams<{ id: string }>();
@@ -29,18 +35,19 @@ export function RequestDetailPage() {
     enabled: Boolean(id) && session.status === 'authenticated' && user !== null,
   });
   const item = query.data;
+  const result = item ? requestResultPresentation(item.execution_status) : null;
 
   return (
     <section className="space-y-5">
       <PageHeader
-        heading="请求详情"
+        heading={scope === 'admin' ? '请求详情' : '使用记录详情'}
         description={id ? `请求编号 ${id}` : '请求编号无效。'}
         actions={
           <Link
             className="rounded-md border border-[var(--color-border)] bg-white px-3 py-2 text-sm font-medium"
             to={returnTo}
           >
-            返回请求列表
+            {scope === 'admin' ? '返回请求列表' : '返回使用记录'}
           </Link>
         }
       />
@@ -51,28 +58,88 @@ export function RequestDetailPage() {
         </p>
       )}
       {item && (
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
-          <div className="space-y-5">
-            <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-              <h2 className="mb-4 text-base font-semibold">执行状态</h2>
+        <div className="space-y-4">
+          <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+            <h2 className="sr-only">使用记录摘要</h2>
+            <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              <div className="min-w-0">
+                <dt className="text-xs text-[var(--color-muted-foreground)]">时间</dt>
+                <dd className="m-0 mt-1 text-sm text-slate-900">
+                  {formatDateTime(item.created_at)}
+                </dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="text-xs text-[var(--color-muted-foreground)]">模型</dt>
+                <dd className="m-0 mt-1 break-all text-sm font-medium text-slate-900">
+                  {item.public_model_id}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-[var(--color-muted-foreground)]">来源</dt>
+                <dd className="m-0 mt-1 text-sm text-slate-900">
+                  {requestSourceLabel(item.source)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-[var(--color-muted-foreground)]">结果</dt>
+                <dd className="m-0 mt-1">
+                  {result && <StatusBadge tone={result.tone}>{result.label}</StatusBadge>}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-[var(--color-muted-foreground)]">费用</dt>
+                <dd className="m-0 mt-1 break-words font-mono text-sm tabular-nums text-slate-900">
+                  {requestCostLabel(item)}
+                </dd>
+              </div>
+            </dl>
+            {item.error && (
+              <div
+                className="mt-5 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900"
+                role="alert"
+              >
+                <strong>{item.error.code}</strong>
+                <p className="mb-0 mt-1">{item.error.message}</p>
+              </div>
+            )}
+          </section>
+
+          <details
+            className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"
+            open={scope === 'admin'}
+          >
+            <summary className="cursor-pointer text-sm font-semibold text-slate-900">
+              技术详情
+            </summary>
+            <div className="mt-4 space-y-4">
               <RequestStatus
                 executionStatus={item.execution_status}
                 billingStatus={item.billing_status}
               />
-              <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
+              <dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
                 <div>
-                  <dt className="text-xs text-[var(--color-muted-foreground)]">来源</dt>
-                  <dd className="m-0 mt-1">
-                    {item.source === 'web_chat' ? '网页聊天' : 'API 请求'}
-                  </dd>
+                  <dt className="text-xs text-[var(--color-muted-foreground)]">请求 ID</dt>
+                  <dd className="m-0 mt-1 break-all font-mono text-xs">{item.id}</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-[var(--color-muted-foreground)]">访问组</dt>
                   <dd className="m-0 mt-1 break-all">{item.group_id ?? '未知'}</dd>
                 </div>
                 <div>
+                  <dt className="text-xs text-[var(--color-muted-foreground)]">请求协议</dt>
+                  <dd className="m-0 mt-1">{item.downstream_protocol}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-[var(--color-muted-foreground)]">上游协议</dt>
+                  <dd className="m-0 mt-1">{item.upstream_protocol}</dd>
+                </div>
+                <div>
                   <dt className="text-xs text-[var(--color-muted-foreground)]">上游模型</dt>
                   <dd className="m-0 mt-1 break-all">{item.upstream_model}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-[var(--color-muted-foreground)]">渠道 ID</dt>
+                  <dd className="m-0 mt-1 break-all font-mono text-xs">{item.channel_id}</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-[var(--color-muted-foreground)]">重试次数</dt>
@@ -81,8 +148,8 @@ export function RequestDetailPage() {
                 {scope === 'admin' && (
                   <>
                     <div>
-                      <dt className="text-xs text-[var(--color-muted-foreground)]">用户</dt>
-                      <dd className="m-0 mt-1 break-all">{item.user_id}</dd>
+                      <dt className="text-xs text-[var(--color-muted-foreground)]">用户 ID</dt>
+                      <dd className="m-0 mt-1 break-all font-mono text-xs">{item.user_id}</dd>
                     </div>
                     <div>
                       <dt className="text-xs text-[var(--color-muted-foreground)]">API Key ID</dt>
@@ -91,29 +158,7 @@ export function RequestDetailPage() {
                   </>
                 )}
               </dl>
-              {item.error && (
-                <div
-                  className="mt-5 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900"
-                  role="alert"
-                >
-                  <strong>{item.error.code}</strong>
-                  <p className="mb-0 mt-1">{item.error.message}</p>
-                </div>
-              )}
-            </section>
-            <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-              <h2 className="mb-4 text-base font-semibold">用量</h2>
-              <UsageBreakdown usage={item.usage} usageValid={item.usage_valid} />
-            </section>
-          </div>
-          <div className="space-y-5">
-            <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-              <h2 className="mb-4 text-base font-semibold">时间</h2>
-              <dl className="space-y-3 text-sm">
-                <div>
-                  <dt className="text-xs text-[var(--color-muted-foreground)]">创建</dt>
-                  <dd className="m-0 mt-1">{formatDateTime(item.created_at)}</dd>
-                </div>
+              <dl className="grid gap-x-6 gap-y-3 border-t border-[var(--color-border)] pt-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
                 <div>
                   <dt className="text-xs text-[var(--color-muted-foreground)]">开始</dt>
                   <dd className="m-0 mt-1">{formatDateTime(item.started_at)}</dd>
@@ -133,16 +178,36 @@ export function RequestDetailPage() {
                   </div>
                 )}
               </dl>
-            </section>
-            <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-              <PriceSnapshot
-                snapshot={item.price_snapshot}
-                snapshotValid={item.price_snapshot_valid}
-                costUnits={item.cost_units}
-                billingStatus={item.billing_status}
-              />
-            </section>
-          </div>
+            </div>
+          </details>
+
+          <details
+            className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"
+            open={scope === 'admin'}
+          >
+            <summary className="cursor-pointer text-sm font-semibold text-slate-900">
+              Token 用量
+            </summary>
+            <div className="mt-4">
+              <UsageBreakdown usage={item.usage} usageValid={item.usage_valid} />
+            </div>
+          </details>
+
+          <details
+            className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"
+            open={scope === 'admin'}
+          >
+            <summary className="cursor-pointer text-sm font-semibold text-slate-900">
+              价格快照
+            </summary>
+            <PriceSnapshot
+              className="mt-4"
+              snapshot={item.price_snapshot}
+              snapshotValid={item.price_snapshot_valid}
+              costUnits={item.cost_units}
+              billingStatus={item.billing_status}
+            />
+          </details>
         </div>
       )}
     </section>

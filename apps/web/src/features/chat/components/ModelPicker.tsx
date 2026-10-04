@@ -1,7 +1,9 @@
 import { Button } from '../../../shared/ui/Button';
-import { Field } from '../../../shared/ui/Field';
 import { Select } from '../../../shared/ui/Select';
 import type { SelectOption } from '../../../shared/ui/Select';
+import { formatUsdPerMillionTokens } from '../../../shared/lib/model-price';
+import type { ChatModelOption } from '../model/model-options';
+import { modelOptionKey } from '../model/model-options';
 import type { useModelSelection } from '../hooks/useModelSelection';
 
 export interface ModelPickerProps {
@@ -9,13 +11,21 @@ export interface ModelPickerProps {
   readonly disabled?: boolean;
 }
 
-/** Authorized model controls with a visible explanation when a saved choice has expired. */
+function displayName(option: ChatModelOption, duplicate: boolean): string {
+  return duplicate ? `${option.modelId} · ${option.group.name}` : option.modelId;
+}
+
+function priceDescription(option: ChatModelOption): string {
+  return `输入 ${formatUsdPerMillionTokens(option.model.sellPrices?.input, option.group.billingMultiplier)} · 输出 ${formatUsdPerMillionTokens(option.model.sellPrices?.output, option.group.billingMultiplier)}`;
+}
+
+/** One selector keeps each authorized group/model pair distinct. */
 export function ModelPicker({ selection, disabled = false }: ModelPickerProps) {
   const {
     groups,
+    options,
     selection: current,
-    selectedGroup,
-    selectedModel,
+    selectedOption,
     available,
     unavailableReason,
     loading,
@@ -23,87 +33,94 @@ export function ModelPicker({ selection, disabled = false }: ModelPickerProps) {
     error,
     errorMessage,
     retry,
-    selectGroup,
-    selectModel,
+    selectOption,
   } = selection;
-  const groupItems: SelectOption[] = groups.map((group) => ({
-    value: group.id,
-    label: group.name,
+  const counts = new Map<string, number>();
+  for (const option of options) counts.set(option.modelId, (counts.get(option.modelId) ?? 0) + 1);
+
+  const items: SelectOption[] = options.map((option) => ({
+    value: option.key,
+    label: (
+      <span className="grid min-w-0 gap-0.5">
+        <span className="truncate">
+          {displayName(option, (counts.get(option.modelId) ?? 0) > 1)}
+        </span>
+        <span className="truncate text-xs text-[var(--color-muted-foreground)]">
+          {priceDescription(option)}
+        </span>
+      </span>
+    ),
   }));
-  if (current?.groupId && !groups.some((group) => group.id === current.groupId)) {
-    groupItems.push({
-      value: current.groupId,
-      label: `${current.groupId}（不可用）`,
-      disabled: true,
-    });
-  }
-  const seenModelIds = new Set<string>();
-  const modelItems: SelectOption[] = (selectedGroup?.models ?? []).flatMap((model) => {
-    if (seenModelIds.has(model.publicModelId)) return [];
-    seenModelIds.add(model.publicModelId);
-    return [{ value: model.publicModelId, label: model.publicModelId }];
-  });
-  if (current?.modelId && !modelItems.some((model) => model.value === current.modelId)) {
-    modelItems.push({
-      value: current.modelId,
-      label: `${current.modelId}（不可用）`,
-      disabled: true,
-    });
+
+  const currentKey =
+    current !== null && current.groupId !== null && current.modelId !== null
+      ? modelOptionKey(current.groupId, current.modelId)
+      : undefined;
+  if (currentKey && !items.some((item) => item.value === currentKey)) {
+    const previousGroup = groups.find((group) => group.id === current?.groupId);
+    const previousLabel =
+      previousGroup === undefined
+        ? `${current?.modelId ?? ''}（不可用）`
+        : `${current?.modelId ?? ''} · ${previousGroup.name}（不可用）`;
+    items.push({ value: currentKey, label: previousLabel, disabled: true });
   }
 
+  const soleAvailableOption =
+    options.length === 1 && selectedOption?.key === options[0]?.key ? options[0] : undefined;
+  const staticLabel = soleAvailableOption
+    ? displayName(soleAvailableOption, false)
+    : selectedOption
+      ? displayName(selectedOption, (counts.get(selectedOption.modelId) ?? 0) > 1)
+      : current?.modelId
+        ? `${current.modelId}（不可用）`
+        : null;
+
   return (
-    <section
-      aria-label="模型选择"
-      className="grid w-full min-w-0 grid-cols-2 gap-3 rounded-xl border border-[var(--color-line)] bg-white/70 p-3 sm:grid-cols-[minmax(10rem,0.8fr)_minmax(12rem,1.2fr)]"
-    >
-      <Field
-        className="min-w-0"
-        label="模型组"
-        {...(selectedGroup ? { description: `计费倍率 ${selectedGroup.billingMultiplier}×` } : {})}
-      >
-        <Select
-          aria-label="模型组"
-          className="min-w-0"
-          disabled={disabled || loading || groupItems.length === 0}
-          items={groupItems}
-          onValueChange={selectGroup}
-          placeholder={loading ? '正在读取模型…' : '选择模型组'}
-          {...(current?.groupId ? { value: current.groupId } : {})}
-        />
-      </Field>
-      <Field
-        className="min-w-0"
-        label="模型"
-        {...(selectedModel
-          ? {
-              description:
-                selectedModel.maxOutputTokens === undefined
-                  ? '使用默认输出上限'
-                  : `最大输出 ${selectedModel.maxOutputTokens.toLocaleString()} tokens`,
-            }
-          : {})}
-      >
-        <Select
-          aria-label="模型"
-          className="min-w-0"
-          disabled={disabled || loading || !selectedGroup || modelItems.length === 0}
-          items={modelItems}
-          onValueChange={selectModel}
-          placeholder={selectedGroup ? '选择模型' : '请先选择模型组'}
-          {...(current?.modelId ? { value: current.modelId } : {})}
-        />
-      </Field>
+    <section aria-label="模型选择" className="grid w-full min-w-0 gap-2">
+      <div className="grid min-w-0 gap-1.5">
+        <span className="text-sm font-medium text-[var(--color-foreground)]">模型</span>
+        {soleAvailableOption ? (
+          <div
+            aria-label="当前模型"
+            className="grid min-h-10 min-w-0 gap-0.5 rounded-md border border-[var(--color-border)] bg-[var(--color-muted)] px-3 py-2 text-sm"
+            role="group"
+          >
+            <span className="truncate">{staticLabel}</span>
+          </div>
+        ) : options.length > 0 ? (
+          <Select
+            aria-label="模型"
+            className="min-w-0"
+            disabled={disabled || loading}
+            items={items}
+            onValueChange={selectOption}
+            placeholder={loading ? '正在加载模型…' : '选择模型'}
+            {...(currentKey === undefined ? {} : { value: currentKey })}
+          />
+        ) : (
+          <p
+            aria-label="当前模型"
+            className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-muted)] px-3 py-2 text-sm text-[var(--color-muted-foreground)]"
+            role="status"
+          >
+            {loading ? '正在加载模型…' : (staticLabel ?? '暂无可用模型')}
+          </p>
+        )}
+      </div>
+      {soleAvailableOption ? (
+        <details className="text-xs text-[var(--color-muted-foreground)]">
+          <summary className="w-fit cursor-pointer select-none">查看价格</summary>
+          <p className="pt-1">{priceDescription(soleAvailableOption)}</p>
+        </details>
+      ) : null}
       {unavailableReason && current !== null ? (
-        <p
-          className="col-span-2 text-xs text-[var(--color-destructive)] sm:col-span-2"
-          role="status"
-        >
+        <p className="text-xs text-[var(--color-destructive)]" role="status">
           {unavailableReason}
         </p>
       ) : null}
       {error ? (
         <div
-          className="col-span-2 flex items-center justify-between gap-3 text-xs text-[var(--color-destructive)] sm:col-span-2"
+          className="flex items-center justify-between gap-3 text-xs text-[var(--color-destructive)]"
           role="alert"
         >
           <span>{errorMessage}</span>
@@ -113,16 +130,13 @@ export function ModelPicker({ selection, disabled = false }: ModelPickerProps) {
         </div>
       ) : null}
       {!error && (loading || refreshing) ? (
-        <p
-          className="col-span-2 text-xs text-[var(--color-muted-foreground)] sm:col-span-2"
-          role="status"
-        >
-          {loading ? '正在读取授权模型…' : '正在更新授权模型…'}
+        <p className="text-xs text-[var(--color-muted-foreground)]" role="status">
+          {loading ? '正在加载模型…' : '正在更新模型…'}
         </p>
       ) : null}
-      {available && selectedModel ? (
+      {available && selectedOption ? (
         <p className="sr-only" aria-live="polite">
-          已选择 {selectedGroup?.name} 中的 {selectedModel.publicModelId}
+          已选择 {selectedOption.group.name} 中的 {selectedOption.modelId}
         </p>
       ) : null}
     </section>

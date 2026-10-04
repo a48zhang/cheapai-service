@@ -150,7 +150,12 @@ export function useKeyForm(props: KeyFormProps) {
 
   useEffect(() => {
     if (mode !== 'create' || !open || !groups.length) return;
-    if (!groups.some((group) => group.id === groupId)) setValue('groupId', groups[0]?.id ?? '');
+    const matchingGroup = groups.find((group) => group.id === groupId);
+    if (groups.length === 1 && matchingGroup === undefined) {
+      setValue('groupId', groups[0]?.id ?? '');
+    } else if (groups.length > 1 && matchingGroup === undefined && groupId !== '') {
+      setValue('groupId', '');
+    }
   }, [mode, open, groups, groupId, setValue]);
 
   function close(nextOpen: boolean, allowCompletedWrite = false) {
@@ -251,6 +256,7 @@ export function useKeyForm(props: KeyFormProps) {
     const busyLease = acquireBusyLease();
     setNotice(null);
     const requestOwnerKey = ownerKey;
+    let saved = false;
     try {
       const updated = await api.update(current.id, current.version, {
         name: values.name,
@@ -259,8 +265,8 @@ export function useKeyForm(props: KeyFormProps) {
       });
       if (!mountedRef.current || requestOwnerKey !== ownerKeyRef.current) return;
       populate(updated);
-      setNotice('Key 已保存。');
       onChanged(updated);
+      saved = true;
     } catch (error) {
       if (!mountedRef.current || requestOwnerKey !== ownerKeyRef.current) return;
       setReloadNeeded(true);
@@ -272,6 +278,7 @@ export function useKeyForm(props: KeyFormProps) {
     } finally {
       releaseBusyLease(busyLease);
     }
+    if (saved) close(false);
   });
 
   function modifyAfterFailure() {

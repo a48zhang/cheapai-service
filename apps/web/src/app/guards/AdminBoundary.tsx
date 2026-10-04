@@ -9,7 +9,7 @@ export function AdminBoundary({ children }: { children?: ReactNode }) {
       <section className="p-8">
         <h1 className="text-2xl font-semibold">没有访问权限</h1>
         <p className="my-3 text-[var(--color-muted-foreground)]">此页面需要管理员权限。</p>
-        <Link to="/dashboard">返回个人控制台</Link>
+        <Link to="/">返回聊天</Link>
       </section>
     );
   return children ?? <Outlet />;

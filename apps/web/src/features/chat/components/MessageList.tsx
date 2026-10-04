@@ -20,36 +20,10 @@ export interface MessageListProps {
   readonly className?: string | undefined;
   readonly loading?: boolean | undefined;
   readonly emptyMessage?: ReactNode | undefined;
-  readonly versionDisabledReason?: string | undefined;
 }
 
 function canOperateOnAssistant(message: ChatMessage): boolean {
   return message.status !== 'generating';
-}
-
-function availabilityReason(reason: string): string {
-  switch (reason) {
-    case 'conversation-loading':
-      return '对话仍在加载，请稍后重试。';
-    case 'no-assistant':
-      return '当前对话没有可重新生成的回答。';
-    case 'no-user-message':
-      return '当前回答没有对应的用户消息。';
-    case 'not-latest-turn':
-      return '只能操作最新一轮的回答。';
-    case 'generation-in-progress':
-      return '生成过程中无法执行此操作。';
-    case 'message-not-found':
-      return '此回答版本已不可用。';
-    case 'not-assistant':
-      return '只能操作 assistant 回答。';
-    case 'already-selected':
-      return '此回答版本已经选中。';
-    case 'no-selected-variant':
-      return '尚未选中回答版本。';
-    default:
-      return '此操作当前不可用。';
-  }
 }
 
 /** Message timeline that renders one selected answer per turn and preserves reading position. */
@@ -65,7 +39,6 @@ export function MessageList({
   className,
   loading = false,
   emptyMessage = '在下方输入消息开始对话。',
-  versionDisabledReason,
 }: MessageListProps) {
   const timeline = useMemo(
     () => createMessageRows(messages, streamMessageId),
@@ -120,6 +93,7 @@ export function MessageList({
             return canSelectAssistantVariant(detail, variant.id).allowed;
           });
           const canRegenerate =
+            isLatestTurn &&
             isCurrentSelection &&
             canOperateOnAssistant(row.message) &&
             (regenerateAvailability === null
@@ -130,51 +104,12 @@ export function MessageList({
             onRegenerate !== undefined &&
             regenerateDisabledReason === undefined;
           const canSelectVersion =
+            isLatestTurn &&
             isCurrentSelection &&
             canOperateOnAssistant(row.message) &&
             selectableVariants.some((variant) => variant.id !== row.message.id) &&
             !busy &&
-            onSelectVersion !== undefined &&
-            versionDisabledReason === undefined;
-          const regenerateReason =
-            regenerateDisabledReason ??
-            (busy
-              ? '生成过程中无法重新生成。'
-              : regenerateAvailability && !regenerateAvailability.allowed
-                ? availabilityReason(regenerateAvailability.reason)
-                : !isLatestTurn
-                  ? '只能重新生成最新一轮的回答。'
-                  : !isCurrentSelection
-                    ? '当前回答未选中，无法重新生成。'
-                    : !canOperateOnAssistant(row.message)
-                      ? '当前回答仍在生成，暂不能重新生成。'
-                      : onRegenerate === undefined
-                        ? '重新生成操作暂不可用。'
-                        : undefined);
-          const blockedVersion =
-            detail === undefined
-              ? undefined
-              : row.variants
-                  .map((variant) => canSelectAssistantVariant(detail, variant.id))
-                  .find(
-                    (availability) =>
-                      !availability.allowed && availability.reason !== 'already-selected',
-                  );
-          const versionReason =
-            versionDisabledReason ??
-            (busy
-              ? '生成过程中无法切换回答版本。'
-              : blockedVersion && !blockedVersion.allowed
-                ? availabilityReason(blockedVersion.reason)
-                : !isLatestTurn
-                  ? '只能切换最新一轮的回答版本。'
-                  : !isCurrentSelection
-                    ? '当前回答未选中，无法切换版本。'
-                    : !canOperateOnAssistant(row.message)
-                      ? '当前回答仍在生成，暂不能切换版本。'
-                      : onSelectVersion === undefined
-                        ? '版本切换操作暂不可用。'
-                        : undefined);
+            onSelectVersion !== undefined;
           return (
             <Message
               key={row.message.id}
@@ -184,11 +119,9 @@ export function MessageList({
               message={row.message}
               onRegenerate={onRegenerate}
               onSelectVersion={onSelectVersion}
-              regenerateDisabledReason={regenerateReason}
               streamText={streamText}
               streaming={streaming}
               variants={selectableVariants}
-              versionDisabledReason={versionReason}
             />
           );
         })}

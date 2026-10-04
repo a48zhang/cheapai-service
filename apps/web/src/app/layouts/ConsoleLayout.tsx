@@ -1,30 +1,20 @@
 import { useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useSession } from '../../features/session/useSession';
-import { adminNavigation, personalNavigation } from '../navigation';
+import { adminNavigation } from '../navigation';
 import { Button } from '../../shared/ui/Button';
 import { BrandLink } from '../../shared/ui/BrandLink';
 import { Sheet } from '../../shared/ui/Sheet';
 import { DropdownMenu } from '../../shared/ui/DropdownMenu';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 
-export function ConsoleLayout({
-  children,
-  mode = 'personal',
-}: {
-  children?: ReactNode;
-  mode?: 'personal' | 'admin';
-}) {
-  const { user, isAdmin, session, pending, error } = useSession();
+export function ConsoleLayout({ children }: { children?: ReactNode }) {
+  const { user, session, pending, error } = useSession();
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
-  const groups = mode === 'admin' ? adminNavigation : personalNavigation;
   const navigation = (
-    <nav
-      aria-label={mode === 'admin' ? '管理导航' : '个人导航'}
-      className="flex-1 space-y-6 px-3 py-5"
-    >
-      {groups.map((group) => (
+    <nav aria-label="管理导航" className="flex-1 space-y-6 px-3 py-5">
+      {adminNavigation.map((group) => (
         <div key={group.title}>
           <p className="mb-2 px-3 text-[11px] font-medium uppercase tracking-wider text-[var(--color-muted-foreground)]">
             {group.title}
@@ -63,15 +53,12 @@ export function ConsoleLayout({
         <BrandLink className="px-6 py-5 text-xl font-semibold tracking-tight" />
         {navigation}
         <div className="border-t border-[var(--color-border)] p-4">
-          <Link
-            to={mode === 'admin' ? '/dashboard' : '/'}
-            className="text-xs text-[var(--color-muted-foreground)]"
-          >
-            {mode === 'admin' ? '← 个人控制台' : '← 聊天工作台'}
+          <Link to="/" className="text-xs text-[var(--color-muted-foreground)]">
+            ← 返回聊天
           </Link>
         </div>
       </aside>
-      <Sheet open={mobileOpen} onOpenChange={setMobileOpen} title="cheapai" side="left">
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen} title="管理导航" side="left">
         {navigation}
       </Sheet>
       <div className="min-w-0 flex-1">
@@ -86,21 +73,7 @@ export function ConsoleLayout({
             >
               ☰
             </Button>
-            <DropdownMenu
-              trigger={
-                <button type="button" className="text-sm font-medium">
-                  {mode === 'admin' ? '管理控制台' : '个人控制台'}{' '}
-                  <span className="ml-2 text-[var(--color-muted-foreground)]">⌄</span>
-                </button>
-              }
-              items={[
-                { label: '聊天工作台', onSelect: () => navigate('/') },
-                { label: '个人控制台', onSelect: () => navigate('/dashboard') },
-                ...(isAdmin
-                  ? [{ label: '管理控制台', onSelect: () => navigate('/admin/channels') }]
-                  : []),
-              ]}
-            />
+            <span className="text-sm font-medium">管理控制台</span>
           </div>
           <DropdownMenu
             trigger={

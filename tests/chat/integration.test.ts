@@ -180,7 +180,7 @@ describe('web chat HTTP contract and accounting boundaries', () => {
       .bind(`chat-discount-channel-${sequence}`).run();
     const mixed = await body(await request('/api/v1/chat/models', { headers: jsonHeaders(user) }));
     expect(mixed.data.items.find((group: { id: string }) => group.id === 'chat-full').models)
-      .toContainEqual({ publicModelId: model, maxOutputTokens: 64 });
+      .toContainEqual({ publicModelId: model, maxOutputTokens: 64, sellPrices: { input: '1', output: '1', cacheRead: '0.5' } });
     await testEnv.DB.prepare("UPDATE user_group_access SET created_at=? WHERE user_id=? AND group_id='chat-discount'")
       .bind(Date.now() + 60_000, user.id).run();
     const beforeGrant = await body(await request('/api/v1/chat/models', { headers: jsonHeaders(user) }));

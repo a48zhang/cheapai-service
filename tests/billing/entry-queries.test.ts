@@ -7,13 +7,35 @@ async function entry(id: string, userId: string, time: number, kind = 'adjustmen
   await testEnv.DB.prepare(`INSERT INTO billing_entries(id,operation_id,kind,user_id,currency,delta_units,fingerprint,created_by,reason,created_at)
     VALUES(?,?,?,?,'USD',?,?,'b09-admin','Synthetic reason',?)`).bind(id, `op-${id}`, kind, userId, delta, `fingerprint-${id}`, time).run();
 }
+async function consumptionEntry() {
+  await testEnv.DB.prepare(`INSERT INTO api_keys(id,user_id,key_hash,display_prefix,name,status,created_at,updated_at)
+    VALUES('b09-key','b09-owner',?,'s2a_key_ABCDEFGH','Fixture Key','active',0,0)`).bind('a'.repeat(64)).run();
+  const secret = JSON.stringify({ algorithm: 'A256GCM', format_version: 1, key_version: 'test', nonce: 'nonce', ciphertext: 'ciphertext' });
+  await testEnv.DB.prepare(`INSERT INTO channels
+    (id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+    VALUES('b09-channel','Fixture','https://example.invalid',?,'test','active',0,1,60,1,0,0)`).bind(secret).run();
+  await testEnv.DB.prepare(`INSERT INTO models
+    (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at)
+    VALUES('b09-model','active','{}',1,0,1024,0,0)`).run();
+  await testEnv.DB.prepare(`INSERT INTO requests
+    (id,user_id,api_key_id,channel_id,public_model_id,upstream_model,downstream_protocol,upstream_protocol,price_snapshot,group_id,source,created_at,updated_at)
+    VALUES('b09-request','b09-owner','b09-key','b09-channel','b09-model','upstream-model','chat','chat','{}','b09-group','api',2000,2000)`).run();
+  const usage = JSON.stringify({ quality: 'complete', protocol: 'chat',
+    counts: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0 },
+    semantics: { cacheRead: 'included_in_input', cacheWrite: 'included_in_input', reasoning: 'included_in_output', cacheWriteTtl: 'unknown' },
+    issues: [], sources: [{ protocol: 'chat', path: 'usage' }] });
+  await testEnv.DB.prepare(`INSERT INTO billing_entries
+    (id,operation_id,kind,user_id,request_id,currency,delta_units,fingerprint,usage_snapshot,price_snapshot,created_at)
+    VALUES('entry-c','consume:b09-request','consumption','b09-owner','b09-request','USD',-13,'fingerprint-entry-c',?,'{}',2000)`)
+    .bind(usage).run();
+}
 beforeEach(async () => {
   await testEnv.DB.prepare("INSERT INTO groups(id,name,status,version,created_at,updated_at) VALUES('b09-group','Fixture','active',1,0,0)").run();
   for (const id of ['b09-admin', 'b09-admin-two', 'b09-owner', 'b09-other']) await testEnv.DB.prepare(`INSERT INTO users(id,email_normalized,password_hash,role,status,group_id,concurrency_limit,rpm_limit,created_via,created_at,updated_at)
     VALUES(?,?,'synthetic',?,'active','b09-group',1,60,'admin',0,0)`).bind(id, `${id}@example.invalid`, id.includes('admin') ? 'admin' : 'user').run();
-  await entry('entry-c', 'b09-owner', 2000);
   await entry('entry-a', 'b09-owner', 2000, 'grant', 2);
   await entry('entry-b', 'b09-owner', 2000);
+  await consumptionEntry();
   await entry('entry-old', 'b09-owner', 1000);
   await entry('foreign-entry', 'b09-other', 3000, 'grant', 1);
 });
@@ -26,6 +48,20 @@ describe('B09 scoped append-only ledger pagination', () => {
     expect((await queryBillingEntries(testEnv.DB, owner, { createdBefore: 2000 })).items.map(item => item.id)).toEqual(['entry-old']);
     expect((await queryBillingEntries(testEnv.DB, owner, { createdFrom: 2000, createdBefore: 2000 })).items).toEqual([]);
     expect((await queryBillingEntries(testEnv.DB, { kind: 'admin', actorId: 'b09-admin' }, { createdFrom: 3000, createdBefore: 3001 })).items.map(item => item.id)).toEqual(['foreign-entry']);
+
+    const filteredLedger = await queryBillingEntries(testEnv.DB, owner, {
+      kind: 'grant',
+      requestId: 'no-request',
+      createdFrom: 2000,
+      createdBefore: 3000,
+    });
+    expect(filteredLedger.items).toEqual([]);
+    expect(filteredLedger.summary).toEqual({
+      currency: 'USD',
+      consumptionUnits: '13',
+      createdFrom: 2000,
+      createdBefore: 3000,
+    });
   });
 
   it('binds both time filters and the append-only watermark into version 2 cursors', async () => {
@@ -76,6 +112,7 @@ describe('B09 scoped append-only ledger pagination', () => {
   it('enforces current administrator privilege and safe optional owner/kind/request filters', async () => {
     await expect(queryBillingEntries(testEnv.DB, { kind: 'admin', actorId: 'b09-owner' })).rejects.toMatchObject({ code: 'forbidden' });
     const all = await queryBillingEntries(testEnv.DB, { kind: 'admin', actorId: 'b09-admin' }); expect(all.items).toHaveLength(5);
+    expect(all.summary).toBeUndefined();
     const filtered = await queryBillingEntries(testEnv.DB, { kind: 'admin', actorId: 'b09-admin' }, { userId: 'b09-owner', kind: 'grant' });
     expect(filtered.items.map(item => item.id)).toEqual(['entry-a']);
     expect((await queryBillingEntries(testEnv.DB, { kind: 'admin', actorId: 'b09-admin' }, { requestId: 'no-request' })).items).toEqual([]);

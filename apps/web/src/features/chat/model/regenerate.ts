@@ -9,7 +9,6 @@ import type { RegenerateBlockReason, SelectVariantBlockReason } from './variants
 export interface RegenerateCommand {
   readonly groupId: string;
   readonly modelId: string;
-  readonly maxOutputTokens?: number;
 }
 
 export type PrepareRegenerateResult =
@@ -36,9 +35,6 @@ export function prepareRegenerateCommand(
       conversationVersion: availability.conversationVersion,
       groupId: command.groupId,
       modelId: command.modelId,
-      ...(command.maxOutputTokens === undefined
-        ? {}
-        : { maxOutputTokens: command.maxOutputTokens }),
     },
   };
 }

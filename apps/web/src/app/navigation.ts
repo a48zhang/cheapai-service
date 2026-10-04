@@ -7,18 +7,6 @@ export interface NavigationGroup {
   title: string;
   items: NavigationItem[];
 }
-export const personalNavigation: NavigationGroup[] = [
-  {
-    title: '工作区',
-    items: [
-      { path: '/', label: '聊天', icon: '◌' },
-      { path: '/dashboard', label: '账户概览', icon: '▦' },
-      { path: '/keys', label: 'API 接入', icon: '⌘' },
-      { path: '/requests', label: '请求记录', icon: '≡' },
-      { path: '/billing', label: '账单', icon: '▤' },
-    ],
-  },
-];
 export const adminNavigation: NavigationGroup[] = [
   {
     title: '资源配置',

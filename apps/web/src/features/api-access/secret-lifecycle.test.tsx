@@ -88,6 +88,19 @@ function createClient(
   } as unknown as ApiClient;
 }
 
+async function prepareSoleGroupKeyForm(
+  dialog: HTMLElement,
+  user: ReturnType<typeof userEvent.setup>,
+  name: string,
+) {
+  const nameField = within(dialog).getByLabelText(/名称/);
+  await waitFor(() => expect(nameField).toHaveValue('我的 API Key'));
+  await user.clear(nameField);
+  await user.type(nameField, name);
+  await waitFor(() => expect(within(dialog).getByText('Default', { exact: true })).toBeVisible());
+  expect(within(dialog).queryByRole('combobox', { name: /分组/ })).not.toBeInTheDocument();
+}
+
 function withKeysPage(client: QueryClient) {
   return (
     <QueryClientProvider client={client}>
@@ -128,12 +141,11 @@ afterEach(() => {
 async function createKey(user = userEvent.setup()) {
   await user.click(screen.getByRole('button', { name: /创建 Key/ }));
   const dialog = await screen.findByRole('dialog');
-  await user.type(within(dialog).getByLabelText(/名称/), metadata.name);
-  await waitFor(() =>
-    expect(within(dialog).getByRole('combobox', { name: /分组/ })).toHaveValue('group-1'),
-  );
+  await prepareSoleGroupKeyForm(dialog, user, metadata.name);
   await user.click(within(dialog).getByRole('button', { name: /创建 Key/ }));
-  return within(await screen.findByRole('dialog')).findByRole('textbox', { name: /完整密钥/ });
+  return within(await screen.findByRole('dialog')).findByRole('textbox', {
+    name: /完整 API Key/,
+  });
 }
 
 async function createInvite(user = userEvent.setup(), onOpenChange = vi.fn(), expectSecret = true) {
@@ -165,10 +177,7 @@ describe('one-time credential lifecycle', () => {
       </QueryClientProvider>,
     );
     const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByLabelText(/名称/), metadata.name);
-    await waitFor(() =>
-      expect(within(dialog).getByRole('combobox', { name: /分组/ })).toHaveValue('group-1'),
-    );
+    await prepareSoleGroupKeyForm(dialog, user, metadata.name);
     await user.click(within(dialog).getByRole('button', { name: /创建 Key/ }));
 
     await waitFor(() => expect(onSecret).toHaveBeenCalledTimes(1));
@@ -194,18 +203,18 @@ describe('one-time credential lifecycle', () => {
       within(screen.getByRole('dialog')).getByRole('button', { name: /关闭密钥对话框/ }),
     );
     await waitFor(() =>
-      expect(screen.queryByRole('textbox', { name: /完整密钥/ })).not.toBeInTheDocument(),
+      expect(screen.queryByRole('textbox', { name: /完整 API Key/ })).not.toBeInTheDocument(),
     );
     expect(document.body.textContent).not.toContain(keyToken);
 
     await createKey(user);
     await waitFor(() =>
-      expect(screen.getByRole('textbox', { name: /完整密钥/ })).toHaveValue(keyToken),
+      expect(screen.getByRole('textbox', { name: /完整 API Key/ })).toHaveValue(keyToken),
     );
 
     mocks.session.epoch++;
     view.rerender(withKeysPage(queryClient));
-    expect(screen.queryByRole('textbox', { name: /完整密钥/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /完整 API Key/ })).not.toBeInTheDocument();
     expect(document.body.textContent).not.toContain(keyToken);
 
     const afterEpochSecret = await createKey(user);
@@ -215,7 +224,7 @@ describe('one-time credential lifecycle', () => {
     mocks.session.epoch++;
     view.rerender(withKeysPage(queryClient));
     await waitFor(() =>
-      expect(screen.queryByRole('textbox', { name: /完整密钥/ })).not.toBeInTheDocument(),
+      expect(screen.queryByRole('textbox', { name: /完整 API Key/ })).not.toBeInTheDocument(),
     );
     expect(document.body.textContent).not.toContain(keyToken);
 
@@ -231,16 +240,13 @@ describe('one-time credential lifecycle', () => {
     render(withKeysPage(queryClient));
     await user.click(screen.getByRole('button', { name: /创建 Key/ }));
     const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByLabelText(/名称/), metadata.name);
-    await waitFor(() =>
-      expect(within(dialog).getByRole('combobox', { name: /分组/ })).toHaveValue('group-1'),
-    );
+    await prepareSoleGroupKeyForm(dialog, user, metadata.name);
     await user.click(within(dialog).getByRole('button', { name: /创建 Key/ }));
 
     await waitFor(() =>
       expect(within(screen.getByRole('dialog')).getByRole('status')).toBeInTheDocument(),
     );
-    expect(screen.queryByRole('textbox', { name: /完整密钥/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /完整 API Key/ })).not.toBeInTheDocument();
     expect(document.body.textContent).not.toContain(keyToken);
   });
 
@@ -254,10 +260,7 @@ describe('one-time credential lifecycle', () => {
     const view = render(withKeysPage(queryClient));
     await user.click(screen.getByRole('button', { name: /创建 Key/ }));
     const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByLabelText(/名称/), metadata.name);
-    await waitFor(() =>
-      expect(within(dialog).getByRole('combobox', { name: /分组/ })).toHaveValue('group-1'),
-    );
+    await prepareSoleGroupKeyForm(dialog, user, metadata.name);
     await user.click(within(dialog).getByRole('button', { name: /创建 Key/ }));
     await waitFor(() =>
       expect(within(dialog).getByRole('button', { name: /正在确认/ })).toBeDisabled(),
@@ -265,11 +268,11 @@ describe('one-time credential lifecycle', () => {
 
     mocks.session.epoch++;
     view.rerender(withKeysPage(queryClient));
-    expect(screen.queryByRole('textbox', { name: /完整密钥/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /完整 API Key/ })).not.toBeInTheDocument();
     resolvePost({ data: keyCreation, request_id: 'key-lifecycle' } as never);
 
     await waitFor(() =>
-      expect(screen.queryByRole('textbox', { name: /完整密钥/ })).not.toBeInTheDocument(),
+      expect(screen.queryByRole('textbox', { name: /完整 API Key/ })).not.toBeInTheDocument(),
     );
     expect(document.body.textContent).not.toContain(keyToken);
   });
@@ -306,10 +309,7 @@ describe('one-time credential lifecycle', () => {
     const view = render(renderForm('user-1', 1, true));
 
     let dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByLabelText(/名称/), 'Key A');
-    await waitFor(() =>
-      expect(within(dialog).getByRole('combobox', { name: /分组/ })).toHaveValue('group-1'),
-    );
+    await prepareSoleGroupKeyForm(dialog, user, 'Key A');
     await user.click(within(dialog).getByRole('button', { name: /创建 Key/ }));
     await waitFor(() =>
       expect(within(dialog).getByRole('button', { name: /正在确认/ })).toBeDisabled(),
@@ -320,10 +320,7 @@ describe('one-time credential lifecycle', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     view.rerender(renderForm('user-2', 2, true));
     dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByLabelText(/名称/), 'Key B');
-    await waitFor(() =>
-      expect(within(dialog).getByRole('combobox', { name: /分组/ })).toHaveValue('group-1'),
-    );
+    await prepareSoleGroupKeyForm(dialog, user, 'Key B');
     await user.click(within(dialog).getByRole('button', { name: /创建 Key/ }));
     const nextOwnerSubmit = await within(dialog).findByRole('button', { name: /正在确认/ });
     expect(nextOwnerSubmit).toBeDisabled();

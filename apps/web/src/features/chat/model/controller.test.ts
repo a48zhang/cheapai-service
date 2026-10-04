@@ -88,11 +88,11 @@ function generatedDetail(
 }
 
 function sendCommand(content = 'A new question') {
-  return { content, groupId: 'group-1', modelId: 'model-1', maxOutputTokens: 2048 };
+  return { content, groupId: 'group-1', modelId: 'model-1' };
 }
 
 function regenerateCommand() {
-  return { groupId: 'group-1', modelId: 'model-1', maxOutputTokens: 2048 };
+  return { groupId: 'group-1', modelId: 'model-1' };
 }
 
 describe('chat controller command lifecycle', () => {

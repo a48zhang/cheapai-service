@@ -8,9 +8,7 @@ export interface MessageActionsProps {
   readonly variants?: readonly ChatMessage[] | undefined;
   readonly actionsBusy?: boolean | undefined;
   readonly canSelectVersion?: boolean | undefined;
-  readonly versionDisabledReason?: string | undefined;
   readonly canRegenerate?: boolean | undefined;
-  readonly regenerateDisabledReason?: string | undefined;
   readonly onSelectVersion?: ((messageId: string) => void) | undefined;
   readonly onRegenerate?: ((message: ChatMessage) => void) | undefined;
 }
@@ -20,9 +18,7 @@ export function MessageActions({
   variants = [],
   actionsBusy = false,
   canSelectVersion = false,
-  versionDisabledReason,
   canRegenerate = false,
-  regenerateDisabledReason,
   onSelectVersion,
   onRegenerate,
 }: MessageActionsProps) {
@@ -30,14 +26,7 @@ export function MessageActions({
   const orderedVariants = [...variants].sort((left, right) => left.variant - right.variant);
   const currentIndex = orderedVariants.findIndex((item) => item.id === message.id);
   const hasVariants = message.role === 'assistant' && orderedVariants.length > 1;
-  const showRegenerate =
-    message.role === 'assistant' && (canRegenerate || regenerateDisabledReason !== undefined);
-  const effectiveVersionReason =
-    versionDisabledReason ??
-    (actionsBusy ? '生成过程中无法切换回答版本。' : '当前状态无法切换回答版本。');
-  const effectiveRegenerateReason =
-    regenerateDisabledReason ??
-    (actionsBusy ? '生成过程中无法重新生成。' : '只能重新生成最新一轮的回答。');
+  const showRegenerate = message.role === 'assistant' && canRegenerate;
 
   const copy = async () => {
     try {
@@ -50,7 +39,9 @@ export function MessageActions({
   };
 
   return (
-    <div className="mt-2 flex min-h-8 flex-wrap items-center gap-1.5 text-xs text-[var(--color-muted-foreground)]">
+    <div
+      className={`mt-2 flex min-h-8 flex-wrap items-center gap-1.5 text-xs text-[var(--color-muted-foreground)] ${message.role === 'user' ? 'justify-end' : ''}`}
+    >
       <Button
         aria-label={copyState === 'copied' ? '已复制消息' : '复制消息'}
         disabled={message.content.length === 0}
@@ -75,7 +66,6 @@ export function MessageActions({
               if (previous) onSelectVersion?.(previous.id);
             }}
             size="icon"
-            title={effectiveVersionReason}
             variant="ghost"
           >
             <ChevronLeft aria-hidden="true" size={15} />
@@ -96,7 +86,6 @@ export function MessageActions({
               if (next) onSelectVersion?.(next.id);
             }}
             size="icon"
-            title={effectiveVersionReason}
             variant="ghost"
           >
             <ChevronRight aria-hidden="true" size={15} />
@@ -108,24 +97,13 @@ export function MessageActions({
           disabled={actionsBusy || !canRegenerate}
           onClick={() => onRegenerate?.(message)}
           size="sm"
-          title={effectiveRegenerateReason}
           variant="ghost"
         >
           <RotateCcw aria-hidden="true" size={14} />
-          重新生成
+          重新回答
         </Button>
       ) : null}
       {copyState === 'failed' ? <span role="status">复制失败</span> : null}
-      {!canSelectVersion && hasVariants ? (
-        <span className="basis-full pl-2 text-[11px]" role="status">
-          {effectiveVersionReason}
-        </span>
-      ) : null}
-      {!canRegenerate && showRegenerate ? (
-        <span className="basis-full pl-2 text-[11px]" role="status">
-          {effectiveRegenerateReason}
-        </span>
-      ) : null}
     </div>
   );
 }

@@ -11,7 +11,8 @@ export interface BillingTableProps {
   readonly hasMore?: boolean;
   readonly loading?: boolean;
   readonly loadingMore?: boolean;
-  readonly error?: string | null;
+  readonly error?: string | null | undefined;
+  readonly emptyMessage?: string;
   readonly onLoadMore?: () => void;
   readonly onRetry?: () => void;
 }
@@ -22,9 +23,10 @@ const kindLabels: Record<BillingKind, string> = {
   adjustment: '余额调整',
 };
 
-function amountLabel(value: string): string {
+function amountLabel(value: string, kind: BillingKind, showConsumptionAsCost = false): string {
   try {
-    return `${formatUnitsToUsd(value)} USD`;
+    const units = showConsumptionAsCost && kind === 'consumption' ? -BigInt(value) : BigInt(value);
+    return `${formatUnitsToUsd(units)} USD`;
   } catch {
     return '金额未知';
   }
@@ -38,10 +40,11 @@ export function BillingTable({
   loading,
   loadingMore,
   error,
+  emptyMessage,
   onLoadMore,
   onRetry,
 }: BillingTableProps) {
-  const columns: ColumnDef<BillingEntry, unknown>[] = [
+  const adminColumns: ColumnDef<BillingEntry, unknown>[] = [
     {
       id: 'kind',
       header: '类型',
@@ -54,7 +57,7 @@ export function BillingTable({
       header: '金额变化',
       cell: ({ row }) => (
         <span className="whitespace-nowrap font-mono text-sm font-medium tabular-nums text-slate-900">
-          {amountLabel(row.original.deltaUnits)}
+          {amountLabel(row.original.deltaUnits, row.original.kind)}
         </span>
       ),
     },
@@ -108,11 +111,74 @@ export function BillingTable({
       ),
     },
   ];
+  const personalColumns: ColumnDef<BillingEntry, unknown>[] = [
+    {
+      id: 'created',
+      header: '时间',
+      cell: ({ row }) => (
+        <time
+          dateTime={row.original.createdAt}
+          className="whitespace-nowrap text-xs text-slate-600"
+        >
+          {formatDateTime(row.original.createdAt)}
+        </time>
+      ),
+    },
+    {
+      id: 'type-model',
+      header: '类型 / 模型',
+      cell: ({ row }) => (
+        <div className="grid gap-1">
+          <span className="font-medium text-slate-800">{kindLabels[row.original.kind]}</span>
+          {row.original.modelId && (
+            <span className="font-mono text-xs text-slate-500">{row.original.modelId}</span>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: 'source',
+      header: '来源',
+      cell: ({ row }) => (
+        <span className="whitespace-nowrap text-slate-600">
+          {row.original.source === 'web_chat'
+            ? '网页聊天'
+            : row.original.source === 'api'
+              ? 'API'
+              : '—'}
+        </span>
+      ),
+    },
+    {
+      id: 'amount',
+      header: '金额',
+      cell: ({ row }) => (
+        <span className="whitespace-nowrap font-mono text-sm font-medium tabular-nums text-slate-900">
+          {amountLabel(row.original.deltaUnits, row.original.kind, true)}
+        </span>
+      ),
+    },
+    {
+      id: 'request',
+      header: '记录',
+      cell: ({ row }) =>
+        row.original.requestId ? (
+          <Link
+            className="whitespace-nowrap text-indigo-700 hover:underline"
+            to={`/requests/${encodeURIComponent(row.original.requestId)}`}
+          >
+            查看记录
+          </Link>
+        ) : (
+          <span className="text-slate-500">—</span>
+        ),
+    },
+  ];
 
   return (
     <CursorTable
       rows={rows}
-      columns={columns}
+      columns={scope === 'admin' ? adminColumns : personalColumns}
       getRowId={(row) => row.id}
       hasMore={hasMore}
       loading={loading}
@@ -120,7 +186,7 @@ export function BillingTable({
       error={error}
       onLoadMore={onLoadMore}
       onRetry={onRetry}
-      emptyMessage="当前筛选下没有账单记录。"
+      emptyMessage={emptyMessage ?? '当前筛选下没有账单记录。'}
       caption={scope === 'admin' ? '全局账单明细' : '个人账单明细'}
     />
   );

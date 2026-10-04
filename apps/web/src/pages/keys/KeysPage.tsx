@@ -1,12 +1,17 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { KeyMetadata } from '@cheapai/api-client/keys';
-import { createApiAccessApi, invalidateApiAccessKeys } from '../../features/api-access/api';
-import { IntegrationGuide } from '../../features/api-access/IntegrationGuide';
+import {
+  createApiAccessApi,
+  invalidateApiAccessKeys,
+  keyGroupsQueryOptions,
+} from '../../features/api-access/api';
+import { ApiBaseUrl, IntegrationGuide } from '../../features/api-access/IntegrationGuide';
+import { integrationBaseUrl } from '../../features/api-access/integration-model';
 import { KeyForm } from '../../features/api-access/KeyForm';
 import { KeySecretDialog } from '../../features/api-access/KeySecretDialog';
 import { KeyTable } from '../../features/api-access/KeyTable';
 import { PageHeader } from '../../shared/patterns/PageHeader';
-import { Tabs } from '../../shared/ui/Tabs';
 import { useSession } from '../../features/session/useSession';
 
 interface SecretView {
@@ -18,10 +23,16 @@ export default function KeysPage() {
   const { user, epoch, client, queryClient } = useSession();
   const userId = user?.id ?? 'anonymous';
   const api = useMemo(() => createApiAccessApi(client), [client]);
+  const groupsQuery = useQuery({
+    ...keyGroupsQueryOptions(api, userId),
+    enabled: userId !== 'anonymous',
+  });
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<KeyMetadata | null>(null);
   const [secret, setSecret] = useState<SecretView | null>(null);
+  const [selectedKey, setSelectedKey] = useState<KeyMetadata | null>(null);
   const previousIdentity = useRef({ userId, epoch });
+  const baseUrl = integrationBaseUrl(window.location.origin);
 
   useLayoutEffect(() => {
     if (previousIdentity.current.userId !== userId || previousIdentity.current.epoch !== epoch) {
@@ -29,6 +40,7 @@ export default function KeysPage() {
       setCreateOpen(false);
       setEditing(null);
       setSecret(null);
+      setSelectedKey(null);
     }
   }, [userId, epoch]);
 
@@ -37,9 +49,21 @@ export default function KeysPage() {
     editing === null
       ? { open: formOpen, mode: 'create' as const }
       : { open: formOpen, mode: 'edit' as const, item: editing };
-  const onKeyChanged = () => {
-    void invalidateApiAccessKeys(queryClient, userId);
-  };
+  const onKeyChanged = useCallback(
+    (key: KeyMetadata) => {
+      void invalidateApiAccessKeys(queryClient, userId);
+      setSelectedKey((current) => {
+        const usable =
+          key.status === 'active' && (key.expiresAt === null || key.expiresAt > Date.now());
+        if (usable) return key;
+        return current?.id === key.id ? null : current;
+      });
+    },
+    [queryClient, userId],
+  );
+  const onSelectKey = useCallback((key: KeyMetadata | null) => {
+    setSelectedKey(key);
+  }, []);
   const changeFormOpen = (open: boolean) => {
     if (open) return;
     setCreateOpen(false);
@@ -47,43 +71,31 @@ export default function KeysPage() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
-      <PageHeader eyebrow="个人控制台" heading="API Keys" />
-      <Tabs
-        ariaLabel="API 接入"
-        defaultValue="keys"
-        items={[
-          {
-            value: 'keys',
-            label: 'API Keys',
-            content: (
-              <div className="pt-5">
-                <KeyTable
-                  api={api}
-                  userId={userId}
-                  onCreate={() => {
-                    setEditing(null);
-                    setCreateOpen(true);
-                  }}
-                  onEdit={(key) => {
-                    setCreateOpen(false);
-                    setEditing(key);
-                  }}
-                  onChanged={onKeyChanged}
-                />
-              </div>
-            ),
-          },
-          {
-            value: 'guide',
-            label: '接入指南',
-            content: (
-              <div className="pt-5">
-                <IntegrationGuide />
-              </div>
-            ),
-          },
-        ]}
+    <section className="space-y-6">
+      <PageHeader heading="API 接入" />
+      <ApiBaseUrl baseUrl={baseUrl} />
+      <KeyTable
+        api={api}
+        userId={userId}
+        selectedKeyId={selectedKey?.id ?? null}
+        onSelectKey={onSelectKey}
+        onCreate={() => {
+          setEditing(null);
+          setCreateOpen(true);
+        }}
+        onEdit={(key) => {
+          setCreateOpen(false);
+          setEditing(key);
+        }}
+        onChanged={onKeyChanged}
+      />
+      <IntegrationGuide
+        baseUrl={baseUrl}
+        groups={groupsQuery.data ?? []}
+        selectedKey={selectedKey}
+        groupsLoading={userId !== 'anonymous' && groupsQuery.isPending}
+        groupsError={userId !== 'anonymous' && groupsQuery.isError ? '无法读取可用分组。' : null}
+        onRetryGroups={() => void groupsQuery.refetch()}
       />
       <KeyForm
         {...formProps}
@@ -108,6 +120,6 @@ export default function KeysPage() {
         keyName={secret?.keyName ?? ''}
         onClose={() => setSecret(null)}
       />
-    </main>
+    </section>
   );
 }

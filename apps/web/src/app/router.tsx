@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthLayout } from './layouts/AuthLayout';
-import { ConsoleLayout } from './layouts/ConsoleLayout';
+import { PersonalLayout } from './layouts/PersonalLayout';
 import { SessionBoundary } from './guards/SessionBoundary';
 import { AdminBoundary } from './guards/AdminBoundary';
 import { AdminLayout } from './layouts/AdminLayout';
@@ -10,9 +10,6 @@ const LoginPage = lazy(() => import('../pages/auth/LoginPage'));
 const RegisterPage = lazy(() => import('../pages/auth/RegisterPage'));
 const SessionUnavailablePage = lazy(() => import('../pages/auth/SessionUnavailablePage'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
-const DashboardPage = lazy(() =>
-  import('../pages/dashboard/DashboardPage').then((module) => ({ default: module.DashboardPage })),
-);
 const RequestsPage = lazy(() =>
   import('../pages/requests/RequestsPage').then((module) => ({ default: module.RequestsPage })),
 );
@@ -57,8 +54,8 @@ export function AppRoutes() {
           <Route path="/session-unavailable" element={<SessionUnavailablePage />} />
         </Route>
         <Route element={<SessionBoundary />}>
-          <Route element={<ConsoleLayout />}>
-            <Route path="/dashboard" element={<DashboardPage />} />
+          <Route element={<PersonalLayout />}>
+            <Route path="/dashboard" element={<Navigate replace to="/billing" />} />
             <Route path="/keys" element={<KeysPage />} />
             <Route path="/requests" element={<RequestsPage />} />
             <Route path="/requests/:id" element={<RequestDetailPage />} />

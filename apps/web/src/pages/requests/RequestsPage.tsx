@@ -12,9 +12,9 @@ import {
 } from '../../features/request-history/filters';
 import { RequestTable } from '../../features/request-history/RequestTable';
 import { useSession } from '../../features/session/useSession';
+import { formatLocalDateTime, parseLocalDateRange } from '../../shared/lib/datetime';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { PageHeader } from '../../shared/patterns/PageHeader';
-import { formatLocalDateTime, parseLocalDateRange } from '../../shared/lib/datetime';
 
 interface FilterDraft {
   readonly status: string;
@@ -68,14 +68,21 @@ export function RequestsPage() {
   const { query, rows, nextCursor, error: requestError } = requestPages;
   const [draft, setDraft] = useState<FilterDraft>(() => draftFrom(urlState.filters));
   const [filterError, setFilterError] = useState('');
+  const [moreFiltersOpen, setMoreFiltersOpen] = useState(
+    () => urlState.filters.status !== undefined || urlState.filters.billingStatus !== undefined,
+  );
   const syncedFilterKey = useRef(filterKey);
 
   useEffect(() => {
     if (syncedFilterKey.current === filterKey) return;
     syncedFilterKey.current = filterKey;
     setDraft(draftFrom(urlState.filters));
+    setMoreFiltersOpen(
+      urlState.filters.status !== undefined || urlState.filters.billingStatus !== undefined,
+    );
     setFilterError('');
   }, [filterKey, urlState.filters]);
+
   function applyFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFilterError('');
@@ -117,50 +124,18 @@ export function RequestsPage() {
       setSearchParams(serializeRequestListUrl(urlState.filters, nextCursor, 'personal'));
   }
 
+  const hasActiveFilters = Object.keys(urlState.filters).length > 0;
+
   return (
     <section className="space-y-5">
-      <PageHeader heading="我的请求" />
+      <PageHeader heading="使用记录" />
       <form
         onSubmit={applyFilters}
         className="flex flex-wrap items-end gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
-        aria-label="请求筛选"
+        aria-label="使用记录筛选"
       >
         <label className="grid gap-1.5 text-xs font-medium text-[var(--color-foreground)]">
-          执行状态
-          <select
-            value={draft.status}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, status: event.currentTarget.value }))
-            }
-            className="min-h-10 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm"
-          >
-            <option value="">全部</option>
-            {executionStatusSchema.options.map((value) => (
-              <option key={value} value={value}>
-                {executionLabels[value]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-1.5 text-xs font-medium text-[var(--color-foreground)]">
-          计费状态
-          <select
-            value={draft.billingStatus}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, billingStatus: event.currentTarget.value }))
-            }
-            className="min-h-10 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm"
-          >
-            <option value="">全部</option>
-            {billingStatusSchema.options.map((value) => (
-              <option key={value} value={value}>
-                {billingLabels[value]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-1.5 text-xs font-medium text-[var(--color-foreground)]">
-          公开模型
+          模型
           <input
             value={draft.model}
             onChange={(event) =>
@@ -171,28 +146,40 @@ export function RequestsPage() {
             className="min-h-10 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm"
           />
         </label>
-        <label className="grid gap-1.5 text-xs font-medium text-[var(--color-foreground)]">
-          开始时间
-          <input
-            type="datetime-local"
-            value={draft.from}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, from: event.currentTarget.value }))
-            }
-            className="min-h-10 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm"
-          />
-        </label>
-        <label className="grid gap-1.5 text-xs font-medium text-[var(--color-foreground)]">
-          结束时间
-          <input
-            type="datetime-local"
-            value={draft.to}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, to: event.currentTarget.value }))
-            }
-            className="min-h-10 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm"
-          />
-        </label>
+        <div className="grid gap-1.5 text-xs font-medium text-[var(--color-foreground)]">
+          <span>时间范围</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="sr-only" htmlFor="request-time-from">
+              开始时间
+            </label>
+            <input
+              id="request-time-from"
+              aria-label="开始时间"
+              type="datetime-local"
+              value={draft.from}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, from: event.currentTarget.value }))
+              }
+              className="min-h-10 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm"
+            />
+            <span aria-hidden="true" className="text-[var(--color-muted-foreground)]">
+              至
+            </span>
+            <label className="sr-only" htmlFor="request-time-to">
+              结束时间
+            </label>
+            <input
+              id="request-time-to"
+              aria-label="结束时间"
+              type="datetime-local"
+              value={draft.to}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, to: event.currentTarget.value }))
+              }
+              className="min-h-10 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm"
+            />
+          </div>
+        </div>
         <button
           type="submit"
           className="min-h-10 rounded-md bg-[var(--color-primary)] px-4 text-sm font-medium text-white"
@@ -204,12 +191,58 @@ export function RequestsPage() {
           className="min-h-10 rounded-md border border-[var(--color-border)] bg-white px-4 text-sm"
           onClick={() => {
             setDraft(emptyDraft);
+            setMoreFiltersOpen(false);
             setFilterError('');
             setSearchParams(new URLSearchParams());
           }}
         >
           清除
         </button>
+        <details
+          className="basis-full rounded-lg border border-[var(--color-border)] px-3 py-2"
+          open={moreFiltersOpen}
+          onToggle={(event) => setMoreFiltersOpen(event.currentTarget.open)}
+        >
+          <summary className="cursor-pointer text-sm font-medium text-[var(--color-foreground)]">
+            更多筛选
+          </summary>
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <label className="grid gap-1.5 text-xs font-medium text-[var(--color-foreground)]">
+              执行状态
+              <select
+                value={draft.status}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, status: event.currentTarget.value }))
+                }
+                className="min-h-10 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm"
+              >
+                <option value="">全部</option>
+                {executionStatusSchema.options.map((value) => (
+                  <option key={value} value={value}>
+                    {executionLabels[value]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1.5 text-xs font-medium text-[var(--color-foreground)]">
+              计费状态
+              <select
+                value={draft.billingStatus}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, billingStatus: event.currentTarget.value }))
+                }
+                className="min-h-10 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm"
+              >
+                <option value="">全部</option>
+                {billingStatusSchema.options.map((value) => (
+                  <option key={value} value={value}>
+                    {billingLabels[value]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </details>
         {filterError && (
           <p className="m-0 basis-full text-sm text-[var(--color-destructive)]" role="alert">
             {filterError}
@@ -224,6 +257,11 @@ export function RequestsPage() {
           loadingMore={query.isFetching && urlState.cursor !== null}
           hasMore={nextCursor !== undefined}
           onLoadMore={loadMore}
+          emptyMessage={
+            hasActiveFilters
+              ? '没有符合筛选条件的记录。点击上方“清除”查看全部。'
+              : '还没有使用记录。'
+          }
         />
       )}
     </section>

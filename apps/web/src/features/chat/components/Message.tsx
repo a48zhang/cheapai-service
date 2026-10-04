@@ -10,26 +10,16 @@ export interface MessageProps {
   readonly streamText?: string | undefined;
   readonly busy?: boolean | undefined;
   readonly canSelectVersion?: boolean | undefined;
-  readonly versionDisabledReason?: string | undefined;
   readonly canRegenerate?: boolean | undefined;
-  readonly regenerateDisabledReason?: string | undefined;
   readonly onSelectVersion?: ((messageId: string) => void) | undefined;
   readonly onRegenerate?: ((message: ChatMessage) => void) | undefined;
 }
 
-const statusLabel: Record<ChatMessage['status'], string> = {
+const statusLabel: Partial<Record<ChatMessage['status'], string>> = {
   generating: '生成中',
-  completed: '已完成',
   stopped: '已停止',
-  failed: '未完成',
+  failed: '生成失败',
 };
-
-function messageTime(timestamp: number): string | undefined {
-  const date = new Date(timestamp);
-  return Number.isFinite(date.getTime())
-    ? new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(date)
-    : undefined;
-}
 
 /** A single user or assistant turn with its message-scoped actions. */
 export function Message({
@@ -39,15 +29,12 @@ export function Message({
   streamText = '',
   busy = false,
   canSelectVersion = false,
-  versionDisabledReason,
   canRegenerate = false,
-  regenerateDisabledReason,
   onSelectVersion,
   onRegenerate,
 }: MessageProps) {
   const isUser = message.role === 'user';
   const content = streaming ? streamText || '正在生成…' : message.content;
-  const time = messageTime(message.createdAt);
   const assistantStatus = isUser ? undefined : streaming ? '生成中' : statusLabel[message.status];
 
   return (
@@ -70,14 +57,12 @@ export function Message({
           <span className="font-medium text-[var(--color-foreground)]">
             {isUser ? '你' : 'cheapai'}
           </span>
-          {time ? <time dateTime={new Date(message.createdAt).toISOString()}>{time}</time> : null}
-          {assistantStatus ? (
-            <span
-              className={`rounded-full px-2 py-0.5 ${message.status === 'failed' ? 'bg-[var(--color-destructive-soft)] text-[var(--color-destructive)]' : 'bg-[var(--color-muted)]'}`}
-            >
-              {assistantStatus}
+          {!isUser && message.modelId ? (
+            <span aria-label="使用模型" className="truncate">
+              {message.modelId}
             </span>
           ) : null}
+          {assistantStatus ? <span role="status">{assistantStatus}</span> : null}
         </header>
         <div
           className={`min-w-0 rounded-2xl px-4 py-2 ${isUser ? 'inline-block bg-[var(--color-accent-soft)] text-left' : 'bg-transparent px-0'}`}
@@ -91,9 +76,7 @@ export function Message({
           message={message}
           onRegenerate={onRegenerate}
           onSelectVersion={onSelectVersion}
-          regenerateDisabledReason={regenerateDisabledReason}
           variants={variants}
-          versionDisabledReason={versionDisabledReason}
         />
       </div>
     </article>

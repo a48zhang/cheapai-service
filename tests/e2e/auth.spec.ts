@@ -47,7 +47,7 @@ for (const mode of ['closed', 'open', 'invite'] as const) {
       await page.goto('/register');
       const email = `q03-${randomUUID()}@example.invalid`;
       if (mode === 'closed') {
-        const loginLink = page.locator('a[href="/login"]:visible');
+        const loginLink = page.getByRole('link', { name: '登录', exact: true });
         await expect(loginLink).toHaveCount(1);
         await expect(loginLink).toBeVisible();
         await expect(page.locator('form')).toHaveCount(0);
@@ -81,13 +81,14 @@ for (const mode of ['closed', 'open', 'invite'] as const) {
       await page.getByRole('button', { name: '创建 Key', exact: true }).click();
       const dialog = page.getByRole('dialog');
       await dialog.getByLabel('名称', { exact: true }).fill('Browser fixture key');
-      await dialog.getByRole('combobox', { name: '分组', exact: true }).selectOption('default');
+      await expect(dialog.locator('input[name="groupId"]')).toHaveValue('default');
+      await expect(dialog.getByRole('combobox', { name: '分组', exact: true })).toHaveCount(0);
       await dialog.getByRole('button', { name: '创建 Key', exact: true }).click();
-      const secret = dialog.getByLabel('完整密钥（仅显示一次）', { exact: true });
+      const secret = dialog.getByLabel('完整 API Key', { exact: true });
       await expect(secret).toBeVisible();
       expect((await secret.inputValue()).startsWith('s2a_key_')).toBe(true);
-      await dialog.getByRole('button', { name: '已保存，关闭密钥' }).click();
-      await expect(page.getByLabel('完整密钥（仅显示一次）', { exact: true })).toHaveCount(0);
+      await dialog.getByRole('button', { name: '完成', exact: true }).click();
+      await expect(page.getByLabel('完整 API Key', { exact: true })).toHaveCount(0);
       expect(await page.evaluate(() => Object.values(localStorage).some(value => value.includes('s2a_key_')))).toBe(false);
       await page.getByRole('button', { name: '账户菜单', exact: true }).click();
       await page.getByRole('menuitem', { name: '退出登录', exact: true }).click();
@@ -158,8 +159,11 @@ test('login rejects an external return target and mobile navigation remains oper
   await page.getByRole('button', { name: '登录', exact: true }).click();
   await expect(page).toHaveURL(url => url.origin === connection.baseURL && url.pathname === '/');
   await page.goto('/dashboard');
-  await page.getByRole('button', { name: '打开导航' }).click();
-  await page.getByRole('dialog').getByRole('link', { name: 'API 接入' }).click();
+  await expect(page).toHaveURL(url => url.pathname === '/billing');
+  await page.getByRole('link', { name: 'API 接入', exact: true }).click();
   await expect(page).toHaveURL(url => url.pathname === '/keys');
   await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('button', { name: '账户菜单', exact: true }).click();
+  await page.getByRole('menuitem', { name: '使用记录', exact: true }).click();
+  await expect(page).toHaveURL(url => url.pathname === '/requests');
 });

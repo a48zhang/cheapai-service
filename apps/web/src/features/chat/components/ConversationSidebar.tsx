@@ -1,8 +1,9 @@
+import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { MoreHorizontal, PanelLeftClose, Plus } from 'lucide-react';
+import { PanelLeftClose, Plus } from 'lucide-react';
 import type { Conversation } from '@cheapai/api-client/chat';
 import { Button } from '../../../shared/ui/Button';
-import { DropdownMenu } from '../../../shared/ui/DropdownMenu';
+import { ConversationRow } from './ConversationRow';
 
 export interface ConversationSidebarProps {
   readonly conversations: readonly Conversation[];
@@ -14,26 +15,11 @@ export interface ConversationSidebarProps {
   readonly error?: ReactNode;
   readonly onNew: () => void;
   readonly onSelect: (conversation: Conversation) => void;
-  readonly onRename: (conversation: Conversation) => void;
+  readonly onRename: (conversation: Conversation, title: string) => void | Promise<unknown>;
   readonly onDelete: (conversation: Conversation) => void;
   readonly onLoadMore: () => void;
   readonly onRetry: () => void;
   readonly onClose: () => void;
-}
-
-function dateLabel(timestamp: number): string {
-  const date = new Date(timestamp);
-  if (!Number.isFinite(date.getTime())) return '';
-  const now = new Date();
-  if (date.toDateString() === now.toDateString()) {
-    return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(date);
-  }
-  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date);
-}
-
-function isoLabel(timestamp: number): string | undefined {
-  const date = new Date(timestamp);
-  return Number.isFinite(date.getTime()) ? date.toISOString() : undefined;
 }
 
 /** Conversation navigation and actions; all writes are supplied by its owner. */
@@ -53,6 +39,33 @@ export function ConversationSidebar({
   onRetry,
   onClose,
 }: ConversationSidebarProps) {
+  const historyRootRef = useRef<HTMLElement | null>(null);
+  const historyEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const root = historyRootRef.current;
+    const target = historyEndRef.current;
+    if (
+      !root ||
+      !target ||
+      !hasMore ||
+      error ||
+      loading ||
+      loadingMore ||
+      typeof IntersectionObserver === 'undefined'
+    )
+      return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) onLoadMore();
+      },
+      { root, rootMargin: '80px 0px' },
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [error, hasMore, loading, loadingMore, onLoadMore]);
+
   return (
     <aside
       aria-label="聊天记录"
@@ -92,54 +105,36 @@ export function ConversationSidebar({
       ) : null}
 
       {conversations.length > 0 ? (
-        <nav aria-label="历史对话" className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+        <nav
+          aria-label="历史对话"
+          className="min-h-0 flex-1 overflow-y-auto px-2 pb-3"
+          ref={historyRootRef}
+        >
           <ul className="space-y-1">
             {conversations.map((conversation) => {
-              const title = conversation.title || '新对话';
-              const selected = conversation.id === activeId;
               return (
-                <li
+                <ConversationRow
                   key={conversation.id}
-                  className={`group flex min-w-0 items-center rounded-md ${selected ? 'bg-white shadow-sm ring-1 ring-[var(--color-line)]' : 'hover:bg-white/70'}`}
-                >
-                  <button
-                    type="button"
-                    aria-current={selected ? 'page' : undefined}
-                    onClick={() => onSelect(conversation)}
-                    className={`flex min-h-12 min-w-0 flex-1 flex-col justify-center gap-1 px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] ${selected ? 'text-[var(--color-accent)]' : 'text-[var(--color-ink)]'}`}
-                  >
-                    <span className="w-full truncate text-[13px] font-medium" title={title}>
-                      {title}
-                    </span>
-                    <time
-                      className="text-[11px] text-[var(--color-ink-muted)]"
-                      dateTime={isoLabel(conversation.updatedAt)}
-                    >
-                      {dateLabel(conversation.updatedAt)}
-                    </time>
-                  </button>
-                  <DropdownMenu
-                    align="end"
-                    trigger={
-                      <Button
-                        aria-label={`对话操作：${title}`}
-                        className="mr-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
-                        size="icon"
-                        variant="ghost"
-                      >
-                        <MoreHorizontal aria-hidden="true" size={17} />
-                      </Button>
-                    }
-                    items={[
-                      { label: '重命名', onSelect: () => onRename(conversation) },
-                      { type: 'separator' },
-                      { label: '删除', destructive: true, onSelect: () => onDelete(conversation) },
-                    ]}
-                  />
-                </li>
+                  conversation={conversation}
+                  onDelete={onDelete}
+                  onRename={onRename}
+                  onSelect={onSelect}
+                  selected={conversation.id === activeId}
+                />
               );
             })}
           </ul>
+          {hasMore && !error ? (
+            <div aria-hidden="true" className="h-2" ref={historyEndRef} />
+          ) : null}
+          {loadingMore ? (
+            <p
+              className="px-3 py-2 text-center text-xs text-[var(--color-ink-muted)]"
+              role="status"
+            >
+              正在读取…
+            </p>
+          ) : null}
         </nav>
       ) : null}
 
@@ -153,18 +148,6 @@ export function ConversationSidebar({
             重试
           </Button>
         </div>
-      ) : null}
-
-      {hasMore && !error ? (
-        <Button
-          className="mx-3 mb-3 justify-center"
-          disabled={loading || loadingMore}
-          onClick={onLoadMore}
-          size="sm"
-          variant="ghost"
-        >
-          {loadingMore ? '正在读取…' : '加载更多'}
-        </Button>
       ) : null}
     </aside>
   );
