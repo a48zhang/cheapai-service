@@ -101,9 +101,10 @@ async function execute(target: Target, filename: string): Promise<unknown> {
     const config = JSON.parse(await readFile(configPath, 'utf8'));
     const { createHash } = await import('node:crypto');
     const repository = process.env.GITHUB_REPOSITORY || 'a48zhang/sub2api-cloudflare';
-    const expected = `sub2api-${createHash('sha256').update(repository.toLowerCase()).digest('hex').slice(0, 10)}-pr-${target.preview}`;
+    const prefix = `sub2api-${createHash('sha256').update(repository.toLowerCase()).digest('hex').slice(0, 10)}`;
+    const expected = `${prefix}-pr-${target.preview}`;
     if (config.name !== expected || config.env || config.d1_databases?.length !== 1
-      || config.d1_databases[0].binding !== 'DB' || config.d1_databases[0].database_name !== expected) {
+      || config.d1_databases[0].binding !== 'DB' || config.d1_databases[0].database_name !== `${prefix}-preview`) {
       throw new Error('Preview config does not match this PR. Regenerate it with pr-preview.mjs --config-only.');
     }
   }
@@ -144,7 +145,7 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
   const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
   if (process.versions.node !== pkg.engines.node) throw new Error(`Use Node ${pkg.engines.node}.`);
   if (!process.stdin.isTTY || !process.stdout.isTTY) throw new Error('Run from an interactive terminal; piped credentials are not accepted.');
-  process.stdout.write(`Target: ${target.mode === 'local' ? 'local D1' : (target.preview ? 'PR #' + target.preview : target.environment) + ' remote D1'}${target.persistTo ? ' (' + target.persistTo + ')' : ''}\n`);
+  process.stdout.write(`Target: ${target.mode === 'local' ? 'local D1' : (target.preview ? 'shared preview (via PR #' + target.preview + ')' : target.environment) + ' remote D1'}${target.persistTo ? ' (' + target.persistTo + ')' : ''}\n`);
   const input = createInterface({ input: process.stdin, output: process.stdout });
   let email: string;
   try { email = normalizeEmail(await input.question('Initial administrator email: ')); }
