@@ -39,13 +39,13 @@ jobs:
         run: pnpm install --frozen-lockfile --strict-peer-dependencies --registry=https://registry.npmjs.org
 
       - name: Typecheck all workspaces
-        run: pnpm run typecheck
+        run: pnpm run typecheck && pnpm run typecheck:desktop
 
       - name: Run all tests
         run: pnpm run test
 
       - name: Build all workspaces
-        run: pnpm run build
+        run: pnpm run build && pnpm run build:desktop
 
       - name: Check React and shared package style
         run: pnpm run lint:web && pnpm run lint:shared && pnpm run format:check:web

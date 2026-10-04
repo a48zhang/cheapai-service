@@ -19,7 +19,7 @@ describe('bounded native D1 identity cleanup', () => {
   it('deletes expiration==cutoff but preserves future expiries including revoked sessions', async () => {
     await session(1, 999); await session(2, 1000); await session(3, 1001); await session(4, 2000, 500);
     await challenge(1, 1000); await challenge(2, 1001);
-    expect(await cleanupExpiredIdentityData(testEnv.DB, 1000)).toEqual({ cutoff: 1000, sessionsDeleted: 2, challengesDeleted: 1, moreSessions: false, moreChallenges: false });
+    expect(await cleanupExpiredIdentityData(testEnv.DB, 1000)).toEqual({ cutoff: 1000, sessionsDeleted: 2, challengesDeleted: 1, moreSessions: false, moreChallenges: false, desktopSessionCiphertextsCleared: 0, moreDesktopSessionCiphertexts: false });
     expect((await testEnv.DB.prepare('SELECT id FROM sessions ORDER BY id').all()).results).toEqual([{ id: 'cleanup-session-3' }, { id: 'cleanup-session-4' }]);
     expect((await testEnv.DB.prepare('SELECT id FROM email_challenges').all()).results).toEqual([{ id: 'cleanup-challenge-2' }]);
   });

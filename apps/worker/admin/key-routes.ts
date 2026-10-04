@@ -123,7 +123,7 @@ export function createAdminKeyRoutes<B extends Bindings = Bindings>(dependencies
     const origin = typeof dependencies.trustedOrigin === 'function' ? await dependencies.trustedOrigin(context.env, context.req.raw) : dependencies.trustedOrigin;
     validateCsrfRequest(context.req.raw, origin);
     const id = context.req.param('id');
-    if (id.trim() !== id || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id) || /s2a_(?:key|session|invite)_/.test(id)
+    if (id.trim() !== id || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id) || /s2a_(?:key|session|invite|desktop)_/.test(id)
         || new URL(context.req.url).search !== '') throw new ApiError('invalid_request');
     const version = await readVersion(context.req.raw);
     return apiSuccess(await revokeAsAdmin(context.env.DB, context.get('user').id, id, version, context.get('adminKeyNow')), context.get('requestId'));

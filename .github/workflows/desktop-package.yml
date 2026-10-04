@@ -1,0 +1,129 @@
+name: Desktop installers
+
+on:
+  push:
+    branches: [main, feat/cheapai-desktop]
+    paths: &desktop-paths
+      - '.github/workflows/desktop-package.yml'
+      - 'apps/desktop/**'
+      - 'apps/desktop-runtime/**'
+      - 'packages/desktop-contracts/**'
+      - 'scripts/desktop/**'
+      - 'LICENSES/desktop/**'
+      - 'THIRD_PARTY_NOTICES.md'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.node-version'
+  pull_request:
+    paths: *desktop-paths
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-package-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            target: aarch64-apple-darwin
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+          - runner: windows-2022
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      CI: 'true'
+      WRANGLER_SEND_METRICS: 'false'
+      RUSTUP_TOOLCHAIN: '1.99.0'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Verify Rust pin
+        run: |
+          git ls-files --error-unmatch pnpm-lock.yaml apps/desktop/src-tauri/Cargo.lock
+          node -e "const v=require('./scripts/desktop/runtime-versions.json'); if(v.desktop.tauri.rust_toolchain!==process.env.RUSTUP_TOOLCHAIN) throw Error('Rust pin mismatch')"
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal --target '${{ matrix.target }}'
+          rustc --version
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+          cache-on-failure: 'true'
+      - name: Install locked dependencies
+        run: |
+          pnpm install --frozen-lockfile --strict-peer-dependencies --registry=https://registry.npmjs.org
+          cargo fetch --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --target '${{ matrix.target }}'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-locks-${{ matrix.target }}-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            pnpm-lock.yaml
+            apps/desktop/src-tauri/Cargo.lock
+      - name: Build complete desktop package
+        # Reserve the last 10 minutes for retaining outputs and failure evidence.
+        timeout-minutes: 50
+        run: pnpm package:desktop -- --runtime node --target '${{ matrix.target }}'
+      - name: Preserve compiled macOS application
+        if: always() && runner.os == 'macOS'
+        run: |
+          app='apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/macos/cheapai.dev.app'
+          if [ -d "$app" ]; then
+            test -x "$app/Contents/MacOS/sub2api-desktop"
+            test -f "$app/Contents/Info.plist"
+            ditto -c -k --sequesterRsrc --keepParent "$app" 'desktop-app-${{ matrix.target }}.zip'
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always() && runner.os == 'macOS'
+        with:
+          name: desktop-app-${{ matrix.target }}-${{ github.sha }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: desktop-app-${{ matrix.target }}.zip
+      - uses: actions/upload-artifact@v4
+        if: always() && runner.os == 'Windows'
+        with:
+          name: desktop-native-binary-${{ matrix.target }}-${{ github.sha }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: apps/desktop/src-tauri/target/${{ matrix.target }}/release/sub2api-desktop.exe
+      - name: Verify build preserved source and dependency locks
+        run: |
+          git diff --exit-code
+          node -e "const fs=require('fs'); const root='apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle'; if(!fs.readdirSync(root,{recursive:true}).some(p=>/\.(dmg|exe)$/.test(p))) throw Error('Installer was not produced')"
+      - name: Record delivery limits
+        run: |
+          node -e "require('fs').writeFileSync('desktop-delivery-status.txt', ['Source: '+process.env.GITHUB_SHA, 'Target: ${{ matrix.target }}', 'Runtime: node', 'Unsigned development installer; no signing or notarization configured.'].join('\n')+'\n')"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-installer-${{ matrix.target }}-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
+            apps/desktop/src-tauri/resources/generated/runtime/release-manifest.json
+            desktop-delivery-status.txt

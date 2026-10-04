@@ -1,0 +1,2420 @@
+{
+  "schema_version": 1,
+  "title": "cheapai.dev Desktop：分模块开发与集中验证计划",
+  "date": "2026-10-03",
+  "timezone": "Asia/Shanghai",
+  "repository": "https://github.com/a48zhang/sub2api-cloudflare",
+  "baseline_commit": "5b721891e89ff52e7293bdc03061ecc454e9084d",
+  "plan": "implementation-plan.md",
+  "state": "implementation_complete_with_external_blockers",
+  "rules": {
+    "max_files_per_task": 3,
+    "dependency_semantics": "artifact_completion_not_test_success",
+    "validation_dependency_for_non_validation_tasks": false,
+    "run_tests_only_in_kind": "validation",
+    "author_tests_only_in_kind": "test_authoring",
+    "file_locking": "exclusive_by_exact_relative_path",
+    "validation_exclusive_per_environment": true,
+    "shared_plan_owner": "coordinator",
+    "write_only_declared_files": true,
+    "no_per_task_push_or_deploy": true
+  },
+  "tasks": [
+    {
+      "id": "F01",
+      "module": "基础与接口",
+      "kind": "research",
+      "depends_on": [],
+      "files": [
+        "scripts/desktop/runtime-versions.json",
+        "docs/desktop/dsh-integration.md"
+      ],
+      "title": "记录固定版本和上游接入点",
+      "work": "只阅读 DSH 指定版本的源码、包清单和发布说明，选定精确 DSH/Bun/Node 对照版本与目标架构，记录可用的 Tauri/Rust 与 React 版本约束。记录真实 launcher、profile、会话接口、消息流、工具交互、持久化和静态资源入口；逐项标出公共接口与需随版本维护的接口。不得把 Bun 兼容性写成已成立。",
+      "final_state": "版本清单无 latest/浮动分支；接入文档提供实际源码路径和方法签名，未确定项明确标记。此任务不启动 DSH。",
+      "status": "completed",
+      "write_locks": [
+        "scripts/desktop/runtime-versions.json",
+        "docs/desktop/dsh-integration.md"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "F02",
+      "module": "基础与接口",
+      "kind": "implementation",
+      "depends_on": [],
+      "files": [
+        "packages/desktop-contracts/package.json",
+        "packages/desktop-contracts/tsconfig.json",
+        "packages/desktop-contracts/src/index.ts"
+      ],
+      "title": "建立最小共享契约包",
+      "work": "定义本计划约定的账号 DTO、登录/Key 响应、公开账号状态和宿主启动事件。导出纯 TypeScript 类型，不引入 React、Node、Tauri 或 DSH 依赖；区分包含凭据的私有消息与可发给页面的状态。使用仓库既有响应 envelope 和金额字符串表示。 包名固定为 @sub2api/desktop-contracts。",
+      "final_state": "Worker、Runtime、React 可导入同一接口类型；普通页面状态类型不包含 Token/Key。",
+      "status": "completed",
+      "write_locks": [
+        "packages/desktop-contracts/package.json",
+        "packages/desktop-contracts/tsconfig.json",
+        "packages/desktop-contracts/src/index.ts"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "F03",
+      "module": "基础与接口",
+      "kind": "implementation",
+      "depends_on": [
+        "F01",
+        "F02"
+      ],
+      "files": [
+        "apps/desktop-runtime/package.json",
+        "apps/desktop-runtime/tsconfig.json"
+      ],
+      "title": "创建本地 Runtime 包",
+      "work": "声明精确 DSH 依赖、contracts workspace 依赖及 dev/build/typecheck 脚本；编译配置与 Workers 类型隔离。开发包管理仍用仓库 Node/pnpm，执行运行时可选择 Bun 或 Node，不修改根 engines。 包名固定为 @sub2api/desktop-runtime。",
+      "final_state": "Runtime 有独立清单和编译边界，尚未假定 Bun 运行兼容。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop-runtime/package.json",
+        "apps/desktop-runtime/tsconfig.json"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "F04",
+      "module": "基础与接口",
+      "kind": "implementation",
+      "depends_on": [
+        "F01",
+        "F02"
+      ],
+      "files": [
+        "apps/desktop/package.json",
+        "apps/desktop/tsconfig.json",
+        "apps/desktop/vite.config.ts"
+      ],
+      "title": "创建独立 React 前端包",
+      "work": "按 DSH 实际组件依赖选定兼容 React 版本；声明 Vite、Tauri 前端接口和 contracts 依赖。普通 build 只构建前端资源，原生打包使用独立脚本名。开发服务固定桌面独立端口。 包含后续资源准备所用的固定 Tauri CLI 依赖，避免打包阶段临时 npx 下载。 包名固定为 @sub2api/desktop。",
+      "final_state": "桌面前端与现有 Vue 网站分别构建，不要求网站重构或共享组件库。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/package.json",
+        "apps/desktop/tsconfig.json",
+        "apps/desktop/vite.config.ts"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "F05",
+      "module": "基础与接口",
+      "kind": "integration",
+      "depends_on": [
+        "F03",
+        "F04"
+      ],
+      "files": [
+        "pnpm-workspace.yaml",
+        "package.json",
+        "pnpm-lock.yaml"
+      ],
+      "title": "接入 workspace 并隔离云端命令",
+      "work": "把 desktop、desktop-runtime、desktop-contracts 加入显式 workspace 清单；只生成一次本批依赖锁。保留现有 Node/pnpm、年龄和 allowBuilds 规则，仅按实际依赖添加精确例外。将既有云端 build/typecheck/check 明确限定原有云端包，增加桌面独立命令，避免现有 Linux CI 顺带要求 Rust/WebView。 新增 typecheck:desktop 与 build:desktop；原生 package:desktop 留给 N09。",
+      "final_state": "依赖关系落在同一个 pnpm lock；云端和桌面有清晰命令入口；没有自动安装依赖的运行脚本。生成锁文件属于此任务，不附带测试/构建执行。",
+      "status": "completed",
+      "write_locks": [
+        "pnpm-workspace.yaml",
+        "package.json",
+        "pnpm-lock.yaml"
+      ],
+      "execution_note": "2026-10-04 dependency recovery: official registry pnpm lock generated on 28a59a6; frozen strict-peer install passes with age and script policy preserved. See evidence/dependency-recovery.md."
+    },
+    {
+      "id": "F06",
+      "module": "基础与接口",
+      "kind": "implementation",
+      "depends_on": [],
+      "files": [
+        ".gitignore"
+      ],
+      "title": "标记桌面本地产物",
+      "work": "增加桌面 Rust target、sidecar 下载缓存、生成资源、测试专用 DSH home、安装包及诊断输出的忽略项；保留应提交的 Cargo.lock、版本清单和源文件。不要忽略整个 apps/desktop 或掩盖现有跟踪文件。",
+      "final_state": "运行数据、凭据和大体积构建产物有明确的本地存放位置。",
+      "status": "completed",
+      "write_locks": [
+        ".gitignore"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "R01",
+      "module": "DSH运行链",
+      "kind": "implementation",
+      "depends_on": [
+        "F01",
+        "F03"
+      ],
+      "files": [
+        "apps/desktop-runtime/profiles/cheapai.yml",
+        "apps/desktop-runtime/src/dsh/config.ts"
+      ],
+      "title": "配置 cheapai 的 DSH 组合",
+      "work": "按上游实际配置格式组合对话、会话、工具、持久化和所需 Web/RPC 服务。使用独立 home、loopback 动态端口和 no-open 模式。沿用 DSH 原生执行/权限策略，不增加只读/Full Access 选择器或自定义沙箱。排除官方账号和整页 UI 对产品外壳的接管。",
+      "final_state": "存在固定的 cheapai profile，路径和 endpoint 来自启动参数，配置中没有实际密钥。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop-runtime/profiles/cheapai.yml",
+        "apps/desktop-runtime/src/dsh/config.ts"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "R02",
+      "module": "DSH运行链",
+      "kind": "implementation",
+      "depends_on": [
+        "R01"
+      ],
+      "files": [
+        "apps/desktop-runtime/src/dsh/launcher.ts",
+        "apps/desktop-runtime/src/dsh/paths.ts"
+      ],
+      "title": "实现可切换运行时的启动器",
+      "work": "依据 F01 中的真实入口用显式 Bun/Node 路径启动 DSH；不依赖 npx、全局 PATH 或 Node shebang。区分开发目录和安装包资源目录，使用参数数组处理空格与中文路径。传递 profile/home，不把原始 Key 放进命令行。",
+      "final_state": "同一套启动代码接受 runtime=bun 或 node；不产生两套 DSH 业务实现。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop-runtime/src/dsh/launcher.ts",
+        "apps/desktop-runtime/src/dsh/paths.ts"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "R03",
+      "module": "DSH运行链",
+      "kind": "implementation",
+      "depends_on": [
+        "R02"
+      ],
+      "files": [
+        "apps/desktop-runtime/src/dsh/lifecycle.ts",
+        "apps/desktop-runtime/src/dsh/connection-info.ts"
+      ],
+      "title": "定义服务生命周期与就绪信息",
+      "work": "统一 starting/ready/stopping/stopped/failed 状态；从真实 Host 就绪信号取得端口和 DSH 连接信息。实现启动超时、一次性退出收尾和服务重启；保留 DSH 原有连接鉴权方式，不伪造 ready 或依赖任意 stdout 字符串猜测。 若上游缺少独立就绪消息，使用其文档定义的 readiness 接口，由连接适配统一实现，不在各组件中轮询。",
+      "final_state": "外层能获得明确的服务状态及连接描述，失败保留可诊断的阶段信息。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop-runtime/src/dsh/lifecycle.ts",
+        "apps/desktop-runtime/src/dsh/connection-info.ts"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "R04",
+      "module": "DSH运行链",
+      "kind": "implementation",
+      "depends_on": [
+        "R01"
+      ],
+      "files": [
+        "apps/desktop-runtime/src/cheapai/provider.ts",
+        "apps/desktop-runtime/src/cheapai/model-catalog.ts"
+      ],
+      "title": "接入测试 Key 与模型目录",
+      "work": "将测试网关 Base URL、协议、Key 和模型配置接入上游 Provider 扩展点。从 /v1/models 获取可见模型，并结合实际模型能力提供工具调用所需配置；不声称目录接口能返回全部上下文或工具能力。测试凭据只从本地受保护配置/环境读取。",
+      "final_state": "Runtime 能配置 cheapai Provider；凭据更新集中到一个入口，前端构建不包含 Key。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop-runtime/src/cheapai/provider.ts",
+        "apps/desktop-runtime/src/cheapai/model-catalog.ts"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "R05",
+      "module": "DSH运行链",
+      "kind": "implementation",
+      "depends_on": [
+        "R03",
+        "R04",
+        "F02"
+      ],
+      "files": [
+        "apps/desktop-runtime/src/host/control.ts",
+        "apps/desktop-runtime/src/host/protocol.ts"
+      ],
+      "title": "建立宿主控制通道",
+      "work": "实现宿主到 Runtime 的启动、停止、状态请求及私有配置消息；控制通道使用父子进程管道并与普通日志分离。对页面输出仅提供状态和 DSH 所需连接描述。预留账号命令分发扩展点，但不提前实现登录流程。",
+      "final_state": "宿主可管理 Runtime，普通日志不会破坏控制消息，命令结果不会无差别广播给页面。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop-runtime/src/host/control.ts",
+        "apps/desktop-runtime/src/host/protocol.ts"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "R06",
+      "module": "DSH运行链",
+      "kind": "integration",
+      "depends_on": [
+        "R05"
+      ],
+      "files": [
+        "apps/desktop-runtime/src/index.ts"
+      ],
+      "title": "装配本地服务入口",
+      "work": "连接配置、Provider、DSH launcher、生命周期和控制通道；处理进程退出信号并清理自有监听。提供开发模式入口与 sidecar 模式入口，共用实际执行路径。",
+      "final_state": "一个入口拥有启动与关闭顺序，Runtime 不另建 Agent、消息历史或工具调度器。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop-runtime/src/index.ts"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "R07",
+      "module": "DSH运行链",
+      "kind": "implementation",
+      "depends_on": [
+        "R06",
+        "F05",
+        "F06"
+      ],
+      "files": [
+        "scripts/desktop/dev-runtime.mjs",
+        "scripts/desktop/create-fixture.mjs"
+      ],
+      "title": "准备统一启动脚本和任务目录",
+      "work": "添加显式 --runtime bun|node 的开发启动脚本。fixture 脚本在指定临时目录生成少量文本和一个可执行的小程序，供完整链路使用；拒绝覆盖已有用户目录。脚本只负责准备和启动，不在每次启动时执行测试或安装依赖。",
+      "final_state": "Node/Bun 可使用同一 profile、模型和任务目录；验证不会修改真实项目。",
+      "status": "completed",
+      "write_locks": [
+        "scripts/desktop/dev-runtime.mjs",
+        "scripts/desktop/create-fixture.mjs"
+      ],
+      "execution_note": "2026-10-04: gpt-6-luna/max artifact handoff reconciled; implementation/test authoring complete, full module validation remains separate."
+    },
+    {
+      "id": "RT01",
+      "module": "DSH运行链",
+      "kind": "test_authoring",
+      "depends_on": [
+        "R06",
+        "R07"
+      ],
+      "files": [
+        "tests/desktop/runtime-lifecycle.node.test.ts",
+        "tests/desktop/helpers/fake-host.ts"
+      ],
+      "title": "补充 Runtime 收尾行为测试",
+      "work": "仅覆盖启动超时、ready 前崩溃、重复 stop、重启后的旧回调失效和监听释放。使用可控进程接口/fake host，无真实模型请求、固定端口或真实用户目录；测试中按资源所有者释放句柄。",
+      "final_state": "存在可重复执行的行为用例，覆盖有可能遗留进程或串状态的分支；本任务不执行。",
+      "test_necessity": "生命周期多处异步回调会导致残留服务和迟到状态，这是上线后难以发现的实际错误；不测试日志文本或配置快照。",
+      "status": "completed",
+      "write_locks": [
+        "tests/desktop/runtime-lifecycle.node.test.ts",
+        "tests/desktop/helpers/fake-host.ts"
+      ],
+      "execution_note": "2026-10-04: gpt-6-luna/max artifact handoff reconciled; implementation/test authoring complete, full module validation remains separate."
+    },
+    {
+      "id": "RV01",
+      "module": "DSH运行链",
+      "kind": "validation",
+      "depends_on": [
+        "RT01"
+      ],
+      "files": [
+        "docs/desktop/evidence/runtime.md"
+      ],
+      "title": "集中执行 DSH Node/Bun 运行链",
+      "work": "在整个 R 模块和 RT01 完成后，一次性执行桌面 Runtime 的类型/构建及 RT01；随后用同一固定版本、profile、临时任务比较 Node 基线和 Bun：启动、流式对话、读写、命令、停止、持久化、退出。真实网关需要已有授权的测试 Key 和预算；缺少时记录该段未执行，不能用 mock 冒充兼容通过。",
+      "final_state": "报告按 runtime/OS/架构记录版本、命令、结果和具体阻塞；Bun 不兼容时定位到 API/原生依赖/加载方式。此任务只产生报告，不修改实现或顺带升级依赖。",
+      "status": "partial",
+      "write_locks": [
+        "docs/desktop/evidence/runtime.md"
+      ],
+      "execution_note": "2026-10-04: final evidence artifact written; actual commands, passed scope and missing target/dependency/port/real-model coverage recorded. Not a full-chain pass."
+    },
+    {
+      "id": "U01",
+      "module": "自有对话界面",
+      "kind": "implementation",
+      "depends_on": [
+        "F04"
+      ],
+      "files": [
+        "apps/desktop/index.html",
+        "apps/desktop/src/main.tsx",
+        "apps/desktop/src/app/App.tsx"
+      ],
+      "title": "建立独立前端入口",
+      "work": "挂载自有 React 根组件，先提供启动状态和空工作区；不嵌入 DSH 整页、不使用 iframe。为后续会话页和账号页预留明确路由/状态出口。",
+      "final_state": "桌面有自己的应用入口，DSH 只作为能力来源。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/index.html",
+        "apps/desktop/src/main.tsx",
+        "apps/desktop/src/app/App.tsx"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "U02",
+      "module": "自有对话界面",
+      "kind": "implementation",
+      "depends_on": [
+        "U01"
+      ],
+      "files": [
+        "apps/desktop/src/styles/theme.css",
+        "apps/desktop/src/styles/global.css",
+        "apps/desktop/src/components/ui/controls.tsx"
+      ],
+      "title": "定义蓝白主题和基础控件",
+      "work": "实现统一颜色/间距/字号/圆角变量及少量按钮、输入框、菜单控件；样式覆盖键盘焦点和禁用状态。只建设本客户端使用的组件，不抽跨网站设计系统。",
+      "final_state": "登录、对话、设置后续可使用同一视觉基线；无权限控件。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src/styles/theme.css",
+        "apps/desktop/src/styles/global.css",
+        "apps/desktop/src/components/ui/controls.tsx"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "U03",
+      "module": "自有对话界面",
+      "kind": "implementation",
+      "depends_on": [
+        "F01",
+        "R05",
+        "U01"
+      ],
+      "files": [
+        "apps/desktop/src/adapters/dsh/client.ts",
+        "apps/desktop/src/adapters/dsh/connection.ts"
+      ],
+      "title": "连接真实 DSH 协议",
+      "work": "按 F01 确认的接口封装 DSH 客户端和连接生命周期，支持断开与重新订阅。优先调用上游现有客户端，私有接口集中在该目录；不另造聊天 REST 协议。开发模式通过 Runtime bootstrap 取得连接信息。",
+      "final_state": "业务组件不直接依赖散落的 DSH URL、WebSocket 帧格式或内部服务名。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src/adapters/dsh/client.ts",
+        "apps/desktop/src/adapters/dsh/connection.ts"
+      ],
+      "execution_note": "2026-10-04: gpt-6-luna/max artifact handoff reconciled; implementation/test authoring complete, full module validation remains separate."
+    },
+    {
+      "id": "U04",
+      "module": "自有对话界面",
+      "kind": "implementation",
+      "depends_on": [
+        "U03"
+      ],
+      "files": [
+        "apps/desktop/src/features/conversations/session-service.ts",
+        "apps/desktop/src/features/conversations/session-store.ts"
+      ],
+      "title": "接入会话列表及操作",
+      "work": "连接 DSH 的列表、新建、打开、重命名能力；固定版本无删除接口，删除操作明确返回 unsupported；维护选中会话与列表缓存。搜索先限于已加载标题并明确范围；若上游支持分页则沿用，不悄悄加载整份历史或维护第二套持久化。",
+      "final_state": "会话操作以 DSH 结果为准，本地 store 只负责界面投影。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src/features/conversations/session-service.ts",
+        "apps/desktop/src/features/conversations/session-store.ts"
+      ],
+      "execution_note": "2026-10-04: gpt-6-luna/max handoff reconciled; artifact complete, end-to-end behavior unverified. Pinned DSH has no Session delete; no local hide or alternate persistence. Follow/snapshot remain U05; real account home partition remains L05."
+    },
+    {
+      "id": "U05",
+      "module": "自有对话界面",
+      "kind": "implementation",
+      "depends_on": [
+        "U03"
+      ],
+      "files": [
+        "apps/desktop/src/features/conversations/event-projection.ts",
+        "apps/desktop/src/features/conversations/message-store.ts"
+      ],
+      "title": "投影消息与流式状态",
+      "work": "优先复用 DSH 已有投影；仅补 UI 所需映射。按真实事件 ID/游标规则处理增量、最终消息、工具结果及连接恢复后的快照，避免文本重复和终态倒退；草稿按会话保存。",
+      "final_state": "页面获得稳定消息列表与执行状态；重连不会重复追加已提交消息。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src/features/conversations/event-projection.ts",
+        "apps/desktop/src/features/conversations/message-store.ts"
+      ],
+      "execution_note": "Implementation artifact handed off; centralized validation not yet run for this source."
+    },
+    {
+      "id": "U06",
+      "module": "自有对话界面",
+      "kind": "implementation",
+      "depends_on": [
+        "U02",
+        "U05"
+      ],
+      "files": [
+        "apps/desktop/src/features/conversations/MessageList.tsx",
+        "apps/desktop/src/features/conversations/MessageBody.tsx",
+        "apps/desktop/src/features/conversations/conversation.css"
+      ],
+      "title": "实现消息展示",
+      "work": "适配可复用的 DSH 消息组件，统一用户浅蓝背景、Assistant 正文、Markdown 与代码块。跟随最新消息但尊重向上阅读的位置，提供回到最新入口；代码复制使用组件事件，不执行代码。",
+      "final_state": "消息展示使用蓝白风格，长代码和长输出有明确滚动边界。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src/features/conversations/MessageList.tsx",
+        "apps/desktop/src/features/conversations/MessageBody.tsx",
+        "apps/desktop/src/features/conversations/conversation.css"
+      ],
+      "execution_note": "Implementation artifact handed off; centralized validation not yet run for this source."
+    },
+    {
+      "id": "U07",
+      "module": "自有对话界面",
+      "kind": "implementation",
+      "depends_on": [
+        "U02",
+        "U03",
+        "U05"
+      ],
+      "files": [
+        "apps/desktop/src/features/conversations/ToolCall.tsx",
+        "apps/desktop/src/features/conversations/DshInteraction.tsx"
+      ],
+      "title": "承接工具展示和 DSH 原生交互",
+      "work": "展示工具名称、执行状态和折叠详情；对 DSH 发出的用户问题或必要确认复用其既有交互协议/组件并返回结果。不新增权限模式、不实现自己的审批策略，也不能把上游等待输入状态丢弃。",
+      "final_state": "工具状态和用户交互都能回到 DSH，同一请求不会重复提交回答。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src/features/conversations/ToolCall.tsx",
+        "apps/desktop/src/features/conversations/DshInteraction.tsx"
+      ],
+      "execution_note": "Real Gateway waterfalls, exact owner scopes and pinned timed wait/continued answers authored; browser-safe wire errors; centralized checks pending."
+    },
+    {
+      "id": "U08",
+      "module": "自有对话界面",
+      "kind": "implementation",
+      "depends_on": [
+        "U02",
+        "U03",
+        "U05"
+      ],
+      "files": [
+        "apps/desktop/src/features/conversations/Composer.tsx",
+        "apps/desktop/src/features/conversations/composer-controller.ts"
+      ],
+      "title": "实现发送与停止",
+      "work": "接入发送、停止和模型选择，保留输入草稿并处理中文输入法组合状态；使用 DSH 已支持的模型切换语义。未发生明确失败时不自动重发模型请求，防止重复执行和扣费。",
+      "final_state": "输入框没有权限选择器；运行状态下显示停止，失败后保留可恢复的输入。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src/features/conversations/Composer.tsx",
+        "apps/desktop/src/features/conversations/composer-controller.ts"
+      ],
+      "execution_note": "Implementation artifact handed off; centralized validation pending."
+    },
+    {
+      "id": "U09",
+      "module": "自有对话界面",
+      "kind": "implementation",
+      "depends_on": [
+        "U02",
+        "U04"
+      ],
+      "files": [
+        "apps/desktop/src/components/layout/Sidebar.tsx",
+        "apps/desktop/src/features/conversations/SessionMenu.tsx"
+      ],
+      "title": "实现会话侧栏",
+      "work": "连接新对话、已加载标题搜索、时间分组、当前会话和重命名/删除菜单；显示运行中标记。底部预留账号和设置入口，不添加任务中心或资产库。",
+      "final_state": "侧栏操作真实会话服务，业务状态不硬编码为静态演示数据。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src/components/layout/Sidebar.tsx",
+        "apps/desktop/src/features/conversations/SessionMenu.tsx"
+      ],
+      "execution_note": "2026-10-04: Sidebar/session menu handoff; real service/store, workspace required, deletion explicitly unsupported. Unvalidated artifact."
+    },
+    {
+      "id": "U10",
+      "module": "自有对话界面",
+      "kind": "implementation",
+      "depends_on": [
+        "U02",
+        "U03"
+      ],
+      "files": [
+        "apps/desktop/src/features/workspace/WorkspacePicker.tsx",
+        "apps/desktop/src/adapters/native/directories.ts"
+      ],
+      "title": "接入目录选择边界",
+      "work": "定义目录选择 adapter，浏览器原型使用 DSH 已有目录选择能力，原生宿主后续替换为 Tauri 对话框。新会话可先显示未选目录；开始任务时遵循 DSH 真实工作区要求，必要时提示选择，不能默认对应用目录执行。已开始工作的会话换目录采用新会话，不另造目录权限机制。",
+      "final_state": "目录路径成为会话配置，不使用进程 cwd 隐式操作仓库。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src/features/workspace/WorkspacePicker.tsx",
+        "apps/desktop/src/adapters/native/directories.ts"
+      ],
+      "execution_note": "Native picker plus scoped pinned workspaceFiles list/stat browser adapter; no cwd fallback, active-session directory change creates new session. Unvalidated artifact."
+    },
+    {
+      "id": "U11",
+      "module": "自有对话界面",
+      "kind": "integration",
+      "depends_on": [
+        "U06",
+        "U07",
+        "U08",
+        "U09",
+        "U10"
+      ],
+      "files": [
+        "apps/desktop/src/features/conversations/ConversationPage.tsx",
+        "apps/desktop/src/components/layout/AppShell.tsx",
+        "apps/desktop/src/app/App.tsx"
+      ],
+      "title": "装配完整对话页面",
+      "work": "组装侧栏、标题/目录、消息区、输入区和空会话页；绑定当前会话状态。切换会话不自动停止任务，任务仍由 DSH 管理，不另建调度系统。接入错误/等待交互，保留账号入口占位。",
+      "final_state": "自有页面能表达完整会话链，所有 UI 命令均有真实 adapter 落点。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src/features/conversations/ConversationPage.tsx",
+        "apps/desktop/src/components/layout/AppShell.tsx",
+        "apps/desktop/src/app/App.tsx"
+      ],
+      "execution_note": "2026-10-04: complete source handoff and UI/native wiring; centralized validation recorded separately, no compatibility claim."
+    },
+    {
+      "id": "U12",
+      "module": "自有对话界面",
+      "kind": "implementation",
+      "depends_on": [
+        "U02"
+      ],
+      "files": [
+        "apps/desktop/src/features/settings/SettingsPage.tsx",
+        "apps/desktop/src/features/settings/preferences.ts"
+      ],
+      "title": "建立设置页与本地偏好",
+      "work": "实现通用、账号占位、关于三个分区；存储默认模型、默认目录等非敏感偏好，并提供默认值和版本字段。余额尚未接入时显示未加载状态，不显示虚构数字。",
+      "final_state": "设置页面沿用统一组件，偏好与 DSH 消息历史分开。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src/features/settings/SettingsPage.tsx",
+        "apps/desktop/src/features/settings/preferences.ts"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "UT01",
+      "module": "自有对话界面",
+      "kind": "test_authoring",
+      "depends_on": [
+        "U11",
+        "U12"
+      ],
+      "files": [
+        "tests/desktop/conversation-events.node.test.ts",
+        "tests/desktop/helpers/dsh-events.ts"
+      ],
+      "title": "补充消息恢复和终态测试",
+      "work": "仅在自有 event projection 包含实际逻辑时增加用例：增量与最终消息交接、重连快照不重复、旧会话事件不污染新会话、取消后迟到事件不恢复运行。若完全复用上游投影，仅覆盖本地订阅切换，删除重复上游用例。",
+      "final_state": "测试针对会导致丢消息或错误显示执行状态的行为；fixture 根据固定 DSH 版本构造，任务不执行。",
+      "test_necessity": "断线恢复和异步事件归属是自有 UI 的真实风险；不对文案、DOM 类名、消息全文或组件快照做严格比较。",
+      "status": "completed",
+      "write_locks": [
+        "tests/desktop/conversation-events.node.test.ts",
+        "tests/desktop/helpers/dsh-events.ts"
+      ],
+      "execution_note": "Typed fixed DSH fixtures and local subscription/scope/late page cases authored; not executed yet."
+    },
+    {
+      "id": "UV01",
+      "module": "自有对话界面",
+      "kind": "validation",
+      "depends_on": [
+        "UT01",
+        "RT01"
+      ],
+      "files": [
+        "docs/desktop/evidence/conversation.md"
+      ],
+      "title": "集中执行自有页面到 DSH 链路",
+      "work": "在完整 U 模块组装后一次性执行前端类型/构建和 UT01；浏览器只跑一条完整业务链：新会话→发送→工具交互→停止→切换会话→刷新恢复。使用同一固定 runtime 配置；以任务结果、状态和历史归属判定，不做像素/中文文案比较。",
+      "final_state": "报告区分真实 DSH、模拟事件和真实模型的范围；明确可复用组件和本地适配清单。只记录问题，修复另开小任务。",
+      "status": "partial",
+      "write_locks": [
+        "docs/desktop/evidence/conversation.md"
+      ],
+      "execution_note": "2026-10-04: final evidence artifact written; actual commands, passed scope and missing target/dependency/port/real-model coverage recorded. Not a full-chain pass."
+    },
+    {
+      "id": "N01",
+      "module": "Tauri宿主与打包",
+      "kind": "implementation",
+      "depends_on": [
+        "F04"
+      ],
+      "files": [
+        "apps/desktop/src-tauri/Cargo.toml",
+        "apps/desktop/src-tauri/build.rs",
+        "apps/desktop/src-tauri/src/main.rs"
+      ],
+      "title": "建立 Rust 宿主清单与入口",
+      "work": "声明精确 Tauri、进程、目录/浏览器、系统凭据和后续更新所需依赖；只启用实际使用的 feature。创建标准构建入口与 main，原生 build 与普通前端 build 分开。",
+      "final_state": "Rust 包有独立依赖声明和启动入口；此任务不生成安装包或运行 cargo check。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src-tauri/Cargo.toml",
+        "apps/desktop/src-tauri/build.rs",
+        "apps/desktop/src-tauri/src/main.rs"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "N02",
+      "module": "Tauri宿主与打包",
+      "kind": "implementation",
+      "depends_on": [
+        "N01",
+        "U01"
+      ],
+      "files": [
+        "apps/desktop/src-tauri/tauri.conf.json",
+        "apps/desktop/src-tauri/capabilities/default.json"
+      ],
+      "title": "配置应用窗口和资源路径",
+      "work": "配置应用 ID、窗口初始尺寸、前端开发地址/产物目录、sidecar 与资源目录；原生能力仅配置当前功能需要的窗口/目录/打开网址等入口。这是 Tauri 接线，不映射为用户权限档位。",
+      "final_state": "前端和随包 Runtime 路径确定，无远程整页替换自有界面。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src-tauri/tauri.conf.json",
+        "apps/desktop/src-tauri/capabilities/default.json"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "N03",
+      "module": "Tauri宿主与打包",
+      "kind": "implementation",
+      "depends_on": [
+        "N02",
+        "R05"
+      ],
+      "files": [
+        "apps/desktop/src-tauri/src/runtime.rs",
+        "apps/desktop/src-tauri/src/protocol.rs",
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "title": "启动 sidecar 并接收就绪信息",
+      "work": "实现 Runtime 进程启动、控制消息解码、超时/异常状态和公开连接描述。只启动应用自己的服务；前端请求状态时不泄露账号凭据。运行时路径来自打包清单而非用户 PATH。",
+      "final_state": "应用宿主拥有一个 Runtime，页面通过明确命令取得启动状态及 DSH 连接。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src-tauri/src/runtime.rs",
+        "apps/desktop/src-tauri/src/protocol.rs",
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "execution_note": "2026-10-04: owned native Runtime lifecycle and safe status/connection marker handed off; decoded stream bridge is a separate N03-transport adjustment, native build remains unverified."
+    },
+    {
+      "id": "N04",
+      "module": "Tauri宿主与打包",
+      "kind": "implementation",
+      "depends_on": [
+        "N03"
+      ],
+      "files": [
+        "apps/desktop/src-tauri/src/runtime.rs",
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "title": "完成关闭、重启和进程收尾",
+      "work": "实现退出时先正常停止再有界终止自有服务/子进程；运行任务的退出提示采用现有活动状态。服务崩溃支持显式重启，避免自动重启循环。首版不承诺托盘常驻；普通关窗按明确的应用退出行为处理。",
+      "final_state": "关闭应用不会遗留应用管理的 DSH 服务；服务异常有恢复入口，重启不自动重放任务。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src-tauri/src/runtime.rs",
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "execution_note": "Native epoch, monotonic public generation, bounded restart/shutdown and activity prompt authored; process descendant cleanup is a supplemental artifact and centralized native validation pending."
+    },
+    {
+      "id": "N05",
+      "module": "Tauri宿主与打包",
+      "kind": "implementation",
+      "depends_on": [
+        "N03"
+      ],
+      "files": [
+        "apps/desktop/src-tauri/src/native.rs",
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "title": "连接原生目录与外部链接",
+      "work": "提供目录选择、打开 cheapai 注册/控制台地址的宿主命令；取消选择返回空结果。目录选择不创建或修改目录，打开网页不向 URL 附加登录 Token/Key。",
+      "final_state": "前端通过小接口使用系统目录对话框和浏览器，不依赖 Electron bridge。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src-tauri/src/native.rs",
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "execution_note": "Implementation artifact handed off; centralized validation pending."
+    },
+    {
+      "id": "N06",
+      "module": "Tauri宿主与打包",
+      "kind": "implementation",
+      "depends_on": [
+        "N01"
+      ],
+      "files": [
+        "apps/desktop/src-tauri/src/credentials.rs"
+      ],
+      "title": "提供系统凭据存储适配",
+      "work": "以应用和账号/当前安装会话为命名空间实现读取、保存、删除登录凭据；使用系统安全存储。定义供 Runtime 私有控制通道调用的接口，不建立额外密码库或设备指纹体系。",
+      "final_state": "宿主有可复用的凭据读写能力，普通页面只能取得公开账号状态。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src-tauri/src/credentials.rs"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "N07",
+      "module": "Tauri宿主与打包",
+      "kind": "implementation",
+      "depends_on": [
+        "F03",
+        "N02",
+        "F01"
+      ],
+      "files": [
+        "scripts/desktop/prepare-runtime.mjs",
+        "scripts/desktop/package-runtime.mjs"
+      ],
+      "title": "准备可搬移的 Bun/DSH 资源",
+      "work": "按版本清单准备目标 OS/架构的 Bun 和 DSH 生产依赖及资源；移除对开发机绝对路径、全局 node_modules 和失效 symlink 的依赖。原生依赖按目标平台准备，保留 Node 备选路径。首版不做 bun compile 单文件化。 下载源、版本与 checksum 由已固定的发行元数据指定；Bun/Node 二选一进入正式包，不把两个运行时默认全部打包。",
+      "final_state": "脚本产生可整体复制进安装包的 Runtime 目录及资源清单，不在应用首次启动时下载运行环境。",
+      "status": "completed",
+      "write_locks": [
+        "scripts/desktop/prepare-runtime.mjs",
+        "scripts/desktop/package-runtime.mjs"
+      ],
+      "execution_note": "2026-10-04: gpt-6-luna/max artifact handoff reconciled; implementation/test authoring complete, full module validation remains separate."
+    },
+    {
+      "id": "N08",
+      "module": "Tauri宿主与打包",
+      "kind": "integration",
+      "depends_on": [
+        "N04",
+        "N05",
+        "U10",
+        "U11"
+      ],
+      "files": [
+        "apps/desktop/src/adapters/native/runtime.ts",
+        "apps/desktop/src/adapters/native/directories.ts",
+        "apps/desktop/src/app/App.tsx"
+      ],
+      "title": "连接前端与真实宿主",
+      "work": "将启动等待、服务重试和目录选择从开发 adapter 接到 Tauri；收到 ready 后才建立 DSH 连接。保留明确的浏览器开发模式，不因缺少 native 全局对象而伪报宿主已就绪。",
+      "final_state": "同一 React UI 能在 Tauri 中使用随包服务，并呈现真实启动/失败状态。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src/adapters/native/runtime.ts",
+        "apps/desktop/src/adapters/native/directories.ts",
+        "apps/desktop/src/app/App.tsx"
+      ],
+      "execution_note": "2026-10-04: complete source handoff and UI/native wiring; centralized validation recorded separately, no compatibility claim."
+    },
+    {
+      "id": "N10",
+      "module": "Tauri宿主与打包",
+      "kind": "implementation",
+      "depends_on": [
+        "N02",
+        "N07"
+      ],
+      "files": [
+        "apps/desktop/src-tauri/icons/app.svg",
+        "scripts/desktop/prepare-icons.mjs",
+        "apps/desktop/src-tauri/tauri.conf.json"
+      ],
+      "title": "准备最小桌面图标资源",
+      "work": "提供简单的 cheapai 蓝白源图标，用固定 Tauri CLI/已有图像工具生成各平台打包所需 PNG/ICO/ICNS 到忽略目录，并配置资源路径。生成脚本只作为打包步骤，不启动应用或检查界面，不增加品牌设计系统。",
+      "final_state": "安装包与应用窗口有完整图标资源来源，不依赖开发机遗留图标。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src-tauri/icons/app.svg",
+        "scripts/desktop/prepare-icons.mjs",
+        "apps/desktop/src-tauri/tauri.conf.json"
+      ],
+      "execution_note": "Root reconciled icon source, pinned CLI generation, atomic generated-output replacement and Tauri icon paths; generation/build not executed because Tauri CLI is not installed."
+    },
+    {
+      "id": "N09",
+      "module": "Tauri宿主与打包",
+      "kind": "integration",
+      "depends_on": [
+        "N06",
+        "N07",
+        "N08",
+        "F05",
+        "N10"
+      ],
+      "files": [
+        "apps/desktop/src-tauri/Cargo.lock",
+        "package.json",
+        "scripts/desktop/dev-desktop.mjs"
+      ],
+      "title": "收口原生依赖与开发命令",
+      "work": "集中生成本批 Cargo.lock，增加 dev:desktop、build:desktop、package:desktop 独立命令；脚本负责按依赖顺序准备资源、启动，不嵌入自动测试。桌面安装命令与 Cloudflare 部署命令没有隐式互调。 package:desktop 接受 --target <Rust target triple>；图标准备在 Runtime/安装包资源装配前运行。",
+      "final_state": "宿主、前端、Runtime 有完整命令编排；锁文件统一由该任务写入。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src-tauri/Cargo.lock",
+        "package.json",
+        "scripts/desktop/dev-desktop.mjs"
+      ],
+      "execution_note": "2026-10-04 official Rust/Cargo 1.99.0 installed; genuine Cargo.lock generated and cargo fetch --locked passes. Native check remains blocked on Linux system libraries; runtime bootstrap exposes DSH ModuleLoader/ESM integration mismatch."
+    },
+    {
+      "id": "NT01",
+      "module": "Tauri宿主与打包",
+      "kind": "test_authoring",
+      "depends_on": [
+        "N09"
+      ],
+      "files": [
+        "apps/desktop/src-tauri/src/runtime.rs",
+        "apps/desktop/src-tauri/src/protocol.rs"
+      ],
+      "title": "补充宿主消息与生命周期测试",
+      "work": "仅对本地拥有的协议解析和状态迁移增加 Rust 单元测试：分块控制消息、进程退出、重复停止、重启世代隔离、私有凭据消息不会进入公开事件。使用内存输入和 fake process，不在 cargo test 中启动真实 DSH 或系统弹窗。",
+      "final_state": "存在针对进程泄漏/状态串线风险的用例，且不与 RT01 重复测试同一层；不执行。",
+      "test_necessity": "Tauri 和 Runtime 之间存在独立的异步边界，错误会泄漏进程或把私有响应发给错误接收方；不验证打印字符串。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src-tauri/src/runtime.rs",
+        "apps/desktop/src-tauri/src/protocol.rs"
+      ],
+      "execution_note": "Five Rust protocol/public-projection/lifecycle generation tests authored; no cargo/toolchain available, not executed."
+    },
+    {
+      "id": "NV01",
+      "module": "Tauri宿主与打包",
+      "kind": "validation",
+      "depends_on": [
+        "NT01"
+      ],
+      "files": [
+        "docs/desktop/evidence/native-macos.md"
+      ],
+      "title": "集中完成 macOS 原生交付验证",
+      "work": "在 N 模块完整后执行一次原生构建及新增 Rust 测试，在目标 macOS 上安装并操作新建会话、工具执行、停止、退出、重启恢复；至少在不依赖预装 Node/Bun 的环境操作。记录 arm64/x64 实际覆盖，中文/空格路径、包体、启动时间、空闲内存和服务退出情况。未提供架构不得写为已验。",
+      "final_state": "形成 macOS 安装与 Runtime 的实际证据；只写报告，不顺带修改业务代码。",
+      "status": "blocked_target",
+      "write_locks": [
+        "docs/desktop/evidence/native-macos.md"
+      ],
+      "execution_note": "2026-10-04: final evidence artifact written; actual commands, passed scope and missing target/dependency/port/real-model coverage recorded. Not a full-chain pass."
+    },
+    {
+      "id": "NV02",
+      "module": "Tauri宿主与打包",
+      "kind": "validation",
+      "depends_on": [
+        "NT01"
+      ],
+      "files": [
+        "docs/desktop/evidence/native-windows.md"
+      ],
+      "title": "集中完成 Windows 原生交付验证",
+      "work": "对 Windows x64 独立执行同一条完整原生链，覆盖 WebView2 交付策略、无预装 Node/Bun、中文/空格路径、命令停止与服务进程收尾。平台任务可以与 NV01 并行；共用纯逻辑测试若已有同提交结果不重复跑，平台特有测试/构建单独记录。",
+      "final_state": "形成 Windows 真实安装证据；Linux、浏览器截图和 macOS 结果不代替此报告。",
+      "status": "blocked_target",
+      "write_locks": [
+        "docs/desktop/evidence/native-windows.md"
+      ],
+      "execution_note": "2026-10-04: final evidence artifact written; actual commands, passed scope and missing target/dependency/port/real-model coverage recorded. Not a full-chain pass."
+    },
+    {
+      "id": "A01",
+      "module": "桌面账号后端",
+      "kind": "implementation",
+      "depends_on": [
+        "F02"
+      ],
+      "files": [
+        "apps/worker/auth/tokens.ts",
+        "apps/worker/auth/desktop/types.ts"
+      ],
+      "title": "定义桌面 Token 与账号模型",
+      "work": "增加独立 desktopSession token purpose，沿用现有随机生成/摘要规则；定义 90 天会话、30 天 Key 上限及服务端桌面会话类型。机器错误分类使用现有 ApiError envelope 或本契约明确的业务 reason，不改网页 session 的 7 天默认和 30 天上限。",
+      "final_state": "桌面和网页凭据类别分离；普通 HTTP 状态、过期/撤销/网络失败能被客户端区分。",
+      "status": "completed",
+      "write_locks": [
+        "apps/worker/auth/tokens.ts",
+        "apps/worker/auth/desktop/types.ts"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "A02",
+      "module": "桌面账号后端",
+      "kind": "implementation",
+      "depends_on": [
+        "A01"
+      ],
+      "files": [
+        "migrations/0024_desktop_sessions.sql"
+      ],
+      "title": "建立会话与 Key 的持久绑定",
+      "work": "新增 desktop_sessions，包含 token_hash、user_id、期限/撤销、current_key_id、current_key_ciphertext、key_generation/version；api_keys 增加可空 desktop_session_id 和必要索引，普通 Key/web_chat 保持原样。将当前绑定限定到同用户的桌面 Key。迁移号若已被占用仅顺延新文件，不改已发布迁移。",
+      "final_state": "数据层可表示每 Token 独立 Key、原子换取和关联撤销；旧账单/API Key 历史引用仍保留。",
+      "status": "completed",
+      "write_locks": [
+        "migrations/0024_desktop_sessions.sql"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "A03",
+      "module": "桌面账号后端",
+      "kind": "implementation",
+      "depends_on": [],
+      "files": [
+        "apps/worker/auth/login.ts",
+        "apps/worker/auth/login-core.ts"
+      ],
+      "title": "复用账号密码登录逻辑",
+      "work": "从现有 login 提取账号密码、现有登录限流、活动状态重读和签发后身份变化处理，允许注入凭据签发/撤销接口；原 login 保留网页 Cookie 返回形状。桌面调用不能先生成无用网页 session，也不能省掉现有失败计数与状态检查。",
+      "final_state": "两类登录共享同一账号验证逻辑，网页入口外部行为保持现状。",
+      "status": "completed",
+      "write_locks": [
+        "apps/worker/auth/login.ts",
+        "apps/worker/auth/login-core.ts"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "A04",
+      "module": "桌面账号后端",
+      "kind": "implementation",
+      "depends_on": [
+        "A01",
+        "A02"
+      ],
+      "files": [
+        "apps/worker/auth/desktop/session-repository.ts",
+        "apps/worker/auth/desktop/authenticate.ts"
+      ],
+      "title": "实现桌面会话创建与鉴权",
+      "work": "新增服务端生成 Token 的会话创建、按摘要读取和 Bearer 鉴权。检查用户/默认分组与会话期限/撤销，依赖注入 now；不接受客户端 userId 作为身份。不修改 Cookie 中间件让所有管理接口都接受桌面 Token。",
+      "final_state": "桌面会话有独立鉴权入口，数据库异常不会被误报为密码错误或会话过期。",
+      "status": "completed",
+      "write_locks": [
+        "apps/worker/auth/desktop/session-repository.ts",
+        "apps/worker/auth/desktop/authenticate.ts"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "A05",
+      "module": "桌面账号后端",
+      "kind": "implementation",
+      "depends_on": [
+        "A03",
+        "A04"
+      ],
+      "files": [
+        "apps/worker/auth/desktop/login.ts"
+      ],
+      "title": "实现桌面登录服务",
+      "work": "组合 login-core 与桌面 issuer，成功返回 Token、expiresAt 和公开用户信息；复用真实服务端 IP 的既有限流来源。签发失败或身份变化时清理本次新凭据，不影响已有其他登录会话。",
+      "final_state": "每次成功登录创建独立 Token，不隐式获取/撤销其他 Token 的 Key。",
+      "status": "completed",
+      "write_locks": [
+        "apps/worker/auth/desktop/login.ts"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "A06",
+      "module": "桌面账号后端",
+      "kind": "implementation",
+      "depends_on": [
+        "A02"
+      ],
+      "files": [
+        "apps/worker/catalog/secret-envelope.ts",
+        "apps/worker/catalog/channel-secrets.ts",
+        "apps/worker/auth/desktop/key-cipher.ts"
+      ],
+      "title": "复用密文存储能力",
+      "work": "提取现有 AES-GCM envelope 基础操作，保留渠道密文格式及 AAD 兼容；为桌面 Key 使用独立用途和 session/key 绑定上下文。沿用部署现有 keyring 配置，不新建 KMS 或轮换服务。读取有效 Key 时可还原同一值，密文不可用时报告服务错误，不能重建未过期 Key。",
+      "final_state": "同一 Token 可以重复取得原 Key；现有渠道密文仍由兼容包装读取。",
+      "status": "completed",
+      "write_locks": [
+        "apps/worker/catalog/secret-envelope.ts",
+        "apps/worker/catalog/channel-secrets.ts",
+        "apps/worker/auth/desktop/key-cipher.ts"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "A07",
+      "module": "桌面账号后端",
+      "kind": "implementation",
+      "depends_on": [],
+      "files": [
+        "apps/worker/auth/key-repository.ts",
+        "apps/worker/auth/key-creation.ts"
+      ],
+      "title": "提供可组合的 Key 创建原语",
+      "work": "从既有 createPlatformKey 提取候选 Key 生成及插入准备能力，保留用户/分组访问约束与幂等语义。让桌面仓库可将 Key 插入与 session 绑定放在同一 D1 batch；不要先调用已提交的 createPlatformKey 再单独保存密文。",
+      "final_state": "普通 Key API 的返回/重放语义不变，桌面能原子组合创建过程。",
+      "status": "completed",
+      "write_locks": [
+        "apps/worker/auth/key-repository.ts",
+        "apps/worker/auth/key-creation.ts"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "A08",
+      "module": "桌面账号后端",
+      "kind": "implementation",
+      "depends_on": [
+        "A04",
+        "A06",
+        "A07"
+      ],
+      "files": [
+        "apps/worker/auth/desktop/key-repository.ts",
+        "apps/worker/auth/desktop/keys.ts"
+      ],
+      "title": "实现只在到期时换 Key",
+      "work": "实现 getOrCreateCurrentKey：未过期返回当前密文解出的同一 Key；首次或自然过期才创建。绑定默认授权分组，expiresAt=min(now+30天,session.expiresAt)。D1 原子批次用 generation/CAS 条件把候选插入、密文和绑定一同提交；并发输家读取赢家结果，不留下可用孤儿 Key。主动撤销、绑定损坏或组权限失效不当作可自动换新。 到期轮换的同一批次将旧 Key 标为 revoked，保留其账务元数据。",
+      "final_state": "相同 Token 的并发/重试只产生一把当前有效 Key；响应丢失后可取回同一值；不同 Token 相互独立。",
+      "status": "completed",
+      "write_locks": [
+        "apps/worker/auth/desktop/key-repository.ts",
+        "apps/worker/auth/desktop/keys.ts"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "A09",
+      "module": "桌面账号后端",
+      "kind": "implementation",
+      "depends_on": [
+        "A04"
+      ],
+      "files": [
+        "apps/worker/auth/desktop/logout.ts",
+        "apps/worker/auth/desktop/account.ts"
+      ],
+      "title": "实现账号查询与当前会话退出",
+      "work": "账号查询投影公开用户及 D1 当前余额，不返回凭据。退出使用单一 D1 原子操作撤销当前 Token 和其关联 Key，保留记录供账务引用；重复退出幂等。只处理拥有当前 Token 的会话。",
+      "final_state": "一端退出不影响其他桌面或网页会话，余额与现有网页共用账本。",
+      "status": "completed",
+      "write_locks": [
+        "apps/worker/auth/desktop/logout.ts",
+        "apps/worker/auth/desktop/account.ts"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "A10",
+      "module": "桌面账号后端",
+      "kind": "implementation",
+      "depends_on": [
+        "A05",
+        "A08",
+        "A09"
+      ],
+      "files": [
+        "apps/worker/auth/desktop/routes.ts"
+      ],
+      "title": "装配四个桌面 HTTP 接口",
+      "work": "实现 POST login、POST key、GET account、POST logout；路径固定为 /api/v1/desktop/*。复用现有有界 JSON 读取方式、错误 envelope 和登录限流；桌面无 Cookie 的入口不伪造浏览器 Origin/CSRF，网页 Cookie 规则不变。Key 返回包含 expiresAt，不通过 query 参数传凭据。",
+      "final_state": "四个接口对应契约，客户端无需直接操作 /keys 或浏览器 Cookie。",
+      "status": "completed",
+      "write_locks": [
+        "apps/worker/auth/desktop/routes.ts"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "A11",
+      "module": "桌面账号后端",
+      "kind": "integration",
+      "depends_on": [
+        "A10"
+      ],
+      "files": [
+        "apps/worker/routes.ts"
+      ],
+      "title": "挂载桌面路由",
+      "work": "在根 routes 中显式挂载四条路径，按需解析现有 DB/GATE/keyring 依赖，不在模块加载时读 Secrets。网页登录、web_chat 及 /v1 模型路由沿用原装配。",
+      "final_state": "真实 Worker 请求能够到达桌面服务，unsupported path 仍按原规则返回。",
+      "status": "completed",
+      "write_locks": [
+        "apps/worker/routes.ts"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "A12",
+      "module": "桌面账号后端",
+      "kind": "implementation",
+      "depends_on": [
+        "A11",
+        "A07"
+      ],
+      "files": [
+        "apps/worker/auth/key-repository.ts"
+      ],
+      "title": "约束桌面管理 Key 与父会话",
+      "work": "在网关内部 Key 查询中，对带 desktop_session_id 的 Key 同时检查父会话有效；普通 Key/web_chat 不受该分支影响。普通用户 Key 列表不混入后台管理的桌面 Key；禁止一般编辑接口延长/改组该类 Key，显式撤销仍有效。不允许一般编辑入口恢复已撤销的桌面 Key；轮换旧 Key 的处理由 A08 拥有。",
+      "final_state": "Token 失效会阻止其 Key 新请求；桌面 Key 不因通用 Key 编辑破坏一 Token 一 Key 规则。",
+      "status": "completed",
+      "write_locks": [
+        "apps/worker/auth/key-repository.ts"
+      ],
+      "execution_note": "Root reconciled existing artifact scope on 2026-10-04; validation remains AV01, not yet executed."
+    },
+    {
+      "id": "A13",
+      "module": "桌面账号后端",
+      "kind": "implementation",
+      "depends_on": [
+        "A02"
+      ],
+      "files": [
+        "apps/worker/auth/desktop/cleanup.ts",
+        "apps/worker/scheduled/cleanup.ts"
+      ],
+      "title": "接入过期密文清理",
+      "work": "复用现有定时维护入口，分批清空到期/撤销桌面会话的可回取 Key 密文。保留被 api_keys/request/billing 引用的会话和 Key 元数据，不级联删除账务，不引入新队列或常驻任务。",
+      "final_state": "过期敏感材料可清理，历史请求和账本引用完整，维护结果提供独立计数。",
+      "status": "completed",
+      "write_locks": [
+        "apps/worker/auth/desktop/cleanup.ts",
+        "apps/worker/scheduled/cleanup.ts"
+      ],
+      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+    },
+    {
+      "id": "AT01",
+      "module": "桌面账号后端",
+      "kind": "test_authoring",
+      "depends_on": [
+        "A11",
+        "A12",
+        "A13"
+      ],
+      "files": [
+        "tests/auth/desktop-keys.test.ts",
+        "tests/auth/desktop-sessions.test.ts"
+      ],
+      "title": "覆盖 Token/Key 生命周期不变量",
+      "work": "在完整 A 模块后使用现有 Workers 隔离 D1 fixture 编写：同 Token 重取相同 Key、不同 Token 隔离、并发首次/到期换取、响应丢失重试、revoked 不自动恢复、到期 cap、密文异常不轮换、退出只影响当前会话。注入时钟，不真实等待，不 mock 掉原子 SQL；同数据库 reset 按现有串行规则。",
+      "final_state": "测试覆盖重复扣用身份和多端掉线的实际风险，检查持久数据与返回凭据关系；不执行。",
+      "test_necessity": "同一 Token 的同 Key 重放、并发原子性及多端隔离是用户明确要求，简单成功路径无法证明；断言业务值而非 SQL 文本。",
+      "status": "completed",
+      "write_locks": [
+        "tests/auth/desktop-keys.test.ts",
+        "tests/auth/desktop-sessions.test.ts"
+      ],
+      "execution_note": "Root reconciled existing artifact scope on 2026-10-04; validation remains AV01, not yet executed."
+    },
+    {
+      "id": "AT02",
+      "module": "桌面账号后端",
+      "kind": "test_authoring",
+      "depends_on": [
+        "A11",
+        "A12",
+        "A13"
+      ],
+      "files": [
+        "tests/auth/desktop-routes.test.ts",
+        "tests/gateway/desktop-auth-integration.test.ts"
+      ],
+      "title": "覆盖路由到网关与退出链",
+      "work": "通过真实路由装配和 mock 上游覆盖登录→取 Key→模型请求→余额/账务→退出→新请求拒绝；再覆盖无权限分组、父会话到期和其他 Token 仍可调用。原有 Cookie/登录/Key/密文回归直接列入 AV01，不复制已有测试。",
+      "final_state": "接口 envelope、所属用户、请求数量和账务状态有断言；没有真实外网或 UI 文案比较；不执行。",
+      "test_necessity": "仅测仓库函数会遗漏 routes 接线和父会话鉴权，因此需要一条跨层闭环；模型响应使用 mock，避免费用和随机输出。",
+      "status": "completed",
+      "write_locks": [
+        "tests/auth/desktop-routes.test.ts",
+        "tests/gateway/desktop-auth-integration.test.ts"
+      ],
+      "execution_note": "Root reconciled existing artifact scope on 2026-10-04; validation remains AV01, not yet executed."
+    },
+    {
+      "id": "AV01",
+      "module": "桌面账号后端",
+      "kind": "validation",
+      "depends_on": [
+        "AT01",
+        "AT02"
+      ],
+      "files": [
+        "docs/desktop/evidence/backend-account.md"
+      ],
+      "title": "集中执行账号后端模块回归",
+      "work": "在 A/AT 整体完成后一次执行 Worker 类型/构建以及新增四文件与受影响既有登录、session、tokens、key-repository、api-key-auth、channel-secrets、scheduled cleanup 测试集合。复用现有 node/workers 项目，不为每个 A 任务各跑一次。限本地 D1 与 mock 上游，不部署生产。",
+      "final_state": "报告记录命令、迁移版本、通过/失败/未运行，特别列出并发与多端结果；不自动修复失败或扩大为所有协议矩阵。",
+      "status": "partial",
+      "write_locks": [
+        "docs/desktop/evidence/backend-account.md"
+      ],
+      "execution_note": "2026-10-04: final evidence artifact written; actual commands, passed scope and missing target/dependency/port/real-model coverage recorded. Not a full-chain pass."
+    },
+    {
+      "id": "L01",
+      "module": "客户端账号闭环",
+      "kind": "implementation",
+      "depends_on": [
+        "A10",
+        "F02"
+      ],
+      "files": [
+        "apps/desktop-runtime/src/cheapai/account-client.ts",
+        "apps/desktop-runtime/src/cheapai/account-state.ts"
+      ],
+      "title": "实现桌面账号 API 客户端",
+      "work": "实现 login/getKey/getAccount/logout 的类型化调用、超时/取消及公开状态投影；错误分为未登录/过期、Key 撤销、余额或分组问题、网络故障。网络错误不清空有效 Token；不得把 Worker 原始响应或凭据直接当 UI state。",
+      "final_state": "本地服务具备账号调用能力，页面只消费脱敏状态。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop-runtime/src/cheapai/account-client.ts",
+        "apps/desktop-runtime/src/cheapai/account-state.ts"
+      ],
+      "execution_note": "2026-10-04: gpt-6-luna/max artifact handoff reconciled; implementation/test authoring complete, full module validation remains separate."
+    },
+    {
+      "id": "L02",
+      "module": "客户端账号闭环",
+      "kind": "implementation",
+      "depends_on": [
+        "L01",
+        "R04"
+      ],
+      "files": [
+        "apps/desktop-runtime/src/cheapai/session-manager.ts",
+        "apps/desktop-runtime/src/cheapai/provider.ts"
+      ],
+      "title": "连接 Token 与 Key 的使用周期",
+      "work": "恢复 Token 后调用 getKey，服务端返回未过期同一 Key；记录到期时间，后续请求到期才取新 Key。并发取 Key 合并为一个请求，登录会话切换以 generation 使迟到结果失效。将当前 Key 提供给 DSH 请求前凭据解析扩展点，流已开始后不重放请求。",
+      "final_state": "重启不轮换有效 Key；到期更新对用户透明；普通 401/403/余额不足不会触发无界重试。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop-runtime/src/cheapai/session-manager.ts",
+        "apps/desktop-runtime/src/cheapai/provider.ts"
+      ],
+      "execution_note": "2026-10-04: per-generation Key cache/single-flight handoff; dynamic credential IPC/profile wiring remains R08/R08-profile-wire and L06."
+    },
+    {
+      "id": "L03",
+      "module": "客户端账号闭环",
+      "kind": "implementation",
+      "depends_on": [
+        "L02",
+        "R05",
+        "F02"
+      ],
+      "files": [
+        "apps/desktop-runtime/src/host/control.ts",
+        "apps/desktop-runtime/src/host/protocol.ts",
+        "packages/desktop-contracts/src/index.ts"
+      ],
+      "title": "扩展宿主私有账号消息",
+      "work": "加入登录、恢复、获取账号、退出及保存/读取凭据的私有消息；登录密码只在本次命令中使用。将页面可接收的结果与宿主存储消息分开，输出格式可由 Rust 精确解码。扩展点只处理账号接线，不新增远程 Agent API。",
+      "final_state": "Runtime 能向宿主申请系统凭据存储，账号秘密不会出现在普通前端事件。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop-runtime/src/host/control.ts",
+        "apps/desktop-runtime/src/host/protocol.ts",
+        "packages/desktop-contracts/src/index.ts"
+      ],
+      "execution_note": "2026-10-04: gpt-6-luna/max handoff reconciled; artifact complete, end-to-end behavior unverified. Native owns Token storage through login/private response and restore/private input; L04/L06 still must bind those commands and persist before publishing signed-in."
+    },
+    {
+      "id": "L04",
+      "module": "客户端账号闭环",
+      "kind": "implementation",
+      "depends_on": [
+        "L03",
+        "N06",
+        "N04"
+      ],
+      "files": [
+        "apps/desktop/src-tauri/src/account.rs",
+        "apps/desktop/src-tauri/src/protocol.rs",
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "title": "接通原生存储与账号命令",
+      "work": "将前端 login/restore/account/logout 调用转给 Runtime；私有凭据消息由宿主保存/读取，公开结果才返回页面。登录成功在持久保存完成后公布，存储失败如实返回，不展示已完成自动登录。",
+      "final_state": "跨进程的登录与存储闭环完整，普通前端无需持有 Token 或 Key。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src-tauri/src/account.rs",
+        "apps/desktop/src-tauri/src/protocol.rs",
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "execution_note": "2026-10-04: source handoff complete; native/account/model/default-settings/update wiring implemented. Verification is recorded separately in evidence."
+    },
+    {
+      "id": "L05",
+      "module": "客户端账号闭环",
+      "kind": "implementation",
+      "depends_on": [
+        "L02",
+        "R03"
+      ],
+      "files": [
+        "apps/desktop-runtime/src/dsh/paths.ts",
+        "apps/desktop-runtime/src/dsh/lifecycle.ts",
+        "apps/desktop-runtime/src/cheapai/account-state.ts"
+      ],
+      "title": "按账号绑定 DSH 本地数据",
+      "work": "按后端稳定 userId 选择 DSH home，而不是按 Token 字符串建目录；换账号先停止旧账号执行并断开旧连接，再启动相应 home。退出保留该账号本地历史。验证阶段使用独立 dev home，不把测试 Key 会话合并到正式账号。",
+      "final_state": "同账号重新登录保留历史，不同账号的列表、草稿和 Runtime 数据不串用。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop-runtime/src/dsh/paths.ts",
+        "apps/desktop-runtime/src/dsh/lifecycle.ts",
+        "apps/desktop-runtime/src/cheapai/account-state.ts"
+      ],
+      "execution_note": "Stable hashed userId/scope home and generation-bound serialized bind/unbind handoff; no history deletion. Full account activation remains L06."
+    },
+    {
+      "id": "L06",
+      "module": "客户端账号闭环",
+      "kind": "integration",
+      "depends_on": [
+        "L04",
+        "L05"
+      ],
+      "files": [
+        "apps/desktop-runtime/src/index.ts",
+        "apps/desktop-runtime/src/host/control.ts",
+        "apps/desktop/src-tauri/src/runtime.rs"
+      ],
+      "title": "装配启动恢复与退出顺序",
+      "work": "启动时先恢复账号，再选择 home 和配置 Provider，之后公布 ready；无账号则显示登录态但不启动可执行的用户会话。退出按服务端撤销→停止当前账号任务→清理本地凭据/页面状态处理；离线撤销失败明确显示未完成并允许重试，不建设持久撤销队列。迟到登录响应不得复活已退出状态。 区分 sidecar 控制通道就绪和 DSH 会话服务就绪，不能等待 DSH 登录后 ready 才开放登录命令。",
+      "final_state": "账号生命周期与 Runtime 生命周期有单一顺序所有者；开发测试 Key 模式只能显式启用，发布包默认不走该模式。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop-runtime/src/index.ts",
+        "apps/desktop-runtime/src/host/control.ts",
+        "apps/desktop/src-tauri/src/runtime.rs"
+      ],
+      "execution_note": "2026-10-04: complete source handoff and UI/native wiring; centralized validation recorded separately, no compatibility claim."
+    },
+    {
+      "id": "L07",
+      "module": "客户端账号闭环",
+      "kind": "implementation",
+      "depends_on": [
+        "L04",
+        "U01"
+      ],
+      "files": [
+        "apps/desktop/src/adapters/native/account.ts",
+        "apps/desktop/src/features/auth/auth-store.ts"
+      ],
+      "title": "实现前端登录状态适配",
+      "work": "接入 signedOut/restoring/signedIn/unavailable 等公开状态，维护当前用户、余额和错误，不保存凭据。请求取消和会话切换后忽略旧结果；网络错误保留已有账号与草稿。",
+      "final_state": "页面通过 account adapter 操作登录，不直接调用模型接口换 Key。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src/adapters/native/account.ts",
+        "apps/desktop/src/features/auth/auth-store.ts"
+      ],
+      "execution_note": "Implementation artifact handed off; centralized validation not yet run for this source."
+    },
+    {
+      "id": "L08",
+      "module": "客户端账号闭环",
+      "kind": "implementation",
+      "depends_on": [
+        "L07",
+        "U02",
+        "N05"
+      ],
+      "files": [
+        "apps/desktop/src/features/auth/LoginPage.tsx",
+        "apps/desktop/src/features/auth/login.css"
+      ],
+      "title": "实现蓝白登录页",
+      "work": "实现邮箱、密码、登录状态与错误提示，提交时禁止重复请求，保留邮箱；注册入口用宿主打开现有注册页。没有 API Key 输入、device-code、二维码或第三方登录。",
+      "final_state": "登录页面与对话页面风格统一，使用真实 auth-store。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src/features/auth/LoginPage.tsx",
+        "apps/desktop/src/features/auth/login.css"
+      ],
+      "execution_note": "Implementation artifact handed off; centralized validation not yet run for this source."
+    },
+    {
+      "id": "L09",
+      "module": "客户端账号闭环",
+      "kind": "implementation",
+      "depends_on": [
+        "L07",
+        "U12",
+        "U09"
+      ],
+      "files": [
+        "apps/desktop/src/features/settings/AccountPanel.tsx",
+        "apps/desktop/src/features/settings/SettingsPage.tsx",
+        "apps/desktop/src/components/layout/Sidebar.tsx"
+      ],
+      "title": "接入账号、余额和退出入口",
+      "work": "显示真实用户和余额，沿用已有金额表示及格式化规则；错误与零余额分开呈现。提供网页控制台和当前会话退出入口，不新增桌面 Key 管理页。",
+      "final_state": "侧栏与设置都显示同一账号状态，退出目标清晰为当前客户端登录。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src/features/settings/AccountPanel.tsx",
+        "apps/desktop/src/features/settings/SettingsPage.tsx",
+        "apps/desktop/src/components/layout/Sidebar.tsx"
+      ],
+      "execution_note": "Real safe account/balance settings and shared Sidebar auth state authored; awaits centralized validation."
+    },
+    {
+      "id": "L10",
+      "module": "客户端账号闭环",
+      "kind": "integration",
+      "depends_on": [
+        "L06",
+        "L08",
+        "L09",
+        "N08"
+      ],
+      "files": [
+        "apps/desktop/src/app/App.tsx",
+        "apps/desktop/src/features/conversations/session-store.ts",
+        "apps/desktop/src/features/conversations/message-store.ts"
+      ],
+      "title": "连接账号路由和会话清理",
+      "work": "根据宿主公开状态切换登录、启动恢复、工作区、服务故障页面；仅在确认账号变化时清空旧界面投影，持久历史仍由 DSH home 保留。登录到期保留当前账号草稿引用，重新登录同账号后恢复。 同时接入侧栏设置导航，使 U12/L09 的页面实际可到达。",
+      "final_state": "安装后从登录到对话形成完整客户端链路，不存在旧账号消息闪现或假登录态。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src/app/App.tsx",
+        "apps/desktop/src/features/conversations/session-store.ts",
+        "apps/desktop/src/features/conversations/message-store.ts"
+      ],
+      "execution_note": "2026-10-04: complete source handoff and UI/native wiring; centralized validation recorded separately, no compatibility claim."
+    },
+    {
+      "id": "L11",
+      "module": "客户端账号闭环",
+      "kind": "implementation",
+      "depends_on": [
+        "L10",
+        "U08",
+        "U06"
+      ],
+      "files": [
+        "apps/desktop/src/features/conversations/composer-controller.ts",
+        "apps/desktop/src/features/conversations/ConversationPage.tsx",
+        "apps/desktop/src/features/settings/SettingsPage.tsx"
+      ],
+      "title": "完成错误与恢复交互",
+      "work": "区分余额不足、无可用模型、登录过期、本地服务故障和网络失败；保留输入，给出对应重试或重新登录入口。Key 自然到期由 Runtime 处理，不弹人工换 Key 界面。不把失败中的模型调用自动重放。",
+      "final_state": "主要页面具备与实际错误相符的恢复路径，不依赖统一的‘登录失败’兜底。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src/features/conversations/composer-controller.ts",
+        "apps/desktop/src/features/conversations/ConversationPage.tsx",
+        "apps/desktop/src/features/settings/SettingsPage.tsx"
+      ],
+      "execution_note": "2026-10-04: source handoff complete; native/account/model/default-settings/update wiring implemented. Verification is recorded separately in evidence."
+    },
+    {
+      "id": "LT01",
+      "module": "客户端账号闭环",
+      "kind": "test_authoring",
+      "depends_on": [
+        "L11"
+      ],
+      "files": [
+        "tests/desktop/account-lifecycle.node.test.ts",
+        "tests/desktop/helpers/fake-account-api.ts"
+      ],
+      "title": "补充异步账号与 Key 更新测试",
+      "work": "使用注入时钟和可延迟响应覆盖：未过期 Key 不轮换、到期并发合并、logout 后迟到 login/getKey 不复活、不同账号 home 选择、网络失败保留登录。只测本地编排，后端原子性仍由 AT01 负责；不启动真实模型或系统密钥链。",
+      "final_state": "测试覆盖会导致跨账号和多端异常的本地竞争，资源在每个用例后释放；不执行。",
+      "test_necessity": "后端正确不代表客户端不会缓存旧 Key、重放请求或接受迟到凭据；这些是本地状态机独有风险。",
+      "status": "completed",
+      "write_locks": [
+        "tests/desktop/account-lifecycle.node.test.ts",
+        "tests/desktop/helpers/fake-account-api.ts"
+      ],
+      "execution_note": "Artifact authored and handed off; final runtime/native wiring alignment and centralized validation pending."
+    },
+    {
+      "id": "LV01",
+      "module": "客户端账号闭环",
+      "kind": "validation",
+      "depends_on": [
+        "LT01",
+        "AT01",
+        "AT02",
+        "NT01"
+      ],
+      "files": [
+        "docs/desktop/evidence/account-e2e.md"
+      ],
+      "title": "集中执行登录到模型的完整链路",
+      "work": "在 L 模块完整后执行其类型/构建和 LT01，再使用隔离本地 Worker/D1、真实 Runtime 与自有 UI 跑两份独立客户端数据目录：登录→取 Key→调用→重启仍同 Key→模拟到期→换 Key→一端退出→另一端调用。测试期限由隔离 fixture/注入时钟控制，不能修改生产 TTL 或等待真实天数。先用 mock 上游，已有测试环境可补一次真实网关任务。",
+      "final_state": "记录 Token/Key 关系的非敏感标识和实际行为，不记录密钥正文；真实双端与仅单进程模拟结果分别标记。",
+      "status": "partial",
+      "write_locks": [
+        "docs/desktop/evidence/account-e2e.md"
+      ],
+      "execution_note": "2026-10-04: final evidence artifact written; actual commands, passed scope and missing target/dependency/port/real-model coverage recorded. Not a full-chain pass."
+    },
+    {
+      "id": "P01",
+      "module": "产品收口与交付",
+      "kind": "implementation",
+      "depends_on": [
+        "U12"
+      ],
+      "files": [
+        "apps/desktop/src/features/settings/GeneralPanel.tsx",
+        "apps/desktop/src/features/settings/SettingsPage.tsx",
+        "apps/desktop/src/features/settings/preferences.ts"
+      ],
+      "title": "完成通用设置和账号偏好归属",
+      "work": "接入默认模型、默认目录和版本信息；选项来源真实模型/目录，保存非敏感偏好并按账号区分。只做浅色蓝白主题，暂不扩展主题编辑器、复杂快捷键或跨设备同步。",
+      "final_state": "设置项有实际读写和默认生效位置，不保留无效占位按钮。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src/features/settings/GeneralPanel.tsx",
+        "apps/desktop/src/features/settings/SettingsPage.tsx",
+        "apps/desktop/src/features/settings/preferences.ts"
+      ],
+      "execution_note": "2026-10-04: source handoff complete; native/account/model/default-settings/update wiring implemented. Verification is recorded separately in evidence."
+    },
+    {
+      "id": "P02",
+      "module": "产品收口与交付",
+      "kind": "implementation",
+      "depends_on": [
+        "N09",
+        "L06"
+      ],
+      "files": [
+        "scripts/desktop/release-manifest.mjs",
+        "scripts/desktop/package-runtime.mjs"
+      ],
+      "title": "固定整包版本与资源清单",
+      "work": "生成绑定应用版本、DSH/Bun版本、平台/架构和资源路径的发行清单；壳、前端与 Runtime 同批更新。安装资源只读，DSH home 与偏好位于用户数据目录；升级不能覆盖用户会话或依赖外部 pnpm 缓存。",
+      "final_state": "安装包可识别自己的完整组成，后续报告可指向同一组产物。",
+      "status": "completed",
+      "write_locks": [
+        "scripts/desktop/release-manifest.mjs",
+        "scripts/desktop/package-runtime.mjs"
+      ],
+      "execution_note": "Implementation artifact handed off; centralized validation pending."
+    },
+    {
+      "id": "P03",
+      "module": "产品收口与交付",
+      "kind": "implementation",
+      "depends_on": [
+        "N09",
+        "P02"
+      ],
+      "files": [
+        "apps/desktop/src-tauri/src/updates.rs",
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src-tauri/tauri.conf.json"
+      ],
+      "title": "接入标准更新机制",
+      "work": "使用 Tauri 标准 updater 接口，更新源和签名材料由环境/发布配置提供，不写入私钥。检查更新和安装分开；只有确认退出运行任务后才安装。未配置更新源时公开 unavailable 状态，不使用占位URL。",
+      "final_state": "宿主提供检查/下载/安装状态，不自建更新服务或静默强制升级策略。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src-tauri/src/updates.rs",
+        "apps/desktop/src-tauri/src/lib.rs",
+        "apps/desktop/src-tauri/tauri.conf.json"
+      ],
+      "execution_note": "2026-10-04: source handoff complete; native/account/model/default-settings/update wiring implemented. Verification is recorded separately in evidence."
+    },
+    {
+      "id": "P04",
+      "module": "产品收口与交付",
+      "kind": "implementation",
+      "depends_on": [
+        "P03",
+        "P01"
+      ],
+      "files": [
+        "apps/desktop/src/features/settings/UpdatePanel.tsx",
+        "apps/desktop/src/adapters/native/updates.ts",
+        "apps/desktop/src/features/settings/SettingsPage.tsx"
+      ],
+      "title": "实现关于与更新界面",
+      "work": "展示真实应用版本、更新可用/下载/失败状态和手动操作；连接宿主 updater。更新不可用时给出准确状态，不把网络失败显示成最新版本。",
+      "final_state": "设置页更新入口有真实行为，文案不暴露 Runtime 内部实现细节。",
+      "status": "completed",
+      "write_locks": [
+        "apps/desktop/src/features/settings/UpdatePanel.tsx",
+        "apps/desktop/src/adapters/native/updates.ts",
+        "apps/desktop/src/features/settings/SettingsPage.tsx"
+      ],
+      "execution_note": "2026-10-04: complete source handoff and UI/native wiring; centralized validation recorded separately, no compatibility claim."
+    },
+    {
+      "id": "P05",
+      "module": "产品收口与交付",
+      "kind": "implementation",
+      "depends_on": [
+        "P02",
+        "P03"
+      ],
+      "files": [
+        ".github/workflows/desktop-package.yml"
+      ],
+      "title": "配置独立桌面构建任务",
+      "work": "建立手动触发或发行批次触发的 macOS/Windows 构建矩阵，使用固定工具链并上传构建产物。构建任务不对每个微任务重复跑全库测试，不隐式部署 Worker；签名/公证能力缺失时保留未签名开发产物标记，不能宣称可正式发布。",
+      "final_state": "桌面构建与既有 Cloudflare 预发流程分开，可记录平台产物和精确来源提交。",
+      "status": "completed",
+      "write_locks": [
+        ".github/workflows/desktop-package.yml"
+      ],
+      "execution_note": "Manual unsigned development matrix authored; requires reviewed locks and pinned toolchain, workflow not run."
+    },
+    {
+      "id": "P06",
+      "module": "产品收口与交付",
+      "kind": "documentation",
+      "depends_on": [
+        "P02"
+      ],
+      "files": [
+        "THIRD_PARTY_NOTICES.md",
+        "docs/desktop/runtime-distribution.md"
+      ],
+      "title": "记录 Runtime 分发和第三方依赖",
+      "work": "按实际随包 DSH/Bun/原生依赖记录版本、来源、许可和资源位置；列出 Git/Python 等哪些工具由用户项目环境提供，哪些确实随包，不作‘所有工具开箱即用’承诺。记录 Bun 备选 Node 的切换位置。",
+      "final_state": "分发说明与实际清单一致，保留应随包的第三方声明。",
+      "status": "completed",
+      "write_locks": [
+        "THIRD_PARTY_NOTICES.md",
+        "docs/desktop/runtime-distribution.md"
+      ],
+      "execution_note": "Artifact authored and handed off; final runtime/native wiring alignment and centralized validation pending."
+    },
+    {
+      "id": "P07",
+      "module": "产品收口与交付",
+      "kind": "documentation",
+      "depends_on": [
+        "P01",
+        "P04",
+        "P05",
+        "P06",
+        "A13"
+      ],
+      "files": [
+        "docs/desktop/user-guide.md",
+        "docs/desktop/architecture.md",
+        "docs/desktop/release.md"
+      ],
+      "title": "完成使用与交付文档",
+      "work": "写明登录/同 Key 重启/过期/退出、会话本地归属、关窗退出、模型与目录选择；记录各层职责与构建命令。发布文档使用现有 PR 独立预发或本地隔离环境，不引用已退役共享 staging；生产部署/公开发布不在本计划自动执行范围。",
+      "final_state": "使用说明可解释实际行为，发布准备项和未覆盖平台诚实列出；不把计划状态写成验证完成。",
+      "status": "completed",
+      "write_locks": [
+        "docs/desktop/user-guide.md",
+        "docs/desktop/architecture.md",
+        "docs/desktop/release.md"
+      ],
+      "execution_note": "User/architecture/release documentation authored; final interface and evidence alignment pending."
+    },
+    {
+      "id": "PV01",
+      "module": "产品收口与交付",
+      "kind": "validation",
+      "depends_on": [
+        "P07",
+        "RT01",
+        "UT01",
+        "NT01",
+        "AT01",
+        "AT02",
+        "LT01"
+      ],
+      "files": [
+        "docs/desktop/evidence/release.md"
+      ],
+      "title": "集中执行候选版本集成检查",
+      "work": "全部实现/测试编写任务合并到同一候选提交后，执行一次既有云端必需类型/测试/构建及桌面完整类型/构建/必要测试；单次任务内按项目归并，不把同一套测试通过根命令和子命令重复执行。随后在目标平台只补自 NV/LV 报告以来受变更影响的整包登录/任务/更新/历史保留链。无新变更且证据对应同提交的项目不重复。 更新源/签名/目标系统缺失时，只记录对应未运行项，不用未签名本地产物宣称公开发行完成。",
+      "final_state": "发布候选报告绑定提交和产物，逐项区分通过/失败/未运行；本任务不 push、部署、上传公开安装包或自动关闭未验证项。",
+      "status": "partial",
+      "write_locks": [
+        "docs/desktop/evidence/release.md"
+      ],
+      "execution_note": "2026-10-04: final evidence artifact written; actual commands, passed scope and missing target/dependency/port/real-model coverage recorded. Not a full-chain pass."
+    }
+  ],
+  "summary": {
+    "total": 79,
+    "by_kind": {
+      "research": 1,
+      "implementation": 55,
+      "integration": 8,
+      "test_authoring": 6,
+      "validation": 7,
+      "documentation": 2
+    },
+    "all_file_budgets_within_three": true,
+    "by_status": {
+      "completed": 72,
+      "partial": 5,
+      "blocked_target": 2
+    }
+  },
+  "execution_checkpoint": "docs/desktop/execution-checkpoint.md",
+  "execution_adjustments": [
+    {
+      "id": "U02-wire",
+      "files": [
+        "apps/desktop/src/main.tsx"
+      ],
+      "status": "completed",
+      "work": "Import the desktop global styles."
+    },
+    {
+      "id": "A02-fix",
+      "files": [
+        "migrations/0024_desktop_sessions.sql"
+      ],
+      "status": "completed",
+      "work": "Allow expired/revoked ciphertext cleanup while retaining current Key metadata."
+    },
+    {
+      "id": "F06-gen",
+      "files": [
+        ".gitignore"
+      ],
+      "status": "completed",
+      "work": "Ignore generated Tauri schemas."
+    },
+    {
+      "id": "F05-worker-contracts",
+      "files": [
+        "apps/worker/package.json"
+      ],
+      "status": "completed",
+      "work": "Declare the shared desktop contracts workspace dependency."
+    },
+    {
+      "id": "A-contracts",
+      "files": [
+        "apps/worker/auth/desktop/login.ts",
+        "apps/worker/auth/desktop/account.ts"
+      ],
+      "status": "completed",
+      "work": "Use shared response DTOs without changing runtime response shapes."
+    },
+    {
+      "id": "A-redaction-01",
+      "files": [
+        "apps/worker/admin/audit.ts",
+        "apps/worker/gateway/headers.ts",
+        "apps/worker/gateway/observability.ts"
+      ],
+      "status": "completed",
+      "work": "Recognize the new desktop token prefix in existing credential filters."
+    },
+    {
+      "id": "A-redaction-02",
+      "files": [
+        "apps/worker/admin/key-routes.ts",
+        "apps/worker/billing/adjustments.ts",
+        "apps/worker/auth/key-creation.ts"
+      ],
+      "status": "completed",
+      "work": "Recognize the new desktop token prefix in existing credential filters."
+    },
+    {
+      "id": "A08-fix",
+      "files": [
+        "apps/worker/auth/desktop/keys.ts",
+        "apps/worker/auth/desktop/key-repository.ts"
+      ],
+      "status": "completed",
+      "work": "Reject damaged Key generations and guard indexed D1 batch results."
+    },
+    {
+      "id": "F01-artifacts",
+      "files": [
+        "scripts/desktop/runtime-versions.json"
+      ],
+      "status": "completed",
+      "work": "Record official Bun release artifact URLs and SHA-256 digests."
+    },
+    {
+      "id": "restore-20261004",
+      "files": [],
+      "status": "completed",
+      "work": "Recovered exact remote desktop commit d338460db185a9935a08fe6adeb62b4b59ce6087 via GitHub connector; verified all changed blobs and entire tree hash; merged current main 9b3038c without conflicts. CLI proxy still inaccessible; no further permission retries."
+    },
+    {
+      "id": "R07-RT01-order",
+      "files": [],
+      "status": "completed",
+      "work": "R07 fixture/development script preparation and RT01 lifecycle test authoring are independent artifacts; RT01 may author against existing R06 lifecycle without executing the script or validations. R07 implementation does not depend on successful dependency installation; F05 remains required for actual execution."
+    },
+    {
+      "id": "R-build-01",
+      "files": [
+        "apps/desktop-runtime/tsconfig.json",
+        "apps/desktop-runtime/src/dsh/paths.ts"
+      ],
+      "status": "completed",
+      "work": "Enable TypeScript relative .ts import rewriting; locate owning Runtime package for profiles from both source and dist/src modules. Implementation only, not validated."
+    },
+    {
+      "id": "AT01-managed-key",
+      "files": [
+        "tests/auth/desktop-keys.test.ts"
+      ],
+      "status": "completed",
+      "work": "Add native D1 behavior coverage for managed Key list/edit/revoke boundaries; not executed because Workers listener is blocked."
+    },
+    {
+      "id": "R03-cleanup",
+      "files": [
+        "apps/desktop-runtime/src/dsh/lifecycle.ts"
+      ],
+      "status": "completed",
+      "work": "Release per-run listeners on close, reject stale callbacks and continue draining stdout after ready; partial Node lifecycle validation separate."
+    },
+    {
+      "id": "RT01-timers",
+      "files": [
+        "tests/desktop/runtime-lifecycle.node.test.ts"
+      ],
+      "status": "completed",
+      "work": "Centralized Node run exposed two test harness failures from getTimerCount under real timers; switch all cases to injected fake timeout timers."
+    },
+    {
+      "id": "R08",
+      "files": [
+        "apps/desktop-runtime/src/cheapai/credential-bridge.ts",
+        "apps/desktop-runtime/src/cheapai/dsh-credential-provider.ts"
+      ],
+      "status": "completed",
+      "work": "Private per-request credentials IPC/provider seam, preserving pinned DSH LocalCredentialProvider outside the managed reference."
+    },
+    {
+      "id": "R08-profile-wire",
+      "files": [
+        "apps/desktop-runtime/src/dsh/config.ts",
+        "apps/desktop-runtime/src/dsh/launcher.ts",
+        "apps/desktop-runtime/profiles/cheapai.yml"
+      ],
+      "status": "completed",
+      "work": "Load actual managed credential provider through pinned profile/loader seam without embedding Key/Token."
+    },
+    {
+      "id": "R09-transport",
+      "files": [
+        "apps/desktop-runtime/src/dsh/transport.ts",
+        "apps/desktop-runtime/src/host/protocol.ts",
+        "apps/desktop-runtime/src/host/control.ts"
+      ],
+      "status": "completed",
+      "work": "Private decoded native RPC bridge reusing pinned Connection/Gateway carrier, including generation-scoped duplex streams."
+    },
+    {
+      "id": "N07-runtime-deps",
+      "files": [
+        "scripts/desktop/package-runtime.mjs"
+      ],
+      "status": "completed",
+      "work": "Package full Runtime production closure beyond CLI defaults; credential-local is not part of CLI production dependencies."
+    },
+    {
+      "id": "F05-client-deps",
+      "files": [
+        "apps/desktop/package.json",
+        "apps/desktop-runtime/package.json"
+      ],
+      "status": "completed",
+      "work": "Declare exact official client/credential bridge dependencies confirmed against pinned upstream; lockfile installation remains blocked."
+    },
+    {
+      "id": "L01-state-snapshot",
+      "files": [
+        "apps/desktop-runtime/src/cheapai/account-state.ts"
+      ],
+      "status": "completed",
+      "work": "Return frozen stable snapshots and isolate observer failures from committed account operations."
+    },
+    {
+      "id": "N03-transport",
+      "files": [
+        "apps/desktop/src-tauri/src/runtime.rs",
+        "apps/desktop/src-tauri/src/protocol.rs",
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "status": "completed",
+      "work": "Bridge private decoded DSH call/duplex stream frames through generation-scoped Tauri invokes/events; no cookie/Key/Token in public DTOs."
+    },
+    {
+      "id": "R09-wire",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop-runtime/src/index.ts"
+      ],
+      "write_locks": [
+        "apps/desktop-runtime/src/index.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Bind the official decoded DSH transport to the Runtime entry; own generation/disposal/stream publication without preempting L04-L06 account orchestration."
+    },
+    {
+      "id": "R08-listen-close",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop-runtime/src/cheapai/credential-bridge.ts"
+      ],
+      "write_locks": [
+        "apps/desktop-runtime/src/cheapai/credential-bridge.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Make concurrent listen/close single-owned and bounded; prevent a pending listen from leaving an IPC socket after closure."
+    },
+    {
+      "id": "L02-public-expiry",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop-runtime/src/cheapai/session-manager.ts"
+      ],
+      "write_locks": [
+        "apps/desktop-runtime/src/cheapai/session-manager.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Public credential status reports signedOut after Token natural expiry without credential deletion or artificial rotation."
+    },
+    {
+      "id": "DSH-seams-20261004",
+      "kind": "documentation",
+      "files": [
+        "docs/desktop/dsh-integration.md"
+      ],
+      "write_locks": [
+        "docs/desktop/dsh-integration.md"
+      ],
+      "status": "completed",
+      "execution_note": "Record official Connection hooks, version-maintained Gateway method, managed credential seam, package closure and missing Session delete capability."
+    },
+    {
+      "id": "L03-predicate",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop-runtime/src/host/protocol.ts"
+      ],
+      "write_locks": [
+        "apps/desktop-runtime/src/host/protocol.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Manual review fixed the private credential predicate to narrow to an intersection assignable to its Record parameter. Type environment remains blocked before source checking."
+    },
+    {
+      "id": "N08-carrier",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src/adapters/native/runtime.ts"
+      ],
+      "write_locks": [
+        "apps/desktop/src/adapters/native/runtime.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Root implementation of native snapshot/events and official decoded RPC carrier, monotonic UI connection epoch across sidecar restart; frontend App wiring remains N08. No validation run."
+    },
+    {
+      "id": "F05-ui-deps",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/package.json"
+      ],
+      "write_locks": [
+        "apps/desktop/package.json"
+      ],
+      "status": "completed",
+      "execution_note": "Pin upstream public MarkdownText/CodeBlock primitives and scoped workspaceFiles remote at 0.2.1-alpha.1. Dependency installation/lock remains F05 blocked_network."
+    },
+    {
+      "id": "N-account-install-id",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src-tauri/Cargo.toml"
+      ],
+      "write_locks": [
+        "apps/desktop/src-tauri/Cargo.toml"
+      ],
+      "status": "completed",
+      "execution_note": "Declare exact uuid 1.18.1/v4 for a random stable installation namespace in native account storage; N09 alone generates Cargo.lock. Native build unverified."
+    },
+    {
+      "id": "R-node-source-transform",
+      "kind": "implementation",
+      "files": [
+        "scripts/desktop/dev-runtime.mjs",
+        "apps/desktop-runtime/package.json",
+        "apps/desktop-runtime/src/dsh/launcher.ts"
+      ],
+      "write_locks": [
+        "scripts/desktop/dev-runtime.mjs",
+        "apps/desktop-runtime/package.json",
+        "apps/desktop-runtime/src/dsh/launcher.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Explicit Node source transform flag handles TypeScript parameter properties in dev Runtime/provider imports; packaged JS/Bun unchanged. No product checks run."
+    },
+    {
+      "id": "P06-license-texts",
+      "kind": "documentation",
+      "files": [
+        "LICENSES/desktop/DSH-MIT.txt",
+        "LICENSES/desktop/Bun-LICENSE.md",
+        "LICENSES/desktop/Node-LICENSE.txt"
+      ],
+      "write_locks": [
+        "LICENSES/desktop/DSH-MIT.txt",
+        "LICENSES/desktop/Bun-LICENSE.md",
+        "LICENSES/desktop/Node-LICENSE.txt"
+      ],
+      "status": "completed",
+      "execution_note": "Preserve full upstream texts from fixed DSH release source, Bun bun-v1.4.2 and Node v24.19.0. P06/P02 must link/copy these and closure package license files; not a completed distribution audit."
+    },
+    {
+      "id": "U10-remote-mount",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src/adapters/dsh/client.ts"
+      ],
+      "write_locks": [
+        "apps/desktop/src/adapters/dsh/client.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Mount public workspaceFiles contribution for scoped directory browser. Runtime/native allowlist still blocks file-content reads. Unvalidated."
+    },
+    {
+      "id": "U07-remote-wire",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src/adapters/dsh/client.ts",
+        "apps/desktop/package.json",
+        "apps/desktop-runtime/src/dsh/transport.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Mount public userQuestions remote and forwarded-event type vocabulary; allow only upstream answer/attachWait endpoints. Host api-remotes already comes from pinned web-app profile. Unvalidated."
+    },
+    {
+      "id": "U11-global-activity",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src/features/conversations/session-monitor.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Observe real global session summaries/status events for exit activity, with baseline list race reconciliation and monotonic connection carrier. Unvalidated."
+    },
+    {
+      "id": "L04-private-pipe",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src-tauri/src/runtime.rs"
+      ],
+      "status": "completed",
+      "execution_note": "Expose restricted private account pipe after sidecar bootstrap independent of DSH ready, native error construction available for storage failures; no renderer credentials."
+    },
+    {
+      "id": "N09-manifest-wire",
+      "kind": "implementation",
+      "files": [
+        "scripts/desktop/dev-desktop.mjs"
+      ],
+      "status": "completed",
+      "execution_note": "Call release manifest after generated resources/icons and before native package; accept optional pnpm argument separator."
+    },
+    {
+      "id": "N04-childtree",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop-runtime/src/dsh/launcher.ts",
+        "apps/desktop-runtime/src/dsh/lifecycle.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Owned DSH process descendant termination; delegated to runtime_rt01 after U08."
+    },
+    {
+      "id": "L06-controller",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop-runtime/src/cheapai/account-controller.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Extract testable private account lifecycle orchestration before Runtime entry wiring."
+    },
+    {
+      "id": "N04-force-tree",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src-tauri/src/runtime.rs",
+        "apps/desktop/src-tauri/src/protocol.rs",
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "status": "completed",
+      "execution_note": "Native private owned-process cleanup after abrupt Runtime failure and truthful unknown activity confirmation; waits L04/L06 file locks."
+    },
+    {
+      "id": "U07-agent-context",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src/adapters/dsh/client.ts",
+        "apps/desktop/package.json"
+      ],
+      "status": "completed",
+      "execution_note": "Public upstream createScope/scopeOf + owned Context adapter enables Gateway Agent waterfalls without another Session manager or control loop."
+    },
+    {
+      "id": "N04-private-child-pid",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop-runtime/src/dsh/lifecycle.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Private pipe status includes owned live child process ID, never renderer projection."
+    },
+    {
+      "id": "UT-global-exit-activity",
+      "kind": "test_authoring",
+      "files": [
+        "tests/desktop/session-monitor.node.test.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Author global cross-directory task/baseline race, disposal and initial failure cases; not executed yet."
+    },
+    {
+      "id": "L11-no-models-contract",
+      "kind": "implementation",
+      "files": [
+        "packages/desktop-contracts/src/index.ts",
+        "apps/desktop-runtime/src/cheapai/account-client.ts",
+        "apps/desktop-runtime/src/cheapai/model-catalog.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Safe noModels projection for a real empty gateway catalog; custom DSH routes reject empty models, do not invent one. Catalog connection failures retain safe network meaning."
+    },
+    {
+      "id": "R07-dev-auth-gate",
+      "kind": "implementation",
+      "files": [
+        "scripts/desktop/dev-runtime.mjs"
+      ],
+      "status": "completed",
+      "execution_note": "Require explicit dev opt-in for no-account runtime fixture after default login gating. Authoring handoff complete; not executed."
+    },
+    {
+      "id": "LT-controller",
+      "kind": "test_authoring",
+      "files": [
+        "tests/desktop/account-controller.node.test.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Private two-phase account orchestration ordering and failure state tests, delegated runtime_rt01. Authoring handoff complete; not executed."
+    },
+    {
+      "id": "F05-local-contract-resolution",
+      "kind": "artifact_preparation",
+      "files": [],
+      "status": "completed",
+      "execution_note": "Link the actual local contracts workspace into ignored node_modules for attainable centralized checks; no registry substitutes, generated locks, or frozen-install claim."
+    },
+    {
+      "id": "L07-safe-problems",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src/adapters/native/account.ts",
+        "apps/desktop/src/features/auth/LoginPage.tsx",
+        "apps/desktop/src/features/settings/AccountPanel.tsx"
+      ],
+      "status": "completed",
+      "execution_note": "Recognize noModels and strict allowlisted native error codes without exposing arbitrary host error text."
+    },
+    {
+      "id": "U11-authorized-shell-path",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src/app/AppShell.tsx",
+        "apps/desktop/src/components/layout/AppShell.tsx",
+        "apps/desktop/src/app/App.tsx"
+      ],
+      "status": "completed",
+      "execution_note": "Move Shell to declared layout path, fence activity publication to owner epoch and preserve confirmed account change detection across Runtime owner remount."
+    },
+    {
+      "id": "U03-review-cleanup",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src/adapters/dsh/client.ts",
+        "apps/desktop/src/adapters/native/runtime.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Handle asynchronous agent scope release and bind uplink end to stream cancellation/current generation."
+    },
+    {
+      "id": "UT-monitor-generation",
+      "kind": "test_authoring",
+      "files": [
+        "apps/desktop/src/features/conversations/session-monitor.ts",
+        "tests/desktop/session-monitor.node.test.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Repair cross-generation baseline single-flight race and author delayed old-generation behavior case."
+    },
+    {
+      "id": "P01-default-wiring",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src/components/layout/AppShell.tsx",
+        "apps/desktop/src/features/conversations/session-service.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Real model/directory settings sources and account default application at initial workspace/new Session; failed post-create selection retains real Session and draft."
+    },
+    {
+      "id": "L11-root-recovery",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src/app/App.tsx"
+      ],
+      "status": "completed",
+      "execution_note": "Problem-specific recovery copy and explicit stopped-sidecar restart; known native error codes and fixed console command."
+    },
+    {
+      "id": "L06-terminal-credentials",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop-runtime/src/index.ts",
+        "apps/desktop-runtime/src/cheapai/account-controller.ts",
+        "apps/desktop-runtime/src/cheapai/session-manager.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Revoke terminal-child bridge capability and clear invalid session secrets, preserving already-started streams across natural expiry; explicit binding replacement/shutdown retain cleanup ownership."
+    },
+    {
+      "id": "LT-expiry-shutdown",
+      "kind": "test_authoring",
+      "files": [
+        "tests/desktop/account-controller.node.test.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Author invalid session/new Key rejection, transient network preservation and late activation shutdown cases; centralized execution pending."
+    },
+    {
+      "id": "U11-truthful-activity",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src/features/conversations/session-monitor.ts",
+        "tests/desktop/session-monitor.node.test.ts",
+        "apps/desktop/src/adapters/native/runtime.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Only a successful global baseline can mark task count known; propagate unknown state across official Connection loss/replacement."
+    },
+    {
+      "id": "P03-stopped-activity",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src-tauri/src/updates.rs"
+      ],
+      "status": "completed",
+      "execution_note": "Skip unknown-task confirmation when DSH is explicitly stopped."
+    },
+    {
+      "id": "F05-local-exact-types",
+      "kind": "implementation",
+      "files": [],
+      "status": "completed",
+      "execution_note": "Link actual already-installed @types/node 24.13.3 into ignored desktop workspaces for partial checks, not a frozen install or dependency replacement."
+    },
+    {
+      "id": "R-type-fix-account",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop-runtime/src/cheapai/credential-bridge.ts",
+        "apps/desktop-runtime/src/cheapai/model-catalog.ts",
+        "apps/desktop-runtime/src/cheapai/session-manager.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Centralized compiler found callback return, validated Record reconstruction and exact optional argument errors; fixed without weakening configuration, rechecked."
+    },
+    {
+      "id": "R-type-fix-lifecycle",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop-runtime/src/dsh/lifecycle.ts",
+        "apps/desktop-runtime/src/host/control.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Allow explicitly cleared optional listener/timer/reader fields under exactOptionalPropertyTypes; logic unchanged, centralized affected tests passed."
+    },
+    {
+      "id": "N04-user-quit",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "status": "completed",
+      "execution_note": "User ExitRequested(code=None) shares activity confirmation with window close; explicit app.exit(codeSome)/update does not confirm twice."
+    },
+    {
+      "id": "N08-activity-order",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src/adapters/native/runtime.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Serialize activity updates and fence queued calls to captured native generation so older known counts cannot overtake an unknown baseline."
+    }
+  ],
+  "last_checkpoint": {
+    "date": "2026-10-04",
+    "branch": "feat/cheapai-desktop",
+    "batch_status": "dependency_locks_recovered_with_runtime_startup_blocker",
+    "active_subagents": 0,
+    "validation": "frozen strict install, cloud/desktop typecheck and JS builds pass; Node 50 files/1782 pass; full Workers/CI pending; actual Runtime bootstrap fails on DSH client module format",
+    "next_tasks": [
+      "RV01",
+      "UV01",
+      "NV01",
+      "NV02",
+      "AV01",
+      "LV01",
+      "PV01"
+    ]
+  }
+}

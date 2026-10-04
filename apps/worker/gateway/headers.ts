@@ -52,7 +52,7 @@ function connectionNames(headers: Headers): Set<string> {
 export function buildUpstreamHeaders(options: UpstreamHeaderOptions): Headers {
   if (!options || !['chat', 'responses', 'messages'].includes(options.upstreamProtocol)
       || typeof options.upstreamKey !== 'string' || options.upstreamKey.trim() !== options.upstreamKey || !/^[\x21-\x7e]{1,16384}$/.test(options.upstreamKey)
-      || /^s2a_(?:key|session|invite)_/.test(options.upstreamKey)
+      || /^s2a_(?:key|session|invite|desktop)_/.test(options.upstreamKey)
       || (options.stream !== undefined && typeof options.stream !== 'boolean')) invalid();
   const incoming = options.downstreamHeaders ?? new Headers();
   if (!(incoming instanceof Headers)) invalid();

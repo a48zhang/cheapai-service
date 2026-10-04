@@ -1,14 +1,55 @@
 packages:
   - apps/web
   - apps/worker
+  - apps/desktop
+  - apps/desktop-runtime
   - packages/apicompat
   - packages/contracts
   - packages/api-client
   - packages/model-catalog
+  - packages/desktop-contracts
 
 engineStrict: true
 # Script execution must never install or update dependencies implicitly.
 verifyDepsBeforeRun: error
+
+# The pinned DSH static UI bundles leave bare imports external but publish them
+# as devDependencies. Materialize their runtime closure using upstream lock pins.
+packageExtensions:
+  '@deepseek-ai/dsh-client-ui-primitives@0.2.1-alpha.1':
+    dependencies:
+      '@deepseek-ai/dsh-client-store': 0.2.1-alpha.1
+      '@deepseek-ai/dsh-util-code-language': 0.2.1-alpha.1
+      '@deepseek-ai/dsh-util-workspace-path': 0.2.1-alpha.1
+      react: 19.3.0
+      react-dom: 19.3.0
+      clsx: 2.1.1
+      diff: 9.0.0
+      anser: 2.3.5
+      katex: 0.16.47
+      micromark-core-commonmark: 2.0.3
+      micromark-util-character: 2.1.1
+      micromark-util-classify-character: 2.0.1
+      micromark-util-symbol: 2.0.1
+      micromark-util-types: 2.0.2
+      shiki: 4.3.1
+      '@shikijs/langs': 4.3.1
+      micromark-factory-space: 2.0.1
+      micromark-extension-math: 3.1.0
+      mdast-util-from-markdown: 2.0.3
+      mdast-util-gfm: 3.1.0
+      mdast-util-math: 3.0.0
+      micromark-extension-gfm: 3.0.0
+      micromark-util-sanitize-uri: 2.0.1
+      simple-icons: 16.31.0
+  '@deepseek-ai/dsh-client-store@0.2.1-alpha.1':
+    dependencies:
+      zustand: 4.4.7
+      immer: 10.2.0
+
+# Zustand 4's compatible selector shim needs React 19 in its peer range.
+overrides:
+  'zustand@4.4.7>use-sync-external-store': 1.7.0
 
 # Preserve pnpm 11's one-day release age check; exceptions are exact reviewed pins.
 minimumReleaseAge: 1440
@@ -21,6 +62,13 @@ minimumReleaseAgeExclude:
 
 # Only the native tools required by the pinned build/test dependencies may build.
 allowBuilds:
+  '@deepseek-ai/dsh-subprocess-local@0.2.1-alpha.1': true
+  'esbuild@0.25.12': true
   'esbuild@0.28.1': true
+  'koffi@3.1.1': true
+  'node-pty@1.2.0-beta.15': true
   'workerd@1.20260815.1': true
   'workerd@1.20260903.1': true
+  # Published JS is ready to use; skip SDK no-op and protobuf version warnings.
+  '@google/genai@2.21.0': false
+  'protobufjs@7.6.6': false

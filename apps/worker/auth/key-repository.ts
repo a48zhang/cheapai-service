@@ -1,7 +1,7 @@
 import { prepare } from '../db';
 import type { DbValue } from '../db';
 import { ApiError } from '../http';
-import { generateToken, getTokenDisplayPrefix, hashToken } from './tokens';
+import { preparePlatformKeyCreation } from './key-creation';
 
 export interface CreatePlatformKeyInput {
   readonly operationId: string;
@@ -80,64 +80,12 @@ export async function createPlatformKey(
   input: CreatePlatformKeyInput,
   now: number,
 ): Promise<CreatePlatformKeyResult> {
-  if (!validText(trustedOwnerId, 128)) throw new TypeError('Invalid Key owner.');
-  if (input === null || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('Invalid Key input.');
-  for (const field of Object.keys(input)) if (!['operationId', 'name', 'expiresAt', 'allowedModels', 'groupId'].includes(field)) throw new TypeError('Unknown Key input field.');
-  if (typeof input.operationId !== 'string' || !input.operationId.length || input.operationId.length > 128
-    || /[^A-Za-z0-9_.:-]/u.test(input.operationId)) throw new TypeError('Invalid creation operation ID.');
-  if (typeof input.name !== 'string' || input.name.length > 256 || /[\u0000-\u001f\u007f]/u.test(input.name)) throw new TypeError('Invalid Key name.');
-  const name = input.name.trim().normalize('NFC');
-  if (!validText(name, 128) || /s2a_(?:key|session|invite)_[A-Za-z0-9_-]{43}/u.test(name)) throw new TypeError('Invalid Key name.');
-  if (!time(now)) throw new TypeError('Invalid creation timestamp.');
-  const expiresAt = input.expiresAt ?? null;
-  if (expiresAt !== null && !time(expiresAt)) throw new TypeError('Invalid Key expiry.');
-  const groupId = input.groupId ?? null;
-  if (groupId !== null && !validText(groupId, 128)) throw new TypeError('Invalid Key group.');
-  const selection = input.allowedModels === undefined ? null : input.allowedModels;
-  if (selection !== null && (!Array.isArray(selection) || selection.length > 100
-    || !Array.from(selection).every(model => validText(model, 128)) || new Set(selection).size !== selection.length)) {
-    throw new TypeError('Invalid Key model selection.');
-  }
-  // Copy all caller-controlled values before awaiting crypto/DB operations.
-  const operationId = input.operationId;
-  const allowedModels = selection === null ? null : [...selection].sort();
-  const allowedJson = allowedModels === null ? null : JSON.stringify(allowedModels);
-  const fingerprintBytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(
-    JSON.stringify(['platform-key-create', 2, name, expiresAt, allowedModels, groupId]),
-  )));
-  const fingerprint = Array.from(fingerprintBytes, byte => byte.toString(16).padStart(2, '0')).join('');
-  const token = generateToken('apiKey');
-  const keyHash = await hashToken('apiKey', token);
-  const displayPrefix = getTokenDisplayPrefix('apiKey', token);
-  const id = crypto.randomUUID();
-  const result = await prepare<{ id: string; group_id: string; group_name: string }>(database, `
-    INSERT INTO api_keys
-      (id, user_id, key_hash, display_prefix, name, status, expires_at,
-       allowed_models_json, created_at, updated_at, version, creation_operation_id, creation_fingerprint, group_id, kind)
-    SELECT ?, u.id, ?, ?, ?, 'active', ?, ?, ?, ?, 1, ?, ?, g.id, 'api'
-    FROM users u JOIN groups g ON g.id = COALESCE(?, u.group_id)
-    JOIN user_group_access a ON a.user_id=u.id AND a.group_id=g.id
-    JOIN groups owner_group ON owner_group.id=u.group_id AND owner_group.status='active'
-    WHERE u.id = ? AND u.status = 'active' AND g.status = 'active'
-      AND u.created_at <= ? AND g.created_at <= ?
-      AND (? IS NULL OR ? > ?)
-      AND NOT EXISTS (
-        SELECT 1 FROM json_each(?) requested
-        WHERE NOT EXISTS (
-          SELECT 1 FROM models m
-          JOIN channel_models cm ON cm.public_model_id = m.public_model_id
-          JOIN channels c ON c.id = cm.channel_id
-          JOIN channel_groups cg ON cg.channel_id = c.id
-          WHERE m.public_model_id = requested.value AND m.status = 'active'
-            AND c.status = 'active' AND cg.group_id = g.id
-        )
-      )
-    ON CONFLICT(user_id, creation_operation_id) WHERE creation_operation_id IS NOT NULL DO NOTHING
-    RETURNING id,group_id,(SELECT name FROM groups WHERE groups.id=api_keys.group_id) AS group_name`, [id, keyHash, displayPrefix, name, expiresAt, allowedJson,
-    now, now, operationId, fingerprint, groupId, trustedOwnerId, now, now, expiresAt, expiresAt, now, allowedJson]).run();
-  if (result.changes === 1 && result.rows[0]?.id === id) return { kind: 'created', token, key: {
-    id, userId: trustedOwnerId, kind: 'api', groupId: result.rows[0].group_id, groupName: result.rows[0].group_name, name, displayPrefix, status: 'active', allowedModels,
-    expiresAt, createdAt: now, updatedAt: now, version: 1,
+  const creation = await preparePlatformKeyCreation(database, trustedOwnerId, input, now);
+  const { candidate } = creation;
+  const result = await creation.statement.run();
+  if (result.changes === 1 && result.rows[0]?.id === candidate.id) return { kind: 'created', token: candidate.token, key: {
+    id: candidate.id, userId: candidate.userId, kind: 'api', groupId: result.rows[0].group_id, groupName: result.rows[0].group_name, name: candidate.name, displayPrefix: candidate.displayPrefix, status: 'active', allowedModels: candidate.allowedModels,
+    expiresAt: candidate.expiresAt, createdAt: candidate.createdAt, updatedAt: candidate.createdAt, version: 1,
   } };
   if (result.changes !== 0 || result.rows.length !== 0) throw new Error('Unexpected Key insertion result.');
   const existing = await prepare<StoredCreation>(database, `
@@ -146,12 +94,12 @@ export async function createPlatformKey(
       (SELECT name FROM groups WHERE id=k.group_id) AS group_name
     FROM api_keys k JOIN users u ON u.id=k.user_id JOIN groups g ON g.id=u.group_id
     WHERE k.user_id=? AND k.kind='api' AND k.creation_operation_id=? AND u.status='active' AND g.status='active'
-      AND u.created_at<=? AND g.created_at<=?`, [trustedOwnerId, operationId, now, now]).first();
+      AND u.created_at<=? AND g.created_at<=?`, [candidate.userId, creation.operationId, now, now]).first();
   if (existing) {
-    if (existing.creation_fingerprint !== fingerprint) throw new PlatformKeyCreationConflict();
+    if (existing.creation_fingerprint !== creation.fingerprint) throw new PlatformKeyCreationConflict();
     return { kind: 'replayed', key: readPlatformKeyMetadata(existing) };
   }
-  if (expiresAt !== null && expiresAt <= now) throw new TypeError('Key expiry must be after creation.');
+  if (candidate.expiresAt !== null && candidate.expiresAt <= now) throw new TypeError('Key expiry must be after creation.');
   throw new PlatformKeyCreationError();
 }
 
@@ -167,7 +115,7 @@ export function readPlatformKeyMetadata(value: unknown): PlatformKeyMetadata {
   const kind = row.kind === undefined ? 'api' : row.kind;
   if ((kind !== 'api' && kind !== 'web_chat')
     || !validText(row.id, 128) || !validText(row.user_id, 128) || !validText(row.name, 128)
-    || /s2a_(?:key|session|invite)_[A-Za-z0-9_-]{43}/u.test(row.name)
+    || /s2a_(?:key|session|invite|desktop)_[A-Za-z0-9_-]{43}/u.test(row.name)
     || (row.status !== 'active' && row.status !== 'revoked')
     || !time(row.created_at) || !time(row.updated_at) || row.updated_at < row.created_at
     || !time(row.version) || row.version < 1
@@ -260,7 +208,8 @@ export async function listPlatformKeys(database: D1Database, trustedOwnerId: str
   if (state === 'active' || state === 'expired') values.push(asOf);
   values.push(afterTime, afterTime, afterTime, afterId, limit + 1);
   const result = await prepare<Record<string, unknown>>(database, `SELECT ${keyColumns} ${ownerJoin}
-    WHERE k.user_id=? AND k.kind='api' AND ${activeOwner} AND k.created_at<=? AND ${filter}
+    WHERE k.user_id=? AND k.kind='api' AND k.desktop_session_id IS NULL
+      AND ${activeOwner} AND k.created_at<=? AND ${filter}
       AND (? IS NULL OR k.created_at<? OR (k.created_at=? AND k.id<?))
     ORDER BY k.created_at DESC,k.id DESC LIMIT ?`, values).all();
   const checked = result.rows.map(readPlatformKeyMetadata);
@@ -293,8 +242,15 @@ export async function findInternalPlatformKeyByHash(database: D1Database, keyHas
     FROM api_keys k JOIN users u ON u.id=k.user_id JOIN groups g ON g.id=k.group_id
     JOIN user_group_access access ON access.user_id=u.id AND access.group_id=g.id
     JOIN groups owner_group ON owner_group.id=u.group_id AND owner_group.status='active' WHERE k.kind='api' AND k.key_hash=? AND ${activeOwner}
-      AND k.status='active' AND k.created_at<=? AND (k.expires_at IS NULL OR k.expires_at>?)`,
-    [keyHash, now, now, now, now]).first();
+      AND k.status='active' AND k.created_at<=? AND (k.expires_at IS NULL OR k.expires_at>?)
+      AND (k.desktop_session_id IS NULL OR EXISTS (
+        SELECT 1 FROM desktop_sessions desktop_session
+        WHERE desktop_session.id=k.desktop_session_id AND desktop_session.user_id=k.user_id
+          AND desktop_session.revoked_at IS NULL AND desktop_session.expires_at>?
+          AND desktop_session.created_at<=? AND desktop_session.current_key_id=k.id
+          AND desktop_session.current_key_ciphertext IS NOT NULL AND length(desktop_session.current_key_ciphertext)>0
+      ))`,
+    [keyHash, now, now, now, now, now, now]).first();
   if (row === null) return null;
   const key = readPlatformKeyMetadata(row);
   if (row.user_status !== 'active' || row.group_status !== 'active' || !validText(row.group_id, 128)
@@ -351,7 +307,7 @@ export async function updatePlatformKey(database: D1Database, trustedOwnerId: st
   if (changeName) {
     if (typeof patch.name !== 'string' || patch.name.length > 256 || /[\u0000-\u001f\u007f]/u.test(patch.name)) throw new TypeError('Invalid Key name.');
     name = patch.name.trim().normalize('NFC');
-    if (!validText(name, 128) || /s2a_(?:key|session|invite)_[A-Za-z0-9_-]{43}/u.test(name)) throw new TypeError('Invalid Key name.');
+    if (!validText(name, 128) || /s2a_(?:key|session|invite|desktop)_[A-Za-z0-9_-]{43}/u.test(name)) throw new TypeError('Invalid Key name.');
   }
   let expiry: number | null = null;
   if (changeExpiry) {
@@ -373,7 +329,8 @@ export async function updatePlatformKey(database: D1Database, trustedOwnerId: st
       expires_at=CASE WHEN ?=1 THEN ? ELSE expires_at END,
       allowed_models_json=CASE WHEN ?=1 THEN ? ELSE allowed_models_json END,
       updated_at=?,version=version+1
-    WHERE id=? AND user_id=? AND kind='api' AND status='active' AND version=? AND version<9007199254740991
+    WHERE id=? AND user_id=? AND kind='api' AND desktop_session_id IS NULL
+      AND status='active' AND version=? AND version<9007199254740991
       AND created_at<=? AND updated_at<=?
       AND EXISTS (SELECT 1 FROM users u JOIN groups g ON g.id=CASE WHEN ?=1 THEN ? ELSE api_keys.group_id END
         JOIN user_group_access access ON access.user_id=u.id AND access.group_id=g.id

@@ -1,0 +1,94 @@
+# Desktop 依赖恢复与集中验证（2026-10-04 UTC）
+
+基线：`8c8f7b307d3f54ec5b8a46dd664204673f53591e`，`feat/cheapai-desktop`。开始时远端无新提交，工作树干净；本仓库未找到 AGENTS.md 或 .agents/skills 指令。
+
+## 安装策略与原生锁
+
+- 本次环境可通过正常网络访问 GitHub、官方 npm 注册表、static.rust-lang.org 与 crates.io；未改变代理、DNS 或 TLS 设置。
+- 使用仓库固定 Node 24.19.0 / pnpm 11.19.0。pnpm store 放在可写的工作区，不更改仓库包管理器配置。
+- 首次 pnpm 解析被既有 `minimumReleaseAge: 1440` 拦下：`@deepseek-ai/dsh-client-ui-settings-account@0.2.1-alpha.1` 发布时间为 2026-10-03 05:44:33.423 UTC。等待满 24 小时再解析，未添加年龄豁免、关闭供应链检查或取消 frozen 安装约束。
+- 官方 rustup 安装固定 Rust/Cargo 1.99.0 到工作区，`cargo generate-lockfile --manifest-path apps/desktop/src-tauri/Cargo.toml` 成功生成真实 Cargo.lock；`cargo fetch --locked --manifest-path apps/desktop/src-tauri/Cargo.toml` 成功。
+- `cargo check --locked` 在本机缺失的 `gobject-2.0` 系统库处失败。pkg-config 同时确认缺 GTK 3 / WebKitGTK 4.1；这不是 Rust 源码检查通过的证据。
+- 并发任务已获用户授权新增自动 Windows/macOS 安装包工作流。本轮快进至 `dbf9dcd86b20a0cbde96923dfc2fb8eddbf5ac5e`，完整保留其 workflow、运行脚本及精确 packageExtensions/allowBuilds，再由 pnpm 重新生成匹配锁；没有覆盖或修改并发任务。
+
+## 集中验证结果
+
+本机安装与 pnpm 验证命令统一使用 `CI=true`；pnpm 11 的默认 global virtual store 行为在 CI 与交互模式不同，混用会被 `verifyDepsBeforeRun` 正确拒绝。Wrangler 日志目录通过 `XDG_CONFIG_HOME=/tmp/desktop-xdg` 放在可写目录。
+
+- `pnpm install --frozen-lockfile --strict-peer-dependencies --store-dir /workspace/.pnpm-store --registry=https://registry.npmjs.org` 成功，1032 个锁条目通过供应链检查。
+- `pnpm run typecheck:cloud`、`pnpm run typecheck:desktop` 成功。修复真实依赖暴露的品牌 ID、远端事件投影类型、可选属性、Markdown labels、updater 参数推断及 Runtime declaration 类型；未降低 strict/skipLibCheck 标准。
+- `pnpm run build:cloud` 成功，Worker 仅 dry-run；`pnpm run build:desktop` 成功（contracts、Runtime tsc 和 Vite），有大 chunk 提示。
+- `pnpm run test:node`：50 文件、1782 用例通过，没有新增测试。
+- 首次 `pnpm run test`：198 文件中 197 通过，3844 用例中 3843 通过。唯一失败为旧 scheduled/cleanup 精确断言缺少新增的两个桌面统计字段；同步为 0/false，保留严格 toEqual，不扩大用例范围。该文件复验及新 SHA CI 终态另记。
+- 修复现有 `create-fixture.mjs` 的 executableName 作用域错误后，真实临时 fixture 创建成功。
+
+## 尚未通过的启动边界
+
+`node scripts/desktop/dev-runtime.mjs --runtime node --home <新临时目录> --workspace <fixture/workspace>` 实际失败：`@deepseek-ai/dsh-client-connection/client` 不提供 ESM named export `installConnection`。固定 npm 包的 `lib/client.js` 实际以 `window.__ModuleLoader__.load({ id, factory })` 注册官方客户端模块，现有 Runtime 静态 ESM import 不兼容该发布格式。类型声明/构建通过不能代替这条真实启动链；未伪造导出或把插件 bundle 当成可运行 ESM。
+
+Tauri 启动入口也已执行，尚未打开原生窗口。本 Linux 缺 gobject/GTK/WebKit 系统库；macOS/Windows 安装、原生 IPC、真实 DSH/模型调用和 Token/Key 链路均未在本机通过验收。没有创建账号或密钥、调用付费模型、部署生产或合并。
+
+后续应接入固定 DSH 官方客户端模块加载协议，再验收 Runtime bootstrap 和 IPC，而不是用类型断言或 external 配置掩盖运行时缺失。
+
+## Runtime 加载与装配追加修复（2026-10-04）
+
+基于 `70caf21ebc2af19ba1c7ead30b0e0dbd1091483a`，只修复 Runtime 客户端适配、资源清单收集和本文证据，未改安装包工作流、依赖锁或认证规则。
+
+- 固定的三个 DSH 客户端包由局部 `window.__ModuleLoader__.load` 注册接口执行真实发布 factory；校验包版本、注册 ID 和必要导出，仅向 factory 提供同一 Cordis 实例。不伪造 ESM 导出、不全局注入 window、不加载远端或用户输入代码。
+- Gateway 服务在 Cordis 插件 setup 提交后再读取。Node ws 保留错误监听，避免 Gateway 清理 CONNECTING 通道后触发无人处理的 EventEmitter error；错误仍由 Gateway 原有监听处理。
+- 清单递归使用同一累积数组，移除对整个目录子树的 `push(...files)`；真实闭包超过 V8 函数参数数量限制，不应通过提高堆栈上限掩盖。
+- 桌面三包 typecheck 通过，Runtime typecheck/build 通过；现有 `vitest run --project node tests/desktop` 5 文件、23 用例通过，无新增测试文件。
+- 源码 Runtime bootstrap 实际通过。无账号 fixture 加 `--development-key-mode` 请求 DSH start，仍正确返回 `account-required`（没有提供静态 Key）；没有削弱账号守卫或制造凭据。
+- 官方 Connection/Registry/Gateway 对未使用的 loopback fixture 完成初始化、销毁并恢复全局 hooks；禁止 HTTP 调用，无模型请求。这是初始化 smoke，不是真实 DSH/IPC E2E。
+- `node --use-env-proxy scripts/desktop/prepare-runtime.mjs --target x86_64-unknown-linux-gnu --runtime node` 实际通过。Node 使用环境已配置的正常代理，未改代理/DNS/TLS。清单覆盖 264,667 个文件，文件总字节 2,446,089,308，包含编译后 client-modules.js。
+- 随包官方 Node 启动资源目录内 `dist/src/index.js`，以标准 `host.startup/source=sidecar` 消息取得 `runtime.event/bootstrapped`，退出 0。原生窗口、真实账号/DSH任务与模型调用仍未通过验收。
+
+新提交的三平台安装包必须另看 CI 终态，Linux 资源装配成功不代表 macOS/Windows 安装包已生成或可安装。
+
+## Tauri 原生依赖配对修复（2026-10-04）
+
+`a23cc3f` 的 Local checks 全部成功（198 文件、3844 用例）。ARM macOS 与 Windows 均已越过真实 Runtime 资源装配和发行清单，随后在 `tauri-runtime-wry` 编译失败：宽松传递约束选中了不兼容的 `tauri-runtime 2.12.1` / `tauri-runtime-wry 2.9.3`，出现 trait 签名/缺失方法以及 Windows 类型版本冲突。
+
+参照官方 `tauri-v2.8.5` 发布的 Cargo.lock，使用真实 `cargo update --precise` 将 runtime/runtime-wry 配对为 2.8.0/2.8.1；其余应用依赖声明未变。官方 crates.io 下载、`cargo fetch --locked` 与 `cargo metadata --locked` 成功，未手写 checksum、取消 locked 或调整工作流。原生编译结论仍以新 SHA 三平台 CI 为准；本机 Linux 系统库限制仍在。
+
+## Renderer 发布物加载修复（2026-10-04）
+
+独立 QA 在 Renderer 构建产物中发现同类 ModuleLoader 入口错误。新增 Vite 适配只处理固定版本的四个官方 `/client` bundle（Connection、Gateway、Typert Registry、Session Controller），将真实 factory 与允许的静态依赖转为 ESM；开发模式排除这些非 ESM 原包的预打包。没有在浏览器执行 eval、新建假服务或修改账号/IPC 接口。
+
+桌面 typecheck/build、现有 5 文件 23 用例通过。本机真实 Chromium 分别打开 production preview 与 Vite dev：均无未捕获异常，React 已挂载并显示“桌面服务不可用／请使用桌面应用”的正确浏览器限制提示。该验证证明 Renderer 初始化错误解除，不代表 Tauri WebView、原生 IPC 或真实 DSH 会话通过。`db1ca55` 常规 CI 已全部成功（198 文件、3844 用例），安装包与本追加变更的 CI 另跟踪。
+
+Tauri 补充：`db1ca55` ARM 构建已越过 runtime/wry，但较新的 macros 2.7.1 生成了 Tauri 2.8.5 不存在的 `UnexpectedMenuKind`。继续按官方 2.8.5 发布锁完整配对内部族：macros/codegen/plugin 2.4.0、utils 2.7.0（runtime 2.8.0、runtime-wry 2.8.1、build 2.4.1）；应用插件版本不变。全部由官方 `cargo update --precise` 生成，fetch/metadata --locked 通过。Tauri/Tauri-build 声明采用 CLI 实际写回的空 features 表形式，避免构建仅因声明格式被改写而污染源文件；版本和功能不变。
+
+`c1ffab0` 常规 CI 全部成功；ARM 安装包已通过 Tauri 内部依赖编译，暴露应用源码 6 个编译错误。本次补齐 updater 的 DshLifecycleState 导入、launch 错误代码借用，并将 runtime status 与三个 updater 异步 command 包装为 Tauri 要求的 Result。Ok 仍序列化为原来的状态对象，既有 updater 业务错误仍保留在对象内，认证/更新逻辑不变。完整原生编译和安装包仍由后续 CI 验收。
+
+`1d012f3` 常规 CI 全部成功。ARM macOS 原生 release 编译成功并生成 `.app`，随后 `bundle_dmg.sh` 失败；尚无成功 DMG，不能宣称安装/启动通过。核对固定 Tauri CLI 2.8.4 源码：封装子进程 stdout/stderr 仅在 debug/verbose 日志输出，默认错误丢弃底层信息。因此打包入口增加官方 `--verbose`，用于保留 hdiutil/NSIS 的真实失败原因；不修改封装目标、检查或签名策略。
+
+按追加要求，macOS 构建后独立保留真实 `.app` ZIP（检查可执行文件和 Info.plist，使用 ditto 保留 macOS 元数据），即使 DMG 失败也可上传供后续实机验证。原 DMG 失败仍导致 job 失败，原安装包检查保持不变；归档存在不等于安装、签名/公证或原生启动已验收。
+
+同轮 Windows 也完成 release 编译并生成原生 `.exe`，其后打包未完成，最终 cancelled；尚无 NSIS 安装包通过证据。取消发生在约 60 分钟，但可用日志未给出明确触发原因，不据此断言为超时。详细日志改动用于区分真正的封装错误与资源处理耗时。
+
+Intel macOS 同轮 release 编译及 `.app` 生成也通过，在 `bundle_dmg.sh` 阶段最终 cancelled（同样约 60 分钟，触发原因未确认）。因此三平台均已有真实原生编译成功日志，三平台安装包仍未成功。
+
+Windows 同时独立保留原生 `.exe` 编译产物；它不包含完整 Runtime，不能当作可独立安装的发行包。打包步骤上限设为 50 分钟，在原有 60 分钟 job 内留出归档/上传时间，超时/封装失败仍导致任务失败。
+
+## DMG detach 定位与定点修复（2026-10-04）
+
+仓库已改名 `a48zhang/cheapai-service`。公开后 `5f48385` attempt 2 正常启动且 Local checks 成功。ARM 详细日志确认镜像创建、挂载和 Applications 链接均完成，AppleScript 被 `--skip-jenkins` 跳过；真正失败为 `hdiutil detach: timeout for DiskArbitration expired; drive not detached`。已保留 ARM `.app` artifact `11298429844`（680,083,017 bytes），本修改不删除或替换该产物。
+
+未配置签名的 macOS 开发包改为 Tauri 生成 `.app` 后，由 `create-dmg.mjs` 使用系统 ditto 准备唯一临时目录（应用与 Applications 链接），直接 `hdiutil create -format UDZO`，再 `hdiutil verify` 后原子保存最终 DMG。没有 attach/detach、磁盘强制卸载、系统设置变更或扩大清理范围；只删除自身 mkdtemp 创建的目录。已配置 signing identity 时仍走原 Tauri DMG 流程。本地 node --check 和 diff 检查通过；当前 Linux 不具备 hdiutil，实际 DMG 结果必须在 macOS 验证。
+
+可直接复用已保留的 `.app`，无需重跑安装、Rust 或前端构建：
+
+```sh
+node scripts/desktop/create-dmg.mjs --app /path/to/cheapai.dev.app --output /path/to/cheapai.dev_0.0.0_aarch64.dmg --volume-name cheapai.dev
+```
+
+Windows attempt 2 的官方 NSIS 工具和插件下载/校验已通过，停在 `Target: x64` 后无输出，随后打包 step 明确达到 50 分钟时限。资源统计发现 550 种 name/version 被嵌套复制成 4,253 份。包装器现在预先遍历真实安装图，仅将解析来源唯一的包共享到顶层；多版本和不同 peer 来源仍嵌套，比较依据由版本改为真实 source 路径，不合并依赖上下文。
+
+真实 Linux 资源装配通过：仍为 550 种 name/version，实际副本 569；清单从 264,667 文件／2,446,089,308 bytes 降到 28,498 文件／599,098,169 bytes。把整个资源目录移出仓库后，随包 Node 实际完成 sidecar bootstrap、无账号 start 返回 account-required、关闭管道退出 0。现有桌面 5 文件／23 用例通过，没有新增测试体系。此结果证明装配去重和启动边界；macOS DMG、Windows NSIS 是否解除卡点仍需目标平台执行，不能仅凭体积下降宣称成功。
+
+## Windows NSIS 输入路径修复（2026-10-04）
+
+`8d81b3f` ARM 安装包 job 成功：DMG 创建及 hdiutil verify、源文件/锁检查、artifact 上传均通过；Local checks 也成功。Windows 资源枚举已从此前长时间停顿推进至 makensis，随后 File 指令无法打开 inspector 的 `selectElementAccessibilityInteractiveContentAttributesSelectDescendant.md`。其完整输入路径为 262 字符；同一固定包中的文件存在（272 bytes），此前 Windows 资源清单校验也成功，提示 NSIS 输入路径限制而非发布包缺文件。
+
+Windows 打包入口现在使用自身 mkdtemp 创建的短资源目录，检查原超长输入存在且大小匹配清单、检查全部暂存路径小于 260 字符，再通过 Tauri bundle.resources 映射保持安装后的 `resources/generated/runtime` 路径不变。只清理本次临时目录，不修改 OS 长路径设置、包内容或 macOS 打包流程。node --check 与 diff 检查通过；真实 Windows CI 结果另跟踪，不把路径推断当作安装验收。

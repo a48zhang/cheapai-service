@@ -50,7 +50,7 @@ function data(value: object, key: string): unknown {
 function identifier(value: unknown): value is string {
   return typeof value === 'string' && value.length <= AUDIT_LIMITS.string
     && /^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/.test(value)
-    && !/(?:s2a_(?:key|session|invite)_|sk-|bearer|-----BEGIN)/i.test(value);
+    && !/(?:s2a_(?:key|session|invite|desktop)_|sk-|bearer|-----BEGIN)/i.test(value);
 }
 
 /** Only copies reviewed structured fields; unknown objects and accessors vanish. */

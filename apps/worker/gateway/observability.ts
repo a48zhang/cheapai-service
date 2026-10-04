@@ -56,7 +56,7 @@ function choice(value: unknown, allowed: readonly string[]): string | undefined 
 }
 function identifier(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 && value.length <= 128 && /^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/.test(value)
-    && !/(?:s2a_(?:key|session|invite)_|sk-|bearer|-----BEGIN)/i.test(value) ? value : undefined;
+    && !/(?:s2a_(?:key|session|invite|desktop)_|sk-|bearer|-----BEGIN)/i.test(value) ? value : undefined;
 }
 function count(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
