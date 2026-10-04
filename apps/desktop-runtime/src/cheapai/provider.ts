@@ -1,5 +1,8 @@
 import { CHEAPAI_API_KEY_CREDENTIAL_REF } from '../dsh/config.ts'
 
+/** Canonical DSH credential reference intercepted by the private Key resolver. */
+export const CHEAPAI_PROVIDER_CREDENTIAL_REF = CHEAPAI_API_KEY_CREDENTIAL_REF
+
 /** Protocols the pinned DSH pi-ai provider accepts for a custom route. */
 export type CheapAiApiProtocol =
   | 'openai-completions'
@@ -27,7 +30,7 @@ export interface CheapAiProviderProfileFragment {
   providers: {
     cheapai: {
       displayName: 'cheapai'
-      apiKeyEnv: typeof CHEAPAI_API_KEY_CREDENTIAL_REF
+      apiKeyEnv: typeof CHEAPAI_PROVIDER_CREDENTIAL_REF
       baseURL: string
       api: CheapAiApiProtocol
       models: CheapAiModelProfile[]
@@ -64,7 +67,9 @@ export function normalizeCheapAiBaseURL(baseURL: string): string {
 /**
  * Build the pinned DSH `llm-pi-ai` profile fragment for the cheapai route.
  * The route is only admitted after discovery or explicit model configuration;
- * its `apiKeyEnv` is a credential reference, not a key snapshot.
+ * its `apiKeyEnv` is a credential reference, not a key snapshot. DSH resolves
+ * this reference for each model stream; the Runtime credential provider owns
+ * the dynamic lookup and keeps the Key out of the profile.
  */
 export function createCheapAiProviderProfile(
   options: CheapAiProviderProfileOptions,
@@ -101,7 +106,7 @@ export function createCheapAiProviderProfile(
     providers: {
       cheapai: {
         displayName: 'cheapai',
-        apiKeyEnv: CHEAPAI_API_KEY_CREDENTIAL_REF,
+        apiKeyEnv: CHEAPAI_PROVIDER_CREDENTIAL_REF,
         baseURL,
         api: options.api,
         models,

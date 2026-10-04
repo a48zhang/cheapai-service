@@ -10,6 +10,8 @@ export interface DshProfileLaunchOptions {
   home: string
   /** Absolute path to the profile patch copied or resolved by the launcher. */
   patchFile: string
+  /** Optional launcher-generated overlay that installs the Runtime credential bridge provider. */
+  credentialProviderPatchFile?: string
   /** Zero asks the DSH web Host to bind an OS-assigned loopback port. */
   port: number
   /** True only before the `cheapai` profile directory has been initialized. */
@@ -40,6 +42,9 @@ export function createDshProfileLaunchConfig(
     '--profile', DSH_PROFILE_NAME,
     ...(options.initializeProfile ? ['--from-default-profile', DSH_PROFILE_TEMPLATE] : []),
     '--patch', options.patchFile,
+    ...(options.credentialProviderPatchFile === undefined
+      ? []
+      : ['--patch', options.credentialProviderPatchFile]),
     '--no-open',
     '--host', DSH_LOOPBACK_HOST,
     '--port', String(options.port),

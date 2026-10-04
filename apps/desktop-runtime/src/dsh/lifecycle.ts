@@ -74,6 +74,11 @@ interface ActiveRun {
   stopPromise?: Promise<void>
   connection?: DshConnectionInfo
   failure?: DshLifecycleFailure
+  stdoutDataListener?: (chunk: Buffer | string) => void
+  stdoutEndListener?: () => void
+  stderrDataListener?: () => void
+  childErrorListener?: (error: Error) => void
+  childCloseListener?: (code: number | null, signal: NodeJS.Signals | null) => void
 }
 
 const DEFAULT_STARTUP_TIMEOUT_MS = 30_000
@@ -171,12 +176,22 @@ export class DshLifecycle {
     this.active = run
     this.publish({ state: 'starting', generation, stage: run.stage })
 
-    run.child.stdout.on('data', chunk => this.readStdout(run, chunk))
-    run.child.stdout.once('end', () => this.flushStdout(run))
+    const stdoutDataListener = (chunk: Buffer | string) => this.readStdout(run, chunk)
+    const stdoutEndListener = () => this.flushStdout(run)
+    const stderrDataListener = () => {}
+    const childErrorListener = (error: Error) => this.handleChildError(run, error)
+    const childCloseListener = (code: number | null, signal: NodeJS.Signals | null) => this.handleExit(run, code, signal)
+    run.stdoutDataListener = stdoutDataListener
+    run.stdoutEndListener = stdoutEndListener
+    run.stderrDataListener = stderrDataListener
+    run.childErrorListener = childErrorListener
+    run.childCloseListener = childCloseListener
+    run.child.stdout.on('data', stdoutDataListener)
+    run.child.stdout.once('end', stdoutEndListener)
     // Drain DSH diagnostics even when the native host does not forward logs.
-    run.child.stderr.on('data', () => {})
-    run.child.once('error', error => this.handleChildError(run, error))
-    run.child.once('close', (code, signal) => this.handleExit(run, code, signal))
+    run.child.stderr.on('data', stderrDataListener)
+    run.child.on('error', childErrorListener)
+    run.child.once('close', childCloseListener)
     run.startupTimer = setTimeout(() => {
       this.failStartup(run, new DshLifecycleError(
         'startup-timeout',
@@ -203,6 +218,7 @@ export class DshLifecycle {
 
   private async stopRun(run: ActiveRun): Promise<void> {
     run.stopping = true
+    this.releaseStdoutListeners(run)
     this.clearStartupTimer(run)
     this.clearTerminationTimer(run)
     run.abortController.abort()
@@ -245,7 +261,7 @@ export class DshLifecycle {
   }
 
   private readStdout(run: ActiveRun, chunk: Buffer | string): void {
-    if (run.exited || run.probing || run.readySettled) return
+    if (!this.isCurrent(run) || run.exited || run.probing || run.readySettled || run.stopping) return
     run.lineBuffer += run.decoder.write(typeof chunk === 'string' ? Buffer.from(chunk) : chunk)
     let newline = run.lineBuffer.indexOf('\n')
     while (newline >= 0) {
@@ -259,13 +275,14 @@ export class DshLifecycle {
   }
 
   private flushStdout(run: ActiveRun): void {
-    if (run.probing || run.readySettled || run.exited) return
+    if (!this.isCurrent(run) || run.probing || run.readySettled || run.exited || run.stopping) return
     run.lineBuffer += run.decoder.end()
     if (run.lineBuffer.length > 0) this.readLine(run, run.lineBuffer.replace(/\r$/u, ''))
     run.lineBuffer = ''
   }
 
   private readLine(run: ActiveRun, line: string): void {
+    if (!this.isCurrent(run) || run.exited || run.stopping || run.readySettled) return
     let announced: ReturnType<typeof parseDshWebReadyLine>
     try {
       announced = parseDshWebReadyLine(line)
@@ -283,14 +300,15 @@ export class DshLifecycle {
       signal: run.abortController.signal,
       ...(this.fetcher === undefined ? {} : { fetch: this.fetcher }),
       onStage: stage => {
-        if (run.exited || run.stopping || run.readySettled) return
+        if (!this.isCurrent(run) || run.exited || run.stopping || run.readySettled) return
         run.stage = stage
         this.publish({ state: 'starting', generation: run.generation, stage })
       },
     }).then(connection => {
-      if (run.exited || run.stopping || run.readySettled || run.abortController.signal.aborted) return
+      if (!this.isCurrent(run) || run.exited || run.stopping || run.readySettled || run.abortController.signal.aborted) return
       run.connection = connection
       run.readySettled = true
+      this.releaseStdoutListeners(run)
       this.clearStartupTimer(run)
       this.publish({ state: 'ready', generation: run.generation })
       run.resolveReady(connection)
@@ -304,13 +322,15 @@ export class DshLifecycle {
   }
 
   private handleChildError(run: ActiveRun, error: Error): void {
-    if (run.exited || run.stopping) return
+    if (!this.isCurrent(run) || run.exited || run.stopping) return
     const stage = !run.readySettled && run.child.pid === undefined ? 'launch' : run.readySettled ? 'process-exit' : run.stage
     const message = error.message || 'DSH child process failed'
     if (!run.readySettled) {
       this.failStartup(run, new DshLifecycleError('process-failed', stage, message))
       return
     }
+    if (run.failure !== undefined) return
+    this.releaseStdoutListeners(run)
     run.failure = { code: 'process-failed', stage, message }
     run.abortController.abort()
     this.publish({ state: 'failed', generation: run.generation, stage, failure: run.failure })
@@ -319,7 +339,9 @@ export class DshLifecycle {
 
   private handleExit(run: ActiveRun, code: number | null, signal: NodeJS.Signals | null): void {
     if (run.exited) return
+    const wasCurrent = this.isCurrent(run)
     run.exited = true
+    this.releaseListeners(run)
     this.clearStartupTimer(run)
     this.clearTerminationTimer(run)
     run.abortController.abort()
@@ -345,8 +367,9 @@ export class DshLifecycle {
       }
     }
 
-    if (this.active === run) this.active = undefined
+    if (wasCurrent) this.active = undefined
     run.resolveExit()
+    if (!wasCurrent) return
     if (run.stopping || (run.connection !== undefined && code === 0 && run.failure === undefined)) {
       this.publish({ state: 'stopped', generation: run.generation })
     } else if (run.failure !== undefined) {
@@ -357,7 +380,7 @@ export class DshLifecycle {
   }
 
   private failStartup(run: ActiveRun, error: DshLifecycleError): void {
-    if (run.exited || run.readySettled || run.stopping) return
+    if (!this.isCurrent(run) || run.exited || run.readySettled || run.stopping) return
     run.readySettled = true
     run.failure = {
       code: error.code === 'startup-timeout'
@@ -368,6 +391,7 @@ export class DshLifecycle {
       stage: error.stage,
       message: error.message,
     }
+    this.releaseStdoutListeners(run)
     this.clearStartupTimer(run)
     run.abortController.abort()
     this.publish({ state: 'failed', generation: run.generation, stage: error.stage, failure: run.failure })
@@ -400,6 +424,41 @@ export class DshLifecycle {
     if (run.terminationTimer !== undefined) {
       clearTimeout(run.terminationTimer)
       run.terminationTimer = undefined
+    }
+  }
+
+  private isCurrent(run: ActiveRun): boolean {
+    return this.active === run && this.generation === run.generation
+  }
+
+  /** Stop interpreting startup output without interrupting stderr pipe draining. */
+  private releaseStdoutListeners(run: ActiveRun): void {
+    if (run.stdoutDataListener !== undefined) {
+      run.child.stdout.off('data', run.stdoutDataListener)
+      run.stdoutDataListener = undefined
+    }
+    if (run.stdoutEndListener !== undefined) {
+      run.child.stdout.off('end', run.stdoutEndListener)
+      run.stdoutEndListener = undefined
+    }
+    // Keep draining logs after readiness so the child's stdout pipe cannot fill.
+    if (!run.exited) run.child.stdout.resume()
+  }
+
+  /** Release every listener owned by this run after the child has closed. */
+  private releaseListeners(run: ActiveRun): void {
+    this.releaseStdoutListeners(run)
+    if (run.stderrDataListener !== undefined) {
+      run.child.stderr.off('data', run.stderrDataListener)
+      run.stderrDataListener = undefined
+    }
+    if (run.childErrorListener !== undefined) {
+      run.child.off('error', run.childErrorListener)
+      run.childErrorListener = undefined
+    }
+    if (run.childCloseListener !== undefined) {
+      run.child.off('close', run.childCloseListener)
+      run.childCloseListener = undefined
     }
   }
 

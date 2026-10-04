@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DSH_PROFILE_NAME } from './config.ts'
@@ -33,6 +34,22 @@ export interface ResolvedDshPaths {
 const PACKAGED_RUNTIME_PARTS = ['resources', 'generated', 'runtime'] as const
 const require = createRequire(import.meta.url)
 
+/** Source and compiled modules have different depths; resolve their owning package. */
+function runtimePackageDirectory(): string {
+  let current = dirname(fileURLToPath(import.meta.url))
+  while (true) {
+    const manifest = join(current, 'package.json')
+    if (existsSync(manifest)) {
+      const metadata: unknown = JSON.parse(readFileSync(manifest, 'utf8'))
+      if (typeof metadata === 'object' && metadata !== null
+        && 'name' in metadata && metadata.name === '@sub2api/desktop-runtime') return current
+    }
+    const parent = dirname(current)
+    if (parent === current) throw new Error('Desktop Runtime package directory is unavailable')
+    current = parent
+  }
+}
+
 function requiredAbsolute(value: string | undefined, label: string): string {
   if (value === undefined || value.length === 0 || !isAbsolute(value)) {
     throw new Error(`${label} must be an absolute path`)
@@ -57,7 +74,7 @@ export function resolveDshPaths(options: ResolveDshPathsOptions): ResolvedDshPat
     runtimeExecutable = requiredAbsolute(options.runtimeExecutable, 'Development runtime executable')
     const packageJson = require.resolve('@deepseek-ai/dsh/package.json') as string
     packageRoot = dirname(packageJson)
-    const runtimePackageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
+    const runtimePackageRoot = runtimePackageDirectory()
     runtimeRoot = runtimePackageRoot
     profilePatch = join(runtimePackageRoot, 'profiles', 'cheapai.yml')
   } else {

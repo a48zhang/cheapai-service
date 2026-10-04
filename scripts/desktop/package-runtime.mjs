@@ -54,23 +54,6 @@ function validateTargetHost(target) {
   }
 }
 
-async function readPackage(packageDirectory) {
-  let source
-  try {
-    source = await realpath(packageDirectory)
-  } catch {
-    fail(`Required installed package is missing: ${packageDirectory}. Install the pinned workspace dependencies before preparing desktop resources.`)
-  }
-  let metadata
-  try {
-    metadata = JSON.parse(await readFile(join(source, 'package.json'), 'utf8'))
-  } catch (error) {
-    fail(`Cannot read package metadata at ${source}: ${error.message}`)
-  }
-  if (!metadata.name || !metadata.version) fail(`Package at ${source} has no name/version metadata`)
-  return { source, metadata }
-}
-
 async function resolveDependency(importerDirectory, name) {
   const parts = name.split('/')
   let directory = importerDirectory
@@ -117,6 +100,49 @@ function dependencyEntries(metadata) {
     if (!specs.has(name)) specs.set(name, { range: '*', optional: false })
   }
   return specs
+}
+
+async function resolveRuntimeDependencies(runtimeDirectory, runtimePackage) {
+  if (runtimePackage.dependencies === null
+    || typeof runtimePackage.dependencies !== 'object'
+    || Array.isArray(runtimePackage.dependencies)) {
+    fail('Desktop Runtime package.json must declare production dependencies')
+  }
+
+  const dependencies = []
+  for (const [name, specifier] of Object.entries(runtimePackage.dependencies)) {
+    if (typeof specifier !== 'string' || specifier.length === 0) {
+      fail(`Invalid production dependency specifier for ${name} in apps/desktop-runtime/package.json`)
+    }
+    const resolved = await resolveDependency(runtimeDirectory, name)
+    if (!resolved) {
+      fail(`Required Runtime production dependency ${name} (${specifier}) is not installed in the workspace dependency tree`)
+    }
+    if (resolved.metadata.name !== name || !resolved.metadata.version) {
+      fail(`Resolved Runtime dependency ${name} has invalid package metadata at ${resolved.source}`)
+    }
+    if (/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u.test(specifier)
+      && resolved.metadata.version !== specifier) {
+      fail(`Installed Runtime dependency mismatch for ${name}: expected ${specifier}, found ${resolved.metadata.version}`)
+    }
+    dependencies.push({ name, specifier, ...resolved })
+  }
+  return dependencies
+}
+
+async function copyRuntimeDependencies(dependencies, output, host) {
+  const visibleVersions = new Map(dependencies.map(({ name, metadata }) => [name, metadata.version]))
+  const destinationRoot = join(output, 'node_modules')
+  for (const dependency of dependencies) {
+    await copyDependencyPackage({
+      source: dependency.source,
+      destination: packagePath(destinationRoot, dependency.name),
+      metadata: dependency.metadata,
+      visibleVersions,
+      active: new Set(),
+      host,
+    })
+  }
 }
 
 async function copyPackageFiles(source, destination) {
@@ -239,32 +265,29 @@ export async function packageRuntime({
   const target = readTarget(versions, targetTriple)
   validateTargetHost(target)
 
+  const runtimeDirectory = join(root, 'apps/desktop-runtime')
+  const runtimePackage = JSON.parse(await readFile(join(runtimeDirectory, 'package.json'), 'utf8'))
+  const runtimeDependencies = await resolveRuntimeDependencies(runtimeDirectory, runtimePackage)
   const dshPackageName = versions.dsh.package
-  const dshSource = join(root, 'apps/desktop-runtime/node_modules', ...dshPackageName.split('/'))
-  const { source, metadata } = await readPackage(dshSource)
-  if (metadata.name !== dshPackageName || metadata.version !== versions.dsh.version) {
-    fail(`Installed DSH package mismatch: expected ${dshPackageName}@${versions.dsh.version}, found ${metadata.name}@${metadata.version}`)
+  const dshDependency = runtimeDependencies.find(({ name }) => name === dshPackageName)
+  if (!dshDependency || dshDependency.metadata.version !== versions.dsh.version) {
+    fail(`Installed DSH package mismatch: expected ${dshPackageName}@${versions.dsh.version}, found ${dshDependency?.metadata.version ?? 'missing'}`)
   }
 
   await mkdir(output, { recursive: true })
   if ((await readdir(output)).length > 0) {
     fail(`Runtime package output must be an empty staging directory: ${output}`)
   }
-  const dshDestination = packagePath(join(output, 'node_modules'), dshPackageName)
-  await copyDependencyPackage({
-    source,
-    destination: dshDestination,
-    metadata,
-    visibleVersions: new Map(),
-    active: new Set(),
-    host: target,
-  })
+  await copyRuntimeDependencies(runtimeDependencies, output, target)
 
-  const runtimePackage = JSON.parse(await readFile(join(root, 'apps/desktop-runtime/package.json'), 'utf8'))
   const { dependencies: _dependencies, devDependencies: _devDependencies, scripts: _scripts, ...runtimeManifest } = runtimePackage
   await writeFile(join(output, 'package.json'), `${JSON.stringify({
     ...runtimeManifest,
-    dependencies: { [dshPackageName]: versions.dsh.version },
+    dependencies: Object.fromEntries(
+      runtimeDependencies
+        .toSorted((left, right) => left.name.localeCompare(right.name))
+        .map(({ name, metadata }) => [name, metadata.version]),
+    ),
   }, null, 2)}\n`)
 
   await copyDirectory(

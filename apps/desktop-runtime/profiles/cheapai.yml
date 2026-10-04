@@ -13,8 +13,9 @@
 
 # cheapai authenticates to its configured API provider. Do not mount DSH's
 # DeepSeek account/OAuth route or its account settings surface.
-# R04 installs the provider route with apiKeyEnv: CHEAPAI_API_KEY; DSH resolves
-# that credential reference through ctx.credentials for each model request.
+# When Runtime has started the private credential bridge, the launcher adds a
+# separate path-only patch that replaces the local credential provider while
+# keeping its `credentials` service available to DSH plugins.
 - id: deepseek-account
   disabled: true
 

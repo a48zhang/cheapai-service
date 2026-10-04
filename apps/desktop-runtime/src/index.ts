@@ -4,12 +4,17 @@ import { homedir } from 'node:os'
 import { isAbsolute, join, resolve } from 'node:path'
 import type { HostStartupEvent } from '@sub2api/desktop-contracts'
 import { CHEAPAI_API_KEY_CREDENTIAL_REF } from './dsh/config.ts'
+import { createDshRuntimeTransport, type DshRuntimeTransport } from './dsh/transport.ts'
 import { launchDsh } from './dsh/launcher.ts'
 import { DshLifecycle, type DshLifecycleSnapshot } from './dsh/lifecycle.ts'
 import type { DshConnectionInfo } from './dsh/connection-info.ts'
 import { createCheapAiProviderProfile, normalizeCheapAiBaseURL } from './cheapai/provider.ts'
 import { discoverCheapAiModels } from './cheapai/model-catalog.ts'
-import type { CheapAiPrivateConfiguration } from './host/protocol.ts'
+import type {
+  CheapAiPrivateConfiguration,
+  DshRuntimeStreamEvent,
+  DshTransportOperation,
+} from './host/protocol.ts'
 import { RuntimeControlChannel, RuntimeControlError } from './host/control.ts'
 
 const DSH_SETTINGS_NAMESPACE = 'llm-pi-ai'
@@ -21,6 +26,120 @@ let control: RuntimeControlChannel | undefined
 let privateConfiguration: CheapAiPrivateConfiguration | undefined
 let configurationRevision = 0
 let configurationQueue: Promise<void> = Promise.resolve()
+let dshTransport: DshRuntimeTransport | undefined
+let dshTransportGeneration: number | undefined
+let dshTransportSetup: { generation: number; promise: Promise<void> } | undefined
+let dshTransportDisposal: Promise<void> | undefined
+let dshTransportEpoch = 0
+
+function lifecycleIsReady(generation: number): boolean {
+  const status = lifecycle?.status
+  return status?.state === 'ready' && status.generation === generation
+}
+
+function disposeDshTransport(): Promise<void> {
+  if (dshTransportDisposal !== undefined) return dshTransportDisposal
+
+  dshTransportEpoch += 1
+  const setup = dshTransportSetup
+  dshTransportSetup = undefined
+  const current = dshTransport
+  dshTransport = undefined
+  dshTransportGeneration = undefined
+
+  const task = (async () => {
+    if (setup !== undefined) await setup.promise.catch(() => {})
+    await current?.dispose()
+  })()
+  const tracked = task.finally(() => {
+    if (dshTransportDisposal === tracked) dshTransportDisposal = undefined
+  })
+  dshTransportDisposal = tracked
+  return tracked
+}
+
+function scheduleDshTransportDisposal(): void {
+  void disposeDshTransport().catch(() => {
+    process.stderr.write('DSH Runtime transport cleanup failed\n')
+  })
+}
+
+async function ensureDshTransport(connection: DshConnectionInfo, generation: number): Promise<void> {
+  if (!lifecycleIsReady(generation)) {
+    throw new RuntimeControlError('stale-generation', 'DSH is no longer ready for this Runtime generation')
+  }
+  if (dshTransport !== undefined && dshTransportGeneration === generation) return
+  if (dshTransportSetup?.generation === generation) {
+    await dshTransportSetup.promise
+    if (dshTransport !== undefined && dshTransportGeneration === generation) return
+    throw new RuntimeControlError('stale-generation', 'DSH transport setup belongs to an inactive Runtime generation')
+  }
+
+  await disposeDshTransport()
+  if (!lifecycleIsReady(generation)) {
+    throw new RuntimeControlError('stale-generation', 'DSH stopped before its Runtime transport could be created')
+  }
+  if (dshTransport !== undefined && dshTransportGeneration === generation) return
+  if (dshTransportSetup?.generation === generation) {
+    await dshTransportSetup.promise
+    if (dshTransport !== undefined && dshTransportGeneration === generation) return
+    throw new RuntimeControlError('stale-generation', 'DSH transport setup belongs to an inactive Runtime generation')
+  }
+
+  const epoch = dshTransportEpoch
+  const setup: { generation: number; promise: Promise<void> } = {
+    generation,
+    promise: Promise.resolve().then(async () => {
+      const candidate = await createDshRuntimeTransport(connection, generation)
+      if (dshTransportEpoch !== epoch || !lifecycleIsReady(generation)) {
+        await candidate.dispose()
+        return
+      }
+      dshTransport = candidate
+      dshTransportGeneration = generation
+    }),
+  }
+  dshTransportSetup = setup
+  try {
+    await setup.promise
+  } finally {
+    if (dshTransportSetup === setup) dshTransportSetup = undefined
+  }
+  if (dshTransport === undefined || dshTransportGeneration !== generation || !lifecycleIsReady(generation)) {
+    throw new RuntimeControlError('stale-generation', 'DSH transport setup completed after its Runtime generation stopped')
+  }
+}
+
+async function dispatchDshTransport(
+  operation: DshTransportOperation,
+  payload: unknown,
+  publish: (event: DshRuntimeStreamEvent) => void,
+): Promise<unknown> {
+  const target = dshTransport
+  const generation = dshTransportGeneration
+  if (target === undefined || generation === undefined || !lifecycleIsReady(generation)) {
+    throw new RuntimeControlError('dsh-transport-unavailable', 'DSH Runtime transport is not ready')
+  }
+
+  return target.handle(operation, payload, event => {
+    if (event.generation !== generation
+      || dshTransport !== target
+      || dshTransportGeneration !== generation
+      || !lifecycleIsReady(generation)) return
+    publish(event)
+  })
+}
+
+async function stopDshRuntime(): Promise<void> {
+  const [transportResult, lifecycleResult] = await Promise.allSettled([
+    disposeDshTransport(),
+    lifecycle?.stop() ?? Promise.resolve(),
+  ])
+  if (transportResult.status === 'rejected') {
+    throw new RuntimeControlError('dsh-transport-cleanup-failed', 'DSH Runtime transport could not be disposed')
+  }
+  if (lifecycleResult.status === 'rejected') throw lifecycleResult.reason
+}
 
 function requiredAbsolutePath(value: string | undefined, fallback: string, label: string): string {
   const candidate = value ?? fallback
@@ -59,7 +178,17 @@ function createLifecycle(): DshLifecycle {
         env: { [CHEAPAI_API_KEY_CREDENTIAL_REF]: undefined },
       })
     },
-    onState: status => control?.publishStatus(status),
+    onState: status => {
+      control?.publishStatus(status)
+      if (status.state === 'stopping'
+        || status.state === 'stopped'
+        || status.state === 'failed'
+        || (status.state === 'starting'
+          && dshTransportGeneration !== undefined
+          && dshTransportGeneration !== status.generation)) {
+        scheduleDshTransportDisposal()
+      }
+    },
   })
 }
 
@@ -180,7 +309,10 @@ async function main(): Promise<void> {
     },
     start: async () => {
       const owner = requireLifecycle()
-      const connection = await owner.start()
+      const ready = owner.start()
+      const generation = owner.status.generation
+      const connection = await ready
+      await ensureDshTransport(connection, generation)
       const configuration = privateConfiguration
       if (configuration !== undefined) {
         try {
@@ -192,7 +324,7 @@ async function main(): Promise<void> {
       return connection
     },
     stop: async () => {
-      await lifecycle?.stop()
+      await stopDshRuntime()
     },
     status: (): DshLifecycleSnapshot => lifecycle?.status ?? { state: 'stopped', generation: 0 },
     configure: async configuration => {
@@ -222,6 +354,7 @@ async function main(): Promise<void> {
       }
       return { applied: true }
     },
+    transport: (operation, payload, publish) => dispatchDshTransport(operation, payload, publish),
   })
   control = runtimeControl
   runtimeControl.start()
@@ -234,7 +367,7 @@ async function main(): Promise<void> {
     process.off('SIGINT', onShutdown)
     process.off('SIGTERM', onShutdown)
     process.stdin.off('end', onShutdown)
-    shutdownPromise = lifecycle?.stop().catch(() => {}) ?? Promise.resolve()
+    shutdownPromise = stopDshRuntime().catch(() => {})
     void shutdownPromise
   }
   process.once('SIGINT', onShutdown)

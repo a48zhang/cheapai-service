@@ -1,6 +1,8 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import { isAbsolute } from 'node:path'
+import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { dirname, isAbsolute, join, resolve } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { DESKTOP_CREDENTIAL_SOCKET_ENV } from '../cheapai/credential-bridge.ts'
 import { createDshProfileLaunchConfig } from './config.ts'
 import {
   resolveDshPaths,
@@ -31,6 +33,33 @@ export interface LaunchedDshProcess {
   paths: ResolvedDshPaths
 }
 
+function writeCredentialProviderPatch(paths: ResolvedDshPaths): string {
+  const moduleExtension = paths.mode === 'development' ? 'ts' : 'js'
+  const modulePath = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    '..',
+    'cheapai',
+    `dsh-credential-provider.${moduleExtension}`,
+  )
+  if (!existsSync(modulePath)) {
+    throw new Error(`DSH credential bridge provider is missing at ${modulePath}`)
+  }
+
+  const patchPath = join(paths.home, 'cheapai-credential-provider.yml')
+  mkdirSync(paths.home, { recursive: true, mode: 0o700 })
+  const patch = [
+    '- id: credentials',
+    '  disabled: true',
+    '- insert:',
+    '    - id: cheapai-credentials',
+    `      name: ${JSON.stringify(pathToFileURL(modulePath).href)}`,
+    '',
+  ].join('\n')
+  writeFileSync(patchPath, patch, { encoding: 'utf8', mode: 0o600 })
+  chmodSync(patchPath, 0o600)
+  return patchPath
+}
+
 function validateAbsoluteDirectory(value: string, label: string): string {
   if (!isAbsolute(value)) throw new Error(`${label} must be an absolute path`)
   return value
@@ -54,9 +83,18 @@ export function launchDsh(options: LaunchDshOptions): LaunchedDshProcess {
     throw new Error(`DSH profile directory exists without a package.json: ${paths.profileDirectory}`)
   }
 
+  const credentialSocketAddress = options.env?.[DESKTOP_CREDENTIAL_SOCKET_ENV]
+  if (credentialSocketAddress !== undefined && credentialSocketAddress.length === 0) {
+    throw new Error('DSH credential bridge address is empty')
+  }
+  const credentialProviderPatchFile = credentialSocketAddress === undefined
+    ? undefined
+    : writeCredentialProviderPatch(paths)
+
   const profile = createDshProfileLaunchConfig({
     home: paths.home,
     patchFile: paths.profilePatch,
+    ...(credentialProviderPatchFile === undefined ? {} : { credentialProviderPatchFile }),
     port: options.port ?? 0,
     initializeProfile: !profileDirectoryExists,
   })
@@ -65,6 +103,7 @@ export function launchDsh(options: LaunchDshOptions): LaunchedDshProcess {
     if (value !== undefined) env[key] = value
     else delete env[key]
   }
+  if (credentialSocketAddress === undefined) delete env[DESKTOP_CREDENTIAL_SOCKET_ENV]
 
   const child = spawn(paths.runtimeExecutable, [paths.cliEntry, ...profile.args], {
     cwd: workspaceDirectory,

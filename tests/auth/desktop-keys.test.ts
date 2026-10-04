@@ -4,12 +4,19 @@ import { createDesktopSession } from '../../apps/worker/auth/desktop/session-rep
 import { getOrCreateCurrentKey } from '../../apps/worker/auth/desktop/keys';
 import { DESKTOP_KEY_MAX_TTL_MS } from '../../apps/worker/auth/desktop/types';
 import { hashToken, verifyToken } from '../../apps/worker/auth/tokens';
-import { revokePlatformKey } from '../../apps/worker/auth/key-repository';
+import {
+  createPlatformKey,
+  findPlatformKeyById,
+  listPlatformKeys,
+  revokePlatformKey,
+  updatePlatformKey,
+} from '../../apps/worker/auth/key-repository';
 import { testEnv } from '../helpers/database';
 
 const now = 1_788_619_000_123;
 const day = 24 * 60 * 60 * 1000;
 const groupId = 'desktop-keys-group';
+const alternateGroupId = 'desktop-keys-alternate-group';
 const userId = 'desktop-keys-owner';
 const encryptionKey = { keyVersion: 'desktop-test-v1', key: new Uint8Array(32).fill(23) };
 const keyring = new Map([[encryptionKey.keyVersion, encryptionKey.key]]);
@@ -118,6 +125,36 @@ describe('desktop session API Keys on native D1', () => {
     const key = await desktopKey(issued.token);
     expect(key.expiresAt).toBe(shortSessionExpiry);
     expect(await sessionState(issued.session.id)).toMatchObject({ expires_at: shortSessionExpiry, current_key_id: key.keyId });
+  });
+
+  it('keeps session-managed Keys out of ordinary list and update operations while allowing irreversible revocation', async () => {
+    await testEnv.DB.prepare('INSERT INTO groups (id,name,status,version,created_at,updated_at) VALUES (?,?,?,1,?,?)')
+      .bind(alternateGroupId, 'Alternate desktop test group', 'active', now, now).run();
+    await testEnv.DB.prepare('INSERT INTO user_group_access (user_id,group_id,created_at) VALUES (?,?,?)')
+      .bind(userId, alternateGroupId, now).run();
+
+    const issued = await createDesktopSession(testEnv.DB, userId, now);
+    const managedKey = await desktopKey(issued.token);
+    const ordinaryKey = await createPlatformKey(testEnv.DB, userId, {
+      operationId: 'ordinary-key', groupId: alternateGroupId, name: 'Ordinary API key',
+    }, now);
+
+    const listed = await listPlatformKeys(testEnv.DB, userId, {}, now + 1);
+    expect(listed.items.map(key => key.id)).toEqual([ordinaryKey.key.id]);
+
+    expect(await updatePlatformKey(testEnv.DB, userId, managedKey.keyId, 1,
+      { expiresAt: managedKey.expiresAt + day }, now + 1)).toEqual({ kind: 'not_updated' });
+    expect(await updatePlatformKey(testEnv.DB, userId, managedKey.keyId, 1,
+      { groupId: alternateGroupId }, now + 2)).toEqual({ kind: 'not_updated' });
+
+    expect(await revokePlatformKey(testEnv.DB, userId, managedKey.keyId, 1, now + 3))
+      .toMatchObject({ kind: 'revoked', key: { status: 'revoked', version: 2 } });
+    expect(await updatePlatformKey(testEnv.DB, userId, managedKey.keyId, 2,
+      { expiresAt: managedKey.expiresAt + day, groupId: alternateGroupId }, now + 4))
+      .toEqual({ kind: 'not_updated' });
+    await expect(desktopKey(issued.token, now + 5)).rejects.toMatchObject({ reason: 'key_revoked' });
+    expect(await findPlatformKeyById(testEnv.DB, userId, managedKey.keyId, now + 5))
+      .toMatchObject({ status: 'revoked', groupId, expiresAt: managedKey.expiresAt, version: 2 });
   });
 
   it('does not reactivate a manually revoked bound Key', async () => {

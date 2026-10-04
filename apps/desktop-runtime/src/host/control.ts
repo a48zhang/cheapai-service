@@ -1,11 +1,20 @@
 import { createInterface, type Interface } from 'node:readline'
 import type { Readable, Writable } from 'node:stream'
-import type { HostStartupEvent } from '@sub2api/desktop-contracts'
+import type {
+  DesktopAccountData,
+  DesktopHostAccountRequest,
+  DesktopHostAccountResult,
+  DesktopPublicAccountState,
+  HostStartupEvent,
+} from '@sub2api/desktop-contracts'
 import type { DshConnectionInfo } from '../dsh/connection-info.ts'
 import type { DshLifecycleSnapshot } from '../dsh/lifecycle.ts'
 import {
+  isDshTransportOperation,
   parseHostRuntimeMessage,
   type CheapAiPrivateConfiguration,
+  type DshRuntimeStreamEvent,
+  type DshTransportOperation,
   type HostCommandMessage,
   type HostRuntimeMessage,
   type RuntimeCommandResult,
@@ -18,7 +27,13 @@ export interface RuntimeControlActions {
   stop: () => Promise<void>
   status: () => DshLifecycleSnapshot
   configure: (configuration: CheapAiPrivateConfiguration) => Promise<{ applied: boolean }>
-  account?: (operation: string, payload: unknown) => Promise<unknown>
+  account?: (request: DesktopHostAccountRequest) => Promise<DesktopHostAccountResult>
+  onAccountState?: (listener: (state: DesktopPublicAccountState) => void) => () => void
+  transport?: (
+    operation: DshTransportOperation,
+    payload: unknown,
+    publish: (event: DshRuntimeStreamEvent) => void,
+  ) => Promise<unknown>
 }
 
 export interface RuntimeControlOptions {
@@ -37,6 +52,7 @@ export class RuntimeControlError extends Error {
 /** One private JSON-lines request/response channel; ordinary logs use stderr. */
 export class RuntimeControlChannel {
   private reader?: Interface
+  private unsubscribeAccountState?: () => void
   private startup?: HostStartupEvent
   private startupPromise: Promise<void> = Promise.resolve()
   private startupFailure?: RuntimeControlError
@@ -51,16 +67,35 @@ export class RuntimeControlChannel {
     if (this.reader !== undefined) throw new Error('Runtime control channel is already started')
     this.reader = createInterface({ input: this.options.input, crlfDelay: Infinity })
     this.reader.on('line', line => this.acceptLine(line))
+    if (this.actions.onAccountState !== undefined) {
+      this.unsubscribeAccountState = this.actions.onAccountState(state => this.publishAccountState(state))
+    }
   }
 
   close(): void {
     this.reader?.close()
     this.reader = undefined
+    this.unsubscribeAccountState?.()
+    this.unsubscribeAccountState = undefined
   }
 
   /** Status events go only to the native parent process over this private pipe. */
   publishStatus(status: DshLifecycleSnapshot): void {
     this.enqueueWrite({ type: 'runtime.event', event: 'status', status })
+  }
+
+  /** Decoded DSH values cross only the private pipe to the native Runtime owner. */
+  publishDshStream(event: DshRuntimeStreamEvent): void {
+    this.enqueueWrite({ type: 'runtime.event', event: 'dsh.stream', ...event })
+  }
+
+  /** Only an explicit allowlist of account and balance fields reaches the host. */
+  publishAccountState(state: DesktopPublicAccountState): void {
+    this.enqueueWrite({
+      type: 'runtime.event',
+      event: 'account-state',
+      state: projectPublicAccountState(state),
+    })
   }
 
   private acceptLine(line: string): void {
@@ -145,8 +180,27 @@ export class RuntimeControlChannel {
         if (this.actions.account === undefined) {
           throw new RuntimeControlError('unsupported', 'Account commands are not enabled in this Runtime')
         }
-        const value = await this.actions.account(message.operation ?? '', message.payload)
+        // parseHostRuntimeMessage validates and allowlists each operation payload.
+        const request = {
+          operation: message.operation,
+          payload: message.payload,
+        } as DesktopHostAccountRequest
+        const value = await this.actions.account(request)
+        if (value.operation !== request.operation) {
+          throw new RuntimeControlError('runtime-error', 'Account command failed')
+        }
         return { kind: 'account', value }
+      }
+      case 'transport': {
+        if (this.actions.transport === undefined || !isDshTransportOperation(message.operation)) {
+          throw new RuntimeControlError('unsupported', 'DSH transport commands are not enabled in this Runtime')
+        }
+        const value = await this.actions.transport(
+          message.operation,
+          message.payload,
+          event => this.publishDshStream(event),
+        )
+        return { kind: 'transport', value }
       }
     }
   }
@@ -183,4 +237,47 @@ function controlError(cause: unknown): RuntimeControlError {
     if (typeof code === 'string') return new RuntimeControlError(code, cause.message)
   }
   return new RuntimeControlError('runtime-error', 'Runtime command failed')
+}
+
+function projectPublicAccountState(state: DesktopPublicAccountState): DesktopPublicAccountState {
+  switch (state.status) {
+    case 'signedOut':
+      return { status: 'signedOut' }
+    case 'restoring':
+      return { status: 'restoring' }
+    case 'signedIn':
+      return {
+        status: 'signedIn',
+        account: projectAccount(state.account),
+        expiresAt: state.expiresAt,
+      }
+    case 'unavailable':
+      return {
+        status: 'unavailable',
+        account: state.account === null ? null : projectAccount(state.account),
+        expiresAt: state.expiresAt,
+        problem: state.problem,
+      }
+  }
+}
+
+function projectAccount(account: DesktopAccountData): DesktopAccountData {
+  return {
+    user: {
+      id: account.user.id,
+      email_normalized: account.user.email_normalized,
+      role: account.user.role,
+      status: account.user.status,
+      group_id: account.user.group_id,
+      group_status: account.user.group_status,
+      balance_units: account.user.balance_units,
+      email_verified_at: account.user.email_verified_at,
+    },
+    balance: {
+      currency: 'USD',
+      decimals: 8,
+      balance_units: account.balance.balance_units,
+      balance_usd: account.balance.balance_usd,
+    },
+  }
 }

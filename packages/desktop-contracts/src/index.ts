@@ -98,6 +98,64 @@ export type DesktopPublicAccountState =
       readonly problem: DesktopAccountProblem;
     };
 
+/** Sensitive credential received from or returned to the native host over the
+ * private Runtime pipe. The native host owns OS keychain persistence; this
+ * value must never be copied into a renderer event or public account state.
+ */
+export interface DesktopPrivateSessionCredential {
+  readonly token: string;
+  readonly expiresAt: number;
+}
+
+/** Host-to-Runtime private account operation payloads. A restore payload is
+ * read by the native host from its credential store; a login result is returned
+ * privately so the native host can save the new session before publishing UI state.
+ */
+export interface DesktopHostAccountPayloadByOperation {
+  readonly login: DesktopLoginRequest;
+  readonly restore: DesktopPrivateSessionCredential;
+  readonly getAccount: DesktopPrivateSessionCredential;
+  readonly getKey: DesktopPrivateSessionCredential;
+  readonly logout: DesktopPrivateSessionCredential;
+}
+
+export type DesktopHostAccountOperation = keyof DesktopHostAccountPayloadByOperation;
+
+export type DesktopHostAccountRequest = {
+  [Operation in DesktopHostAccountOperation]: {
+    readonly operation: Operation;
+    readonly payload: DesktopHostAccountPayloadByOperation[Operation];
+  }
+}[DesktopHostAccountOperation];
+
+/** Restore returns a safe projection; only the login result includes a new
+ * Token and only the getKey result includes an API Key. Both travel solely on
+ * the private native-host pipe, never in DesktopPublicAccountState.
+ */
+export interface DesktopHostAccountResultByOperation {
+  readonly login: DesktopLoginResponse;
+  readonly restore: DesktopPublicAccountState;
+  readonly getAccount: DesktopAccountData;
+  readonly getKey: DesktopKeyResponse;
+  readonly logout: { readonly loggedOut: true };
+}
+
+export type DesktopHostAccountResult = {
+  [Operation in DesktopHostAccountOperation]: {
+    readonly operation: Operation;
+    readonly result: DesktopHostAccountResultByOperation[Operation];
+  }
+}[DesktopHostAccountOperation];
+
+/** Public account state notification sent only from Runtime to its native host.
+ * The host may forward it to the renderer after preserving this projection.
+ */
+export interface DesktopRuntimeAccountStateEvent {
+  readonly type: 'runtime.event';
+  readonly event: 'account-state';
+  readonly state: DesktopPublicAccountState;
+}
+
 /** Bootstrap message sent by the native host when it starts the local Runtime. */
 export interface HostStartupEvent {
   readonly type: 'host.startup';
