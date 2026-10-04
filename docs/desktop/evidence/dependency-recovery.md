@@ -70,3 +70,15 @@ Tauri 补充：`db1ca55` ARM 构建已越过 runtime/wry，但较新的 macros 2
 Intel macOS 同轮 release 编译及 `.app` 生成也通过，在 `bundle_dmg.sh` 阶段最终 cancelled（同样约 60 分钟，触发原因未确认）。因此三平台均已有真实原生编译成功日志，三平台安装包仍未成功。
 
 Windows 同时独立保留原生 `.exe` 编译产物；它不包含完整 Runtime，不能当作可独立安装的发行包。打包步骤上限设为 50 分钟，在原有 60 分钟 job 内留出归档/上传时间，超时/封装失败仍导致任务失败。
+
+## DMG detach 定位与定点修复（2026-10-04）
+
+仓库已改名 `a48zhang/cheapai-service`。公开后 `5f48385` attempt 2 正常启动且 Local checks 成功。ARM 详细日志确认镜像创建、挂载和 Applications 链接均完成，AppleScript 被 `--skip-jenkins` 跳过；真正失败为 `hdiutil detach: timeout for DiskArbitration expired; drive not detached`。已保留 ARM `.app` artifact `11298429844`（680,083,017 bytes），本修改不删除或替换该产物。
+
+未配置签名的 macOS 开发包改为 Tauri 生成 `.app` 后，由 `create-dmg.mjs` 使用系统 ditto 准备唯一临时目录（应用与 Applications 链接），直接 `hdiutil create -format UDZO`，再 `hdiutil verify` 后原子保存最终 DMG。没有 attach/detach、磁盘强制卸载、系统设置变更或扩大清理范围；只删除自身 mkdtemp 创建的目录。已配置 signing identity 时仍走原 Tauri DMG 流程。本地 node --check 和 diff 检查通过；当前 Linux 不具备 hdiutil，实际 DMG 结果必须在 macOS 验证。
+
+可直接复用已保留的 `.app`，无需重跑安装、Rust 或前端构建：
+
+```sh
+node scripts/desktop/create-dmg.mjs --app /path/to/cheapai.dev.app --output /path/to/cheapai.dev_0.0.0_aarch64.dmg --volume-name cheapai.dev
+```

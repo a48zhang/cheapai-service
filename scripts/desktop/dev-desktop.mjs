@@ -3,6 +3,7 @@ import { access, readFile, stat } from 'node:fs/promises'
 import { spawn, spawnSync } from 'node:child_process'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createDmg } from './create-dmg.mjs'
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url))
 const repositoryRoot = resolve(scriptDirectory, '../..')
@@ -322,10 +323,27 @@ async function main() {
     repositoryRoot,
     env,
   )
-  const bundle = process.platform === 'darwin' ? 'dmg' : 'nsis'
+  const config = JSON.parse(await readFile(join(desktopRoot, 'src-tauri/tauri.conf.json'), 'utf8'))
+  // Keep configured signing workflows with Tauri. Unsigned developer images
+  // need no writable mount or Finder customization (CI already skips it).
+  const hasAppleSigning = config.bundle?.macOS?.signingIdentity || [
+    'APPLE_SIGNING_IDENTITY', 'APPLE_CERTIFICATE', 'APPLE_API_KEY',
+    'APPLE_API_ISSUER', 'APPLE_ID',
+  ].some(name => Boolean(env[name]))
+  const plainDmg = process.platform === 'darwin' && !hasAppleSigning
+  const bundle = process.platform === 'darwin' ? (plainDmg ? 'app' : 'dmg') : 'nsis'
   // Tauri only emits installer subprocess stdout/stderr at verbose level.
   // Keep that evidence when hdiutil or NSIS fails after a successful Rust build.
   await runProcess('Tauri package build', process.execPath, [tauriCli, 'build', '--verbose', '--target', target, '--bundles', bundle], desktopRoot, env)
+  if (plainDmg) {
+    const bundleRoot = join(desktopRoot, 'src-tauri/target', target, 'release/bundle')
+    const architecture = target.startsWith('aarch64-') ? 'aarch64' : 'x64'
+    await createDmg({
+      app: join(bundleRoot, 'macos', `${config.productName}.app`),
+      output: join(bundleRoot, 'dmg', `${config.productName}_${config.version}_${architecture}.dmg`),
+      volumeName: config.productName,
+    })
+  }
 }
 
 main().catch(error => {
