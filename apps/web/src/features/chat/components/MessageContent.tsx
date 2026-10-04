@@ -68,7 +68,7 @@ const components: Components = {
 export function MessageContent({ content, className }: MessageContentProps) {
   return (
     <div
-      className={`break-words text-sm leading-7 text-[var(--color-foreground)] [&_blockquote]:my-3 [&_blockquote]:border-l-2 [&_blockquote]:border-[var(--color-line-strong)] [&_blockquote]:pl-4 [&_h1]:my-4 [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:my-3 [&_h3]:font-semibold [&_li]:whitespace-pre-wrap [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-3 [&_p]:whitespace-pre-wrap [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-6 ${className ?? ''}`}
+      className={`chat-message-content break-words text-sm leading-7 text-[var(--color-foreground)] [&_blockquote]:my-3 [&_blockquote]:border-l-2 [&_blockquote]:border-[var(--color-line-strong)] [&_blockquote]:pl-4 [&_h1]:my-4 [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:my-3 [&_h3]:font-semibold [&_li]:whitespace-pre-wrap [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-3 [&_p]:whitespace-pre-wrap [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-6 ${className ?? ''}`}
     >
       <ReactMarkdown
         components={components}

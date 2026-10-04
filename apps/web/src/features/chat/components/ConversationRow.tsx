@@ -13,21 +13,6 @@ export interface ConversationRowProps {
   readonly onDelete: (conversation: Conversation) => void;
 }
 
-function dateLabel(timestamp: number): string {
-  const date = new Date(timestamp);
-  if (!Number.isFinite(date.getTime())) return '';
-  const now = new Date();
-  if (date.toDateString() === now.toDateString()) {
-    return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(date);
-  }
-  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date);
-}
-
-function isoLabel(timestamp: number): string | undefined {
-  const date = new Date(timestamp);
-  return Number.isFinite(date.getTime()) ? date.toISOString() : undefined;
-}
-
 /** One history entry with inline rename and the existing delete action. */
 export function ConversationRow({
   conversation,
@@ -140,17 +125,14 @@ export function ConversationRow({
             type="button"
             aria-current={selected ? 'page' : undefined}
             onClick={() => onSelect(conversation)}
-            className={`flex min-h-12 min-w-0 flex-1 flex-col justify-center gap-1 px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] ${selected ? 'text-[var(--color-accent)]' : 'text-[var(--color-ink)]'}`}
+            className={`flex min-h-11 min-w-0 flex-1 flex-col justify-center gap-1 px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] ${selected ? 'text-[var(--color-accent)]' : 'text-[var(--color-ink)]'}`}
           >
-            <span className="w-full truncate text-[13px] font-medium" title={title}>
+            <span
+              className="w-full truncate text-[13px] font-medium"
+              title={`${title} · ${new Date(conversation.updatedAt).toLocaleString()}`}
+            >
               {title}
             </span>
-            <time
-              className="text-[11px] text-[var(--color-ink-muted)]"
-              dateTime={isoLabel(conversation.updatedAt)}
-            >
-              {dateLabel(conversation.updatedAt)}
-            </time>
           </button>
           <DropdownMenu
             align="end"

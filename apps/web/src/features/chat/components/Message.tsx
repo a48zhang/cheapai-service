@@ -1,8 +1,6 @@
-import { UserRound } from 'lucide-react';
 import type { ChatMessage } from '@cheapai/api-client/chat';
 import { MessageContent } from './MessageContent';
 import { MessageActions } from './MessageActions';
-import { BrandMark } from '../../../shared/ui/BrandMark';
 
 export interface MessageProps {
   readonly message: ChatMessage;
@@ -41,33 +39,22 @@ export function Message({
   return (
     <article
       aria-label={isUser ? '你的消息' : 'CheapAI 的回答'}
-      className={`mx-auto flex w-full max-w-4xl gap-3 px-3 py-4 sm:px-5 ${isUser ? 'flex-row-reverse' : ''}`}
+      className={`chat-message mx-auto flex w-full max-w-4xl gap-3 px-3 py-4 sm:px-5 ${isUser ? 'flex-row-reverse' : ''}`}
       data-message-id={message.id}
       data-message-role={message.role}
     >
-      <div
-        aria-hidden="true"
-        className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full ${isUser ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent)]' : 'bg-[var(--color-muted)] text-[var(--color-foreground)]'}`}
-      >
-        {isUser ? <UserRound size={16} /> : <BrandMark className="size-6" />}
-      </div>
       <div className={`min-w-0 flex-1 ${isUser ? 'max-w-[86%] text-right' : ''}`}>
-        <header
-          className={`mb-1.5 flex items-center gap-2 text-xs text-[var(--color-muted-foreground)] ${isUser ? 'justify-end' : ''}`}
-        >
-          <span className="font-medium text-[var(--color-foreground)]">
-            {isUser ? '你' : 'CheapAI'}
-          </span>
-          {!isUser && message.modelId ? (
-            <span aria-label="使用模型" className="truncate">
-              {message.modelId}
-            </span>
-          ) : null}
-          {assistantStatus ? <span role="status">{assistantStatus}</span> : null}
-        </header>
-        <div
-          className={`min-w-0 rounded-2xl px-4 py-2 ${isUser ? 'inline-block bg-[var(--color-accent-soft)] text-left' : 'bg-transparent px-0'}`}
-        >
+        {!isUser && (
+          <header className="chat-answer-meta">
+            {message.modelId ? (
+              <span aria-label="使用模型" className="chat-answer-model" title={message.modelId}>
+                {message.modelId}
+              </span>
+            ) : null}
+            {assistantStatus ? <span role="status">{assistantStatus}</span> : null}
+          </header>
+        )}
+        <div className={isUser ? 'chat-user-bubble' : 'chat-answer-body'}>
           <MessageContent content={content} />
         </div>
         <MessageActions

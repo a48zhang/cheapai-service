@@ -70,10 +70,10 @@ export function ConversationSidebar({
     <aside
       aria-label="聊天记录"
       data-mobile-open={mobileOpen ? 'true' : undefined}
-      className={`fixed inset-y-14 left-0 z-40 flex w-[min(86vw,18rem)] -translate-x-full flex-col border-r border-[var(--color-line)] bg-[var(--color-surface-subtle)] shadow-[var(--shadow-md)] transition-transform md:static md:z-auto md:w-60 md:translate-x-0 md:shadow-none ${mobileOpen ? 'translate-x-0' : ''}`}
+      className={`chat-sidebar fixed inset-y-14 left-0 z-40 flex w-[min(86vw,18rem)] -translate-x-full flex-col border-r border-[var(--color-line)] bg-[var(--color-surface-subtle)] shadow-[var(--shadow-md)] transition-transform md:static md:z-auto md:w-60 md:translate-x-0 md:shadow-none ${mobileOpen ? 'translate-x-0' : ''}`}
     >
       <header className="flex h-14 shrink-0 items-center justify-between px-5">
-        <h2 className="text-sm font-semibold text-[var(--color-ink)]">对话</h2>
+        <h2 className="text-sm font-semibold text-[var(--color-ink)]">最近对话</h2>
         <Button
           aria-label="关闭聊天记录"
           className="md:hidden"

@@ -5,7 +5,7 @@ import { DropdownMenu } from '../../shared/ui/DropdownMenu';
 import { useSession } from './useSession';
 
 /** Compact personal navigation shared by chat and personal pages. */
-export function AccountMenu() {
+export function AccountMenu({ compact = false }: { compact?: boolean }) {
   const { user, isAdmin, session, pending } = useSession();
   const location = useLocation();
   const navigate = useNavigate();
@@ -15,9 +15,11 @@ export function AccountMenu() {
     <nav aria-label="个人导航" className="flex items-center gap-2 sm:gap-4">
       <Link
         to="/keys"
+        aria-label="API 接入"
+        title="API 接入"
         className="inline-flex min-h-9 items-center gap-1 text-xs font-medium text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] sm:text-sm"
       >
-        API 接入 <ArrowUpRight aria-hidden="true" size={14} />
+        {compact ? 'API' : 'API 接入'} <ArrowUpRight aria-hidden="true" size={14} />
       </Link>
       {user ? (
         <DropdownMenu
@@ -25,12 +27,15 @@ export function AccountMenu() {
             <button
               type="button"
               aria-label="账户菜单"
+              title={user.email_normalized}
               className="flex min-h-9 items-center gap-2 text-xs"
             >
-              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-indigo-100 font-semibold text-indigo-700">
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--color-accent-soft)] font-semibold text-[var(--color-accent)]">
                 {user.email_normalized.slice(0, 1).toUpperCase()}
               </span>
-              <span className="hidden max-w-48 truncate lg:block">{user.email_normalized}</span>
+              {!compact && (
+                <span className="hidden max-w-48 truncate lg:block">{user.email_normalized}</span>
+              )}
             </button>
           }
           items={[

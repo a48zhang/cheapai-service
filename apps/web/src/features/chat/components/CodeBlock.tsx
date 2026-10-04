@@ -48,6 +48,7 @@ export function CodeBlock({ children, className, inline }: CodeBlockProps) {
         <button
           type="button"
           aria-label={copyState === 'copied' ? '已复制代码' : '复制代码'}
+          title={copyState === 'copied' ? '已复制' : '复制代码'}
           className="inline-flex min-h-8 items-center gap-1.5 rounded px-2 text-xs text-[var(--color-muted-foreground)] outline-none hover:bg-[var(--color-muted)] focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
           onClick={() => void copy()}
         >
@@ -56,7 +57,7 @@ export function CodeBlock({ children, className, inline }: CodeBlockProps) {
           ) : (
             <Copy aria-hidden="true" size={14} />
           )}
-          {copyState === 'copied' ? '已复制' : copyState === 'failed' ? '无法复制' : '复制'}
+          {copyState === 'failed' && <span role="status">无法复制</span>}
         </button>
       </div>
       <pre className="overflow-x-auto p-4 text-xs leading-6 text-[var(--color-foreground)]">

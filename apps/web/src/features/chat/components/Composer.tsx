@@ -1,5 +1,5 @@
-import { useId, useRef } from 'react';
-import type { FormEvent, KeyboardEvent, ReactNode } from 'react';
+import { useId, useLayoutEffect, useRef } from 'react';
+import type { FormEvent, KeyboardEvent, ReactNode, RefObject } from 'react';
 import { ArrowUp, Square } from 'lucide-react';
 import { Button } from '../../../shared/ui/Button';
 
@@ -14,6 +14,7 @@ export interface ComposerProps {
   readonly error?: string | null | undefined;
   readonly modelPicker?: ReactNode | undefined;
   readonly sendLabel?: string | undefined;
+  readonly textareaRef?: RefObject<HTMLTextAreaElement | null>;
 }
 
 /** Controlled message input; network operations and draft ownership stay with the caller. */
@@ -28,10 +29,19 @@ export function Composer({
   error,
   modelPicker,
   sendLabel = '发送',
+  textareaRef,
 }: ComposerProps) {
   const compositionRef = useRef(false);
+  const localRef = useRef<HTMLTextAreaElement>(null);
+  const inputRef = textareaRef ?? localRef;
   const helpId = useId();
   const canSend = !disabled && !busy && value.trim().length > 0;
+  useLayoutEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    input.style.height = 'auto';
+    input.style.height = `${Math.min(Math.max(input.scrollHeight, 64), 200)}px`;
+  }, [value, inputRef]);
 
   const send = () => {
     if (!canSend) return;
@@ -58,49 +68,65 @@ export function Composer({
   return (
     <form
       aria-label="发送消息"
-      className="sticky bottom-0 z-20 border-t border-[var(--color-line)] bg-[var(--color-surface)]/95 px-3 pt-3 backdrop-blur sm:px-5"
+      className="chat-composer"
       onSubmit={handleSubmit}
       style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
     >
-      <div className="mx-auto grid max-w-4xl gap-2">
-        {modelPicker}
-        <label className="sr-only" htmlFor={`${helpId}-message`}>
-          消息内容
-        </label>
-        <textarea
-          id={`${helpId}-message`}
-          aria-describedby={`${helpId}-hint${disabledReason ? ` ${helpId}-disabled` : ''}`}
-          autoComplete="off"
-          className="min-h-24 w-full resize-y rounded-xl border border-[var(--color-line)] bg-white px-4 py-3 text-sm leading-6 text-[var(--color-foreground)] outline-none placeholder:text-[var(--color-muted-foreground)] focus-visible:border-[var(--color-ring)] focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] disabled:cursor-not-allowed disabled:opacity-60"
-          maxLength={1_000_000}
-          onChange={(event) => onChange(event.currentTarget.value)}
-          onCompositionEnd={() => {
-            compositionRef.current = false;
-          }}
-          onCompositionStart={() => {
-            compositionRef.current = true;
-          }}
-          onKeyDown={handleKeyDown}
-          placeholder={disabledReason ?? '向 CheapAI 发送消息…'}
-          value={value}
-        />
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-            <span id={`${helpId}-hint`} className="text-xs text-[var(--color-muted-foreground)]">
-              Enter 发送 · Shift+Enter 换行
-            </span>
+      <div className="chat-composer-inner">
+        <div className="chat-input-shell">
+          <label className="sr-only" htmlFor={`${helpId}-message`}>
+            消息内容
+          </label>
+          <textarea
+            ref={inputRef}
+            id={`${helpId}-message`}
+            aria-describedby={`${helpId}-hint${disabledReason ? ` ${helpId}-disabled` : ''}`}
+            autoComplete="off"
+            className="chat-textarea"
+            rows={1}
+            maxLength={1_000_000}
+            onChange={(event) => onChange(event.currentTarget.value)}
+            onCompositionEnd={() => {
+              compositionRef.current = false;
+            }}
+            onCompositionStart={() => {
+              compositionRef.current = true;
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder="发送消息…"
+            value={value}
+          />
+          <div className="chat-compose-tools">
+            <div className="chat-compose-model">
+              {modelPicker ?? <span className="chat-guest-hint">登录后发送</span>}
+            </div>
+            {busy ? (
+              <Button
+                className="chat-send"
+                aria-label="停止生成"
+                title="停止生成"
+                onClick={onStop}
+                size="icon"
+                variant="outline"
+              >
+                <Square aria-hidden="true" size={14} />
+              </Button>
+            ) : (
+              <Button
+                className="chat-send"
+                aria-label={sendLabel}
+                title={`${sendLabel}（Enter）；Shift+Enter 换行`}
+                disabled={!canSend}
+                size="icon"
+                type="submit"
+              >
+                <ArrowUp aria-hidden="true" size={16} />
+              </Button>
+            )}
           </div>
-          {busy ? (
-            <Button aria-label="停止生成" onClick={onStop} size="sm" variant="outline">
-              <Square aria-hidden="true" size={14} />
-              停止
-            </Button>
-          ) : (
-            <Button aria-label={sendLabel} disabled={!canSend} size="sm" type="submit">
-              <ArrowUp aria-hidden="true" size={16} />
-              {sendLabel}
-            </Button>
-          )}
+        </div>
+        <div className="sr-only">
+          <span id={`${helpId}-hint`}>Enter 发送 · Shift+Enter 换行</span>
         </div>
         {disabledReason ? (
           <p

@@ -40,13 +40,14 @@ export function MessageActions({
 
   return (
     <div
-      className={`mt-2 flex min-h-8 flex-wrap items-center gap-1.5 text-xs text-[var(--color-muted-foreground)] ${message.role === 'user' ? 'justify-end' : ''}`}
+      className={`chat-message-actions mt-2 flex min-h-8 flex-wrap items-center gap-1.5 text-xs text-[var(--color-muted-foreground)] ${message.role === 'user' ? 'justify-end' : ''}`}
     >
       <Button
         aria-label={copyState === 'copied' ? '已复制消息' : '复制消息'}
+        title={copyState === 'copied' ? '已复制' : '复制消息'}
         disabled={message.content.length === 0}
         onClick={() => void copy()}
-        size="sm"
+        size="icon"
         variant="ghost"
       >
         {copyState === 'copied' ? (
@@ -54,7 +55,6 @@ export function MessageActions({
         ) : (
           <Copy aria-hidden="true" size={14} />
         )}
-        {copyState === 'copied' ? '已复制' : copyState === 'failed' ? '无法复制' : '复制'}
       </Button>
       {hasVariants ? (
         <div className="flex items-center gap-1" aria-label="回答版本" role="group">
@@ -94,13 +94,14 @@ export function MessageActions({
       ) : null}
       {showRegenerate ? (
         <Button
+          aria-label="重新回答"
+          title="重新回答"
           disabled={actionsBusy || !canRegenerate}
           onClick={() => onRegenerate?.(message)}
-          size="sm"
+          size="icon"
           variant="ghost"
         >
           <RotateCcw aria-hidden="true" size={14} />
-          重新回答
         </Button>
       ) : null}
       {copyState === 'failed' ? <span role="status">复制失败</span> : null}

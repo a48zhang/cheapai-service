@@ -71,6 +71,7 @@ export default function ChatPage() {
   const [actionError, setActionError] = useState<unknown>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const actionLock = useRef(false);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     const returnTo = encodeURIComponent(location.pathname + location.search);
     if (status === 'anonymous' && (expiry || conversationId))
@@ -136,13 +137,12 @@ export default function ChatPage() {
         ? '请先确认上一次操作的结果。'
         : authenticated && conversationId && (chat.loading || !detail)
           ? '正在读取会话…'
-          : authenticated && selection.error
-            ? '模型读取失败，请重试。'
-            : authenticated && !selection.available
-              ? (selection.unavailableReason ?? '暂无可用模型。')
-              : undefined;
+          : undefined;
+  const newChat =
+    !conversationId && !detail?.messages.length && !chat.busy && !chat.state.failure && !chat.error;
   return (
     <ChatLayout
+      onNew={newConversation}
       sidebar={(close, mobile) => (
         <ConversationSidebar
           conversations={history.conversations}
@@ -177,66 +177,80 @@ export default function ChatPage() {
         />
       )}
     >
-      {chat.error && authenticated && (
-        <div className="p-4">
-          <ApiErrorNotice
-            error={chat.error}
-            onRetry={() => {
-              if (conversationId) void chat.reload();
-              else void history.retry();
-            }}
-          />
-        </div>
-      )}
-      <MessageList
-        detail={detail}
-        messages={detail?.messages ?? []}
-        streamMessageId={chat.state.streamMessageId}
-        streamText={chat.state.streamText}
-        busy={chat.busy}
-        loading={authenticated && chat.loading}
-        {...(!selection.available && selection.unavailableReason
-          ? { regenerateDisabledReason: selection.unavailableReason }
-          : {})}
-        onSelectVersion={(messageId) => {
-          void chat.controller.selectVersion(messageId);
-        }}
-        onRegenerate={() => {
-          if (selection.selection?.groupId && selection.selection.modelId && selection.available)
-            void chat.controller.regenerate({
-              groupId: selection.selection.groupId,
-              modelId: selection.selection.modelId,
-            });
-        }}
-        emptyMessage="有什么想聊的？"
-      />
-      <div className="px-4 pb-2">
-        <ChatNotice
-          state={chat.state}
-          onRetry={() => {
-            void chat.retry();
+      <div className={`chat-stage${newChat ? ' is-new' : ''}`}>
+        {chat.error && authenticated && (
+          <div className="p-4">
+            <ApiErrorNotice
+              error={chat.error}
+              onRetry={() => {
+                if (conversationId) void chat.reload();
+                else void history.retry();
+              }}
+            />
+          </div>
+        )}
+        {newChat && (
+          <div className="chat-welcome">
+            <h1>有什么想聊的？</h1>
+          </div>
+        )}
+        <MessageList
+          className="chat-timeline"
+          detail={detail}
+          messages={detail?.messages ?? []}
+          streamMessageId={chat.state.streamMessageId}
+          streamText={chat.state.streamText}
+          busy={chat.busy}
+          loading={authenticated && chat.loading}
+          {...(!selection.available && selection.unavailableReason
+            ? { regenerateDisabledReason: selection.unavailableReason }
+            : {})}
+          onSelectVersion={(messageId) => {
+            void chat.controller.selectVersion(messageId);
           }}
-          onReload={() => {
-            if (conversationId) void chat.reload();
-            else void history.retry();
+          onRegenerate={() => {
+            if (selection.selection?.groupId && selection.selection.modelId && selection.available)
+              void chat.controller.regenerate({
+                groupId: selection.selection.groupId,
+                modelId: selection.selection.modelId,
+              });
           }}
+          emptyMessage="在下方输入消息，继续这段对话。"
+        />
+        {chat.state.failure && (
+          <div className="chat-notice-area">
+            <ChatNotice
+              state={chat.state}
+              onRetry={() => {
+                void chat.retry();
+              }}
+              onReload={() => {
+                if (conversationId) void chat.reload();
+                else void history.retry();
+              }}
+            />
+          </div>
+        )}
+        <Composer
+          textareaRef={composerRef}
+          value={draft.draft}
+          onChange={draft.setDraft}
+          onSend={send}
+          onStop={() => {
+            void chat.stop();
+          }}
+          modelPicker={
+            authenticated ? <ModelPicker selection={selection} disabled={chat.busy} /> : null
+          }
+          sendLabel={authenticated ? '发送' : '登录后发送'}
+          busy={chat.busy}
+          disabled={
+            Boolean(disabledReason) ||
+            (authenticated && (Boolean(selection.error) || !selection.available))
+          }
+          {...(disabledReason ? { disabledReason } : {})}
         />
       </div>
-      <Composer
-        value={draft.draft}
-        onChange={draft.setDraft}
-        onSend={send}
-        onStop={() => {
-          void chat.stop();
-        }}
-        modelPicker={
-          authenticated ? <ModelPicker selection={selection} disabled={chat.busy} /> : null
-        }
-        sendLabel={authenticated ? '发送' : '登录后发送'}
-        busy={chat.busy}
-        disabled={Boolean(disabledReason)}
-        {...(disabledReason ? { disabledReason } : {})}
-      />
       <Dialog
         open={action !== null}
         onOpenChange={(open) => {
