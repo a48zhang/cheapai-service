@@ -8,6 +8,13 @@ import { useSession } from '../../features/session/useSession';
 export default function RequestDetailPage() {
   const { id = '' } = useParams();
   const { client, user } = useSession();
-  const query = useQuery(requestDetailQueryOptions({ client, userId: user!.id, scope: 'admin' }, id));
-  return <><RequestDetail />{query.data && <SettlementAction request={query.data} />}</>;
+  const query = useQuery(
+    requestDetailQueryOptions({ client, userId: user!.id, scope: 'admin' }, id),
+  );
+  return (
+    <>
+      <RequestDetail />
+      {query.data && <SettlementAction request={query.data} />}
+    </>
+  );
 }

@@ -26,7 +26,12 @@ export function isCanonicalUnits(value: unknown): value is string {
 
 /** Parse bounded canonical integer units without converting through a number. */
 export function parseUnits(value: unknown): bigint {
-  if (typeof value !== 'string' || value.length > 17 || value.trim() !== value || !CANONICAL_UNITS.test(value)) {
+  if (
+    typeof value !== 'string' ||
+    value.length > 17 ||
+    value.trim() !== value ||
+    !CANONICAL_UNITS.test(value)
+  ) {
     throw new MoneyError('expected a canonical integer units string');
   }
   return checkedSafeUnits(BigInt(value));
@@ -34,7 +39,12 @@ export function parseUnits(value: unknown): bigint {
 
 /** Parse a USD decimal into integer units; values beyond eight decimals are rejected. */
 export function parseUsdToUnits(value: unknown): bigint {
-  if (typeof value !== 'string' || value.length > 18 || value.trim() !== value || !DECIMAL_USD.test(value)) {
+  if (
+    typeof value !== 'string' ||
+    value.length > 18 ||
+    value.trim() !== value ||
+    !DECIMAL_USD.test(value)
+  ) {
     throw new MoneyError('expected a decimal USD string with at most eight fractional digits');
   }
   const negative = value.startsWith('-');
@@ -61,6 +71,7 @@ export function formatUnitsToUsd(value: string | bigint, decimals = MONEY_DECIMA
   const divisor = 10n ** BigInt(MONEY_DECIMALS - decimals);
   const magnitude = ((negative ? -units : units) + divisor / 2n) / divisor;
   const digits = magnitude.toString().padStart(decimals + 1, '0');
-  const amount = decimals === 0 ? digits : `${digits.slice(0, -decimals)}.${digits.slice(-decimals)}`;
+  const amount =
+    decimals === 0 ? digits : `${digits.slice(0, -decimals)}.${digits.slice(-decimals)}`;
   return `${negative && magnitude !== 0n ? '-' : ''}${amount}`;
 }

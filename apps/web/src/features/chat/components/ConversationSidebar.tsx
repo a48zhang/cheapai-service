@@ -80,7 +80,9 @@ export function ConversationSidebar({
       </div>
 
       {loading && conversations.length === 0 && !error ? (
-        <p className="px-5 py-4 text-sm text-[var(--color-ink-muted)]" role="status">正在读取对话…</p>
+        <p className="px-5 py-4 text-sm text-[var(--color-ink-muted)]" role="status">
+          正在读取对话…
+        </p>
       ) : null}
 
       {!loading && conversations.length === 0 && !error ? (
@@ -106,14 +108,19 @@ export function ConversationSidebar({
                     onClick={() => onSelect(conversation)}
                     className={`flex min-h-12 min-w-0 flex-1 flex-col justify-center gap-1 px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] ${selected ? 'text-[var(--color-accent)]' : 'text-[var(--color-ink)]'}`}
                   >
-                    <span className="w-full truncate text-[13px] font-medium" title={title}>{title}</span>
-                    <time className="text-[11px] text-[var(--color-ink-muted)]" dateTime={isoLabel(conversation.updatedAt)}>
+                    <span className="w-full truncate text-[13px] font-medium" title={title}>
+                      {title}
+                    </span>
+                    <time
+                      className="text-[11px] text-[var(--color-ink-muted)]"
+                      dateTime={isoLabel(conversation.updatedAt)}
+                    >
                       {dateLabel(conversation.updatedAt)}
                     </time>
                   </button>
                   <DropdownMenu
                     align="end"
-                    trigger={(
+                    trigger={
                       <Button
                         aria-label={`对话操作：${title}`}
                         className="mr-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
@@ -122,7 +129,7 @@ export function ConversationSidebar({
                       >
                         <MoreHorizontal aria-hidden="true" size={17} />
                       </Button>
-                    )}
+                    }
                     items={[
                       { label: '重命名', onSelect: () => onRename(conversation) },
                       { type: 'separator' },
@@ -137,9 +144,14 @@ export function ConversationSidebar({
       ) : null}
 
       {error ? (
-        <div className="m-3 rounded-md border border-[var(--color-danger-soft)] bg-[var(--color-surface)] p-3 text-sm text-[var(--color-danger)]" role="alert">
+        <div
+          className="m-3 rounded-md border border-[var(--color-danger-soft)] bg-[var(--color-surface)] p-3 text-sm text-[var(--color-danger)]"
+          role="alert"
+        >
           <div>{error}</div>
-          <Button className="mt-2" onClick={onRetry} size="sm" variant="outline">重试</Button>
+          <Button className="mt-2" onClick={onRetry} size="sm" variant="outline">
+            重试
+          </Button>
         </div>
       ) : null}
 

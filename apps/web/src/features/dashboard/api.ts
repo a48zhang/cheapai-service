@@ -16,13 +16,20 @@ export function createDashboardApi(client: ApiClient): DashboardApi {
 export const dashboardQueryKeys = Object.freeze({
   root: (userId: string) => ['dashboard', userId] as const,
   balance: (userId: string) => [...dashboardQueryKeys.root(userId), 'balance'] as const,
-  recentRequests: (userId: string) => [...dashboardQueryKeys.root(userId), 'recent-requests'] as const,
+  recentRequests: (userId: string) =>
+    [...dashboardQueryKeys.root(userId), 'recent-requests'] as const,
 });
 
 export function balanceQueryOptions(api: DashboardApi, userId: string) {
-  return queryOptions({ queryKey: dashboardQueryKeys.balance(userId), queryFn: () => api.account.balance() });
+  return queryOptions({
+    queryKey: dashboardQueryKeys.balance(userId),
+    queryFn: ({ signal }) => api.account.balance({ signal }),
+  });
 }
 
 export function recentRequestsQueryOptions(api: DashboardApi, userId: string) {
-  return queryOptions({ queryKey: dashboardQueryKeys.recentRequests(userId), queryFn: () => api.requests.list({ cursor: null }) });
+  return queryOptions({
+    queryKey: dashboardQueryKeys.recentRequests(userId),
+    queryFn: ({ signal }) => api.requests.list({ cursor: null }, { signal }),
+  });
 }

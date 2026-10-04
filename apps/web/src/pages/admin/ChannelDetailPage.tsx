@@ -49,61 +49,130 @@ export function ChannelDetailPage() {
         eyebrow="资源配置 · 渠道详情"
         heading={channel?.name ?? '渠道详情'}
         description="查看渠道配置、真实映射与版本。启用状态不会代表连接健康。"
-        actions={(
+        actions={
           <>
-            <Button asChild variant="outline"><Link to="/admin/channels">返回渠道列表</Link></Button>
+            <Button asChild variant="outline">
+              <Link to="/admin/channels">返回渠道列表</Link>
+            </Button>
             {channel && (
               <>
-                <Button variant="outline" disabled={channel.status !== 'active'} onClick={() => setDiagnosing(true)}>连接诊断</Button>
+                <Button
+                  variant="outline"
+                  disabled={channel.status !== 'active'}
+                  onClick={() => setDiagnosing(true)}
+                >
+                  连接诊断
+                </Button>
                 <Button onClick={() => setEditing(true)}>编辑配置</Button>
               </>
             )}
           </>
-        )}
+        }
       />
 
       {!isAdmin ? (
-        <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <div
+          role="alert"
+          className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+        >
           此页面需要管理员权限。
         </div>
       ) : !channelId ? (
-        <div role="alert" className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-700">
+        <div
+          role="alert"
+          className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-700"
+        >
           渠道编号无效。
         </div>
       ) : channelQuery.isPending ? (
-        <p role="status" className="rounded-lg border border-slate-200 bg-white p-5 text-sm text-slate-600">正在读取渠道配置…</p>
+        <p
+          role="status"
+          className="rounded-lg border border-slate-200 bg-white p-5 text-sm text-slate-600"
+        >
+          正在读取渠道配置…
+        </p>
       ) : channelQuery.isError ? (
-        <ApiErrorNotice error={channelQuery.error} onRetry={() => { void channelQuery.refetch(); }} />
+        <ApiErrorNotice
+          error={channelQuery.error}
+          onRetry={() => {
+            void channelQuery.refetch();
+          }}
+        />
       ) : channel ? (
         <>
-          <section aria-label="渠道配置" className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+          <section
+            aria-label="渠道配置"
+            className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"
+          >
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-muted-foreground)]">渠道状态</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-muted-foreground)]">
+                  渠道状态
+                </p>
                 <div className="mt-2">
                   <StatusBadge tone={channel.status === 'active' ? 'success' : 'neutral'}>
                     {channel.status === 'active' ? '启用' : '停用'}
                   </StatusBadge>
                 </div>
               </div>
-              <p className="text-sm text-[var(--color-muted-foreground)]">配置版本 <span className="font-mono">v{channel.configVersion}</span></p>
+              <p className="text-sm text-[var(--color-muted-foreground)]">
+                配置版本 <span className="font-mono">v{channel.configVersion}</span>
+              </p>
             </div>
             <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 xl:grid-cols-3">
-              <div className="min-w-0"><dt className="text-xs text-[var(--color-muted-foreground)]">渠道 ID</dt><dd className="mt-1 break-all font-mono text-sm">{channel.id}</dd></div>
-              <div className="min-w-0"><dt className="text-xs text-[var(--color-muted-foreground)]">上游 Base URL</dt><dd className="mt-1 break-all text-sm">{channel.baseUrl}</dd></div>
-              <div><dt className="text-xs text-[var(--color-muted-foreground)]">凭证</dt><dd className="mt-1 text-sm">{channel.hasCredential ? '已配置（不回显）' : '未配置'}</dd></div>
-              <div><dt className="text-xs text-[var(--color-muted-foreground)]">并发上限</dt><dd className="mt-1 text-sm tabular-nums">{limitLabel(channel.concurrencyLimit)}</dd></div>
-              <div><dt className="text-xs text-[var(--color-muted-foreground)]">每分钟请求上限</dt><dd className="mt-1 text-sm tabular-nums">{limitLabel(channel.rpmLimit)}</dd></div>
-              <div><dt className="text-xs text-[var(--color-muted-foreground)]">调度优先级</dt><dd className="mt-1 text-sm tabular-nums">{channel.priority}</dd></div>
-              <div><dt className="text-xs text-[var(--color-muted-foreground)]">创建时间</dt><dd className="mt-1 text-sm">{formatDateTime(channel.createdAt)}</dd></div>
-              <div><dt className="text-xs text-[var(--color-muted-foreground)]">最近更新</dt><dd className="mt-1 text-sm">{formatDateTime(channel.updatedAt)}</dd></div>
+              <div className="min-w-0">
+                <dt className="text-xs text-[var(--color-muted-foreground)]">渠道 ID</dt>
+                <dd className="mt-1 break-all font-mono text-sm">{channel.id}</dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="text-xs text-[var(--color-muted-foreground)]">上游 Base URL</dt>
+                <dd className="mt-1 break-all text-sm">{channel.baseUrl}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-[var(--color-muted-foreground)]">凭证</dt>
+                <dd className="mt-1 text-sm">
+                  {channel.hasCredential ? '已配置（不回显）' : '未配置'}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-[var(--color-muted-foreground)]">并发上限</dt>
+                <dd className="mt-1 text-sm tabular-nums">
+                  {limitLabel(channel.concurrencyLimit)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-[var(--color-muted-foreground)]">每分钟请求上限</dt>
+                <dd className="mt-1 text-sm tabular-nums">{limitLabel(channel.rpmLimit)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-[var(--color-muted-foreground)]">调度优先级</dt>
+                <dd className="mt-1 text-sm tabular-nums">{channel.priority}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-[var(--color-muted-foreground)]">创建时间</dt>
+                <dd className="mt-1 text-sm">{formatDateTime(channel.createdAt)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-[var(--color-muted-foreground)]">最近更新</dt>
+                <dd className="mt-1 text-sm">{formatDateTime(channel.updatedAt)}</dd>
+              </div>
             </dl>
           </section>
 
-          <ChannelMappingPanel channel={channel} client={client} actorId={userId} sessionEpoch={epoch} />
+          <ChannelMappingPanel
+            channel={channel}
+            client={client}
+            actorId={userId}
+            sessionEpoch={epoch}
+          />
         </>
       ) : (
-        <div role="status" className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-700">未找到此渠道。</div>
+        <div
+          role="status"
+          className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-700"
+        >
+          未找到此渠道。
+        </div>
       )}
 
       {editing && channel && (
@@ -111,7 +180,9 @@ export function ChannelDetailPage() {
           open
           channel={channel}
           api={api}
-          onOpenChange={open => { if (!open) setEditing(false); }}
+          onOpenChange={(open) => {
+            if (!open) setEditing(false);
+          }}
           onSaved={onSaved}
         />
       )}
@@ -120,7 +191,9 @@ export function ChannelDetailPage() {
           open
           channel={channel}
           api={api}
-          onOpenChange={open => { if (!open) setDiagnosing(false); }}
+          onOpenChange={(open) => {
+            if (!open) setDiagnosing(false);
+          }}
         />
       )}
     </section>

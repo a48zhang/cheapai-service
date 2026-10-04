@@ -1,4 +1,8 @@
-import type { ChatRegenerateInput, ChatSelectInput, ConversationDetail } from '@cheapai/contracts/chat';
+import type {
+  ChatRegenerateInput,
+  ChatSelectInput,
+  ConversationDetail,
+} from '@cheapai/contracts/chat';
 import { canRegenerateLastAssistant, canSelectAssistantVariant } from './variants';
 import type { RegenerateBlockReason, SelectVariantBlockReason } from './variants';
 
@@ -9,7 +13,11 @@ export interface RegenerateCommand {
 }
 
 export type PrepareRegenerateResult =
-  | { readonly accepted: true; readonly input: ChatRegenerateInput; readonly previousMessageId: string }
+  | {
+      readonly accepted: true;
+      readonly input: ChatRegenerateInput;
+      readonly previousMessageId: string;
+    }
   | { readonly accepted: false; readonly reason: RegenerateBlockReason };
 
 /** Captures the selected final turn and conversation version at command time. */
@@ -28,7 +36,9 @@ export function prepareRegenerateCommand(
       conversationVersion: availability.conversationVersion,
       groupId: command.groupId,
       modelId: command.modelId,
-      ...(command.maxOutputTokens === undefined ? {} : { maxOutputTokens: command.maxOutputTokens }),
+      ...(command.maxOutputTokens === undefined
+        ? {}
+        : { maxOutputTokens: command.maxOutputTokens }),
     },
   };
 }

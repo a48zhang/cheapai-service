@@ -15,8 +15,11 @@ export function chatReducer(state: ChatState = initialChatState, event: ChatEven
 
   if (event.type === 'begin') {
     if (isChatBusy(state.phase)) return state;
-    if (state.phase === 'interrupted'
-      && (state.operationId !== event.operationId || state.operationKind !== event.operationKind)) return state;
+    if (
+      state.phase === 'interrupted' &&
+      (state.operationId !== event.operationId || state.operationKind !== event.operationKind)
+    )
+      return state;
     return {
       ...state,
       phase: event.needsConversation ? 'creating' : 'submitting',
@@ -56,19 +59,32 @@ export function chatReducer(state: ChatState = initialChatState, event: ChatEven
       return { ...state, phase: 'streaming', streamText: state.streamText + event.text };
     case 'done': {
       const detail = state.detail;
-      if (!detail) return { ...state, phase: 'finalizing', streamText: event.value.message.content,
-        streamMessageId: event.value.message.id, billingStatus: event.value.billingStatus ?? null };
+      if (!detail)
+        return {
+          ...state,
+          phase: 'finalizing',
+          streamText: event.value.message.content,
+          streamMessageId: event.value.message.id,
+          billingStatus: event.value.billingStatus ?? null,
+        };
       return {
         ...state,
         phase: 'finalizing',
-        detail: { ...detail, messages: [...upsertChatMessage(detail.messages, event.value.message)] },
+        detail: {
+          ...detail,
+          messages: [...upsertChatMessage(detail.messages, event.value.message)],
+        },
         streamMessageId: event.value.message.id,
         streamText: event.value.message.content,
         billingStatus: event.value.billingStatus ?? null,
       };
     }
     case 'stop-requested':
-      if (state.phase === 'creating' || state.phase === 'submitting' || state.phase === 'streaming') {
+      if (
+        state.phase === 'creating' ||
+        state.phase === 'submitting' ||
+        state.phase === 'streaming'
+      ) {
         return { ...state, phase: 'stopping' };
       }
       return state;
@@ -77,7 +93,9 @@ export function chatReducer(state: ChatState = initialChatState, event: ChatEven
     case 'settled': {
       const failed = event.outcome === 'failed';
       const failure = failed
-        ? event.failure ?? state.failure ?? ({ kind: 'failed', message: '请求未能完成。' } satisfies ChatFailure)
+        ? (event.failure ??
+          state.failure ??
+          ({ kind: 'failed', message: '请求未能完成。' } satisfies ChatFailure))
         : null;
       return {
         ...state,

@@ -47,8 +47,11 @@ function readSelection(storage: Storage | null, owner: string): ChatSelection | 
     const value: unknown = JSON.parse(raw);
     if (typeof value !== 'object' || value === null) return null;
     const selection = value as Record<string, unknown>;
-    if ((typeof selection.groupId !== 'string' && selection.groupId !== null)
-      || (typeof selection.modelId !== 'string' && selection.modelId !== null)) return null;
+    if (
+      (typeof selection.groupId !== 'string' && selection.groupId !== null) ||
+      (typeof selection.modelId !== 'string' && selection.modelId !== null)
+    )
+      return null;
     return { groupId: selection.groupId, modelId: selection.modelId };
   } catch {
     return null;
@@ -64,16 +67,21 @@ function writeSelection(storage: Storage | null, owner: string, selection: ChatS
   }
 }
 
-function findModel(groups: readonly ChatGroup[], selection: ChatSelection | null): {
+function findModel(
+  groups: readonly ChatGroup[],
+  selection: ChatSelection | null,
+): {
   readonly group: ChatGroup | undefined;
   readonly model: ChatModel | undefined;
 } {
-  const group = selection?.groupId === null || selection === null
-    ? undefined
-    : groups.find(candidate => candidate.id === selection.groupId);
-  const model = group && selection?.modelId !== null && selection?.modelId !== undefined
-    ? group.models.find(candidate => candidate.publicModelId === selection.modelId)
-    : undefined;
+  const group =
+    selection?.groupId === null || selection === null
+      ? undefined
+      : groups.find((candidate) => candidate.id === selection.groupId);
+  const model =
+    group && selection?.modelId !== null && selection?.modelId !== undefined
+      ? group.models.find((candidate) => candidate.publicModelId === selection.modelId)
+      : undefined;
   return { group, model };
 }
 
@@ -121,8 +129,14 @@ export function useModelSelection({
   }, [conversationGroupId, conversationModelId, explicitSelection, owner, scopeKey, storage]);
 
   useEffect(() => {
-    if (!activeRecord?.initialized || explicitSelection || selection !== null || groups.length === 0) return;
-    const firstGroup = groups.find(group => group.models.length > 0);
+    if (
+      !activeRecord?.initialized ||
+      explicitSelection ||
+      selection !== null ||
+      groups.length === 0
+    )
+      return;
+    const firstGroup = groups.find((group) => group.models.length > 0);
     const firstModel = firstGroup?.models[0];
     if (!firstGroup || !firstModel) return;
     const next = { groupId: firstGroup.id, modelId: firstModel.publicModelId };
@@ -130,34 +144,45 @@ export function useModelSelection({
     writeSelection(storage, owner, next);
   }, [activeRecord, explicitSelection, groups, owner, scopeKey, selection, storage]);
 
-  const choose = useCallback((next: ChatSelection) => {
-    setRecord({ scopeKey, initialized: true, selection: next });
-    writeSelection(storage, owner, next);
-  }, [owner, scopeKey, storage]);
+  const choose = useCallback(
+    (next: ChatSelection) => {
+      setRecord({ scopeKey, initialized: true, selection: next });
+      writeSelection(storage, owner, next);
+    },
+    [owner, scopeKey, storage],
+  );
 
-  const selectGroup = useCallback((groupId: string) => {
-    const group = groups.find(candidate => candidate.id === groupId);
-    if (!group) return;
-    choose({ groupId, modelId: group.models[0]?.publicModelId ?? null });
-  }, [choose, groups]);
+  const selectGroup = useCallback(
+    (groupId: string) => {
+      const group = groups.find((candidate) => candidate.id === groupId);
+      if (!group) return;
+      choose({ groupId, modelId: group.models[0]?.publicModelId ?? null });
+    },
+    [choose, groups],
+  );
 
-  const selectModel = useCallback((modelId: string) => {
-    const group = selection?.groupId === null || selection === null
-      ? undefined
-      : groups.find(candidate => candidate.id === selection.groupId);
-    if (!group?.models.some(model => model.publicModelId === modelId)) return;
-    choose({ groupId: group.id, modelId });
-  }, [choose, groups, selection]);
+  const selectModel = useCallback(
+    (modelId: string) => {
+      const group =
+        selection?.groupId === null || selection === null
+          ? undefined
+          : groups.find((candidate) => candidate.id === selection.groupId);
+      if (!group?.models.some((model) => model.publicModelId === modelId)) return;
+      choose({ groupId: group.id, modelId });
+    },
+    [choose, groups, selection],
+  );
 
-  const unavailableReason = selection === null
-    ? '请选择一个可用的模型组和模型。'
-    : selectedGroup === undefined
-      ? '当前会话使用的模型组已不可用。请选择其他模型组。'
-      : selection.modelId === null
-        ? '当前模型组没有可用模型，请选择其他模型组。'
-        : selectedModel === undefined
-          ? '当前会话使用的模型已不可用。请选择其他模型。'
-          : null;
+  const unavailableReason =
+    selection === null
+      ? '请选择一个可用的模型组和模型。'
+      : selectedGroup === undefined
+        ? '当前会话使用的模型组已不可用。请选择其他模型组。'
+        : selection.modelId === null
+          ? '当前模型组没有可用模型，请选择其他模型组。'
+          : selectedModel === undefined
+            ? '当前会话使用的模型已不可用。请选择其他模型。'
+            : null;
 
   const retry = useCallback(() => refetch(), [refetch]);
 

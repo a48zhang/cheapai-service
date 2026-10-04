@@ -48,11 +48,12 @@ export function useScrollAnchor({
     const previous = previousSnapshot.current;
     const height = container.scrollHeight;
     const previousFirstMessageId = previous.ids[0];
-    const prependedHistory = previous.ids.length > 0
-      && messageIds.length > previous.ids.length
-      && previousFirstMessageId !== undefined
-      && messageIds[0] !== previousFirstMessageId
-      && messageIds.includes(previousFirstMessageId);
+    const prependedHistory =
+      previous.ids.length > 0 &&
+      messageIds.length > previous.ids.length &&
+      previousFirstMessageId !== undefined &&
+      messageIds[0] !== previousFirstMessageId &&
+      messageIds.includes(previousFirstMessageId);
 
     if (messageIds.length === 0) {
       container.scrollTop = 0;
@@ -78,9 +79,12 @@ export function useScrollAnchor({
     }, wait);
   }, [announcementText]);
 
-  useEffect(() => () => {
-    if (announcementTimer.current !== null) clearTimeout(announcementTimer.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (announcementTimer.current !== null) clearTimeout(announcementTimer.current);
+    },
+    [],
+  );
 
   return { containerRef, onScroll, jumpToLatest, showJumpToLatest, announcement };
 }

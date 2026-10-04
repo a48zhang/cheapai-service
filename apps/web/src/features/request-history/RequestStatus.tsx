@@ -7,7 +7,10 @@ export interface RequestStatusProps {
   readonly className?: string;
 }
 
-const executionLabels: Record<ExecutionStatus, { label: string; tone: 'neutral' | 'info' | 'success' | 'warning' | 'danger' }> = {
+const executionLabels: Record<
+  ExecutionStatus,
+  { label: string; tone: 'neutral' | 'info' | 'success' | 'warning' | 'danger' }
+> = {
   admitted: { label: '已接收', tone: 'info' },
   succeeded: { label: '成功', tone: 'success' },
   failed: { label: '失败', tone: 'danger' },
@@ -15,7 +18,10 @@ const executionLabels: Record<ExecutionStatus, { label: string; tone: 'neutral' 
   abandoned: { label: '已放弃', tone: 'warning' },
 };
 
-const billingLabels: Record<BillingStatus, { label: string; tone: 'neutral' | 'info' | 'success' | 'warning' | 'danger' }> = {
+const billingLabels: Record<
+  BillingStatus,
+  { label: string; tone: 'neutral' | 'info' | 'success' | 'warning' | 'danger' }
+> = {
   awaiting_usage: { label: '等待用量', tone: 'info' },
   settled: { label: '已结算', tone: 'success' },
   not_chargeable: { label: '不计费', tone: 'neutral' },

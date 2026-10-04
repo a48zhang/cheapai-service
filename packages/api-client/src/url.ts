@@ -9,7 +9,10 @@ export function apiUrlFor(path: string, query?: ApiQuery): string {
   if (!(path === '/api/v1' || path.startsWith('/api/v1/')) || /[?#\\\u0000-\u0020]/u.test(path)) {
     throw new ApiClientError('request', '管理 API 路径无效。');
   }
-  const modelParameter = /^\/api\/v1\/admin\/models\/[^/]+(?:\/mappings(?:\/[^/]+\/(?:chat|responses|messages))?)?$/u.test(path);
+  const modelParameter =
+    /^\/api\/v1\/admin\/models\/[^/]+(?:\/mappings(?:\/[^/]+\/(?:chat|responses|messages))?)?$/u.test(
+      path,
+    );
   for (const [index, part] of path.split('/').entries()) {
     let decoded: string;
     try {
@@ -20,10 +23,15 @@ export function apiUrlFor(path: string, query?: ApiQuery): string {
     // Only the public model ID parameter may contain a once-encoded slash.
     // Hono splits the route before decoding this parameter.
     const modelId = modelParameter && index === 5;
-    if (decoded.includes('%') || /[\\\u0000-\u0020\u007f]/u.test(decoded)
-      || decoded.split('/').some(segment => segment === '.' || segment === '..')
-      || (decoded.includes('/') && (!modelId || !/^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$/u.test(decoded)
-        || decoded.split('/').some(segment => segment.length === 0)))) {
+    if (
+      decoded.includes('%') ||
+      /[\\\u0000-\u0020\u007f]/u.test(decoded) ||
+      decoded.split('/').some((segment) => segment === '.' || segment === '..') ||
+      (decoded.includes('/') &&
+        (!modelId ||
+          !/^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$/u.test(decoded) ||
+          decoded.split('/').some((segment) => segment.length === 0)))
+    ) {
       throw new ApiClientError('request', '管理 API 路径无效。');
     }
   }
@@ -44,6 +52,10 @@ export function apiUrlFor(path: string, query?: ApiQuery): string {
 
 /** Public authentication failures must not invalidate an existing identity. */
 export function isProtectedApiPath(path: string): boolean {
-  return path !== '/api/v1/settings/public' && (!path.startsWith('/api/v1/auth/')
-    || path === '/api/v1/auth/me' || path === '/api/v1/auth/logout');
+  return (
+    path !== '/api/v1/settings/public' &&
+    (!path.startsWith('/api/v1/auth/') ||
+      path === '/api/v1/auth/me' ||
+      path === '/api/v1/auth/logout')
+  );
 }

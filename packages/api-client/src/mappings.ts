@@ -13,7 +13,7 @@ import type {
   ModelMappingView,
   Protocol,
 } from '@cheapai/contracts/mappings';
-import type { ApiClient } from './types.js';
+import type { ApiClient, ApiReadOptions } from './types.js';
 
 export type {
   CapabilityFeature,
@@ -26,9 +26,16 @@ export type {
   ModelMappingView,
   Protocol,
 } from '@cheapai/contracts/mappings';
-export { CAPABILITY_FEATURES, EXTENSION_SCOPES, decodeCapabilities, decodeMapping, decodeMappings } from '@cheapai/contracts/mappings';
+export {
+  CAPABILITY_FEATURES,
+  EXTENSION_SCOPES,
+  decodeCapabilities,
+  decodeMapping,
+  decodeMappings,
+} from '@cheapai/contracts/mappings';
 
-const modelPath = (publicModelId: string) => `/api/v1/admin/models/${encodeURIComponent(publicModelId)}`;
+const modelPath = (publicModelId: string) =>
+  `/api/v1/admin/models/${encodeURIComponent(publicModelId)}`;
 const mappingPath = (publicModelId: string) => `${modelPath(publicModelId)}/mappings`;
 
 function capabilitiesBody(value: ChannelCapabilities) {
@@ -36,31 +43,54 @@ function capabilitiesBody(value: ChannelCapabilities) {
     protocol: value.protocol,
     features: [...value.features],
     ...(value.maxOutputTokens === undefined ? {} : { maxOutputTokens: value.maxOutputTokens }),
-    ...(value.reasoningEfforts === undefined ? {} : { reasoningEfforts: [...value.reasoningEfforts] }),
+    ...(value.reasoningEfforts === undefined
+      ? {}
+      : { reasoningEfforts: [...value.reasoningEfforts] }),
     ...(value.cacheTtls === undefined ? {} : { cacheTtls: [...value.cacheTtls] }),
-    ...(value.nativeExtensions === undefined ? {} : {
-      nativeExtensions: value.nativeExtensions.map(extension => ({ scope: extension.scope, name: extension.name })),
-    }),
+    ...(value.nativeExtensions === undefined
+      ? {}
+      : {
+          nativeExtensions: value.nativeExtensions.map((extension) => ({
+            scope: extension.scope,
+            name: extension.name,
+          })),
+        }),
   };
 }
 
 /** Administrator channel mappings use their independent configVersion for edits. */
 export function createMappingsApi(api: ApiClient) {
-  async function listMappings(publicModelId: string, options: ModelMappingQuery = {}): Promise<ModelMappingList> {
-    return (await api.get(mappingPath(publicModelId), {
-      query: { ...options },
-      decode: decodeMappings,
-    })).data;
+  async function listMappings(
+    publicModelId: string,
+    options: ModelMappingQuery = {},
+    readOptions?: ApiReadOptions,
+  ): Promise<ModelMappingList> {
+    return (
+      await api.get(mappingPath(publicModelId), {
+        query: { ...options },
+        decode: decodeMappings,
+        ...(readOptions?.signal === undefined ? {} : { signal: readOptions.signal }),
+      })
+    ).data;
   }
 
-  async function createMapping(publicModelId: string, input: ModelMappingInput): Promise<ModelMappingView> {
+  async function createMapping(
+    publicModelId: string,
+    input: ModelMappingInput,
+  ): Promise<ModelMappingView> {
     const value = modelMappingInputSchema.parse(input);
-    return (await api.post(mappingPath(publicModelId), {
-      channelId: value.channelId,
-      protocol: value.protocol,
-      upstreamModel: value.upstreamModel,
-      capabilities: capabilitiesBody(value.capabilities),
-    }, { decode: decodeMapping })).data;
+    return (
+      await api.post(
+        mappingPath(publicModelId),
+        {
+          channelId: value.channelId,
+          protocol: value.protocol,
+          upstreamModel: value.upstreamModel,
+          capabilities: capabilitiesBody(value.capabilities),
+        },
+        { decode: decodeMapping },
+      )
+    ).data;
   }
 
   async function updateMapping(
@@ -77,22 +107,24 @@ export function createMappingsApi(api: ApiClient) {
     if (patch.capabilities !== undefined && patch.capabilities.protocol !== protocol) {
       throw new TypeError('Model mapping capability protocol must match the mapping protocol.');
     }
-    return (await api.patch(`${mappingPath(publicModelId)}/${encodeURIComponent(channelId)}/${protocol}`, {
-      version: configVersion,
-      ...(patch.upstreamModel === undefined ? {} : { upstreamModel: patch.upstreamModel }),
-      ...(patch.capabilities === undefined ? {} : { capabilities: capabilitiesBody(patch.capabilities) }),
-    }, { decode: decodeMapping })).data;
+    return (
+      await api.patch(
+        `${mappingPath(publicModelId)}/${encodeURIComponent(channelId)}/${protocol}`,
+        {
+          version: configVersion,
+          ...(patch.upstreamModel === undefined ? {} : { upstreamModel: patch.upstreamModel }),
+          ...(patch.capabilities === undefined
+            ? {}
+            : { capabilities: capabilitiesBody(patch.capabilities) }),
+        },
+        { decode: decodeMapping },
+      )
+    ).data;
   }
 
   return Object.freeze({
     listMappings,
-    mappings: listMappings,
     createMapping,
     updateMapping,
-    list: listMappings,
-    create: createMapping,
-    update: updateMapping,
   });
 }
-
-export const createAdminMappingsApi = createMappingsApi;

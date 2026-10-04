@@ -6,11 +6,7 @@ import {
   chatMetaEventSchema,
   decodeChatReplay,
 } from '@cheapai/contracts/chat';
-import type {
-  ChatErrorEvent,
-  ChatSendResult,
-  ChatStreamHandlers,
-} from '@cheapai/contracts/chat';
+import type { ChatErrorEvent, ChatSendResult, ChatStreamHandlers } from '@cheapai/contracts/chat';
 import { ApiClientError } from './errors.js';
 import { readCsrfCookie } from './csrf.js';
 import { apiUrlFor, isProtectedApiPath } from './url.js';
@@ -21,8 +17,8 @@ export interface ChatStreamOptions extends ApiClientOptions {
   readonly signal?: AbortSignal;
 }
 
-const isObject = (value: unknown): value is Record<string, unknown> => value !== null
-  && typeof value === 'object' && !Array.isArray(value);
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
 
 function transportError(cause: unknown, signal?: AbortSignal): ApiClientError {
   return signal?.aborted || (cause instanceof Error && cause.name === 'AbortError')
@@ -36,7 +32,8 @@ function parseEventFrame(frame: string): { readonly event: string; readonly data
   for (const raw of frame.split('\n')) {
     const line = raw.endsWith('\r') ? raw.slice(0, -1) : raw;
     if (line.startsWith('event:')) event = line.slice(6).trim();
-    else if (line.startsWith('data:')) dataLines.push(line.slice(5).startsWith(' ') ? line.slice(6) : line.slice(5));
+    else if (line.startsWith('data:'))
+      dataLines.push(line.slice(5).startsWith(' ') ? line.slice(6) : line.slice(5));
   }
   if (dataLines.length === 0) return null;
   try {
@@ -56,9 +53,16 @@ function nextSseFrame(buffer: string): { readonly frame: string; readonly rest: 
   };
 }
 
-async function readSse(response: Response, handlers: ChatStreamHandlers, signal?: AbortSignal): Promise<ChatSendResult> {
+async function readSse(
+  response: Response,
+  handlers: ChatStreamHandlers,
+  signal?: AbortSignal,
+): Promise<ChatSendResult> {
   if (!response.body) {
-    throw new ApiClientError('invalid_response', '服务未返回流式响应。', { status: response.status, code: 'empty_stream' });
+    throw new ApiClientError('invalid_response', '服务未返回流式响应。', {
+      status: response.status,
+      code: 'empty_stream',
+    });
   }
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -83,7 +87,9 @@ async function readSse(response: Response, handlers: ChatStreamHandlers, signal?
       result = {
         kind: 'stream',
         message: event.data.message,
-        ...(event.data.billingStatus === undefined ? {} : { billingStatus: event.data.billingStatus }),
+        ...(event.data.billingStatus === undefined
+          ? {}
+          : { billingStatus: event.data.billingStatus }),
       };
     } else if (parsed.event === 'error') {
       const event = chatErrorEventSchema.safeParse(parsed.data);
@@ -116,7 +122,10 @@ async function readSse(response: Response, handlers: ChatStreamHandlers, signal?
     buffer += decoder.decode();
     if (buffer.trim()) await consume(buffer);
     if (result) return result;
-    throw new ApiClientError('invalid_response', '流式响应提前结束。', { status: response.status, code: 'incomplete_stream' });
+    throw new ApiClientError('invalid_response', '流式响应提前结束。', {
+      status: response.status,
+      code: 'incomplete_stream',
+    });
   } catch (cause) {
     if (cause instanceof ApiClientError) throw cause;
     if (signal?.aborted || (cause instanceof Error && cause.name === 'AbortError')) {
@@ -133,9 +142,16 @@ async function responseError(response: Response): Promise<never> {
   let message = '请求失败（HTTP ' + response.status + '）。';
   try {
     const payload: unknown = await response.clone().json();
-    if (isObject(payload) && isObject(payload.error)
-      && typeof payload.error.code === 'string' && payload.error.code.length > 0 && payload.error.code.length <= 128
-      && typeof payload.error.message === 'string' && payload.error.message.length > 0 && payload.error.message.length <= 4096) {
+    if (
+      isObject(payload) &&
+      isObject(payload.error) &&
+      typeof payload.error.code === 'string' &&
+      payload.error.code.length > 0 &&
+      payload.error.code.length <= 128 &&
+      typeof payload.error.message === 'string' &&
+      payload.error.message.length > 0 &&
+      payload.error.message.length <= 4096
+    ) {
       code = payload.error.code;
       message = payload.error.message;
       const parsedRequestId = requestIdSchema.safeParse(payload.request_id);
@@ -162,7 +178,8 @@ export async function sendChatStream(
   options: ChatStreamOptions = {},
 ): Promise<ChatSendResult> {
   const url = apiUrlFor(path);
-  const fetcher = options.fetch ?? ((...args: Parameters<typeof fetch>) => globalThis.fetch(...args));
+  const fetcher =
+    options.fetch ?? ((...args: Parameters<typeof fetch>) => globalThis.fetch(...args));
   let identity: SessionIdentity | null = null;
   try {
     identity = options.captureIdentity?.() ?? null;
@@ -177,7 +194,9 @@ export async function sendChatStream(
     throw new ApiClientError('request', '无法读取请求验证令牌。', { cause });
   }
   if (token === null || token === undefined || token === '') {
-    throw new ApiClientError('request', '缺少请求验证令牌，请刷新页面后重试。', { code: 'csrf_missing' });
+    throw new ApiClientError('request', '缺少请求验证令牌，请刷新页面后重试。', {
+      code: 'csrf_missing',
+    });
   }
   if (token.length > 4096 || /[\u0000-\u0020\u007f]/u.test(token)) {
     throw new ApiClientError('request', '请求验证令牌无效。');
@@ -212,9 +231,13 @@ export async function sendChatStream(
   if (!response.ok) return responseError(response);
 
   const mediaType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() ?? '';
-  if (mediaType === 'text/event-stream') return readSse(response, options.handlers ?? {}, options.signal);
+  if (mediaType === 'text/event-stream')
+    return readSse(response, options.handlers ?? {}, options.signal);
   if (mediaType !== 'application/json' && !/^application\/[a-z0-9.+-]+\+json$/u.test(mediaType)) {
-    throw new ApiClientError('invalid_response', '服务返回了无法识别的聊天响应。', { status: response.status, code: 'non_json_response' });
+    throw new ApiClientError('invalid_response', '服务返回了无法识别的聊天响应。', {
+      status: response.status,
+      code: 'non_json_response',
+    });
   }
 
   let payload: unknown;
@@ -224,10 +247,15 @@ export async function sendChatStream(
     if (options.signal?.aborted || (cause instanceof Error && cause.name === 'AbortError')) {
       throw transportError(cause, options.signal);
     }
-    throw new ApiClientError('invalid_response', '服务返回了无法解析的聊天响应。', { status: response.status, cause });
+    throw new ApiClientError('invalid_response', '服务返回了无法解析的聊天响应。', {
+      status: response.status,
+      cause,
+    });
   }
   if (!isObject(payload) || !Object.hasOwn(payload, 'data')) {
-    throw new ApiClientError('invalid_response', '服务返回了无效的聊天响应格式。', { status: response.status });
+    throw new ApiClientError('invalid_response', '服务返回了无效的聊天响应格式。', {
+      status: response.status,
+    });
   }
   return decodeChatReplay(payload.data);
 }

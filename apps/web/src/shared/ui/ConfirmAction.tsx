@@ -1,21 +1,21 @@
-import { useState } from 'react'
-import type { ReactElement, ReactNode } from 'react'
-import { Button } from './Button'
-import { Dialog } from './Dialog'
+import { useState } from 'react';
+import type { ReactElement, ReactNode } from 'react';
+import { Button } from './Button';
+import { Dialog } from './Dialog';
 
 export interface ConfirmActionProps {
-  open?: boolean
-  defaultOpen?: boolean
-  onOpenChange?: (open: boolean) => void
-  trigger?: ReactElement
-  title: ReactNode
-  description: ReactNode
-  confirmLabel?: string
-  cancelLabel?: string
-  variant?: 'danger' | 'primary'
-  busy?: boolean
-  onConfirm: () => void
-  className?: string
+  open?: boolean;
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  trigger?: ReactElement;
+  title: ReactNode;
+  description: ReactNode;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  variant?: 'danger' | 'primary';
+  busy?: boolean;
+  onConfirm: () => void;
+  className?: string;
 }
 
 /** Confirmation dialog whose actual operation and error handling remain with its caller. */
@@ -33,22 +33,22 @@ export function ConfirmAction({
   onConfirm,
   className,
 }: ConfirmActionProps) {
-  const [internalOpen, setInternalOpen] = useState(defaultOpen)
-  const isControlled = open !== undefined
-  const currentOpen = isControlled ? open : internalOpen
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const isControlled = open !== undefined;
+  const currentOpen = isControlled ? open : internalOpen;
   const updateOpen = (nextOpen: boolean) => {
-    if (!isControlled) setInternalOpen(nextOpen)
-    onOpenChange?.(nextOpen)
-  }
+    if (!isControlled) setInternalOpen(nextOpen);
+    onOpenChange?.(nextOpen);
+  };
 
   const handleConfirm = () => {
-    onConfirm()
-    updateOpen(false)
-  }
+    onConfirm();
+    updateOpen(false);
+  };
   const handleOpenChange = (nextOpen: boolean) => {
-    if (busy && !nextOpen) return
-    updateOpen(nextOpen)
-  }
+    if (busy && !nextOpen) return;
+    updateOpen(nextOpen);
+  };
 
   return (
     <Dialog
@@ -59,7 +59,7 @@ export function ConfirmAction({
       description={description}
       className={className}
       closeButton={!busy}
-      footer={(
+      footer={
         <>
           <Button variant="outline" onClick={() => updateOpen(false)} disabled={busy}>
             {cancelLabel}
@@ -68,7 +68,7 @@ export function ConfirmAction({
             {confirmLabel}
           </Button>
         </>
-      )}
+      }
     />
-  )
+  );
 }

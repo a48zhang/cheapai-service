@@ -9,9 +9,13 @@ import type { CreateUserInput } from './create-user';
 import { updateUser } from './update-user';
 import { getAdminUserDetail } from './user-detail';
 import type { UpdateUserPatch } from './update-user';
+import { ADMIN_USER_PROJECTION_FROM_SQL, ADMIN_USER_PROJECTION_SQL, decodeAdminUserProjection } from './user-projection';
+import type { AdminUserProjectionRow } from './user-projection';
 import { prepare } from '../db';
 import type { DbValue } from '../db';
 import { ApiError, apiError, apiSuccess, createRequestId, parsePagination } from '../http';
+
+export type { AdminUserListItem } from './user-projection';
 
 export const ADMIN_USERS_PATH = '/api/v1/admin/users';
 export const ADMIN_USER_BODY_MAX_BYTES = 8 * 1024;
@@ -19,12 +23,6 @@ export interface AdminUserRouteDependencies { database: D1Database; now(): numbe
 export type AdminUserDependencySource = AdminUserRouteDependencies
   | ((env: AuthEnv['Bindings'], request: Request) => AdminUserRouteDependencies | Promise<AdminUserRouteDependencies>);
 interface RouteEnv extends AuthEnv { Variables: AuthEnv['Variables'] & { requestTime?: number; userDependencies?: AdminUserRouteDependencies } }
-export interface AdminUserListItem {
-  id: string; email_normalized: string; role: 'user' | 'admin'; status: 'active' | 'disabled';
-  group_id: string; group_name: string; group_status: 'active' | 'disabled';
-  balance_units: string; concurrency_limit: number; rpm_limit: number; email_verified_at: number | null;
-  created_at: number; updated_at: number; version: number;
-}
 type Status = 'active' | 'disabled' | null;
 type Cursor = [1, actorId: string, status: Status, groupId: string | null, snapshotAt: number, createdAt: number, id: string];
 
@@ -128,14 +126,10 @@ export function createAdminUserRoutes(
       if (groupId !== null) { clauses.push('u.group_id=?'); values.push(groupId); }
       if (cursor) { clauses.push('(u.created_at<? OR (u.created_at=? AND u.id<?))'); values.push(cursor[5], cursor[5], cursor[6]); }
       values.push(page.limit + 1);
-      // Explicit public projection: no password hash, credentials or SELECT *.
-      const result = await prepare<AdminUserListItem & { allowed_group_ids_json: string }>(context.env.DB,
-        `SELECT u.id,u.email_normalized,u.role,u.status,u.group_id,g.name AS group_name,g.status AS group_status,
-          CAST(u.balance_units AS TEXT) AS balance_units,u.concurrency_limit,u.rpm_limit,u.email_verified_at,
-          u.created_at,u.updated_at,u.version,
-          (SELECT json_group_array(group_id) FROM (SELECT group_id FROM user_group_access WHERE user_id=u.id ORDER BY group_id)) AS allowed_group_ids_json FROM users u JOIN groups g ON g.id=u.group_id
+      const result = await prepare<AdminUserProjectionRow>(context.env.DB,
+        `${ADMIN_USER_PROJECTION_SQL} ${ADMIN_USER_PROJECTION_FROM_SQL}
           WHERE ${clauses.join(' AND ')} ORDER BY u.created_at DESC,u.id DESC LIMIT ?`, values).all();
-      const items = result.rows.slice(0, page.limit).map(({ allowed_group_ids_json, ...row }) => ({ ...row, allowed_group_ids: JSON.parse(allowed_group_ids_json) as string[] }));
+      const items = result.rows.slice(0, page.limit).map(decodeAdminUserProjection);
       const last = items.at(-1);
       const nextCursor = result.rows.length > page.limit && last ? encode([1, actor, status, groupId, snapshotAt, last.created_at, last.id]) : null;
       return noStore(apiSuccess({ items, nextCursor, snapshotAt }, context.get('requestId')));

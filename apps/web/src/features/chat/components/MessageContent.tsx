@@ -24,8 +24,9 @@ const components: Components = {
     const safeHref = href ? safeMarkdownUrl(href) : undefined;
     if (!safeHref) return <span>{children}</span>;
     const destination = new URL(safeHref, 'https://cheapai.invalid');
-    const external = destination.origin !== 'https://cheapai.invalid'
-      && (destination.protocol === 'http:' || destination.protocol === 'https:');
+    const external =
+      destination.origin !== 'https://cheapai.invalid' &&
+      (destination.protocol === 'http:' || destination.protocol === 'https:');
     return (
       <a
         className="break-words text-[var(--color-primary)] underline underline-offset-2 hover:opacity-80"
@@ -52,7 +53,11 @@ const components: Components = {
     );
   },
   th({ children }) {
-    return <th className="border border-[var(--color-line)] bg-[var(--color-surface-subtle)] px-3 py-2 font-semibold">{children}</th>;
+    return (
+      <th className="border border-[var(--color-line)] bg-[var(--color-surface-subtle)] px-3 py-2 font-semibold">
+        {children}
+      </th>
+    );
   },
   td({ children }) {
     return <td className="border border-[var(--color-line)] px-3 py-2 align-top">{children}</td>;
@@ -62,7 +67,9 @@ const components: Components = {
 /** Safe Markdown and GFM renderer. Raw HTML stays disabled and unsafe URLs are discarded. */
 export function MessageContent({ content, className }: MessageContentProps) {
   return (
-    <div className={`break-words text-sm leading-7 text-[var(--color-foreground)] [&_blockquote]:my-3 [&_blockquote]:border-l-2 [&_blockquote]:border-[var(--color-line-strong)] [&_blockquote]:pl-4 [&_h1]:my-4 [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:my-3 [&_h3]:font-semibold [&_li]:whitespace-pre-wrap [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-3 [&_p]:whitespace-pre-wrap [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-6 ${className ?? ''}`}>
+    <div
+      className={`break-words text-sm leading-7 text-[var(--color-foreground)] [&_blockquote]:my-3 [&_blockquote]:border-l-2 [&_blockquote]:border-[var(--color-line-strong)] [&_blockquote]:pl-4 [&_h1]:my-4 [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:my-3 [&_h3]:font-semibold [&_li]:whitespace-pre-wrap [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-3 [&_p]:whitespace-pre-wrap [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-6 ${className ?? ''}`}
+    >
       <ReactMarkdown
         components={components}
         rehypePlugins={[rehypeSanitize]}

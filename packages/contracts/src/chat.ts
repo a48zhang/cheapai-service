@@ -2,8 +2,17 @@ import { z } from 'zod';
 
 const countSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const positiveSchema = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
-const textSchema = (max: number) => z.string().max(max).refine(value => value.trim() === value);
-const nonEmptyTextSchema = (max: number) => z.string().min(1).max(max).refine(value => value.trim() === value);
+const textSchema = (max: number) =>
+  z
+    .string()
+    .max(max)
+    .refine((value) => value.trim() === value);
+const nonEmptyTextSchema = (max: number) =>
+  z
+    .string()
+    .min(1)
+    .max(max)
+    .refine((value) => value.trim() === value);
 const contentSchema = z.string().max(1_000_000);
 const nullableTextSchema = (max: number) => nonEmptyTextSchema(max).nullable();
 
@@ -26,39 +35,49 @@ export const chatModelsSchema = z.object({
   items: z.array(chatGroupSchema),
 });
 
-export const conversationSchema = z.object({
-  id: nonEmptyTextSchema(128),
-  title: textSchema(512),
-  groupId: nullableTextSchema(128),
-  modelId: nullableTextSchema(256),
-  version: positiveSchema,
-  createdAt: countSchema,
-  updatedAt: countSchema,
-}).refine(value => value.updatedAt >= value.createdAt, { path: ['updatedAt'] });
+export const conversationSchema = z
+  .object({
+    id: nonEmptyTextSchema(128),
+    title: textSchema(512),
+    groupId: nullableTextSchema(128),
+    modelId: nullableTextSchema(256),
+    version: positiveSchema,
+    createdAt: countSchema,
+    updatedAt: countSchema,
+  })
+  .refine((value) => value.updatedAt >= value.createdAt, { path: ['updatedAt'] });
 
-export const chatMessageSchema = z.object({
-  id: nonEmptyTextSchema(128),
-  conversationId: nonEmptyTextSchema(128),
-  turnIndex: countSchema,
-  role: chatRoleSchema,
-  content: contentSchema,
-  status: chatMessageStatusSchema,
-  variant: positiveSchema,
-  selected: z.boolean(),
-  requestId: nullableTextSchema(256),
-  groupId: nullableTextSchema(128),
-  modelId: nullableTextSchema(256),
-  createdAt: countSchema,
-  updatedAt: countSchema,
-}).refine(value => value.updatedAt >= value.createdAt, { path: ['updatedAt'] })
-  .refine(value => value.role !== 'user' || value.content.trim().length > 0, { path: ['content'] });
+export const chatMessageSchema = z
+  .object({
+    id: nonEmptyTextSchema(128),
+    conversationId: nonEmptyTextSchema(128),
+    turnIndex: countSchema,
+    role: chatRoleSchema,
+    content: contentSchema,
+    status: chatMessageStatusSchema,
+    variant: positiveSchema,
+    selected: z.boolean(),
+    requestId: nullableTextSchema(256),
+    groupId: nullableTextSchema(128),
+    modelId: nullableTextSchema(256),
+    createdAt: countSchema,
+    updatedAt: countSchema,
+  })
+  .refine((value) => value.updatedAt >= value.createdAt, { path: ['updatedAt'] })
+  .refine((value) => value.role !== 'user' || value.content.trim().length > 0, {
+    path: ['content'],
+  });
 
 export const conversationDetailSchema = z.object({
   conversation: conversationSchema,
   messages: z.array(chatMessageSchema),
 });
 
-const chatCursorSchema = z.string().max(2048).refine(value => value.trim() === value).nullable();
+const chatCursorSchema = z
+  .string()
+  .max(2048)
+  .refine((value) => value.trim() === value)
+  .nullable();
 export const conversationPageSchema = z.object({
   items: z.array(conversationSchema),
   nextCursor: chatCursorSchema,
@@ -84,7 +103,7 @@ export const chatSendInputSchema = z.object({
   conversationVersion: positiveSchema,
   groupId: nonEmptyTextSchema(128),
   modelId: nonEmptyTextSchema(256),
-  content: contentSchema.refine(value => value.trim().length > 0),
+  content: contentSchema.refine((value) => value.trim().length > 0),
   maxOutputTokens: positiveSchema.optional(),
 });
 
@@ -140,7 +159,7 @@ export const chatReplayWireSchema = conversationDetailSchema.extend({
 });
 
 /** Adds the client-only discriminator after validating the Worker wire envelope. */
-export const chatReplayResultSchema = chatReplayWireSchema.transform(value => ({
+export const chatReplayResultSchema = chatReplayWireSchema.transform((value) => ({
   kind: 'replay' as const,
   ...value,
 }));

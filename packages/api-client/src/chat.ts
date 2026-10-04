@@ -25,7 +25,7 @@ import { ApiClientError } from './errors.js';
 import { readCsrfCookie } from './csrf.js';
 import { createApiClient } from './client.js';
 import { sendChatStream } from './chat-stream.js';
-import type { ApiClient, ApiClientOptions } from './types.js';
+import type { ApiClient, ApiClientOptions, ApiReadOptions } from './types.js';
 
 export type {
   ChatList,
@@ -63,9 +63,9 @@ export interface ChatApiOptions extends ApiClientOptions {
 }
 
 export interface ChatApi {
-  models(): Promise<ChatModels>;
-  listConversations(cursor?: string | null): Promise<ChatList>;
-  getConversation(id: string): Promise<ConversationDetail>;
+  models(options?: ApiReadOptions): Promise<ChatModels>;
+  listConversations(cursor?: string | null, options?: ApiReadOptions): Promise<ChatList>;
+  getConversation(id: string, options?: ApiReadOptions): Promise<ConversationDetail>;
   createConversation(input?: ConversationCreateInput): Promise<Conversation>;
   updateConversation(id: string, input: ConversationPatchInput): Promise<Conversation>;
   deleteConversation(id: string, version: number): Promise<{ readonly deleted: true }>;
@@ -84,8 +84,8 @@ export interface ChatApi {
   selectVersion(id: string, input: ChatSelectInput): Promise<ConversationDetail>;
 }
 
-const nonEmptyText = (value: unknown, max: number): value is string => typeof value === 'string'
-  && value.length > 0 && value.length <= max && value.trim() === value;
+const nonEmptyText = (value: unknown, max: number): value is string =>
+  typeof value === 'string' && value.length > 0 && value.length <= max && value.trim() === value;
 
 function validId(value: string, label: string): string {
   if (!nonEmptyText(value, 256) || /[\u0000-\u0020\u007f\\/?#]/u.test(value)) {
@@ -104,43 +104,73 @@ function bodyWithOutput<T extends Record<string, unknown>>(
 export function createChatApi(options: ChatApiOptions = {}): ChatApi {
   const { client: injectedClient, ...clientOptions } = options;
   const authApi = createAuthApi(clientOptions);
-  const csrfToken = clientOptions.getCsrfToken
-    ?? (async () => readCsrfCookie() ?? (await authApi.bootstrap()).csrfToken);
+  const csrfToken =
+    clientOptions.getCsrfToken ??
+    (async () => readCsrfCookie() ?? (await authApi.bootstrap()).csrfToken);
   const client = injectedClient ?? createApiClient({ ...clientOptions, getCsrfToken: csrfToken });
   const streamOptions = { ...clientOptions, getCsrfToken: csrfToken };
   const conversationPath = (id: string): string =>
     '/api/v1/chat/conversations/' + validId(id, '会话编号');
 
   const api: ChatApi = Object.freeze({
-    async models(): Promise<ChatModels> {
-      return (await client.get('/api/v1/chat/models', { decode: decodeChatModels })).data;
+    async models(readOptions?: ApiReadOptions): Promise<ChatModels> {
+      return (
+        await client.get('/api/v1/chat/models', {
+          decode: decodeChatModels,
+          ...(readOptions?.signal === undefined ? {} : { signal: readOptions.signal }),
+        })
+      ).data;
     },
-    async listConversations(cursor?: string | null): Promise<ChatList> {
-      return (await client.get('/api/v1/chat/conversations', {
-        query: { cursor: cursor ?? null },
-        decode: decodeConversationPage,
-      })).data;
+    async listConversations(
+      cursor?: string | null,
+      readOptions?: ApiReadOptions,
+    ): Promise<ChatList> {
+      return (
+        await client.get('/api/v1/chat/conversations', {
+          query: { cursor: cursor ?? null },
+          decode: decodeConversationPage,
+          ...(readOptions?.signal === undefined ? {} : { signal: readOptions.signal }),
+        })
+      ).data;
     },
-    async getConversation(id: string): Promise<ConversationDetail> {
-      return (await client.get(conversationPath(id), { decode: decodeConversationDetail })).data;
+    async getConversation(id: string, readOptions?: ApiReadOptions): Promise<ConversationDetail> {
+      return (
+        await client.get(conversationPath(id), {
+          decode: decodeConversationDetail,
+          ...(readOptions?.signal === undefined ? {} : { signal: readOptions.signal }),
+        })
+      ).data;
     },
     async createConversation(input: ConversationCreateInput = {}): Promise<Conversation> {
-      return (await client.post('/api/v1/chat/conversations', {
-        ...(input.title === undefined ? {} : { title: input.title }),
-        ...(input.groupId === undefined ? {} : { groupId: input.groupId }),
-        ...(input.modelId === undefined ? {} : { modelId: input.modelId }),
-      }, { decode: decodeConversation })).data;
+      return (
+        await client.post(
+          '/api/v1/chat/conversations',
+          {
+            ...(input.title === undefined ? {} : { title: input.title }),
+            ...(input.groupId === undefined ? {} : { groupId: input.groupId }),
+            ...(input.modelId === undefined ? {} : { modelId: input.modelId }),
+          },
+          { decode: decodeConversation },
+        )
+      ).data;
     },
     async updateConversation(id: string, input: ConversationPatchInput): Promise<Conversation> {
-      return (await client.patch(conversationPath(id), {
-        version: input.version,
-        ...(input.title === undefined ? {} : { title: input.title }),
-        ...(input.groupId === undefined ? {} : { groupId: input.groupId }),
-        ...(input.modelId === undefined ? {} : { modelId: input.modelId }),
-      }, { decode: decodeConversation })).data;
+      return (
+        await client.patch(
+          conversationPath(id),
+          {
+            version: input.version,
+            ...(input.title === undefined ? {} : { title: input.title }),
+            ...(input.groupId === undefined ? {} : { groupId: input.groupId }),
+            ...(input.modelId === undefined ? {} : { modelId: input.modelId }),
+          },
+          { decode: decodeConversation },
+        )
+      ).data;
     },
     async deleteConversation(id: string, version: number): Promise<{ readonly deleted: true }> {
-      return (await client.delete(conversationPath(id), { version }, { decode: decodeDeleted })).data;
+      return (await client.delete(conversationPath(id), { version }, { decode: decodeDeleted }))
+        .data;
     },
     async sendMessage(
       id: string,
@@ -150,13 +180,16 @@ export function createChatApi(options: ChatApiOptions = {}): ChatApi {
     ): Promise<ChatSendResult> {
       const parsed = chatSendInputSchema.safeParse(input);
       if (!parsed.success) throw new ApiClientError('request', '聊天请求参数无效。');
-      const body = bodyWithOutput({
-        operationId: parsed.data.operationId,
-        conversationVersion: parsed.data.conversationVersion,
-        groupId: parsed.data.groupId,
-        modelId: parsed.data.modelId,
-        content: parsed.data.content,
-      }, parsed.data.maxOutputTokens);
+      const body = bodyWithOutput(
+        {
+          operationId: parsed.data.operationId,
+          conversationVersion: parsed.data.conversationVersion,
+          groupId: parsed.data.groupId,
+          modelId: parsed.data.modelId,
+          content: parsed.data.content,
+        },
+        parsed.data.maxOutputTokens,
+      );
       return sendChatStream(conversationPath(id) + '/messages', body, {
         ...streamOptions,
         handlers,
@@ -171,12 +204,15 @@ export function createChatApi(options: ChatApiOptions = {}): ChatApi {
     ): Promise<ChatSendResult> {
       const parsed = chatRegenerateInputSchema.safeParse(input);
       if (!parsed.success) throw new ApiClientError('request', '重新生成参数无效。');
-      const body = bodyWithOutput({
-        operationId: parsed.data.operationId,
-        conversationVersion: parsed.data.conversationVersion,
-        groupId: parsed.data.groupId,
-        modelId: parsed.data.modelId,
-      }, parsed.data.maxOutputTokens);
+      const body = bodyWithOutput(
+        {
+          operationId: parsed.data.operationId,
+          conversationVersion: parsed.data.conversationVersion,
+          groupId: parsed.data.groupId,
+          modelId: parsed.data.modelId,
+        },
+        parsed.data.maxOutputTokens,
+      );
       return sendChatStream(conversationPath(id) + '/regenerate', body, {
         ...streamOptions,
         handlers,
@@ -184,10 +220,16 @@ export function createChatApi(options: ChatApiOptions = {}): ChatApi {
       });
     },
     async selectVersion(id: string, input: ChatSelectInput): Promise<ConversationDetail> {
-      return (await client.post(conversationPath(id) + '/select', {
-        conversationVersion: input.conversationVersion,
-        messageId: input.messageId,
-      }, { decode: decodeConversationDetail })).data;
+      return (
+        await client.post(
+          conversationPath(id) + '/select',
+          {
+            conversationVersion: input.conversationVersion,
+            messageId: input.messageId,
+          },
+          { decode: decodeConversationDetail },
+        )
+      ).data;
     },
   });
   return api;

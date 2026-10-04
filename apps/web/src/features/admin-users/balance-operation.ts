@@ -11,8 +11,16 @@ export interface BalanceAdjustmentIntent {
 export type BalanceAdjustmentOperation =
   | { readonly status: 'idle' }
   | { readonly status: 'submitting'; readonly intent: BalanceAdjustmentIntent }
-  | { readonly status: 'unknown'; readonly intent: BalanceAdjustmentIntent; readonly error: unknown }
-  | { readonly status: 'correctable'; readonly intent: BalanceAdjustmentIntent; readonly error: unknown }
+  | {
+      readonly status: 'unknown';
+      readonly intent: BalanceAdjustmentIntent;
+      readonly error: unknown;
+    }
+  | {
+      readonly status: 'correctable';
+      readonly intent: BalanceAdjustmentIntent;
+      readonly error: unknown;
+    }
   | { readonly status: 'settled'; readonly result: BalanceAdjustmentResult };
 
 export type BalanceAdjustmentEvent =
@@ -31,7 +39,8 @@ export function reduceBalanceAdjustment(
   if (event.type === 'reset') return idleBalanceAdjustment;
   if (event.type === 'submit') return { status: 'submitting', intent: event.intent };
   if (event.type === 'settled') return { status: 'settled', result: event.result };
-  if (state.status !== 'submitting' && state.status !== 'unknown' && state.status !== 'correctable') return state;
+  if (state.status !== 'submitting' && state.status !== 'unknown' && state.status !== 'correctable')
+    return state;
   return { status: event.type, intent: state.intent, error: event.error };
 }
 
@@ -48,8 +57,11 @@ export function createBalanceAdjustmentInput(input: {
   const reason = input.reason.trim();
   if (!reason || reason.length > 4096) throw new Error('请填写 1–4096 个字符的调整原因。');
   const requestId = input.requestId.trim();
-  if (requestId && (!/^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$/u.test(requestId)
-    || /(?:s2a_(?:key|session|invite)_|sk-|bearer|-----BEGIN)/iu.test(requestId))) {
+  if (
+    requestId &&
+    (!/^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$/u.test(requestId) ||
+      /(?:s2a_(?:key|session|invite)_|sk-|bearer|-----BEGIN)/iu.test(requestId))
+  ) {
     throw new Error('关联请求 ID 格式无效。');
   }
   return {
@@ -70,19 +82,34 @@ export function createBalanceAdjustmentIntent(
 
 /** Client validation and authorization errors are explicit rejections; transport/5xx outcomes may have committed. */
 export function canEditBalanceAdjustmentAfterFailure(error: unknown): boolean {
-  return error instanceof ApiClientError && error.status !== null && error.status >= 400 && error.status < 500;
+  return (
+    error instanceof ApiClientError &&
+    error.status !== null &&
+    error.status >= 400 &&
+    error.status < 500
+  );
 }
 
-export function executeBalanceAdjustment(api: AdminUsersApi, userId: string, intent: BalanceAdjustmentIntent) {
+export function executeBalanceAdjustment(
+  api: AdminUsersApi,
+  userId: string,
+  intent: BalanceAdjustmentIntent,
+) {
   return api.adjust(userId, intent.input, intent.operationId);
 }
 
 export function formatBalanceAmount(units: string): string {
-  try { return `${formatUnitsToUsd(units)} USD`; }
-  catch { return '余额暂不可显示'; }
+  try {
+    return `${formatUnitsToUsd(units)} USD`;
+  } catch {
+    return '余额暂不可显示';
+  }
 }
 
 export function formatAdjustmentInput(units: string): string {
-  try { return formatUnitsToUsd(units); }
-  catch { return '金额无效'; }
+  try {
+    return formatUnitsToUsd(units);
+  } catch {
+    return '金额无效';
+  }
 }

@@ -7,7 +7,10 @@ export type ChannelSetupStep = 'channel' | 'mapping' | 'group' | 'complete';
 
 export interface ChannelSetupCommands {
   readonly createChannel: (input: ChannelInput) => Promise<ChannelView>;
-  readonly createMapping: (publicModelId: string, input: ModelMappingInput) => Promise<ModelMappingView>;
+  readonly createMapping: (
+    publicModelId: string,
+    input: ModelMappingInput,
+  ) => Promise<ModelMappingView>;
   readonly updateGroup: (id: string, version: number, patch: GroupPatch) => Promise<GroupView>;
 }
 
@@ -23,7 +26,14 @@ export interface ChannelSetupProgress {
 export type ChannelMappingDraft = Omit<ModelMappingInput, 'channelId'>;
 
 function initialProgress(): ChannelSetupProgress {
-  return { step: 'channel', channel: null, mapping: null, group: null, error: null, creationUncertain: false };
+  return {
+    step: 'channel',
+    channel: null,
+    mapping: null,
+    group: null,
+    error: null,
+    creationUncertain: false,
+  };
 }
 
 function asError(cause: unknown): Error {
@@ -42,18 +52,29 @@ export function createChannelSetupController(commands: ChannelSetupCommands) {
       const channel = await commands.createChannel(input);
       progress = { ...progress, channel, step: 'mapping', error: null };
     } catch (cause) {
-      progress = { ...progress, step: 'channel', error: asError(cause), creationUncertain: channelCreationMayHaveSucceeded(cause) };
+      progress = {
+        ...progress,
+        step: 'channel',
+        error: asError(cause),
+        creationUncertain: channelCreationMayHaveSucceeded(cause),
+      };
     } finally {
       active = false;
     }
     return progress;
   }
 
-  async function createMapping(publicModelId: string, draft: ChannelMappingDraft): Promise<ChannelSetupProgress> {
+  async function createMapping(
+    publicModelId: string,
+    draft: ChannelMappingDraft,
+  ): Promise<ChannelSetupProgress> {
     if (active || progress.mapping || !progress.channel) return progress;
     active = true;
     try {
-      const mapping = await commands.createMapping(publicModelId, { ...draft, channelId: progress.channel.id });
+      const mapping = await commands.createMapping(publicModelId, {
+        ...draft,
+        channelId: progress.channel.id,
+      });
       progress = { ...progress, mapping, step: 'group', error: null };
     } catch (cause) {
       progress = { ...progress, step: 'mapping', error: asError(cause) };
@@ -73,7 +94,9 @@ export function createChannelSetupController(commands: ChannelSetupCommands) {
 
     active = true;
     try {
-      const patch: Pick<GroupPatch, 'channelIds'> = { channelIds: [...new Set([...group.channelIds, channelId])] };
+      const patch: Pick<GroupPatch, 'channelIds'> = {
+        channelIds: [...new Set([...group.channelIds, channelId])],
+      };
       const updatedGroup = await commands.updateGroup(group.id, group.version, patch);
       progress = { ...progress, group: updatedGroup, step: 'complete', error: null };
     } catch (cause) {

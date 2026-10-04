@@ -1,34 +1,34 @@
-import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
-import type { ReactElement, ReactNode } from 'react'
+import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
+import type { ReactElement, ReactNode } from 'react';
 
 export interface DropdownMenuAction {
-  label: ReactNode
-  onSelect: () => void
-  disabled?: boolean
-  destructive?: boolean
-  shortcut?: ReactNode
+  label: ReactNode;
+  onSelect: () => void;
+  disabled?: boolean;
+  destructive?: boolean;
+  shortcut?: ReactNode;
 }
 
 export interface DropdownMenuSeparator {
-  type: 'separator'
+  type: 'separator';
 }
 
-export type DropdownMenuItem = DropdownMenuAction | DropdownMenuSeparator
+export type DropdownMenuItem = DropdownMenuAction | DropdownMenuSeparator;
 
 export interface DropdownMenuProps {
   /** A focusable button or other element used to open the menu. */
-  trigger: ReactElement
-  items: readonly DropdownMenuItem[]
-  open?: boolean
-  defaultOpen?: boolean
-  onOpenChange?: (open: boolean) => void
-  align?: 'start' | 'center' | 'end'
-  side?: 'top' | 'right' | 'bottom' | 'left'
-  className?: string
+  trigger: ReactElement;
+  items: readonly DropdownMenuItem[];
+  open?: boolean;
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  align?: 'start' | 'center' | 'end';
+  side?: 'top' | 'right' | 'bottom' | 'left';
+  className?: string;
 }
 
 function isSeparator(item: DropdownMenuItem): item is DropdownMenuSeparator {
-  return 'type' in item && item.type === 'separator'
+  return 'type' in item && item.type === 'separator';
 }
 
 /** Compact action menu with Radix roving focus, Escape handling, and focus return. */
@@ -65,7 +65,7 @@ export function DropdownMenu({
                   className="my-1 h-px"
                   style={{ backgroundColor: 'var(--color-border)' }}
                 />
-              )
+              );
             }
 
             return (
@@ -82,10 +82,10 @@ export function DropdownMenu({
                   </span>
                 )}
               </DropdownMenuPrimitive.Item>
-            )
+            );
           })}
         </DropdownMenuPrimitive.Content>
       </DropdownMenuPrimitive.Portal>
     </DropdownMenuPrimitive.Root>
-  )
+  );
 }

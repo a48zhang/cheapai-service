@@ -5,8 +5,7 @@ export type { CapabilityFieldErrors, CapabilityFieldValues } from './CapabilityF
 export { MappingForm } from './MappingForm';
 export type { MappingFormProps } from './MappingForm';
 export {
-  createModelMappingCommands,
-  invalidateModelMappings,
+  recordMappingSaved,
   modelMappingQueryKeys,
   modelMappingsQueryOptions,
 } from './mapping-api';

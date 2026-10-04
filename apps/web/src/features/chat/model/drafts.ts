@@ -24,9 +24,10 @@ function browserSessionStorage(): Storage | null {
 /** A stable, collision-safe key scoped to both account identity and conversation. */
 export function chatDraftStorageKey(scope: ChatDraftScope): string {
   const owner = scope.userId === null ? 'anonymous' : `user:${encodeURIComponent(scope.userId)}`;
-  const conversation = scope.conversationId === null
-    ? 'new'
-    : `conversation:${encodeURIComponent(scope.conversationId)}`;
+  const conversation =
+    scope.conversationId === null
+      ? 'new'
+      : `conversation:${encodeURIComponent(scope.conversationId)}`;
   return `${DRAFT_KEY_PREFIX}:${owner}:${conversation}`;
 }
 
@@ -34,7 +35,9 @@ export function chatDraftStorageKey(scope: ChatDraftScope): string {
  * Uses sessionStorage when available and treats denied/private storage as an
  * optional persistence failure so composing can continue in memory.
  */
-export function createChatDraftStore(storage: Storage | null = browserSessionStorage()): ChatDraftStore {
+export function createChatDraftStore(
+  storage: Storage | null = browserSessionStorage(),
+): ChatDraftStore {
   function read(scope: ChatDraftScope): string | null {
     try {
       const value = storage?.getItem(chatDraftStorageKey(scope)) ?? null;

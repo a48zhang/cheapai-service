@@ -1,7 +1,13 @@
 import { queryOptions } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
 import { createMappingsApi } from '@cheapai/api-client/mappings';
-import type { ModelMappingInput, ModelMappingPatch, ModelMappingQuery, ModelMappingView, Protocol } from '@cheapai/api-client/mappings';
+import type {
+  ModelMappingInput,
+  ModelMappingPatch,
+  ModelMappingQuery,
+  ModelMappingView,
+  Protocol,
+} from '@cheapai/api-client/mappings';
 import type { ApiClient } from '@cheapai/api-client/types';
 
 export interface AdminMappingsContext {
@@ -10,7 +16,8 @@ export interface AdminMappingsContext {
 }
 
 export const modelMappingQueryKeys = Object.freeze({
-  root: (actorId: string, publicModelId: string) => ['admin-models', actorId, publicModelId, 'mappings'] as const,
+  root: (actorId: string, publicModelId: string) =>
+    ['admin-models', actorId, publicModelId, 'mappings'] as const,
   list: (actorId: string, publicModelId: string, query: ModelMappingQuery = {}) =>
     [...modelMappingQueryKeys.root(actorId, publicModelId), query] as const,
 });
@@ -25,27 +32,48 @@ export function modelMappingsQueryOptions(
   return queryOptions({
     queryKey: modelMappingQueryKeys.list(context.actorId, publicModelId, query),
     retry: false,
-    queryFn: () => api.listMappings(publicModelId, query),
+    queryFn: ({ signal }) => api.listMappings(publicModelId, query, { signal }),
   });
 }
 
-/** Commands carry mapping configVersion so callers cannot accidentally reuse priceVersion. */
-export function createModelMappingCommands(context: AdminMappingsContext) {
-  const api = createMappingsApi(context.client);
-  return Object.freeze({
-    create: (publicModelId: string, input: ModelMappingInput) => api.createMapping(publicModelId, input),
-    update: (
-      publicModelId: string,
-      channelId: string,
-      protocol: Protocol,
-      configVersion: number,
-      patch: ModelMappingPatch,
-    ) => api.updateMapping(publicModelId, channelId, protocol, configVersion, patch),
+function invalidateModelMappings(
+  queryClient: QueryClient,
+  actorId: string,
+  publicModelId: string,
+): Promise<void> {
+  return queryClient.invalidateQueries({
+    queryKey: modelMappingQueryKeys.root(actorId, publicModelId),
   });
 }
 
-export function invalidateModelMappings(queryClient: QueryClient, actorId: string, publicModelId: string): Promise<void> {
-  return queryClient.invalidateQueries({ queryKey: modelMappingQueryKeys.root(actorId, publicModelId) });
+export function recordMappingSaved(
+  queryClient: QueryClient,
+  actorId: string,
+  mapping: ModelMappingView,
+): Promise<void> {
+  void queryClient.cancelQueries({
+    queryKey: modelMappingQueryKeys.root(actorId, mapping.publicModelId),
+  });
+  queryClient.setQueryData<{ items: ModelMappingView[] }>(
+    modelMappingQueryKeys.list(actorId, mapping.publicModelId),
+    (current) => {
+      if (!current) return current;
+      const other = current.items.filter(
+        (item) => item.channelId !== mapping.channelId || item.protocol !== mapping.protocol,
+      );
+      const previous = current.items.find(
+        (item) => item.channelId === mapping.channelId && item.protocol === mapping.protocol,
+      );
+      return {
+        ...current,
+        items: [
+          ...other,
+          previous && previous.configVersion > mapping.configVersion ? previous : mapping,
+        ],
+      };
+    },
+  );
+  return invalidateModelMappings(queryClient, actorId, mapping.publicModelId);
 }
 
 export type { ModelMappingInput, ModelMappingPatch, ModelMappingQuery, ModelMappingView, Protocol };

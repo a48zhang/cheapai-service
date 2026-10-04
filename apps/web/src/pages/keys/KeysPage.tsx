@@ -33,9 +33,10 @@ export default function KeysPage() {
   }, [userId, epoch]);
 
   const formOpen = createOpen || editing !== null;
-  const formProps = editing === null
-    ? { open: formOpen, mode: 'create' as const }
-    : { open: formOpen, mode: 'edit' as const, item: editing };
+  const formProps =
+    editing === null
+      ? { open: formOpen, mode: 'create' as const }
+      : { open: formOpen, mode: 'edit' as const, item: editing };
   const onKeyChanged = () => {
     void invalidateApiAccessKeys(queryClient, userId);
   };
@@ -45,49 +46,72 @@ export default function KeysPage() {
     setEditing(null);
   };
 
-  return <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
-    <PageHeader
-      eyebrow="个人控制台"
-      heading="API Keys"
-      description="管理应用密钥与授权分组，并查看不同协议的接入示例。完整密钥只在创建成功后显示一次。"
-    />
-    <Tabs
-      ariaLabel="API 接入"
-      defaultValue="keys"
-      items={[
-        {
-          value: 'keys',
-          label: 'API Keys',
-          content: <div className="pt-5">
-            <KeyTable
-              api={api}
-              userId={userId}
-              onCreate={() => { setEditing(null); setCreateOpen(true); }}
-              onEdit={key => { setCreateOpen(false); setEditing(key); }}
-              onChanged={onKeyChanged}
-            />
-          </div>,
-        },
-        { value: 'guide', label: '接入指南', content: <div className="pt-5"><IntegrationGuide /></div> },
-      ]}
-    />
-    <KeyForm
-      {...formProps}
-      api={api}
-      userId={userId}
-      onOpenChange={changeFormOpen}
-      onChanged={onKeyChanged}
-      onSecret={(value, keyName) => {
-        if (previousIdentity.current.userId !== userId || previousIdentity.current.epoch !== epoch) return;
-        setCreateOpen(false);
-        setEditing(null);
-        setSecret({ value, keyName });
-      }}
-    />
-    <KeySecretDialog
-      secret={secret?.value ?? null}
-      keyName={secret?.keyName ?? ''}
-      onClose={() => setSecret(null)}
-    />
-  </main>;
+  return (
+    <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
+      <PageHeader
+        eyebrow="个人控制台"
+        heading="API Keys"
+        description="管理应用密钥与授权分组，并查看不同协议的接入示例。完整密钥只在创建成功后显示一次。"
+      />
+      <Tabs
+        ariaLabel="API 接入"
+        defaultValue="keys"
+        items={[
+          {
+            value: 'keys',
+            label: 'API Keys',
+            content: (
+              <div className="pt-5">
+                <KeyTable
+                  api={api}
+                  userId={userId}
+                  onCreate={() => {
+                    setEditing(null);
+                    setCreateOpen(true);
+                  }}
+                  onEdit={(key) => {
+                    setCreateOpen(false);
+                    setEditing(key);
+                  }}
+                  onChanged={onKeyChanged}
+                />
+              </div>
+            ),
+          },
+          {
+            value: 'guide',
+            label: '接入指南',
+            content: (
+              <div className="pt-5">
+                <IntegrationGuide />
+              </div>
+            ),
+          },
+        ]}
+      />
+      <KeyForm
+        {...formProps}
+        api={api}
+        userId={userId}
+        epoch={epoch}
+        onOpenChange={changeFormOpen}
+        onChanged={onKeyChanged}
+        onSecret={(value, keyName) => {
+          if (
+            previousIdentity.current.userId !== userId ||
+            previousIdentity.current.epoch !== epoch
+          )
+            return;
+          setCreateOpen(false);
+          setEditing(null);
+          setSecret({ value, keyName });
+        }}
+      />
+      <KeySecretDialog
+        secret={secret?.value ?? null}
+        keyName={secret?.keyName ?? ''}
+        onClose={() => setSecret(null)}
+      />
+    </main>
+  );
 }

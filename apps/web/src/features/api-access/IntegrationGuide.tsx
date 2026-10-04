@@ -53,19 +53,39 @@ const examples = [
 
 export function IntegrationGuide() {
   const [copyMessage, setCopyMessage] = useState('');
-  const tabs = examples.map(example => ({
+  const tabs = examples.map((example) => ({
     value: example.value,
     label: example.label,
-    content: <section className="space-y-4 py-5" aria-label={`${example.label} 示例`}>
-      <div><p className="font-medium text-[var(--color-foreground)]">{example.endpoint}</p>
-        <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">{example.description}</p></div>
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold">请求示例</h3>
-        <Button variant="outline" size="sm" onClick={() => { void copy(example.code); }}>复制示例</Button>
-      </div>
-      <pre className="max-h-[32rem] overflow-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-muted)] p-4 text-xs leading-6"><code>{example.code}</code></pre>
-      <p role="status" aria-live="polite" className="min-h-5 text-sm text-[var(--color-muted-foreground)]">{copyMessage}</p>
-    </section>,
+    content: (
+      <section className="space-y-4 py-5" aria-label={`${example.label} 示例`}>
+        <div>
+          <p className="font-medium text-[var(--color-foreground)]">{example.endpoint}</p>
+          <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">{example.description}</p>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold">请求示例</h3>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              void copy(example.code);
+            }}
+          >
+            复制示例
+          </Button>
+        </div>
+        <pre className="max-h-[32rem] overflow-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-muted)] p-4 text-xs leading-6">
+          <code>{example.code}</code>
+        </pre>
+        <p
+          role="status"
+          aria-live="polite"
+          className="min-h-5 text-sm text-[var(--color-muted-foreground)]"
+        >
+          {copyMessage}
+        </p>
+      </section>
+    ),
   }));
 
   async function copy(value: string) {
@@ -77,13 +97,25 @@ export function IntegrationGuide() {
     }
   }
 
-  return <section aria-labelledby="integration-guide-title" className="space-y-4">
-    <div><h2 id="integration-guide-title" className="text-lg font-semibold">接入指南</h2>
-      <p className="mt-1 text-sm leading-6 text-[var(--color-muted-foreground)]">先将密钥放入环境变量，再复制对应协议的请求。模型 ID 需在授权分组中可用。</p></div>
-    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-muted)] p-4">
-      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-muted-foreground)]">终端环境变量</p>
-      <pre className="overflow-auto text-xs leading-6"><code>{setup}</code></pre>
-    </div>
-    <Tabs items={tabs} defaultValue="chat-completions" ariaLabel="API 协议" />
-  </section>;
+  return (
+    <section aria-labelledby="integration-guide-title" className="space-y-4">
+      <div>
+        <h2 id="integration-guide-title" className="text-lg font-semibold">
+          接入指南
+        </h2>
+        <p className="mt-1 text-sm leading-6 text-[var(--color-muted-foreground)]">
+          先将密钥放入环境变量，再复制对应协议的请求。模型 ID 需在授权分组中可用。
+        </p>
+      </div>
+      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-muted)] p-4">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--color-muted-foreground)]">
+          终端环境变量
+        </p>
+        <pre className="overflow-auto text-xs leading-6">
+          <code>{setup}</code>
+        </pre>
+      </div>
+      <Tabs items={tabs} defaultValue="chat-completions" ariaLabel="API 协议" />
+    </section>
+  );
 }

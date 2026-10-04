@@ -1,8 +1,10 @@
-import { createElement, type ComponentType, type PropsWithChildren, type ReactElement } from 'react';
 import {
-  render as testingLibraryRender,
-  type RenderOptions,
-} from '@testing-library/react';
+  createElement,
+  type ComponentType,
+  type PropsWithChildren,
+  type ReactElement,
+} from 'react';
+import { render as testingLibraryRender, type RenderOptions } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 type TestWrapper = ComponentType<PropsWithChildren>;

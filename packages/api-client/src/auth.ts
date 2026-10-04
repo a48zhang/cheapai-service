@@ -50,12 +50,15 @@ export function createAuthApi(options: ApiClientOptions = {}): AuthApi {
 
   function bootstrap(): Promise<PublicSettings> {
     if (!bootstrapping) {
-      bootstrapping = client.get('/api/v1/settings/public', { decode: decodePublicSettings }).then(result => {
-        token = result.data.csrfToken;
-        return result.data;
-      }).finally(() => {
-        bootstrapping = undefined;
-      });
+      bootstrapping = client
+        .get('/api/v1/settings/public', { decode: decodePublicSettings })
+        .then((result) => {
+          token = result.data.csrfToken;
+          return result.data;
+        })
+        .finally(() => {
+          bootstrapping = undefined;
+        });
     }
     return bootstrapping;
   }
@@ -71,24 +74,38 @@ export function createAuthApi(options: ApiClientOptions = {}): AuthApi {
     },
     async login(input: LoginInput): Promise<PublicUser> {
       await ensureCsrf();
-      return (await client.post('/api/v1/auth/login', {
-        email: input.email,
-        password: input.password,
-      }, { decode: decodePublicUser })).data;
+      return (
+        await client.post(
+          '/api/v1/auth/login',
+          {
+            email: input.email,
+            password: input.password,
+          },
+          { decode: decodePublicUser },
+        )
+      ).data;
     },
     async register(input: RegisterInput): Promise<RegistrationResult> {
       await ensureCsrf();
-      return (await client.post('/api/v1/auth/register', {
-        email: input.email,
-        password: input.password,
-        ...(input.registrationCode === undefined ? {} : { registrationCode: input.registrationCode }),
-        ...(input.emailCode === undefined ? {} : { emailCode: input.emailCode }),
-      }, { decode: decodeRegistrationResult })).data;
+      return (
+        await client.post(
+          '/api/v1/auth/register',
+          {
+            email: input.email,
+            password: input.password,
+            ...(input.registrationCode === undefined
+              ? {}
+              : { registrationCode: input.registrationCode }),
+            ...(input.emailCode === undefined ? {} : { emailCode: input.emailCode }),
+          },
+          { decode: decodeRegistrationResult },
+        )
+      ).data;
     },
     async logout(): Promise<void> {
       await ensureCsrf();
       await client.post<void>('/api/v1/auth/logout', undefined, {
-        decode: value => {
+        decode: (value) => {
           decodeLogoutResult(value);
           return undefined;
         },
@@ -96,9 +113,15 @@ export function createAuthApi(options: ApiClientOptions = {}): AuthApi {
     },
     async sendVerificationCode(email: string): Promise<VerificationCodeResult> {
       await ensureCsrf();
-      return (await client.post('/api/v1/auth/send-verify-code', { email }, {
-        decode: decodeVerificationCodeResult,
-      })).data;
+      return (
+        await client.post(
+          '/api/v1/auth/send-verify-code',
+          { email },
+          {
+            decode: decodeVerificationCodeResult,
+          },
+        )
+      ).data;
     },
   });
 }

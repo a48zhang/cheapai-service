@@ -18,35 +18,56 @@ const columns: ColumnDef<GroupView, unknown>[] = [
   {
     accessorKey: 'name',
     header: '访问组',
-    cell: ({ row }) => <div className="grid min-w-40 gap-1">
-      <Link
-        to={`/admin/groups/${encodeURIComponent(row.original.id)}`}
-        className="font-medium text-[var(--primary)] underline-offset-4 hover:underline"
-      >{row.original.name}</Link>
-      <code className="break-all text-xs text-[var(--muted)]">{row.original.id}</code>
-    </div>,
+    cell: ({ row }) => (
+      <div className="grid min-w-40 gap-1">
+        <Link
+          to={`/admin/groups/${encodeURIComponent(row.original.id)}`}
+          className="font-medium text-[var(--color-primary)] underline-offset-4 hover:underline"
+        >
+          {row.original.name}
+        </Link>
+        <code className="break-all text-xs text-[var(--color-muted-foreground)]">
+          {row.original.id}
+        </code>
+      </div>
+    ),
   },
   {
     accessorKey: 'status',
     header: '状态',
-    cell: ({ row }) => <StatusBadge tone={row.original.status === 'active' ? 'success' : 'neutral'}>
-      {row.original.status === 'active' ? '已启用' : '已停用'}
-    </StatusBadge>,
+    cell: ({ row }) => (
+      <StatusBadge tone={row.original.status === 'active' ? 'success' : 'neutral'}>
+        {row.original.status === 'active' ? '已启用' : '已停用'}
+      </StatusBadge>
+    ),
   },
   {
     accessorKey: 'billingMultiplier',
     header: '计费倍率',
-    cell: ({ row }) => <code className="font-mono text-sm tabular-nums">{row.original.billingMultiplier}×</code>,
+    cell: ({ row }) => (
+      <code className="font-mono text-sm tabular-nums">{row.original.billingMultiplier}×</code>
+    ),
   },
   {
     accessorKey: 'channelIds',
     header: '关联渠道',
-    cell: ({ row }) => row.original.channelIds.length > 0
-      ? <div className="grid max-w-sm gap-1">
-        {row.original.channelIds.slice(0, 3).map(channelId => <code key={channelId} className="break-all text-xs">{channelId}</code>)}
-        {row.original.channelIds.length > 3 && <span className="text-xs text-[var(--muted)]">另有 {row.original.channelIds.length - 3} 个渠道</span>}
-      </div>
-      : <span className="text-xs text-[var(--muted)]">未关联渠道</span>,
+    cell: ({ row }) =>
+      row.original.channelIds.length > 0 ? (
+        <div className="grid max-w-sm gap-1">
+          {row.original.channelIds.slice(0, 3).map((channelId) => (
+            <code key={channelId} className="break-all text-xs">
+              {channelId}
+            </code>
+          ))}
+          {row.original.channelIds.length > 3 && (
+            <span className="text-xs text-[var(--color-muted-foreground)]">
+              另有 {row.original.channelIds.length - 3} 个渠道
+            </span>
+          )}
+        </div>
+      ) : (
+        <span className="text-xs text-[var(--color-muted-foreground)]">未关联渠道</span>
+      ),
   },
   {
     accessorKey: 'version',
@@ -56,24 +77,33 @@ const columns: ColumnDef<GroupView, unknown>[] = [
 ];
 
 /** The table shows saved group/channel links without claiming an authorization preview. */
-export function GroupTable({ rows, loading = false, loadingMore = false, hasMore = false, error,
-  onRetry, onLoadMore }: GroupTableProps) {
-  return <>
-    <p className="mb-3 text-xs leading-5 text-[var(--muted)]">
-      渠道关联只展示已保存的配置关系，不会计算用户最终授权结果；用户归属和请求准入仍由服务端规则决定。
-    </p>
-    <CursorTable
-      rows={rows}
-      columns={columns}
-      loading={loading}
-      loadingMore={loadingMore}
-      hasMore={hasMore}
-      error={error}
-      onRetry={onRetry}
-      onLoadMore={onLoadMore}
-      getRowId={group => group.id}
-      emptyMessage="当前筛选条件下没有访问组。"
-      caption="访问组列表"
-    />
-  </>;
+export function GroupTable({
+  rows,
+  loading = false,
+  loadingMore = false,
+  hasMore = false,
+  error,
+  onRetry,
+  onLoadMore,
+}: GroupTableProps) {
+  return (
+    <>
+      <p className="mb-3 text-xs leading-5 text-[var(--color-muted-foreground)]">
+        渠道关联只展示已保存的配置关系，不会计算用户最终授权结果；用户归属和请求准入仍由服务端规则决定。
+      </p>
+      <CursorTable
+        rows={rows}
+        columns={columns}
+        loading={loading}
+        loadingMore={loadingMore}
+        hasMore={hasMore}
+        error={error}
+        onRetry={onRetry}
+        onLoadMore={onLoadMore}
+        getRowId={(group) => group.id}
+        emptyMessage="当前筛选条件下没有访问组。"
+        caption="访问组列表"
+      />
+    </>
+  );
 }

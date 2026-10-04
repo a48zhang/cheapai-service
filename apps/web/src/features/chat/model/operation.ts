@@ -5,7 +5,8 @@ export interface ChatOperationOwner {
   readonly epoch: number;
 }
 
-export type ChatWriteOperationState = 'prepared' | 'in-flight' | 'accepted' | 'unknown' | 'settled' | 'rejected';
+export type ChatWriteOperationState =
+  'prepared' | 'in-flight' | 'accepted' | 'unknown' | 'settled' | 'rejected';
 
 interface ChatWriteOperationBase {
   readonly operationId: string;
@@ -97,7 +98,9 @@ export function prepareSendOperation(input: PrepareSendOperationInput): ChatSend
   });
 }
 
-export function prepareRegenerateOperation(input: PrepareRegenerateOperationInput): ChatRegenerateOperation {
+export function prepareRegenerateOperation(
+  input: PrepareRegenerateOperationInput,
+): ChatRegenerateOperation {
   const operationId = input.operationId ?? createChatOperationId();
   const body: ChatRegenerateInput = Object.freeze({
     operationId,
@@ -114,7 +117,10 @@ export function prepareRegenerateOperation(input: PrepareRegenerateOperationInpu
   });
 }
 
-export function markOperationInFlight(operation: ChatWriteOperation, retry = false): ChatWriteOperation {
+export function markOperationInFlight(
+  operation: ChatWriteOperation,
+  retry = false,
+): ChatWriteOperation {
   if (operation.state === 'settled' || operation.state === 'rejected') return operation;
   if (retry && operation.state !== 'unknown' && operation.state !== 'accepted') return operation;
   return Object.freeze({
@@ -156,7 +162,14 @@ export function canRetryOperation(operation: ChatWriteOperation): boolean {
   return operation.state === 'unknown' || operation.state === 'accepted';
 }
 
-export function operationBelongsTo(operation: ChatWriteOperation, owner: ChatOperationOwner, conversationId: string): boolean {
-  return operation.owner.userId === owner.userId && operation.owner.epoch === owner.epoch
-    && operation.conversationId === conversationId;
+export function operationBelongsTo(
+  operation: ChatWriteOperation,
+  owner: ChatOperationOwner,
+  conversationId: string,
+): boolean {
+  return (
+    operation.owner.userId === owner.userId &&
+    operation.owner.epoch === owner.epoch &&
+    operation.conversationId === conversationId
+  );
 }

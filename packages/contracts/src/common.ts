@@ -7,7 +7,8 @@ export type Cursor = string | null;
 export type RequestId = string;
 
 /** JSON values accepted by the management API client. */
-export type JsonValue = null | boolean | number | string | readonly JsonValue[] | { readonly [key: string]: JsonValue };
+export type JsonValue =
+  null | boolean | number | string | readonly JsonValue[] | { readonly [key: string]: JsonValue };
 
 /** The wire envelope used by management API success responses. */
 export interface SuccessEnvelope<T> {
@@ -43,8 +44,11 @@ export interface PaginationQuery {
 /** Native Fetch-compatible injection point for browser, tests, and local proxy clients. */
 export type FetchImplementation = typeof globalThis.fetch;
 
-export const requestIdSchema = z.string().min(1).max(128)
-  .refine(value => !/[\u0000-\u0020\u007f]/u.test(value), 'Invalid request ID');
+export const requestIdSchema = z
+  .string()
+  .min(1)
+  .max(128)
+  .refine((value) => !/[\u0000-\u0020\u007f]/u.test(value), 'Invalid request ID');
 
 export const cursorSchema = z.string().nullable();
 
@@ -58,17 +62,17 @@ export const errorEnvelopeSchema = z.object({
   request_id: requestIdSchema,
 });
 
-export const successEnvelopeSchema = <T extends z.ZodTypeAny>(data: T) => z.object({
-  data,
-  request_id: requestIdSchema,
-});
+export const successEnvelopeSchema = <T extends z.ZodTypeAny>(data: T) =>
+  z.object({
+    data,
+    request_id: requestIdSchema,
+  });
 
-export const apiEnvelopeSchema = <T extends z.ZodTypeAny>(data: T) => z.union([
-  successEnvelopeSchema(data),
-  errorEnvelopeSchema,
-]);
+export const apiEnvelopeSchema = <T extends z.ZodTypeAny>(data: T) =>
+  z.union([successEnvelopeSchema(data), errorEnvelopeSchema]);
 
-export const pageSchema = <T extends z.ZodTypeAny>(item: T) => z.object({
-  items: z.array(item),
-  nextCursor: cursorSchema,
-});
+export const pageSchema = <T extends z.ZodTypeAny>(item: T) =>
+  z.object({
+    items: z.array(item),
+    nextCursor: cursorSchema,
+  });

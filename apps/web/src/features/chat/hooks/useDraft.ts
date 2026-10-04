@@ -41,23 +41,27 @@ export function useDraft({ identity, conversationId, storage }: UseDraftOptions)
   const scopeKey = chatDraftStorageKey(scope);
   const [record, setRecord] = useState<DraftValue>({ scopeKey: '', value: '' });
   const recordRef = useRef(record);
-  const activeScopeRef = useRef<{ readonly key: string; readonly scope: ChatDraftScope } | null>(null);
+  const activeScopeRef = useRef<{ readonly key: string; readonly scope: ChatDraftScope } | null>(
+    null,
+  );
   const previousScopeRef = useRef<ChatDraftScope | null>(null);
 
   useEffect(() => {
     const previousScope = previousScopeRef.current;
-    const explicitlySignedOut = previousScope?.userId !== null
-      && previousScope?.userId !== undefined
-      && identity.status === 'anonymous'
-      && identity.expiredUserId == null;
+    const explicitlySignedOut =
+      previousScope?.userId !== null &&
+      previousScope?.userId !== undefined &&
+      identity.status === 'anonymous' &&
+      identity.expiredUserId == null;
     if (explicitlySignedOut && previousScope) store.remove(previousScope);
 
     // A draft typed immediately after an identity/route transition belongs to
     // the newly rendered scope and wins over a previously saved value there.
     const currentInput = recordRef.current.scopeKey === scopeKey ? recordRef.current.value : null;
-    const savedValue = identity.status === 'authenticated' && identity.userId !== null
-      ? store.claimAnonymous(identity.userId, conversationId)
-      : store.read(scope);
+    const savedValue =
+      identity.status === 'authenticated' && identity.userId !== null
+        ? store.claimAnonymous(identity.userId, conversationId)
+        : store.read(scope);
     const value = currentInput ?? savedValue ?? '';
     store.write(scope, value);
 
@@ -66,24 +70,38 @@ export function useDraft({ identity, conversationId, storage }: UseDraftOptions)
     setRecord(nextRecord);
     activeScopeRef.current = { key: scopeKey, scope };
     previousScopeRef.current = scope;
-  }, [conversationId, identity.expiredUserId, identity.status, identity.userId, scope, scopeKey, store]);
+  }, [
+    conversationId,
+    identity.expiredUserId,
+    identity.status,
+    identity.userId,
+    scope,
+    scopeKey,
+    store,
+  ]);
 
-  const setDraft = useCallback((value: string) => {
-    const nextRecord = { scopeKey, value };
-    recordRef.current = nextRecord;
-    setRecord(nextRecord);
-    if (activeScopeRef.current?.key === scopeKey) store.write(scope, value);
-  }, [scopeKey, scope, store]);
+  const setDraft = useCallback(
+    (value: string) => {
+      const nextRecord = { scopeKey, value };
+      recordRef.current = nextRecord;
+      setRecord(nextRecord);
+      if (activeScopeRef.current?.key === scopeKey) store.write(scope, value);
+    },
+    [scopeKey, scope, store],
+  );
 
   /** Save interrupted input only to the identity that owned the operation. */
-  const preservePending = useCallback((value: string, operationUserId: string | null) => {
-    if (operationUserId !== scope.userId) return;
-    if (activeScopeRef.current?.key !== scopeKey) return;
-    const nextRecord = { scopeKey, value };
-    recordRef.current = nextRecord;
-    setRecord(nextRecord);
-    store.write(scope, value);
-  }, [scope, scopeKey, store]);
+  const preservePending = useCallback(
+    (value: string, operationUserId: string | null) => {
+      if (operationUserId !== scope.userId) return;
+      if (activeScopeRef.current?.key !== scopeKey) return;
+      const nextRecord = { scopeKey, value };
+      recordRef.current = nextRecord;
+      setRecord(nextRecord);
+      store.write(scope, value);
+    },
+    [scope, scopeKey, store],
+  );
 
   return {
     draft: record.scopeKey === scopeKey ? record.value : '',

@@ -2,6 +2,7 @@
 export const brand = Object.freeze({
   name: 'cheapai',
   wordmark: 'cheapai',
+  symbol: 'c',
   exampleEmail: 'alex@cheapai.dev',
 });
 

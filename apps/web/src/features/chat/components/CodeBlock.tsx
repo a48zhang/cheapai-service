@@ -21,7 +21,11 @@ export function CodeBlock({ children, className, inline }: CodeBlockProps) {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   if (!block) {
-    return <code className="rounded bg-[var(--color-muted)] px-1 py-0.5 font-mono text-[0.92em]">{children}</code>;
+    return (
+      <code className="rounded bg-[var(--color-muted)] px-1 py-0.5 font-mono text-[0.92em]">
+        {children}
+      </code>
+    );
   }
 
   const language = className?.match(/language-([\w-]+)/u)?.[1];
@@ -38,14 +42,20 @@ export function CodeBlock({ children, className, inline }: CodeBlockProps) {
   return (
     <div className="my-4 overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-subtle)]">
       <div className="flex min-h-9 items-center justify-between gap-3 border-b border-[var(--color-line)] px-3">
-        <span className="truncate text-[11px] text-[var(--color-muted-foreground)]">{language ?? '代码'}</span>
+        <span className="truncate text-[11px] text-[var(--color-muted-foreground)]">
+          {language ?? '代码'}
+        </span>
         <button
           type="button"
           aria-label={copyState === 'copied' ? '已复制代码' : '复制代码'}
           className="inline-flex min-h-8 items-center gap-1.5 rounded px-2 text-xs text-[var(--color-muted-foreground)] outline-none hover:bg-[var(--color-muted)] focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
           onClick={() => void copy()}
         >
-          {copyState === 'copied' ? <Check aria-hidden="true" size={14} /> : <Copy aria-hidden="true" size={14} />}
+          {copyState === 'copied' ? (
+            <Check aria-hidden="true" size={14} />
+          ) : (
+            <Copy aria-hidden="true" size={14} />
+          )}
           {copyState === 'copied' ? '已复制' : copyState === 'failed' ? '无法复制' : '复制'}
         </button>
       </div>

@@ -2,6 +2,7 @@ import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
 import { createAdminModelsApi } from '@cheapai/api-client/models';
 import type { ModelQuery } from '@cheapai/api-client/models';
 import type { ApiClient } from '@cheapai/api-client/types';
+import { nextPageCursor } from '../../shared/lib/pagination';
 
 export interface AdminModelsContext {
   readonly client: ApiClient;
@@ -14,9 +15,11 @@ export type ModelListFilters = Omit<ModelQuery, 'cursor'>;
 export const adminModelsQueryKeys = Object.freeze({
   root: (actorId: string) => ['admin-models', actorId] as const,
   lists: (actorId: string) => [...adminModelsQueryKeys.root(actorId), 'list'] as const,
-  list: (actorId: string, filters: ModelListFilters) => [...adminModelsQueryKeys.lists(actorId), filters] as const,
+  list: (actorId: string, filters: ModelListFilters) =>
+    [...adminModelsQueryKeys.lists(actorId), filters] as const,
   details: (actorId: string) => [...adminModelsQueryKeys.root(actorId), 'detail'] as const,
-  detail: (actorId: string, publicModelId: string) => [...adminModelsQueryKeys.details(actorId), publicModelId] as const,
+  detail: (actorId: string, publicModelId: string) =>
+    [...adminModelsQueryKeys.details(actorId), publicModelId] as const,
 });
 
 /** Infinite model catalog query; the cursor stays in page state, outside the cache key. */
@@ -24,9 +27,9 @@ export function modelListQueryOptions(context: AdminModelsContext, filters: Mode
   const api = createAdminModelsApi(context.client);
   return infiniteQueryOptions({
     queryKey: adminModelsQueryKeys.list(context.actorId, filters),
-    queryFn: ({ pageParam }) => api.list({ ...filters, cursor: pageParam }),
+    queryFn: ({ pageParam, signal }) => api.list({ ...filters, cursor: pageParam }, { signal }),
     initialPageParam: null as string | null,
-    getNextPageParam: page => page.nextCursor ?? undefined,
+    getNextPageParam: (page, pages) => nextPageCursor(page, pages, '模型列表'),
   });
 }
 
@@ -35,6 +38,6 @@ export function modelDetailQueryOptions(context: AdminModelsContext, publicModel
   const api = createAdminModelsApi(context.client);
   return queryOptions({
     queryKey: adminModelsQueryKeys.detail(context.actorId, publicModelId),
-    queryFn: () => api.get(publicModelId),
+    queryFn: ({ signal }) => api.get(publicModelId, { signal }),
   });
 }

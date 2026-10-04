@@ -46,9 +46,9 @@ export function Message({
   onRegenerate,
 }: MessageProps) {
   const isUser = message.role === 'user';
-  const content = streaming ? (streamText || '正在生成…') : message.content;
+  const content = streaming ? streamText || '正在生成…' : message.content;
   const time = messageTime(message.createdAt);
-  const assistantStatus = isUser ? undefined : (streaming ? '生成中' : statusLabel[message.status]);
+  const assistantStatus = isUser ? undefined : streaming ? '生成中' : statusLabel[message.status];
 
   return (
     <article
@@ -64,16 +64,24 @@ export function Message({
         {isUser ? <UserRound size={16} /> : <Bot size={17} />}
       </div>
       <div className={`min-w-0 flex-1 ${isUser ? 'max-w-[86%] text-right' : ''}`}>
-        <header className={`mb-1.5 flex items-center gap-2 text-xs text-[var(--color-muted-foreground)] ${isUser ? 'justify-end' : ''}`}>
-          <span className="font-medium text-[var(--color-foreground)]">{isUser ? '你' : 'cheapai'}</span>
+        <header
+          className={`mb-1.5 flex items-center gap-2 text-xs text-[var(--color-muted-foreground)] ${isUser ? 'justify-end' : ''}`}
+        >
+          <span className="font-medium text-[var(--color-foreground)]">
+            {isUser ? '你' : 'cheapai'}
+          </span>
           {time ? <time dateTime={new Date(message.createdAt).toISOString()}>{time}</time> : null}
           {assistantStatus ? (
-            <span className={`rounded-full px-2 py-0.5 ${message.status === 'failed' ? 'bg-[var(--color-destructive-soft)] text-[var(--color-destructive)]' : 'bg-[var(--color-muted)]'}`}>
+            <span
+              className={`rounded-full px-2 py-0.5 ${message.status === 'failed' ? 'bg-[var(--color-destructive-soft)] text-[var(--color-destructive)]' : 'bg-[var(--color-muted)]'}`}
+            >
               {assistantStatus}
             </span>
           ) : null}
         </header>
-        <div className={`min-w-0 rounded-2xl px-4 py-2 ${isUser ? 'inline-block bg-[var(--color-accent-soft)] text-left' : 'bg-transparent px-0'}`}>
+        <div
+          className={`min-w-0 rounded-2xl px-4 py-2 ${isUser ? 'inline-block bg-[var(--color-accent-soft)] text-left' : 'bg-transparent px-0'}`}
+        >
           <MessageContent content={content} />
         </div>
         <MessageActions

@@ -28,14 +28,16 @@ export function MessageActions({
 }: MessageActionsProps) {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
   const orderedVariants = [...variants].sort((left, right) => left.variant - right.variant);
-  const currentIndex = orderedVariants.findIndex(item => item.id === message.id);
+  const currentIndex = orderedVariants.findIndex((item) => item.id === message.id);
   const hasVariants = message.role === 'assistant' && orderedVariants.length > 1;
-  const showRegenerate = message.role === 'assistant'
-    && (canRegenerate || regenerateDisabledReason !== undefined);
-  const effectiveVersionReason = versionDisabledReason
-    ?? (actionsBusy ? '生成过程中无法切换回答版本。' : '当前状态无法切换回答版本。');
-  const effectiveRegenerateReason = regenerateDisabledReason
-    ?? (actionsBusy ? '生成过程中无法重新生成。' : '只能重新生成最新一轮的回答。');
+  const showRegenerate =
+    message.role === 'assistant' && (canRegenerate || regenerateDisabledReason !== undefined);
+  const effectiveVersionReason =
+    versionDisabledReason ??
+    (actionsBusy ? '生成过程中无法切换回答版本。' : '当前状态无法切换回答版本。');
+  const effectiveRegenerateReason =
+    regenerateDisabledReason ??
+    (actionsBusy ? '生成过程中无法重新生成。' : '只能重新生成最新一轮的回答。');
 
   const copy = async () => {
     try {
@@ -56,7 +58,11 @@ export function MessageActions({
         size="sm"
         variant="ghost"
       >
-        {copyState === 'copied' ? <Check aria-hidden="true" size={14} /> : <Copy aria-hidden="true" size={14} />}
+        {copyState === 'copied' ? (
+          <Check aria-hidden="true" size={14} />
+        ) : (
+          <Copy aria-hidden="true" size={14} />
+        )}
         {copyState === 'copied' ? '已复制' : copyState === 'failed' ? '无法复制' : '复制'}
       </Button>
       {hasVariants ? (
@@ -79,7 +85,12 @@ export function MessageActions({
           </span>
           <Button
             aria-label="下一个回答版本"
-            disabled={actionsBusy || !canSelectVersion || currentIndex < 0 || currentIndex >= orderedVariants.length - 1}
+            disabled={
+              actionsBusy ||
+              !canSelectVersion ||
+              currentIndex < 0 ||
+              currentIndex >= orderedVariants.length - 1
+            }
             onClick={() => {
               const next = orderedVariants[currentIndex + 1];
               if (next) onSelectVersion?.(next.id);
@@ -106,10 +117,14 @@ export function MessageActions({
       ) : null}
       {copyState === 'failed' ? <span role="status">复制失败</span> : null}
       {!canSelectVersion && hasVariants ? (
-        <span className="basis-full pl-2 text-[11px]" role="status">{effectiveVersionReason}</span>
+        <span className="basis-full pl-2 text-[11px]" role="status">
+          {effectiveVersionReason}
+        </span>
       ) : null}
       {!canRegenerate && showRegenerate ? (
-        <span className="basis-full pl-2 text-[11px]" role="status">{effectiveRegenerateReason}</span>
+        <span className="basis-full pl-2 text-[11px]" role="status">
+          {effectiveRegenerateReason}
+        </span>
       ) : null}
     </div>
   );

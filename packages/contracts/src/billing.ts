@@ -1,7 +1,15 @@
 import { z } from 'zod';
 
-const text = (max = 256) => z.string().min(1).max(max).refine(value => value.trim() === value);
-const amount = z.string().max(128).regex(/^(?:0|-?[1-9][0-9]*)$/u);
+const text = (max = 256) =>
+  z
+    .string()
+    .min(1)
+    .max(max)
+    .refine((value) => value.trim() === value);
+const amount = z
+  .string()
+  .max(128)
+  .regex(/^(?:0|-?[1-9][0-9]*)$/u);
 const count = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
 export const billingKindSchema = z.enum(['consumption', 'grant', 'adjustment']);
@@ -17,7 +25,10 @@ export const billingEntrySchema = z.object({
   deltaUnits: amount,
   createdBy: text().nullable(),
   reason: text(4096).nullable(),
-  createdAt: z.string().max(64).refine(value => !Number.isNaN(Date.parse(value))),
+  createdAt: z
+    .string()
+    .max(64)
+    .refine((value) => !Number.isNaN(Date.parse(value))),
 });
 
 export const billingPageSchema = z.object({

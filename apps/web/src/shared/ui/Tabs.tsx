@@ -1,25 +1,25 @@
-import * as TabsPrimitive from '@radix-ui/react-tabs'
-import type { ReactNode } from 'react'
+import * as TabsPrimitive from '@radix-ui/react-tabs';
+import type { ReactNode } from 'react';
 
 export interface TabItem {
-  value: string
-  label: ReactNode
-  content: ReactNode
-  disabled?: boolean
+  value: string;
+  label: ReactNode;
+  content: ReactNode;
+  disabled?: boolean;
 }
 
 export interface TabsProps {
-  items: readonly TabItem[]
-  value?: string
-  defaultValue?: string
-  onValueChange?: (value: string) => void
-  orientation?: 'horizontal' | 'vertical'
-  activationMode?: 'automatic' | 'manual'
-  loop?: boolean
-  ariaLabel?: string
-  className?: string
-  listClassName?: string
-  contentClassName?: string
+  items: readonly TabItem[];
+  value?: string;
+  defaultValue?: string;
+  onValueChange?: (value: string) => void;
+  orientation?: 'horizontal' | 'vertical';
+  activationMode?: 'automatic' | 'manual';
+  loop?: boolean;
+  ariaLabel?: string;
+  className?: string;
+  listClassName?: string;
+  contentClassName?: string;
 }
 
 /** Tabs with an explicit item model and Radix roving-focus/keyboard behavior. */
@@ -72,5 +72,5 @@ export function Tabs({
         </TabsPrimitive.Content>
       ))}
     </TabsPrimitive.Root>
-  )
+  );
 }

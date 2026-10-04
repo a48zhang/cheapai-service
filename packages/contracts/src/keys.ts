@@ -18,27 +18,40 @@ export const keyGroupSchema = z.object({
   models: z.array(textSchema()),
 });
 
-export const keyMetadataSchema = z.object({
-  id: textSchema(),
-  userId: textSchema(),
-  groupId: textSchema(),
-  groupName: textSchema(),
-  name: textSchema(),
-  displayPrefix: z.string().regex(/^s2a_key_[A-Za-z0-9_-]{8}$/u),
-  status: z.enum(['active', 'revoked']),
-  allowedModels: z.array(textSchema()).max(100).nullable(),
-  expiresAt: timestampSchema.nullable(),
-  createdAt: timestampSchema,
-  updatedAt: timestampSchema,
-  version: timestampSchema.min(1),
-}).superRefine((value, context) => {
-  if (value.updatedAt < value.createdAt) {
-    context.addIssue({ code: 'custom', message: 'Key update time precedes creation time.', path: ['updatedAt'] });
-  }
-  if (value.allowedModels !== null && new Set(value.allowedModels).size !== value.allowedModels.length) {
-    context.addIssue({ code: 'custom', message: 'Key model list contains duplicates.', path: ['allowedModels'] });
-  }
-});
+export const keyMetadataSchema = z
+  .object({
+    id: textSchema(),
+    userId: textSchema(),
+    groupId: textSchema(),
+    groupName: textSchema(),
+    name: textSchema(),
+    displayPrefix: z.string().regex(/^s2a_key_[A-Za-z0-9_-]{8}$/u),
+    status: z.enum(['active', 'revoked']),
+    allowedModels: z.array(textSchema()).max(100).nullable(),
+    expiresAt: timestampSchema.nullable(),
+    createdAt: timestampSchema,
+    updatedAt: timestampSchema,
+    version: timestampSchema.min(1),
+  })
+  .superRefine((value, context) => {
+    if (value.updatedAt < value.createdAt) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Key update time precedes creation time.',
+        path: ['updatedAt'],
+      });
+    }
+    if (
+      value.allowedModels !== null &&
+      new Set(value.allowedModels).size !== value.allowedModels.length
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Key model list contains duplicates.',
+        path: ['allowedModels'],
+      });
+    }
+  });
 
 export const keysPageSchema = pageSchema(keyMetadataSchema);
 
@@ -66,7 +79,9 @@ export type KeyMetadata = Readonly<Omit<KeyMetadataShape, 'allowedModels'>> & {
   readonly allowedModels: readonly string[] | null;
 };
 export type KeyInput = Readonly<z.infer<typeof keyInputSchema>>;
-export type KeyGroup = Readonly<Omit<KeyGroupShape, 'models'>> & { readonly models: readonly string[] };
+export type KeyGroup = Readonly<Omit<KeyGroupShape, 'models'>> & {
+  readonly models: readonly string[];
+};
 export type KeyCreation = Readonly<z.infer<typeof keyCreationSchema>> & {
   readonly key: KeyMetadata;
 };
@@ -88,7 +103,10 @@ export function decodeKeyGroups(value: unknown): readonly KeyGroup[] {
   return groups as readonly KeyGroup[];
 }
 
-export function decodeKeysPage(value: unknown): { readonly items: readonly KeyMetadata[]; readonly nextCursor: string | null } {
+export function decodeKeysPage(value: unknown): {
+  readonly items: readonly KeyMetadata[];
+  readonly nextCursor: string | null;
+} {
   const page = keysPageSchema.parse(value);
   return { items: page.items as readonly KeyMetadata[], nextCursor: page.nextCursor };
 }

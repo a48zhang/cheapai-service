@@ -43,8 +43,11 @@ export function Composer({
   const outputLimitId = useId();
   const outputLimitErrorId = useId();
   const outputLimit = parsedOutputLimit(maxOutputTokens);
-  const outputLimitInvalid = Number.isNaN(outputLimit)
-    || (outputLimit !== undefined && maxOutputTokensCeiling !== undefined && outputLimit > maxOutputTokensCeiling);
+  const outputLimitInvalid =
+    Number.isNaN(outputLimit) ||
+    (outputLimit !== undefined &&
+      maxOutputTokensCeiling !== undefined &&
+      outputLimit > maxOutputTokensCeiling);
   const canSend = !disabled && !busy && value.trim().length > 0 && !outputLimitInvalid;
 
   const send = () => {
@@ -59,18 +62,26 @@ export function Composer({
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== 'Enter' || event.shiftKey) return;
-    if (compositionRef.current || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+    if (
+      compositionRef.current ||
+      event.nativeEvent.isComposing ||
+      event.nativeEvent.keyCode === 229
+    )
+      return;
     event.preventDefault();
     send();
   };
 
-  const outputLimitError = maxOutputTokens.length === 0
-    ? undefined
-    : Number.isNaN(outputLimit)
-      ? '请输入正整数。'
-      : outputLimit !== undefined && maxOutputTokensCeiling !== undefined && outputLimit > maxOutputTokensCeiling
-        ? `不能超过当前模型上限 ${maxOutputTokensCeiling.toLocaleString()}。`
-        : undefined;
+  const outputLimitError =
+    maxOutputTokens.length === 0
+      ? undefined
+      : Number.isNaN(outputLimit)
+        ? '请输入正整数。'
+        : outputLimit !== undefined &&
+            maxOutputTokensCeiling !== undefined &&
+            outputLimit > maxOutputTokensCeiling
+          ? `不能超过当前模型上限 ${maxOutputTokensCeiling.toLocaleString()}。`
+          : undefined;
 
   return (
     <form
@@ -80,7 +91,9 @@ export function Composer({
       style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
     >
       <div className="mx-auto grid max-w-4xl gap-2">
-        <label className="sr-only" htmlFor={`${helpId}-message`}>消息内容</label>
+        <label className="sr-only" htmlFor={`${helpId}-message`}>
+          消息内容
+        </label>
         <textarea
           id={`${helpId}-message`}
           aria-describedby={`${helpId}-hint${disabledReason ? ` ${helpId}-disabled` : ''}${outputLimitError ? ` ${outputLimitErrorId}` : ''}`}
@@ -88,16 +101,23 @@ export function Composer({
           autoComplete="off"
           className="min-h-24 w-full resize-y rounded-xl border border-[var(--color-line)] bg-white px-4 py-3 text-sm leading-6 text-[var(--color-foreground)] outline-none placeholder:text-[var(--color-muted-foreground)] focus-visible:border-[var(--color-ring)] focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] disabled:cursor-not-allowed disabled:opacity-60"
           maxLength={1_000_000}
-          onChange={event => onChange(event.currentTarget.value)}
-          onCompositionEnd={() => { compositionRef.current = false; }}
-          onCompositionStart={() => { compositionRef.current = true; }}
+          onChange={(event) => onChange(event.currentTarget.value)}
+          onCompositionEnd={() => {
+            compositionRef.current = false;
+          }}
+          onCompositionStart={() => {
+            compositionRef.current = true;
+          }}
           onKeyDown={handleKeyDown}
           placeholder={disabledReason ?? '向 cheapai 发送消息…'}
           value={value}
         />
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-            <label className="flex items-center gap-2 text-xs text-[var(--color-muted-foreground)]" htmlFor={outputLimitId}>
+            <label
+              className="flex items-center gap-2 text-xs text-[var(--color-muted-foreground)]"
+              htmlFor={outputLimitId}
+            >
               输出上限
               <input
                 id={outputLimitId}
@@ -108,7 +128,7 @@ export function Composer({
                 inputMode="numeric"
                 max={maxOutputTokensCeiling}
                 min={1}
-                onChange={event => onMaxOutputTokensChange(event.currentTarget.value)}
+                onChange={(event) => onMaxOutputTokensChange(event.currentTarget.value)}
                 placeholder={maxOutputTokensCeiling ? `≤ ${maxOutputTokensCeiling}` : '自动'}
                 type="number"
                 value={maxOutputTokens}
@@ -131,17 +151,27 @@ export function Composer({
           )}
         </div>
         {disabledReason ? (
-          <p id={`${helpId}-disabled`} className="text-xs text-[var(--color-muted-foreground)]" role="status">
+          <p
+            id={`${helpId}-disabled`}
+            className="text-xs text-[var(--color-muted-foreground)]"
+            role="status"
+          >
             {disabledReason}
           </p>
         ) : null}
         {outputLimitError ? (
-          <p id={outputLimitErrorId} className="text-xs text-[var(--color-destructive)]" role="alert">
+          <p
+            id={outputLimitErrorId}
+            className="text-xs text-[var(--color-destructive)]"
+            role="alert"
+          >
             {outputLimitError}
           </p>
         ) : null}
         {error ? (
-          <p className="text-sm text-[var(--color-destructive)]" role="alert">{error}</p>
+          <p className="text-sm text-[var(--color-destructive)]" role="alert">
+            {error}
+          </p>
         ) : null}
       </div>
     </form>

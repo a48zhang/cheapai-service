@@ -31,13 +31,18 @@ export function reduceKeyCreateOperation(
 ): KeyCreateOperation {
   if (event.type === 'reset') return idleKeyCreateOperation;
   if (event.type === 'submit') return { status: 'submitting', intent: event.intent };
-  if (event.type === 'created' || event.type === 'replayed') return { status: event.type, key: event.key };
-  if (state.status !== 'submitting' && state.status !== 'unknown' && state.status !== 'correctable') return state;
+  if (event.type === 'created' || event.type === 'replayed')
+    return { status: event.type, key: event.key };
+  if (state.status !== 'submitting' && state.status !== 'unknown' && state.status !== 'correctable')
+    return state;
   return { status: event.type, intent: state.intent };
 }
 
 /** Keep the same operation ID and payload when an earlier response was uncertain. */
-export function createKeyIntent(input: KeyInput, previous?: KeyCreateIntent | null): KeyCreateIntent {
+export function createKeyIntent(
+  input: KeyInput,
+  previous?: KeyCreateIntent | null,
+): KeyCreateIntent {
   return previous ?? { operationId: crypto.randomUUID(), input };
 }
 

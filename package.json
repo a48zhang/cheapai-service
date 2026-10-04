@@ -18,16 +18,20 @@
     "check": "pnpm run typecheck && pnpm run test && pnpm run build",
     "lint:web": "pnpm --filter @cheapai/web exec eslint src",
     "test:e2e": "playwright test",
-    "production:check": "pnpm --filter @cheapai/web run build && pnpm --filter @sub2api/worker exec wrangler deploy --env production --dry-run --strict --outdir ../../.wrangler/build-production"
+    "production:check": "pnpm --filter @cheapai/web run build && pnpm --filter @sub2api/worker exec wrangler deploy --env production --dry-run --strict --outdir ../../.wrangler/build-production",
+    "lint:shared": "pnpm --filter @cheapai/web exec eslint ../../packages/api-client/src ../../packages/contracts/src",
+    "format:web": "prettier --write \"apps/web/src/**/*.{ts,tsx,css}\" \"packages/api-client/src/**/*.ts\" \"packages/contracts/src/**/*.ts\" apps/web/eslint.config.js eslint.config.mjs",
+    "format:check:web": "prettier --check \"apps/web/src/**/*.{ts,tsx,css}\" \"packages/api-client/src/**/*.ts\" \"packages/contracts/src/**/*.ts\" apps/web/eslint.config.js eslint.config.mjs"
   },
   "devDependencies": {
+    "@cheapai/api-client": "workspace:*",
+    "@cheapai/contracts": "workspace:*",
     "@cloudflare/vitest-pool-workers": "0.22.0",
     "@playwright/test": "1.63.0",
     "@vitest/runner": "4.1.11",
     "@vitest/snapshot": "4.1.11",
+    "prettier": "3.9.9",
     "typescript": "5.9.3",
-    "vitest": "4.1.11",
-    "@cheapai/api-client": "workspace:*",
-    "@cheapai/contracts": "workspace:*"
+    "vitest": "4.1.11"
   }
 }

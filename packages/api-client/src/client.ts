@@ -13,8 +13,8 @@ import type {
   SuccessEnvelope,
 } from './types.js';
 
-const isObject = (value: unknown): value is Record<string, unknown> => value !== null
-  && typeof value === 'object' && !Array.isArray(value);
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
 
 function failedTransport(cause: unknown, signal?: AbortSignal): ApiClientError {
   return signal?.aborted || (cause instanceof Error && cause.name === 'AbortError')
@@ -27,10 +27,14 @@ function failedTransport(cause: unknown, signal?: AbortSignal): ApiClientError {
  * must explicitly reuse the same idempotency key when recovering an uncertain result.
  */
 export function createApiClient(options: ApiClientOptions = {}): ApiClient {
-  const fetcher = options.fetch ?? ((...args: Parameters<typeof fetch>) => globalThis.fetch(...args));
+  const fetcher =
+    options.fetch ?? ((...args: Parameters<typeof fetch>) => globalThis.fetch(...args));
   const csrfToken = options.getCsrfToken ?? readCsrfCookie;
 
-  async function request<T = unknown>(path: string, input: ApiRequestOptions<T> = {}): Promise<SuccessEnvelope<T>> {
+  async function request<T = unknown>(
+    path: string,
+    input: ApiRequestOptions<T> = {},
+  ): Promise<SuccessEnvelope<T>> {
     let sessionIdentity: SessionIdentity | null = null;
     try {
       sessionIdentity = options.captureIdentity?.() ?? null;
@@ -49,9 +53,13 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
 
     const headers = new Headers({ Accept: 'application/json' });
     if (input.idempotencyKey !== undefined) {
-      if (method === 'GET' || typeof input.idempotencyKey !== 'string' || input.idempotencyKey.length > 128
-        || input.idempotencyKey.trim() !== input.idempotencyKey
-        || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(input.idempotencyKey)) {
+      if (
+        method === 'GET' ||
+        typeof input.idempotencyKey !== 'string' ||
+        input.idempotencyKey.length > 128 ||
+        input.idempotencyKey.trim() !== input.idempotencyKey ||
+        !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(input.idempotencyKey)
+      ) {
         throw new ApiClientError('request', '幂等操作标识无效。');
       }
       headers.set('Idempotency-Key', input.idempotencyKey);
@@ -70,7 +78,9 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
         }
         headers.set('X-CSRF-Token', token);
       } else if (input.csrf !== 'if-available') {
-        throw new ApiClientError('request', '缺少请求验证令牌，请刷新页面后重试。', { code: 'csrf_missing' });
+        throw new ApiClientError('request', '缺少请求验证令牌，请刷新页面后重试。', {
+          code: 'csrf_missing',
+        });
       }
     }
 
@@ -107,9 +117,13 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       }
     }
 
-    const mediaType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() ?? '';
+    const mediaType =
+      response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() ?? '';
     if (mediaType !== 'application/json' && !/^application\/[a-z0-9.+-]+\+json$/u.test(mediaType)) {
-      throw new ApiClientError('invalid_response', '服务返回了非 JSON 响应。', { status: response.status, code: 'non_json_response' });
+      throw new ApiClientError('invalid_response', '服务返回了非 JSON 响应。', {
+        status: response.status,
+        code: 'non_json_response',
+      });
     }
 
     let payload: unknown;
@@ -119,39 +133,67 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       if (input.signal?.aborted || (cause instanceof Error && cause.name === 'AbortError')) {
         throw failedTransport(cause, input.signal);
       }
-      throw new ApiClientError('invalid_response', '服务返回了无法解析的 JSON 响应。', { status: response.status, cause });
+      throw new ApiClientError('invalid_response', '服务返回了无法解析的 JSON 响应。', {
+        status: response.status,
+        cause,
+      });
     }
 
-    const parsedRequestId = isObject(payload) ? requestIdSchema.safeParse(payload.request_id) : null;
+    const parsedRequestId = isObject(payload)
+      ? requestIdSchema.safeParse(payload.request_id)
+      : null;
     const requestId = parsedRequestId?.success ? parsedRequestId.data : undefined;
-    const details = { status: response.status, ...(requestId === undefined ? {} : { request_id: requestId }) };
-    if (isObject(payload) && isObject(payload.error) && typeof payload.error.code === 'string'
-      && typeof payload.error.message === 'string' && requestId !== undefined) {
+    const details = {
+      status: response.status,
+      ...(requestId === undefined ? {} : { request_id: requestId }),
+    };
+    if (
+      isObject(payload) &&
+      isObject(payload.error) &&
+      typeof payload.error.code === 'string' &&
+      typeof payload.error.message === 'string' &&
+      requestId !== undefined
+    ) {
       const code = payload.error.code;
       if (response.ok || Object.hasOwn(payload, 'data')) {
         throw new ApiClientError('invalid_response', '服务返回了不一致的响应格式。', details);
       }
-      const message = Object.hasOwn(apiErrorMessages, code) ? apiErrorMessages[code as ApiErrorCode] : '请求未能完成，请稍后重试。';
+      const message = Object.hasOwn(apiErrorMessages, code)
+        ? apiErrorMessages[code as ApiErrorCode]
+        : '请求未能完成，请稍后重试。';
       throw new ApiClientError('api', message, { ...details, code });
     }
     if (!response.ok) {
       throw new ApiClientError('http', `请求失败（HTTP ${response.status}）。`, details);
     }
-    if (!isObject(payload) || requestId === undefined || !Object.hasOwn(payload, 'data') || Object.hasOwn(payload, 'error')) {
+    if (
+      !isObject(payload) ||
+      requestId === undefined ||
+      !Object.hasOwn(payload, 'data') ||
+      Object.hasOwn(payload, 'error')
+    ) {
       throw new ApiClientError('invalid_response', '服务返回了无效的管理 API 响应格式。', details);
     }
 
     let data: T;
     try {
-      data = input.decode ? input.decode(payload.data) : payload.data as T;
+      data = input.decode ? input.decode(payload.data) : (payload.data as T);
     } catch (cause) {
-      throw new ApiClientError('invalid_response', '服务返回的数据结构无效。', { ...details, cause });
+      throw new ApiClientError('invalid_response', '服务返回的数据结构无效。', {
+        ...details,
+        cause,
+      });
     }
     return { data, request_id: requestId };
   }
 
-  const write = (method: Exclude<ApiMethod, 'GET'>) =>
-    <T = unknown>(path: string, body?: JsonInput, input: Omit<ApiRequestOptions<T>, 'method' | 'body'> = {}) =>
+  const write =
+    (method: Exclude<ApiMethod, 'GET'>) =>
+    <T = unknown>(
+      path: string,
+      body?: JsonInput,
+      input: Omit<ApiRequestOptions<T>, 'method' | 'body'> = {},
+    ) =>
       request<T>(path, { ...input, method, ...(body === undefined ? {} : { body }) });
 
   return Object.freeze({

@@ -16,11 +16,22 @@ const toneClassName: Record<StatusBadgeTone, string> = {
 };
 
 /** A compact, text-bearing status marker; color supplements its label. */
-export function StatusBadge({ tone = 'neutral', className, children, ...spanProps }: StatusBadgeProps) {
+export function StatusBadge({
+  tone = 'neutral',
+  className,
+  children,
+  ...spanProps
+}: StatusBadgeProps) {
   return (
     <span
       {...spanProps}
-      className={['inline-flex max-w-full items-center rounded-full px-2.5 py-1 text-xs font-medium leading-4 ring-1 ring-inset', toneClassName[tone], className].filter(Boolean).join(' ')}
+      className={[
+        'inline-flex max-w-full items-center rounded-full px-2.5 py-1 text-xs font-medium leading-4 ring-1 ring-inset',
+        toneClassName[tone],
+        className,
+      ]
+        .filter(Boolean)
+        .join(' ')}
       data-tone={tone}
     >
       {children}

@@ -1,9 +1,5 @@
 import { useCallback, useMemo, useRef } from 'react';
-import {
-  useInfiniteQuery,
-  useMutation,
-  useQueryClient,
-} from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { InfiniteData } from '@tanstack/react-query';
 import type { ChatList, Conversation, ConversationCreateInput } from '@cheapai/api-client/chat';
 import {
@@ -33,14 +29,18 @@ function mergeConversations(data: InfiniteData<ChatList, unknown> | undefined): 
   for (const page of data.pages) {
     for (const conversation of page.items) {
       const previous = byId.get(conversation.id);
-      if (!previous || conversation.version > previous.version
-        || (conversation.version === previous.version && conversation.updatedAt > previous.updatedAt)) {
+      if (
+        !previous ||
+        conversation.version > previous.version ||
+        (conversation.version === previous.version && conversation.updatedAt > previous.updatedAt)
+      ) {
         byId.set(conversation.id, conversation);
       }
     }
   }
-  return [...byId.values()].sort((left, right) =>
-    right.updatedAt - left.updatedAt || right.id.localeCompare(left.id));
+  return [...byId.values()].sort(
+    (left, right) => right.updatedAt - left.updatedAt || right.id.localeCompare(left.id),
+  );
 }
 
 /** Cursor-paged conversation history scoped by the current user and session epoch. */
@@ -99,17 +99,19 @@ export function useHistory({ context }: UseHistoryOptions) {
     [createConversationAsync],
   );
   const renameConversation = useCallback(
-    (conversation: Conversation, title: string) => updateConversationAsync({
-      id: conversation.id,
-      patch: { version: conversation.version, title },
-    }),
+    (conversation: Conversation, title: string) =>
+      updateConversationAsync({
+        id: conversation.id,
+        patch: { version: conversation.version, title },
+      }),
     [updateConversationAsync],
   );
   const deleteConversation = useCallback(
-    (conversation: Conversation) => deleteConversationAsync({
-      id: conversation.id,
-      version: conversation.version,
-    }),
+    (conversation: Conversation) =>
+      deleteConversationAsync({
+        id: conversation.id,
+        version: conversation.version,
+      }),
     [deleteConversationAsync],
   );
 

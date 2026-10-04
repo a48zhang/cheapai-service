@@ -2,18 +2,20 @@ import { useMemo, useState } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createGroupsApi } from '@cheapai/api-client/groups';
 import { createMappingsApi } from '@cheapai/api-client/mappings';
-import type { GroupView } from '@cheapai/api-client/groups';
 import { useSearchParams } from 'react-router-dom';
 import type { ChannelView } from '@cheapai/api-client/channels';
 import { ChannelDiagnostics } from '../../features/admin-channels/ChannelDiagnostics';
 import { ChannelSetup } from '../../features/admin-channels/ChannelSetup';
-import type { ChannelSetupCommands, ChannelSetupProgress } from '../../features/admin-channels/setup-controller';
+import type { ChannelSetupCommands } from '../../features/admin-channels/setup-controller';
 import {
-  adminChannelsQueryKeys,
   createAdminChannelsFeatureApi,
   channelsListQueryOptions,
   invalidateAdminChannels,
+  recordChannelSaved,
 } from '../../features/admin-channels/api';
+import { groupCandidatesQueryOptions, recordGroupSaved } from '../../features/admin-groups/api';
+import { recordMappingSaved } from '../../features/admin-models/public';
+import { mergePageItems } from '../../shared/lib/pagination';
 import { ChannelForm } from '../../features/admin-channels/ChannelForm';
 import { ChannelTable } from '../../features/admin-channels/ChannelTable';
 import { useSession } from '../../features/session/useSession';
@@ -45,20 +47,35 @@ export function ChannelsPage() {
   const api = useMemo(() => createAdminChannelsFeatureApi(client), [client]);
   const mappingApi = useMemo(() => createMappingsApi(client), [client]);
   const groupApi = useMemo(() => createGroupsApi(client), [client]);
-  const setupGroupsQueryKey = ['admin', 'groups', userId, epoch, 'setup-candidates'] as const;
-  const setupGroups = useQuery({
-    queryKey: setupGroupsQueryKey,
-    queryFn: () => groupApi.listAll(),
-    enabled: isAdmin,
-  });
-  const setupCommands = useMemo<ChannelSetupCommands>(() => ({
-    createChannel: input => api.create(input),
-    createMapping: (publicModelId, input) => mappingApi.createMapping(publicModelId, input),
-    updateGroup: (groupId, version, patch) => groupApi.update(groupId, version, patch),
-  }), [api, mappingApi, groupApi]);
+  const setupGroups = useQuery(
+    groupCandidatesQueryOptions({ client, actorId: userId }, isAdmin && setupOpen),
+  );
+  const setupCommands = useMemo<ChannelSetupCommands>(
+    () => ({
+      createChannel: async (input) => {
+        const channel = await api.create(input);
+        void recordChannelSaved(queryClient, userId, epoch, channel);
+        return channel;
+      },
+      createMapping: async (publicModelId, input) => {
+        const mapping = await mappingApi.createMapping(publicModelId, input);
+        void recordMappingSaved(queryClient, userId, mapping);
+        void invalidateAdminChannels(queryClient, userId, epoch);
+        return mapping;
+      },
+      updateGroup: async (groupId, version, patch) => {
+        const group = await groupApi.update(groupId, version, patch);
+        void recordGroupSaved(queryClient, userId, group);
+        return group;
+      },
+    }),
+    [api, mappingApi, groupApi, queryClient, userId, epoch],
+  );
   const channels = useInfiniteQuery(channelsListQueryOptions(api, userId, epoch, status, isAdmin));
-  const rows = channels.data?.pages.flatMap(page => page.items) ?? [];
-  const nextCursor = channels.data?.pages.at(-1)?.nextCursor ?? null;
+  const rows = mergePageItems(
+    channels.data?.pages,
+    (next, current) => next.configVersion - current.configVersion,
+  );
   const error = channels.error instanceof Error ? channels.error.message : null;
 
   const updateStatus = (value: string) => {
@@ -71,21 +88,12 @@ export function ChannelsPage() {
 
   const openCreate = () => setFormChannel(null);
   const openEdit = (channel: ChannelView) => setFormChannel(channel);
-  const closeForm = (open: boolean) => { if (!open) setFormChannel(undefined); };
+  const closeForm = (open: boolean) => {
+    if (!open) setFormChannel(undefined);
+  };
   const onSaved = (channel: ChannelView) => {
     setFormChannel(undefined);
-    void Promise.all([
-      invalidateAdminChannels(queryClient, userId, epoch),
-      queryClient.invalidateQueries({ queryKey: ['admin', 'channels', userId, epoch, 'detail', channel.id] }),
-    ]);
-  };
-
-  const onSetupComplete = (progress: ChannelSetupProgress) => {
-    if (progress.channel) {
-      queryClient.setQueryData(adminChannelsQueryKeys.detail(userId, epoch, progress.channel.id), progress.channel);
-      void invalidateAdminChannels(queryClient, userId, epoch);
-    }
-    void queryClient.invalidateQueries({ queryKey: setupGroupsQueryKey });
+    void recordChannelSaved(queryClient, userId, epoch, channel);
   };
 
   return (
@@ -94,12 +102,14 @@ export function ChannelsPage() {
         eyebrow="资源配置"
         heading="渠道"
         description="查看上游渠道、已配置的模型映射与实际限额。连接诊断由管理员明确发起，并可能产生上游费用。"
-        actions={(
+        actions={
           <>
-            <Button variant="outline" onClick={() => setSetupOpen(true)}>渠道快速配置</Button>
+            <Button variant="outline" onClick={() => setSetupOpen(true)}>
+              渠道快速配置
+            </Button>
             <Button onClick={openCreate}>创建渠道</Button>
           </>
-        )}
+        }
       />
 
       <FilterBar>
@@ -114,18 +124,23 @@ export function ChannelsPage() {
       </FilterBar>
 
       {!isAdmin && (
-        <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <div
+          role="alert"
+          className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+        >
           此页面需要管理员权限。
         </div>
       )}
 
       <ChannelTable
         rows={rows}
-        hasMore={nextCursor !== null}
+        hasMore={channels.hasNextPage}
         loading={channels.isPending && isAdmin}
         loadingMore={channels.isFetchingNextPage}
-        error={channels.isError ? error ?? '渠道读取失败。' : null}
-        onLoadMore={() => { void channels.fetchNextPage(); }}
+        error={channels.isError ? (error ?? '渠道读取失败。') : null}
+        onLoadMore={() => {
+          void channels.fetchNextPage();
+        }}
         onRetry={() => {
           if (channels.isFetchNextPageError) void channels.fetchNextPage();
           else void channels.refetch();
@@ -149,7 +164,9 @@ export function ChannelsPage() {
           open
           channel={diagnosticChannel}
           api={api}
-          onOpenChange={open => { if (!open) setDiagnosticChannel(null); }}
+          onOpenChange={(open) => {
+            if (!open) setDiagnosticChannel(null);
+          }}
         />
       )}
 
@@ -158,13 +175,18 @@ export function ChannelsPage() {
         open={setupOpen}
         onOpenChange={setSetupOpen}
         commands={setupCommands}
-        groups={(setupGroups.data ?? []) as readonly GroupView[]}
+        groups={setupGroups.data ?? []}
         groupsLoading={setupGroups.isPending && isAdmin}
-        groupsError={setupGroups.isError
-          ? setupGroups.error instanceof Error ? setupGroups.error : new Error('访问组候选读取失败。')
-          : null}
-        onRetryGroups={() => { void setupGroups.refetch(); }}
-        onComplete={onSetupComplete}
+        groupsError={
+          setupGroups.isError
+            ? setupGroups.error instanceof Error
+              ? setupGroups.error
+              : new Error('访问组候选读取失败。')
+            : null
+        }
+        onRetryGroups={() => {
+          void setupGroups.refetch();
+        }}
       />
     </section>
   );

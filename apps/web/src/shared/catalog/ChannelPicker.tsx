@@ -52,21 +52,22 @@ export function ChannelPicker({
   for (const channel of options) optionById.set(channel.id, channel);
   const currentIds = new Set(value);
   const draftIds = new Set(draft);
-  const missingIds = [...new Set([...value, ...draft])].filter(id => !optionById.has(id));
+  const missingIds = [...new Set([...value, ...draft])].filter((id) => !optionById.has(id));
   const normalizedSearch = search.trim().toLocaleLowerCase();
   const errorMessage = error instanceof Error ? error.message : error;
-  const visibleOptions = options.filter(channel =>
+  const visibleOptions = options.filter((channel) =>
     `${channel.name} ${channel.id}`.toLocaleLowerCase().includes(normalizedSearch),
   );
-  const visibleMissingIds = missingIds.filter(id =>
+  const visibleMissingIds = missingIds.filter((id) =>
     `未知渠道 ${id}`.toLocaleLowerCase().includes(normalizedSearch),
   );
   const complete = candidates?.complete === true && !loading && errorMessage == null;
   const hasChanges = !sameIds(draft, value);
   const selectionLimitReached = maxSelected !== undefined && draft.length >= maxSelected;
-  const summary = value.length > 0
-    ? value.map(id => channelLabel(optionById.get(id), id)).join('、')
-    : '未选择渠道';
+  const summary =
+    value.length > 0
+      ? value.map((id) => channelLabel(optionById.get(id), id)).join('、')
+      : '未选择渠道';
 
   const openPicker = () => {
     setDraft([...value]);
@@ -87,7 +88,7 @@ export function ChannelPicker({
   const toggle = (id: string) => {
     const selected = draftIds.has(id);
     if (selected) {
-      setDraft(draft.filter(current => current !== id));
+      setDraft(draft.filter((current) => current !== id));
       return;
     }
     if (selectionLimitReached) return;
@@ -106,7 +107,7 @@ export function ChannelPicker({
       <Dialog
         open={open}
         onOpenChange={handleOpenChange}
-        trigger={(
+        trigger={
           <Button
             type="button"
             variant="outline"
@@ -115,19 +116,25 @@ export function ChannelPicker({
             className="min-h-10 w-full justify-between text-left font-normal"
           >
             <span className="min-w-0 truncate">{summary}</span>
-            <span aria-hidden="true" className="shrink-0 text-[var(--color-muted-foreground)]">⌄</span>
+            <span aria-hidden="true" className="shrink-0 text-[var(--color-muted-foreground)]">
+              ⌄
+            </span>
           </Button>
-        )}
+        }
         title="选择渠道"
         description={maxSelected === 1 ? '为此映射选择一个渠道。' : '选择要关联到此组的渠道。'}
         closeLabel="关闭渠道选择"
         className="max-w-2xl"
-        footer={(
+        footer={
           <>
-            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>取消</Button>
-            <Button type="button" disabled={!complete || !hasChanges || disabled} onClick={apply}>应用选择</Button>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
+              取消
+            </Button>
+            <Button type="button" disabled={!complete || !hasChanges || disabled} onClick={apply}>
+              应用选择
+            </Button>
           </>
-        )}
+        }
       >
         <div className="space-y-4">
           <label className="grid gap-1.5 text-sm font-medium text-[var(--color-foreground)]">
@@ -135,7 +142,7 @@ export function ChannelPicker({
             <input
               type="search"
               value={search}
-              onChange={event => setSearch(event.currentTarget.value)}
+              onChange={(event) => setSearch(event.currentTarget.value)}
               placeholder="按名称或 ID 搜索"
               className="min-h-10 rounded-md border bg-white px-3 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
               style={{ borderColor: 'var(--color-border)', color: 'var(--color-foreground)' }}
@@ -143,23 +150,38 @@ export function ChannelPicker({
           </label>
 
           {loading && (
-            <p role="status" className="text-sm text-[var(--color-muted-foreground)]">正在加载完整渠道列表…</p>
+            <p role="status" className="text-sm text-[var(--color-muted-foreground)]">
+              正在加载完整渠道列表…
+            </p>
           )}
           {errorMessage != null && (
-            <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[var(--color-destructive)] bg-[var(--color-destructive-soft)] p-3 text-sm">
+            <div
+              role="alert"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[var(--color-destructive)] bg-[var(--color-destructive-soft)] p-3 text-sm"
+            >
               <span>渠道候选加载失败：{errorMessage}</span>
-              {onRetry && <Button type="button" variant="outline" size="sm" onClick={onRetry}>重试候选加载</Button>}
+              {onRetry && (
+                <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+                  重试候选加载
+                </Button>
+              )}
             </div>
           )}
           {!loading && errorMessage == null && !candidates && (
-            <p role="status" className="text-sm text-[var(--color-muted-foreground)]">渠道候选尚未就绪。</p>
+            <p role="status" className="text-sm text-[var(--color-muted-foreground)]">
+              渠道候选尚未就绪。
+            </p>
           )}
 
-          <div className="max-h-72 space-y-1 overflow-y-auto rounded-md border p-2" style={{ borderColor: 'var(--color-border)' }}>
-            {visibleOptions.map(channel => {
+          <div
+            className="max-h-72 space-y-1 overflow-y-auto rounded-md border p-2"
+            style={{ borderColor: 'var(--color-border)' }}
+          >
+            {visibleOptions.map((channel) => {
               const checked = draftIds.has(channel.id);
               const wasSelected = currentIds.has(channel.id);
-              const unavailable = !complete || disabled || (channel.status === 'disabled' && !wasSelected);
+              const unavailable =
+                !complete || disabled || (channel.status === 'disabled' && !wasSelected);
               const atLimit = !checked && selectionLimitReached;
               return (
                 <label
@@ -173,15 +195,21 @@ export function ChannelPicker({
                     onChange={() => toggle(channel.id)}
                     className="size-4 accent-[var(--color-primary)]"
                   />
-                  <span className="min-w-0 flex-1 truncate text-[var(--color-foreground)]">{channel.name}</span>
-                  <span className="shrink-0 text-xs text-[var(--color-muted-foreground)]">{channel.id}</span>
+                  <span className="min-w-0 flex-1 truncate text-[var(--color-foreground)]">
+                    {channel.name}
+                  </span>
+                  <span className="shrink-0 text-xs text-[var(--color-muted-foreground)]">
+                    {channel.id}
+                  </span>
                   {channel.status === 'disabled' && (
-                    <span className="shrink-0 rounded bg-[var(--color-muted)] px-2 py-0.5 text-xs text-[var(--color-muted-foreground)]">已停用</span>
+                    <span className="shrink-0 rounded bg-[var(--color-muted)] px-2 py-0.5 text-xs text-[var(--color-muted-foreground)]">
+                      已停用
+                    </span>
                   )}
                 </label>
               );
             })}
-            {visibleMissingIds.map(id => {
+            {visibleMissingIds.map((id) => {
               const checked = draftIds.has(id);
               return (
                 <label
@@ -196,22 +224,33 @@ export function ChannelPicker({
                     onChange={() => toggle(id)}
                     className="size-4 accent-[var(--color-primary)]"
                   />
-                  <span className="min-w-0 flex-1 truncate text-[var(--color-muted-foreground)]">未知渠道（保留当前 ID）</span>
-                  <span className="shrink-0 text-xs text-[var(--color-muted-foreground)]">{id}</span>
+                  <span className="min-w-0 flex-1 truncate text-[var(--color-muted-foreground)]">
+                    未知渠道（保留当前 ID）
+                  </span>
+                  <span className="shrink-0 text-xs text-[var(--color-muted-foreground)]">
+                    {id}
+                  </span>
                 </label>
               );
             })}
             {visibleOptions.length === 0 && visibleMissingIds.length === 0 && complete && (
-              <p role="status" className="px-3 py-6 text-center text-sm text-[var(--color-muted-foreground)]">
+              <p
+                role="status"
+                className="px-3 py-6 text-center text-sm text-[var(--color-muted-foreground)]"
+              >
                 {normalizedSearch ? '没有匹配的渠道。' : '没有可用渠道。'}
               </p>
             )}
           </div>
           {maxSelected !== undefined && (
-            <p className="text-xs text-[var(--color-muted-foreground)]">最多选择 {maxSelected} 个渠道。</p>
+            <p className="text-xs text-[var(--color-muted-foreground)]">
+              最多选择 {maxSelected} 个渠道。
+            </p>
           )}
           {!complete && !loading && errorMessage == null && (
-            <p className="text-xs text-[var(--color-muted-foreground)]">完成完整候选加载后才能应用新的选择；当前值会保留。</p>
+            <p className="text-xs text-[var(--color-muted-foreground)]">
+              完成完整候选加载后才能应用新的选择；当前值会保留。
+            </p>
           )}
         </div>
       </Dialog>

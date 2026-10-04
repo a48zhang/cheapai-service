@@ -14,12 +14,13 @@ export function createDiagnosticOperation(api: AdminChannelsApi) {
     async run(channel: ChannelView, model: ChannelModel): Promise<ChannelProbeResult> {
       if (active) throw new Error('A channel diagnostic is already running.');
       if (channel.status !== 'active') throw new Error('Only active channels can be diagnosed.');
-      const currentMapping = channel.models.find(candidate =>
-        candidate.publicModelId === model.publicModelId
-        && candidate.protocol === model.protocol
-        && candidate.upstreamModel === model.upstreamModel
-        && candidate.mappingVersion === model.mappingVersion
-        && candidate.priceVersion === model.priceVersion,
+      const currentMapping = channel.models.find(
+        (candidate) =>
+          candidate.publicModelId === model.publicModelId &&
+          candidate.protocol === model.protocol &&
+          candidate.upstreamModel === model.upstreamModel &&
+          candidate.mappingVersion === model.mappingVersion &&
+          candidate.priceVersion === model.priceVersion,
       );
       if (!currentMapping) throw new Error('The selected channel mapping is no longer available.');
 

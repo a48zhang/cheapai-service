@@ -1,32 +1,41 @@
-import { createApiClient } from '@cheapai/api-client/client';
-import { readCsrfCookie } from '@cheapai/api-client/csrf';
-import { createAuthApi } from '@cheapai/api-client/auth';
-import { createSessionController } from '../../features/session/controller';
-import { createQueryClient } from './query-client';
+import type {
+  AuthApi,
+  LoginInput,
+  PublicSettings,
+  PublicUser,
+  RegisterInput,
+  RegistrationResult,
+} from '@cheapai/api-client/auth';
+import type { ApiClient, SessionIdentity } from '@cheapai/api-client/types';
+import type { QueryClient } from '@tanstack/react-query';
 
-export function createRuntime(options: { fetch?: typeof fetch } = {}) {
-  const identityOptions = {
-    ...options,
-    captureIdentity: () => session?.requestIdentity() ?? null,
-    onUnauthorized: (identity: Parameters<ReturnType<typeof createSessionController>['expire']>[0]) => { session?.expire(identity); },
-  };
-  const auth = createAuthApi(identityOptions);
-  const session = createSessionController(auth);
-  const client = createApiClient({ ...identityOptions, getCsrfToken: async () => readCsrfCookie() ?? (await auth.bootstrap()).csrfToken });
-  const queryClient = createQueryClient();
-  let previousUser = session.getSnapshot().user?.id ?? null;
-  let previousEpoch = session.getSnapshot().epoch;
-  const unsubscribe = session.subscribe(() => {
-    const current = session.getSnapshot();
-    const currentUser = current.user?.id ?? null;
-    if (currentUser !== previousUser || (current.epoch !== previousEpoch && current.pending !== 'restore')) {
-      void queryClient.cancelQueries();
-      queryClient.clear();
-    }
-    previousUser = currentUser;
-    previousEpoch = current.epoch;
-  });
-  return { session, auth, client, queryClient, dispose: () => { unsubscribe(); queryClient.clear(); } };
+export interface RuntimeSessionSnapshot {
+  status: 'unknown' | 'anonymous' | 'authenticated' | 'unavailable';
+  user: PublicUser | null;
+  epoch: number;
+  pending: 'restore' | 'login' | 'logout' | 'register' | null;
+  error: Error | null;
+  expiry: { userId: string; epoch: number; reason: 'expired' } | null;
+  publicSettings: PublicSettings | null;
+  settingsError: Error | null;
 }
-export type AppRuntime = ReturnType<typeof createRuntime>;
-export const runtime = createRuntime();
+
+export interface RuntimeSessionController {
+  getSnapshot(): RuntimeSessionSnapshot;
+  subscribe(listener: () => void): () => void;
+  requestIdentity(): SessionIdentity | null;
+  expire(identity: SessionIdentity): boolean;
+  restore(): Promise<PublicUser | null>;
+  bootstrap(): Promise<PublicSettings>;
+  login(input: LoginInput): Promise<PublicUser>;
+  logout(): Promise<void>;
+  register(input: RegisterInput): Promise<RegistrationResult>;
+}
+
+export interface AppRuntime {
+  session: RuntimeSessionController;
+  auth: AuthApi;
+  client: ApiClient;
+  queryClient: QueryClient;
+  dispose(): void;
+}

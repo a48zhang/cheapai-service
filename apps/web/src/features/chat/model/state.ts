@@ -40,15 +40,30 @@ export interface ChatState {
 export type ChatEvent =
   | { readonly type: 'hydrate'; readonly detail: ConversationDetail }
   | { readonly type: 'reset' }
-  | { readonly type: 'begin'; readonly operationId: string; readonly operationKind: ChatOperationKind; readonly needsConversation: boolean }
-  | { readonly type: 'conversation-created'; readonly operationId: string; readonly conversation: Conversation }
+  | {
+      readonly type: 'begin';
+      readonly operationId: string;
+      readonly operationKind: ChatOperationKind;
+      readonly needsConversation: boolean;
+    }
+  | {
+      readonly type: 'conversation-created';
+      readonly operationId: string;
+      readonly conversation: Conversation;
+    }
   | { readonly type: 'submitting'; readonly operationId: string }
   | { readonly type: 'meta'; readonly operationId: string; readonly value: ChatMetaEvent }
   | { readonly type: 'delta'; readonly operationId: string; readonly text: string }
   | { readonly type: 'done'; readonly operationId: string; readonly value: ChatDoneEvent }
   | { readonly type: 'stop-requested'; readonly operationId: string }
   | { readonly type: 'finalizing'; readonly operationId: string }
-  | { readonly type: 'settled'; readonly operationId: string; readonly outcome: ChatTerminalOutcome; readonly detail: ConversationDetail; readonly failure?: ChatFailure }
+  | {
+      readonly type: 'settled';
+      readonly operationId: string;
+      readonly outcome: ChatTerminalOutcome;
+      readonly detail: ConversationDetail;
+      readonly failure?: ChatFailure;
+    }
   | { readonly type: 'failed'; readonly operationId: string; readonly failure: ChatFailure }
   | { readonly type: 'interrupted'; readonly operationId: string; readonly failure: ChatFailure };
 
@@ -68,17 +83,28 @@ export function operationMatches(state: ChatState, operationId: string): boolean
 }
 
 export function isChatBusy(phase: ChatPhase): boolean {
-  return phase === 'creating' || phase === 'submitting' || phase === 'streaming'
-    || phase === 'stopping' || phase === 'finalizing';
+  return (
+    phase === 'creating' ||
+    phase === 'submitting' ||
+    phase === 'streaming' ||
+    phase === 'stopping' ||
+    phase === 'finalizing'
+  );
 }
 
-export function upsertChatMessage(messages: readonly ChatMessage[], message: ChatMessage): readonly ChatMessage[] {
-  const index = messages.findIndex(item => item.id === message.id);
+export function upsertChatMessage(
+  messages: readonly ChatMessage[],
+  message: ChatMessage,
+): readonly ChatMessage[] {
+  const index = messages.findIndex((item) => item.id === message.id);
   if (index < 0) return [...messages, message];
-  return messages.map(item => item.id === message.id ? message : item);
+  return messages.map((item) => (item.id === message.id ? message : item));
 }
 
-export function mergeMetaDetail(detail: ConversationDetail | null, value: ChatMetaEvent): ConversationDetail {
+export function mergeMetaDetail(
+  detail: ConversationDetail | null,
+  value: ChatMetaEvent,
+): ConversationDetail {
   const existing = detail?.conversation.id === value.conversation.id ? detail.messages : [];
   let messages: readonly ChatMessage[] = existing;
   if (value.userMessage) messages = upsertChatMessage(messages, value.userMessage);

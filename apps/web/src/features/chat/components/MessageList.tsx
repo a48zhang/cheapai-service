@@ -3,11 +3,8 @@ import type { ReactNode } from 'react';
 import type { ChatMessage } from '@cheapai/api-client/chat';
 import type { ConversationDetail } from '@cheapai/api-client/chat';
 import { Button } from '../../../shared/ui/Button';
-import {
-  canRegenerateLastAssistant,
-  canSelectAssistantVariant,
-  groupAssistantVariants,
-} from '../model/variants';
+import { createMessageRows } from '../model/message-rows';
+import { canRegenerateLastAssistant, canSelectAssistantVariant } from '../model/variants';
 import { Message } from './Message';
 import { useScrollAnchor } from '../hooks/useScrollAnchor';
 
@@ -26,62 +23,32 @@ export interface MessageListProps {
   readonly versionDisabledReason?: string | undefined;
 }
 
-interface AssistantRow {
-  readonly kind: 'assistant';
-  readonly message: ChatMessage;
-  readonly variants: readonly ChatMessage[];
-  readonly selectedId: string | null;
-}
-
-interface UserRow {
-  readonly kind: 'user';
-  readonly message: ChatMessage;
-}
-
-type MessageRow = AssistantRow | UserRow;
-
-function buildRows(messages: readonly ChatMessage[], streamMessageId: string | null): MessageRow[] {
-  const groups = groupAssistantVariants(messages);
-  const groupByTurn = new Map(groups.map(group => [group.turnIndex, group]));
-  const turns = [...new Set(messages.map(message => message.turnIndex))].sort((left, right) => left - right);
-  const rows: MessageRow[] = [];
-
-  for (const turnIndex of turns) {
-    for (const message of messages) {
-      if (message.turnIndex === turnIndex && message.role === 'user') rows.push({ kind: 'user', message });
-    }
-    const group = groupByTurn.get(turnIndex);
-    if (!group || group.variants.length === 0) continue;
-    const activeStream = streamMessageId
-      ? group.variants.find(message => message.id === streamMessageId)
-      : undefined;
-    const message = activeStream ?? group.selected ?? group.variants[0];
-    if (message) rows.push({
-      kind: 'assistant',
-      message,
-      variants: group.variants,
-      selectedId: group.selected?.id ?? null,
-    });
-  }
-  return rows;
-}
-
 function canOperateOnAssistant(message: ChatMessage): boolean {
   return message.status !== 'generating';
 }
 
 function availabilityReason(reason: string): string {
   switch (reason) {
-    case 'conversation-loading': return '对话仍在加载，请稍后重试。';
-    case 'no-assistant': return '当前对话没有可重新生成的回答。';
-    case 'no-user-message': return '当前回答没有对应的用户消息。';
-    case 'not-latest-turn': return '只能操作最新一轮的回答。';
-    case 'generation-in-progress': return '生成过程中无法执行此操作。';
-    case 'message-not-found': return '此回答版本已不可用。';
-    case 'not-assistant': return '只能操作 assistant 回答。';
-    case 'already-selected': return '此回答版本已经选中。';
-    case 'no-selected-variant': return '服务端当前没有选中的回答版本。';
-    default: return '此操作当前不可用。';
+    case 'conversation-loading':
+      return '对话仍在加载，请稍后重试。';
+    case 'no-assistant':
+      return '当前对话没有可重新生成的回答。';
+    case 'no-user-message':
+      return '当前回答没有对应的用户消息。';
+    case 'not-latest-turn':
+      return '只能操作最新一轮的回答。';
+    case 'generation-in-progress':
+      return '生成过程中无法执行此操作。';
+    case 'message-not-found':
+      return '此回答版本已不可用。';
+    case 'not-assistant':
+      return '只能操作 assistant 回答。';
+    case 'already-selected':
+      return '此回答版本已经选中。';
+    case 'no-selected-variant':
+      return '服务端当前没有选中的回答版本。';
+    default:
+      return '此操作当前不可用。';
   }
 }
 
@@ -100,10 +67,13 @@ export function MessageList({
   emptyMessage = '在下方输入消息开始对话。',
   versionDisabledReason,
 }: MessageListProps) {
-  const rows = useMemo(() => buildRows(messages, streamMessageId), [messages, streamMessageId]);
-  const messageIds = useMemo(() => rows.map(row => row.message.id), [rows]);
-  const groups = useMemo(() => groupAssistantVariants(messages), [messages]);
-  const latestTurnIndex = groups[groups.length - 1]?.turnIndex ?? null;
+  const timeline = useMemo(
+    () => createMessageRows(messages, streamMessageId),
+    [messages, streamMessageId],
+  );
+  const rows = timeline.rows;
+  const messageIds = useMemo(() => rows.map((row) => row.message.id), [rows]);
+  const latestTurnIndex = timeline.latestAssistantTurnIndex;
   const regenerateAvailability = detail === undefined ? null : canRegenerateLastAssistant(detail);
   const latestVisibleMessage = rows.at(-1)?.message;
   const contentVersion = `${streamMessageId ?? ''}:${streamText.length}:${latestVisibleMessage?.updatedAt ?? 0}:${messages.length}`;
@@ -114,7 +84,10 @@ export function MessageList({
   });
 
   return (
-    <section aria-label="聊天消息" className={`relative flex min-h-0 flex-1 flex-col ${className ?? ''}`}>
+    <section
+      aria-label="聊天消息"
+      className={`relative flex min-h-0 flex-1 flex-col ${className ?? ''}`}
+    >
       <div
         ref={anchor.containerRef}
         aria-label="对话消息"
@@ -124,7 +97,10 @@ export function MessageList({
         role="log"
       >
         {loading && rows.length === 0 ? (
-          <p className="mx-auto max-w-4xl px-5 py-10 text-center text-sm text-[var(--color-muted-foreground)]" role="status">
+          <p
+            className="mx-auto max-w-4xl px-5 py-10 text-center text-sm text-[var(--color-muted-foreground)]"
+            role="status"
+          >
             正在读取对话…
           </p>
         ) : null}
@@ -133,46 +109,72 @@ export function MessageList({
             {emptyMessage}
           </div>
         ) : null}
-        {rows.map(row => {
+        {rows.map((row) => {
           if (row.kind === 'user') return <Message key={row.message.id} message={row.message} />;
           const isLatestTurn = row.message.turnIndex === latestTurnIndex;
           const isCurrentSelection = row.selectedId === row.message.id;
           const streaming = row.message.id === streamMessageId;
-          const selectableVariants = row.variants.filter(variant => {
+          const selectableVariants = row.variants.filter((variant) => {
             if (variant.id === row.message.id) return true;
             if (detail === undefined) return canOperateOnAssistant(variant);
             return canSelectAssistantVariant(detail, variant.id).allowed;
           });
-          const canRegenerate = isCurrentSelection && canOperateOnAssistant(row.message)
-            && (regenerateAvailability === null
+          const canRegenerate =
+            isCurrentSelection &&
+            canOperateOnAssistant(row.message) &&
+            (regenerateAvailability === null
               ? true
-              : regenerateAvailability.allowed && regenerateAvailability.assistant.id === row.message.id)
-            && !busy && onRegenerate !== undefined && regenerateDisabledReason === undefined;
-          const canSelectVersion = isCurrentSelection && canOperateOnAssistant(row.message)
-            && selectableVariants.some(variant => variant.id !== row.message.id)
-            && !busy && onSelectVersion !== undefined && versionDisabledReason === undefined;
-          const regenerateReason = regenerateDisabledReason
-            ?? (busy ? '生成过程中无法重新生成。'
+              : regenerateAvailability.allowed &&
+                regenerateAvailability.assistant.id === row.message.id) &&
+            !busy &&
+            onRegenerate !== undefined &&
+            regenerateDisabledReason === undefined;
+          const canSelectVersion =
+            isCurrentSelection &&
+            canOperateOnAssistant(row.message) &&
+            selectableVariants.some((variant) => variant.id !== row.message.id) &&
+            !busy &&
+            onSelectVersion !== undefined &&
+            versionDisabledReason === undefined;
+          const regenerateReason =
+            regenerateDisabledReason ??
+            (busy
+              ? '生成过程中无法重新生成。'
               : regenerateAvailability && !regenerateAvailability.allowed
                 ? availabilityReason(regenerateAvailability.reason)
-                : !isLatestTurn ? '只能重新生成最新一轮的回答。'
-                : !isCurrentSelection ? '当前回答未被服务端选中，无法重新生成。'
-                  : !canOperateOnAssistant(row.message) ? '当前回答仍在生成，暂不能重新生成。'
-                    : onRegenerate === undefined ? '重新生成操作暂不可用。'
-                      : undefined);
-          const blockedVersion = detail === undefined
-            ? undefined
-            : row.variants.map(variant => canSelectAssistantVariant(detail, variant.id))
-              .find(availability => !availability.allowed && availability.reason !== 'already-selected');
-          const versionReason = versionDisabledReason
-            ?? (busy ? '生成过程中无法切换回答版本。'
+                : !isLatestTurn
+                  ? '只能重新生成最新一轮的回答。'
+                  : !isCurrentSelection
+                    ? '当前回答未被服务端选中，无法重新生成。'
+                    : !canOperateOnAssistant(row.message)
+                      ? '当前回答仍在生成，暂不能重新生成。'
+                      : onRegenerate === undefined
+                        ? '重新生成操作暂不可用。'
+                        : undefined);
+          const blockedVersion =
+            detail === undefined
+              ? undefined
+              : row.variants
+                  .map((variant) => canSelectAssistantVariant(detail, variant.id))
+                  .find(
+                    (availability) =>
+                      !availability.allowed && availability.reason !== 'already-selected',
+                  );
+          const versionReason =
+            versionDisabledReason ??
+            (busy
+              ? '生成过程中无法切换回答版本。'
               : blockedVersion && !blockedVersion.allowed
                 ? availabilityReason(blockedVersion.reason)
-                : !isLatestTurn ? '只能切换最新一轮的回答版本。'
-                : !isCurrentSelection ? '当前回答未被服务端选中，无法切换版本。'
-                  : !canOperateOnAssistant(row.message) ? '当前回答仍在生成，暂不能切换版本。'
-                    : onSelectVersion === undefined ? '版本切换操作暂不可用。'
-                      : undefined);
+                : !isLatestTurn
+                  ? '只能切换最新一轮的回答版本。'
+                  : !isCurrentSelection
+                    ? '当前回答未被服务端选中，无法切换版本。'
+                    : !canOperateOnAssistant(row.message)
+                      ? '当前回答仍在生成，暂不能切换版本。'
+                      : onSelectVersion === undefined
+                        ? '版本切换操作暂不可用。'
+                        : undefined);
           return (
             <Message
               key={row.message.id}

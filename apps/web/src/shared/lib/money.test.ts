@@ -12,7 +12,18 @@ describe('exact USD amounts', () => {
   });
 
   it('rejects coercion, noncanonical input, excess precision and values outside safe units', () => {
-    for (const value of [1, 0.1, null, '', ' 1', '+1', '-0', '1e2', '1.000000001', '90071992.54740992']) {
+    for (const value of [
+      1,
+      0.1,
+      null,
+      '',
+      ' 1',
+      '+1',
+      '-0',
+      '1e2',
+      '1.000000001',
+      '90071992.54740992',
+    ]) {
       expect(() => parseUsdToUnits(value)).toThrow(MoneyError);
     }
     for (const value of [1, '', '01', '-0', '1.0', '9007199254740992', '-9007199254740992']) {
