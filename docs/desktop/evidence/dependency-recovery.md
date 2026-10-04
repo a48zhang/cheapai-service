@@ -86,3 +86,9 @@ node scripts/desktop/create-dmg.mjs --app /path/to/cheapai.dev.app --output /pat
 Windows attempt 2 的官方 NSIS 工具和插件下载/校验已通过，停在 `Target: x64` 后无输出，随后打包 step 明确达到 50 分钟时限。资源统计发现 550 种 name/version 被嵌套复制成 4,253 份。包装器现在预先遍历真实安装图，仅将解析来源唯一的包共享到顶层；多版本和不同 peer 来源仍嵌套，比较依据由版本改为真实 source 路径，不合并依赖上下文。
 
 真实 Linux 资源装配通过：仍为 550 种 name/version，实际副本 569；清单从 264,667 文件／2,446,089,308 bytes 降到 28,498 文件／599,098,169 bytes。把整个资源目录移出仓库后，随包 Node 实际完成 sidecar bootstrap、无账号 start 返回 account-required、关闭管道退出 0。现有桌面 5 文件／23 用例通过，没有新增测试体系。此结果证明装配去重和启动边界；macOS DMG、Windows NSIS 是否解除卡点仍需目标平台执行，不能仅凭体积下降宣称成功。
+
+## Windows NSIS 输入路径修复（2026-10-04）
+
+`8d81b3f` ARM 安装包 job 成功：DMG 创建及 hdiutil verify、源文件/锁检查、artifact 上传均通过；Local checks 也成功。Windows 资源枚举已从此前长时间停顿推进至 makensis，随后 File 指令无法打开 inspector 的 `selectElementAccessibilityInteractiveContentAttributesSelectDescendant.md`。其完整输入路径为 262 字符；同一固定包中的文件存在（272 bytes），此前 Windows 资源清单校验也成功，提示 NSIS 输入路径限制而非发布包缺文件。
+
+Windows 打包入口现在使用自身 mkdtemp 创建的短资源目录，检查原超长输入存在且大小匹配清单、检查全部暂存路径小于 260 字符，再通过 Tauri bundle.resources 映射保持安装后的 `resources/generated/runtime` 路径不变。只清理本次临时目录，不修改 OS 长路径设置、包内容或 macOS 打包流程。node --check 与 diff 检查通过；真实 Windows CI 结果另跟踪，不把路径推断当作安装验收。

@@ -1,8 +1,9 @@
 import { constants } from 'node:fs'
-import { access, readFile, stat } from 'node:fs/promises'
+import { access, cp, mkdir, mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { spawn, spawnSync } from 'node:child_process'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { tmpdir } from 'node:os'
 import { createDmg } from './create-dmg.mjs'
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url))
@@ -334,7 +335,38 @@ async function main() {
   const bundle = process.platform === 'darwin' ? (plainDmg ? 'app' : 'dmg') : 'nsis'
   // Tauri only emits installer subprocess stdout/stderr at verbose level.
   // Keep that evidence when hdiutil or NSIS fails after a successful Rust build.
-  await runProcess('Tauri package build', process.execPath, [tauriCli, 'build', '--verbose', '--target', target, '--bundles', bundle], desktopRoot, env)
+  let resourceStaging
+  try {
+    const args = [tauriCli, 'build', '--verbose', '--target', target, '--bundles', bundle]
+    if (process.platform === 'win32') {
+      const resources = join(desktopRoot, 'src-tauri/resources/generated/runtime')
+      const inventory = JSON.parse(await readFile(join(resources, 'desktop-runtime.json'), 'utf8'))
+      const temporaryRoot = env.RUNNER_TEMP || tmpdir()
+      await mkdir(temporaryRoot, { recursive: true })
+      resourceStaging = await mkdtemp(join(temporaryRoot, 'dsk-'))
+      // makensis uses legacy Windows file APIs. Keep its input paths short,
+      // while the resource map preserves every installed path and file name.
+      for (const file of inventory.files) {
+        const source = join(resources, file.path)
+        if (source.length >= 260) {
+          const info = await stat(source)
+          if (!info.isFile() || info.size !== file.bytes) throw new Error(`Invalid NSIS resource: ${file.path}`)
+          process.stdout.write(`Verified existing NSIS input (${source.length} characters): ${file.path}\n`)
+        }
+        if (join(resourceStaging, file.path).length >= 260) {
+          throw new Error('NSIS staging path is too long; select a shorter temporary directory')
+        }
+      }
+      await cp(resources, resourceStaging, { recursive: true, dereference: false })
+      args.push('--config', JSON.stringify({ bundle: {
+        resources: { [resourceStaging]: 'resources/generated/runtime' },
+      } }))
+      process.stdout.write(`NSIS resources staged at ${resourceStaging}; installed resource paths are unchanged.\n`)
+    }
+    await runProcess('Tauri package build', process.execPath, args, desktopRoot, env)
+  } finally {
+    if (resourceStaging) await rm(resourceStaging, { recursive: true, force: true })
+  }
   if (plainDmg) {
     const bundleRoot = join(desktopRoot, 'src-tauri/target', target, 'release/bundle')
     const architecture = target.startsWith('aarch64-') ? 'aarch64' : 'x64'
