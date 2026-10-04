@@ -20,7 +20,7 @@ package 命令依次构建桌面 workspace、准备固定 Runtime/DSH 资源和�
 
 `.github/workflows/desktop-package.yml` 在 `main` / `feat/cheapai-desktop` 推送桌面相关改动、相关 PR 和手动 Run workflow 时运行。三个任务分别构建 Windows x64 NSIS `.exe`、macOS Apple Silicon `.dmg`、macOS Intel `.dmg`，固定使用 Node Runtime。打开对应 Actions 运行的 Artifacts，下载 `desktop-installer-<target>-<commit>`；产物保留 14 天。
 
-当前桌面依赖锁尚未完整入库，CI 显式解析 pnpm 锁，并在缺少 Cargo.lock 时由 cargo 生成真实锁，再冻结安装。各目标的实际锁上传为 `desktop-locks-<target>-<commit>`；仅在 runner 本地提交锁快照，使现有发行清单的干净源码检查保持有效，不回写远端。安装包内的清单包含构建快照提交和锁文件 hash，下载说明同时列出原始源码与构建快照提交。锁补齐后可将解析步骤改为只使用已评审锁的 frozen 安装；补齐前，各次构建的传递依赖可能变化。
+真实 pnpm/Cargo 锁已补齐入库；CI 只执行 frozen + strict peers 安装和 cargo fetch --locked，不修改依赖锁或源码。各目标的实际锁同时上传为 `desktop-locks-<target>-<commit>`；安装包内的清单绑定触发构建的源码提交与锁文件 hash。
 
 安装包未签名、未公证；工作流只上传 Actions 产物，不创建公开 Release，也不证明安装后的任务链通过。需由 GitHub runner 实际完成构建后确认产物；本地 Linux 环境不能验证 macOS/Windows 安装。
 
