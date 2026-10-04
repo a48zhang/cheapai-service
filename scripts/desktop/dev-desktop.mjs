@@ -322,7 +322,8 @@ async function main() {
     repositoryRoot,
     env,
   )
-  await runProcess('Tauri package build', process.execPath, [tauriCli, 'build', '--target', target], desktopRoot, env)
+  const bundle = process.platform === 'darwin' ? 'dmg' : 'nsis'
+  await runProcess('Tauri package build', process.execPath, [tauriCli, 'build', '--target', target, '--bundles', bundle], desktopRoot, env)
 }
 
 main().catch(error => {
