@@ -62,7 +62,7 @@
         "EMAIL_PROVIDER": "resend",
         "EMAIL_FROM": "noreply@mail.cheapai.dev",
         // RESEND_API_KEY and EMAIL_HMAC_KEY belong in Worker Secrets, never vars.
-        "EMAIL_VERIFICATION_READY": "false"
+        "EMAIL_VERIFICATION_READY": "true"
       },
       "triggers": { "crons": ["*/5 * * * *"] },
       "d1_databases": [{
