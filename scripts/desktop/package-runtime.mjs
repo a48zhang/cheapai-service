@@ -140,14 +140,39 @@ async function resolveRuntimeDependencies(runtimeDirectory, runtimePackage) {
 }
 
 async function copyRuntimeDependencies(dependencies, output, host) {
-  const visibleVersions = new Map(dependencies.map(({ name, metadata }) => [name, metadata.version]))
+  // Discover the actual installed graph before choosing a portable Node layout.
+  // A single resolved source can be shared at the root; distinct peer contexts
+  // (even at the same version) must retain their own nested resolution.
+  const visited = new Set()
+  const sourcesByName = new Map()
+  async function visit(dependency) {
+    if (visited.has(dependency.source)) return
+    visited.add(dependency.source)
+    const sources = sourcesByName.get(dependency.name) ?? new Map()
+    sources.set(dependency.source, dependency)
+    sourcesByName.set(dependency.name, sources)
+    for (const [name, spec] of dependencyEntries(dependency.metadata)) {
+      const resolved = await resolveDependency(dependency.source, name)
+      if (!resolved) {
+        if (spec.optional) continue
+        fail(`Required production dependency ${name} (${spec.range}) of ${dependency.name} is not installed`)
+      }
+      await visit({ name, ...resolved })
+    }
+  }
+  for (const dependency of dependencies) await visit(dependency)
+  const roots = new Map(dependencies.map(dependency => [dependency.name, dependency]))
+  for (const [name, sources] of sourcesByName) {
+    if (!roots.has(name) && sources.size === 1) roots.set(name, sources.values().next().value)
+  }
+  const visibleSources = new Map([...roots.values()].map(({ name, source }) => [name, source]))
   const destinationRoot = join(output, 'node_modules')
-  for (const dependency of dependencies) {
+  for (const dependency of roots.values()) {
     await copyDependencyPackage({
       source: dependency.source,
       destination: packagePath(destinationRoot, dependency.name),
       metadata: dependency.metadata,
-      visibleVersions,
+      visibleSources,
       active: new Set(),
       host,
     })
@@ -172,12 +197,12 @@ async function copyDependencyPackage({
   source,
   destination,
   metadata,
-  visibleVersions,
+  visibleSources,
   active,
   host,
 }) {
   const identity = `${metadata.name}@${metadata.version}`
-  if (active.has(identity)) return
+  if (active.has(source)) return
   const existing = await lstat(destination).catch((error) => error.code === 'ENOENT' ? null : Promise.reject(error))
   if (existing) {
     const installed = JSON.parse(await readFile(join(await realpath(destination), 'package.json'), 'utf8'))
@@ -191,10 +216,10 @@ async function copyDependencyPackage({
   }
 
   await copyPackageFiles(source, destination)
-  const nextVisible = new Map(visibleVersions)
-  nextVisible.set(metadata.name, metadata.version)
+  const nextVisible = new Map(visibleSources)
+  nextVisible.set(metadata.name, source)
   const nextActive = new Set(active)
-  nextActive.add(identity)
+  nextActive.add(source)
   const dependencies = []
   for (const [name, spec] of dependencyEntries(metadata)) {
     const resolved = await resolveDependency(source, name)
@@ -202,15 +227,15 @@ async function copyDependencyPackage({
       if (spec.optional) continue
       fail(`Required production dependency ${name} (${spec.range}) of ${identity} is not installed in the workspace dependency tree`)
     }
-    if (nextVisible.get(name) === resolved.metadata.version) continue
+    if (nextVisible.get(name) === resolved.source) continue
     dependencies.push({ name, source: resolved.source, metadata: resolved.metadata })
   }
 
   // Make this package's complete direct dependency set visible to every child.
   // This keeps compatible packages shared by normal Node resolution and nests
-  // only versions that differ from an ancestor.
+  // only sources that differ from an ancestor, including peer variants.
   const childVisible = new Map(nextVisible)
-  for (const dependency of dependencies) childVisible.set(dependency.name, dependency.metadata.version)
+  for (const dependency of dependencies) childVisible.set(dependency.name, dependency.source)
   const dependencyRoot = join(destination, 'node_modules')
   for (const dependency of dependencies) {
     const childDestination = packagePath(dependencyRoot, dependency.name)
@@ -218,7 +243,7 @@ async function copyDependencyPackage({
       source: dependency.source,
       destination: childDestination,
       metadata: dependency.metadata,
-      visibleVersions: childVisible,
+      visibleSources: childVisible,
       active: nextActive,
       host,
     })

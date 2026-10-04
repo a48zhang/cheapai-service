@@ -82,3 +82,7 @@ Windows 同时独立保留原生 `.exe` 编译产物；它不包含完整 Runtim
 ```sh
 node scripts/desktop/create-dmg.mjs --app /path/to/cheapai.dev.app --output /path/to/cheapai.dev_0.0.0_aarch64.dmg --volume-name cheapai.dev
 ```
+
+Windows attempt 2 的官方 NSIS 工具和插件下载/校验已通过，停在 `Target: x64` 后无输出，随后打包 step 明确达到 50 分钟时限。资源统计发现 550 种 name/version 被嵌套复制成 4,253 份。包装器现在预先遍历真实安装图，仅将解析来源唯一的包共享到顶层；多版本和不同 peer 来源仍嵌套，比较依据由版本改为真实 source 路径，不合并依赖上下文。
+
+真实 Linux 资源装配通过：仍为 550 种 name/version，实际副本 569；清单从 264,667 文件／2,446,089,308 bytes 降到 28,498 文件／599,098,169 bytes。把整个资源目录移出仓库后，随包 Node 实际完成 sidecar bootstrap、无账号 start 返回 account-required、关闭管道退出 0。现有桌面 5 文件／23 用例通过，没有新增测试体系。此结果证明装配去重和启动边界；macOS DMG、Windows NSIS 是否解除卡点仍需目标平台执行，不能仅凭体积下降宣称成功。
