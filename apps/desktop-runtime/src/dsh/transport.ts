@@ -494,7 +494,7 @@ function installGatewayGlobalsLease(connection: DshConnectionInfo): () => void {
     if (Reflect.get(globalThis, '__DSH_TRANSPORT__') === transportValue) {
       restoreProperty('__DSH_TRANSPORT__', previousTransport)
     }
-    if (Reflect.get(globalThis, 'WebSocket') === RuntimeAuthenticatedWebSocket) {
+    if (Object.getOwnPropertyDescriptor(globalThis, 'WebSocket')?.value === RuntimeAuthenticatedWebSocket) {
       restoreProperty('WebSocket', previousWebSocket)
     }
     activeGatewayGlobalsOwner = undefined
