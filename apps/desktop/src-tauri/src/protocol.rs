@@ -49,7 +49,6 @@ pub(crate) enum RuntimeResponse {
     Failure { id: String, code: String },
 }
 
-#[derive(Debug)]
 pub(crate) enum RuntimeEvent {
     Bootstrapped {
         source: String,
@@ -60,6 +59,7 @@ pub(crate) enum RuntimeEvent {
     },
     Status(DshLifecycleSnapshot),
     DshStream(DshStreamFrame),
+    AccountState(Value),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -99,6 +99,10 @@ pub(crate) struct DshLifecycleSnapshot {
     pub(crate) state: DshLifecycleState,
     pub(crate) generation: u64,
     pub(crate) stage: Option<String>,
+    /// Private PID reported by the Runtime's owned detached DSH child. It is
+    /// consumed by the native reaper and deliberately omitted from public DTOs.
+    #[serde(default)]
+    pub(crate) process_id: Option<u32>,
     failure: Option<DshLifecycleFailure>,
 }
 
@@ -273,6 +277,12 @@ fn decode_runtime_event(
                 .map_err(|_| ProtocolError("status event is invalid"))?;
             Ok(RuntimeMessage::Event(RuntimeEvent::Status(snapshot)))
         }
+        Some("account-state") => Ok(RuntimeMessage::Event(RuntimeEvent::AccountState(
+            record
+                .get("state")
+                .cloned()
+                .ok_or(ProtocolError("account-state event has no state"))?,
+        ))),
         Some("dsh.stream") => {
             let value = Value::Object(record.clone());
             let frame: DshStreamFrame = serde_json::from_value(value)
@@ -360,4 +370,113 @@ fn validate_private_connection(
         return Err(ProtocolError("Runtime DSH connection is invalid"));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{
+        collections::VecDeque,
+        pin::Pin,
+        task::{Context, Poll},
+    };
+    use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader, ReadBuf};
+
+    struct ChunkedInput {
+        chunks: VecDeque<Vec<u8>>,
+        offset: usize,
+    }
+
+    impl AsyncRead for ChunkedInput {
+        fn poll_read(
+            self: Pin<&mut Self>,
+            _context: &mut Context<'_>,
+            output: &mut ReadBuf<'_>,
+        ) -> Poll<std::io::Result<()>> {
+            let input = self.get_mut();
+            loop {
+                let Some(chunk_length) = input.chunks.front().map(Vec::len) else {
+                    return Poll::Ready(Ok(()));
+                };
+                if input.offset == chunk_length {
+                    input.chunks.pop_front();
+                    input.offset = 0;
+                    continue;
+                }
+                let start = input.offset;
+                let remaining = chunk_length - start;
+                let amount = remaining.min(output.remaining());
+                if amount == 0 {
+                    return Poll::Ready(Ok(()));
+                }
+                {
+                    let chunk = input.chunks.front().expect("chunk length was present");
+                    output.put_slice(&chunk[start..start + amount]);
+                }
+                input.offset += amount;
+                return Poll::Ready(Ok(()));
+            }
+        }
+    }
+
+    #[test]
+    fn decodes_control_message_split_across_input_chunks() {
+        let input = ChunkedInput {
+            chunks: VecDeque::from(vec![
+                br#"{"type":"runtime."#.to_vec(),
+                br#"event","event":"bootstrapped","source":"sidecar","runtime":"bun"}"#.to_vec(),
+                b"\n".to_vec(),
+            ]),
+            offset: 0,
+        };
+
+        tauri::async_runtime::block_on(async {
+            let mut reader = BufReader::new(input);
+            let mut line = String::new();
+            reader.read_line(&mut line).await.expect("read control line");
+            match decode_runtime_message(line.trim_end()).expect("decode full line") {
+                RuntimeMessage::Event(RuntimeEvent::Bootstrapped { source, runtime }) => {
+                    assert_eq!(source, "sidecar");
+                    assert_eq!(runtime, "bun");
+                }
+                _ => panic!("unexpected decoded control message"),
+            }
+        });
+    }
+
+    #[test]
+    fn private_connection_and_owned_pid_are_omitted_from_public_snapshot() {
+        let (snapshot, has_connection) = lifecycle_result(
+            json!({
+                "kind": "started",
+                "status": {
+                    "state": "ready",
+                    "generation": 9,
+                    "stage": "ready",
+                    "processId": 4321,
+                    "failure": null
+                },
+                "connection": {
+                    "origin": "http://127.0.0.1:7443",
+                    "httpBaseUrl": "http://127.0.0.1:7443/",
+                    "streamBaseUrl": "ws://127.0.0.1:7443/",
+                    "port": 7443,
+                    "auth": {
+                        "type": "dsh-browser-cookie",
+                        "cookie": "dsh-auth-private-cookie"
+                    }
+                }
+            }),
+            "started",
+        )
+        .expect("valid private start response");
+        assert!(has_connection);
+
+        let public = PublicDshLifecycleSnapshot::from(snapshot);
+        let serialized = serde_json::to_string(&public).expect("serialize public snapshot");
+        assert!(serialized.contains("\"generation\":9"));
+        assert!(!serialized.contains("4321"));
+        assert!(!serialized.contains("127.0.0.1"));
+        assert!(!serialized.contains("dsh-auth-private-cookie"));
+    }
 }

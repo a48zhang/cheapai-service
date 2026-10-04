@@ -2,14 +2,21 @@ import { Console } from 'node:console'
 import { randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
 import { isAbsolute, join, resolve } from 'node:path'
-import type { HostStartupEvent } from '@sub2api/desktop-contracts'
+import type { DesktopAccountData, HostStartupEvent } from '@sub2api/desktop-contracts'
 import { CHEAPAI_API_KEY_CREDENTIAL_REF } from './dsh/config.ts'
 import { createDshRuntimeTransport, type DshRuntimeTransport } from './dsh/transport.ts'
 import { launchDsh } from './dsh/launcher.ts'
 import { DshLifecycle, type DshLifecycleSnapshot } from './dsh/lifecycle.ts'
 import type { DshConnectionInfo } from './dsh/connection-info.ts'
 import { createCheapAiProviderProfile, normalizeCheapAiBaseURL } from './cheapai/provider.ts'
+import type { CheapAiApiProtocol, CheapAiModelProfile } from './cheapai/provider.ts'
 import { discoverCheapAiModels } from './cheapai/model-catalog.ts'
+import { DesktopAccountApiError, DesktopAccountClient } from './cheapai/account-client.ts'
+import { DesktopAccountController } from './cheapai/account-controller.ts'
+import { DesktopAccountStateStore, DesktopDshAccountBinding } from './cheapai/account-state.ts'
+import { DesktopCredentialBridge, DESKTOP_CREDENTIAL_SOCKET_ENV } from './cheapai/credential-bridge.ts'
+import type { DshAccountHomeScope } from './dsh/paths.ts'
+import { DesktopSessionManager } from './cheapai/session-manager.ts'
 import type {
   CheapAiPrivateConfiguration,
   DshRuntimeStreamEvent,
@@ -31,6 +38,14 @@ let dshTransportGeneration: number | undefined
 let dshTransportSetup: { generation: number; promise: Promise<void> } | undefined
 let dshTransportDisposal: Promise<void> | undefined
 let dshTransportEpoch = 0
+const accountStateStore = new DesktopAccountStateStore()
+let accountController: DesktopAccountController | undefined
+let credentialBridge: DesktopCredentialBridge | undefined
+let credentialBridgeAddress: string | undefined
+let credentialBridgeSetup: { bridge: DesktopCredentialBridge; promise: Promise<string> } | undefined
+let credentialBridgeEpoch = 0
+let accountHomeBase: string | undefined
+let runtimeShuttingDown = false
 
 function lifecycleIsReady(generation: number): boolean {
   const status = lifecycle?.status
@@ -61,6 +76,15 @@ function disposeDshTransport(): Promise<void> {
 function scheduleDshTransportDisposal(): void {
   void disposeDshTransport().catch(() => {
     process.stderr.write('DSH Runtime transport cleanup failed\n')
+  })
+}
+
+function scheduleCredentialBridgeDisposal(): void {
+  // closeCredentialBridge clears the endpoint globals and advances its epoch
+  // synchronously before its first await, so a restart cannot reuse the old
+  // child's capability while socket cleanup is still settling.
+  void closeCredentialBridge().catch(() => {
+    process.stderr.write('Desktop credential bridge cleanup failed\n')
   })
 }
 
@@ -131,14 +155,23 @@ async function dispatchDshTransport(
 }
 
 async function stopDshRuntime(): Promise<void> {
-  const [transportResult, lifecycleResult] = await Promise.allSettled([
-    disposeDshTransport(),
-    lifecycle?.stop() ?? Promise.resolve(),
-  ])
-  if (transportResult.status === 'rejected') {
+  await closeCredentialBridge()
+  let transportFailure: unknown
+  try {
+    await disposeDshTransport()
+  } catch (cause) {
+    transportFailure = cause
+  }
+  let lifecycleFailure: unknown
+  try {
+    await lifecycle?.stop()
+  } catch (cause) {
+    lifecycleFailure = cause
+  }
+  if (transportFailure !== undefined) {
     throw new RuntimeControlError('dsh-transport-cleanup-failed', 'DSH Runtime transport could not be disposed')
   }
-  if (lifecycleResult.status === 'rejected') throw lifecycleResult.reason
+  if (lifecycleFailure !== undefined) throw lifecycleFailure
 }
 
 function requiredAbsolutePath(value: string | undefined, fallback: string, label: string): string {
@@ -149,11 +182,11 @@ function requiredAbsolutePath(value: string | undefined, fallback: string, label
 
 function createLifecycle(): DshLifecycle {
   return new DshLifecycle({
-    launch: () => {
+    launch: (boundHome?: string) => {
       if (startup === undefined) throw new RuntimeControlError('not-started', 'Runtime startup is incomplete')
       const mode = startup.source === 'development' ? 'development' : 'packaged'
       const home = requiredAbsolutePath(
-        process.env.SUB2API_DSH_HOME,
+        boundHome ?? accountHomeBase ?? process.env.SUB2API_DSH_HOME,
         join(homedir(), '.cheapai.dev', 'dsh'),
         'DSH home',
       )
@@ -173,9 +206,12 @@ function createLifecycle(): DshLifecycle {
         ...(resourceDirectory === undefined ? {} : { resourceDirectory }),
         home,
         workspaceDirectory,
-        // DSH resolves this credential through its own mutable credential store.
-        // A parent environment value would shadow writes and defeat key rotation.
-        env: { [CHEAPAI_API_KEY_CREDENTIAL_REF]: undefined },
+        // Managed account mode uses a private per-child resolver. Static Key
+        // configuration exists only behind the explicit development switch.
+        env: {
+          [CHEAPAI_API_KEY_CREDENTIAL_REF]: undefined,
+          [DESKTOP_CREDENTIAL_SOCKET_ENV]: credentialBridgeAddress,
+        },
       })
     },
     onState: status => {
@@ -188,11 +224,15 @@ function createLifecycle(): DshLifecycle {
           && dshTransportGeneration !== status.generation)) {
         scheduleDshTransportDisposal()
       }
+      if (status.state === 'stopped' || status.state === 'failed') {
+        scheduleCredentialBridgeDisposal()
+      }
     },
   })
 }
 
 function requireLifecycle(): DshLifecycle {
+  if (runtimeShuttingDown) throw new RuntimeControlError('runtime-shutting-down', 'Runtime is shutting down')
   if (lifecycle === undefined) throw new RuntimeControlError('not-started', 'Runtime has not received its host startup event')
   return lifecycle
 }
@@ -237,6 +277,146 @@ function applyLatestConfiguration(connection: DshConnectionInfo): Promise<void> 
   })
   configurationQueue = task.catch(() => {})
   return task
+}
+
+function developmentKeyModeEnabled(): boolean {
+  return startup?.source === 'development'
+    && process.env.SUB2API_DESKTOP_DEVELOPMENT_KEY_MODE === '1'
+}
+
+function modelConfiguration(): { readonly baseURL: string; readonly api: CheapAiApiProtocol } {
+  const baseURL = normalizeCheapAiBaseURL(process.env.SUB2API_DESKTOP_MODEL_BASE_URL ?? 'https://cheapai.dev/v1')
+  const configuredApi = process.env.SUB2API_DESKTOP_MODEL_API ?? 'openai-completions'
+  if (configuredApi !== 'openai-completions'
+    && configuredApi !== 'openai-responses'
+    && configuredApi !== 'anthropic-messages') {
+    throw new RuntimeControlError('invalid-model-configuration', 'CheapAI model protocol is invalid')
+  }
+  return { baseURL, api: configuredApi }
+}
+
+function currentAccountGeneration(generation: number): boolean {
+  return accountStateStore.isCurrent(generation)
+}
+
+function assertCurrentAccountGeneration(generation: number): void {
+  if (!currentAccountGeneration(generation)) {
+    throw new RuntimeControlError('stale-account-generation', 'The active desktop account changed')
+  }
+}
+
+async function ensureCredentialBridge(generation: number): Promise<string> {
+  assertCurrentAccountGeneration(generation)
+  if (credentialBridge !== undefined && credentialBridgeAddress !== undefined) {
+    return credentialBridgeAddress
+  }
+  if (credentialBridgeSetup !== undefined) {
+    const address = await credentialBridgeSetup.promise
+    assertCurrentAccountGeneration(generation)
+    return address
+  }
+  const manager = accountController
+  if (manager === undefined) throw new RuntimeControlError('not-started', 'Account services are not ready')
+
+  const epoch = ++credentialBridgeEpoch
+  const bridge = new DesktopCredentialBridge(manager)
+  const setup = {
+    bridge,
+    promise: bridge.listen().then(address => {
+      if (epoch !== credentialBridgeEpoch || !currentAccountGeneration(generation)) {
+        void bridge.close()
+        throw new RuntimeControlError('stale-account-generation', 'The active desktop account changed')
+      }
+      credentialBridge = bridge
+      credentialBridgeAddress = address
+      return address
+    }).finally(() => {
+      if (credentialBridgeSetup === setup) credentialBridgeSetup = undefined
+    }),
+  }
+  credentialBridgeSetup = setup
+  return setup.promise
+}
+
+async function closeCredentialBridge(): Promise<void> {
+  credentialBridgeEpoch += 1
+  const active = credentialBridge
+  const setup = credentialBridgeSetup
+  credentialBridge = undefined
+  credentialBridgeAddress = undefined
+  credentialBridgeSetup = undefined
+  const closing = [
+    active?.close(),
+    setup?.bridge.close(),
+  ].filter((operation): operation is Promise<void> => operation !== undefined)
+  await Promise.allSettled(closing)
+  await setup?.promise.catch(() => undefined)
+}
+
+async function activateAccountProvider(
+  account: DesktopAccountData,
+  generation: number,
+): Promise<DshConnectionInfo> {
+  const owner = requireLifecycle()
+  const controller = accountController
+  if (controller === undefined) throw new RuntimeControlError('not-started', 'Account services are not ready')
+  assertCurrentAccountGeneration(generation)
+  const state = accountStateStore.getSnapshot()
+  const activeAccount = state.status === 'signedIn'
+    ? state.account
+    : state.status === 'unavailable'
+      ? state.account
+      : null
+  if (activeAccount?.user.id !== account.user.id) {
+    throw new RuntimeControlError('stale-account-generation', 'The active desktop account changed')
+  }
+
+  await ensureCredentialBridge(generation)
+  assertCurrentAccountGeneration(generation)
+  const model = modelConfiguration()
+  let models: CheapAiModelProfile[]
+  try {
+    models = await discoverCheapAiModels({
+      ...model,
+      getKey: async () => (await controller.getKey()).key,
+      signal: AbortSignal.timeout(REMOTE_TIMEOUT_MS),
+    })
+  } catch (cause) {
+    if (cause instanceof DesktopAccountApiError && cause.problem === 'noModels') {
+      await stopDshRuntime().catch(() => undefined)
+    }
+    throw cause
+  }
+  assertCurrentAccountGeneration(generation)
+
+  const profile = createCheapAiProviderProfile({ ...model, models })
+  const connection = owner.status.state === 'ready' && owner.connectionInfo !== undefined
+    ? owner.connectionInfo
+    : await owner.start()
+  assertCurrentAccountGeneration(generation)
+  const runtimeGeneration = owner.status.generation
+  await ensureDshTransport(connection, runtimeGeneration)
+  assertCurrentAccountGeneration(generation)
+  await callDshRemote(connection, 'settings', 'update', {
+    ns: DSH_SETTINGS_NAMESPACE,
+    patch: profile,
+  })
+  assertCurrentAccountGeneration(generation)
+  return connection
+}
+
+async function startDevelopmentKeyRuntime(): Promise<DshConnectionInfo> {
+  if (!developmentKeyModeEnabled()
+    || accountStateStore.getSnapshot().status !== 'signedOut'
+    || privateConfiguration?.apiKey == null) {
+    throw new RuntimeControlError('account-required', 'Sign in to start CheapAI')
+  }
+  const owner = requireLifecycle()
+  const connection = await owner.start()
+  const generation = owner.status.generation
+  await ensureDshTransport(connection, generation)
+  await applyLatestConfiguration(connection)
+  return connection
 }
 
 async function callDshRemote(
@@ -305,23 +485,47 @@ async function main(): Promise<void> {
     onStartup: event => {
       if (startup !== undefined) throw new RuntimeControlError('duplicate-startup', 'Runtime startup was already initialized')
       startup = event
+      const baseHome = requiredAbsolutePath(
+        process.env.SUB2API_DSH_HOME,
+        join(homedir(), '.cheapai.dev', 'dsh'),
+        'DSH base home',
+      )
+      const homeScope: DshAccountHomeScope = event.source === 'development' ? 'development' : 'production'
+      accountHomeBase = baseHome
       lifecycle = createLifecycle()
+      const client = new DesktopAccountClient({
+        baseUrl: process.env.SUB2API_DESKTOP_API_BASE_URL ?? 'https://cheapai.dev',
+      })
+      const sessions = new DesktopSessionManager({
+        getKey: (session, options) => client.getKey(session, options),
+      })
+      const binding = new DesktopDshAccountBinding({
+        state: accountStateStore,
+        lifecycle,
+        baseHome,
+        scope: homeScope,
+        beforeChange: async () => {
+          await closeCredentialBridge()
+          await disposeDshTransport()
+        },
+      })
+      accountController = new DesktopAccountController({
+        client,
+        sessions,
+        state: accountStateStore,
+        binding,
+        activateProvider: activateAccountProvider,
+        stopRuntime: stopDshRuntime,
+      })
     },
     start: async () => {
-      const owner = requireLifecycle()
-      const ready = owner.start()
-      const generation = owner.status.generation
-      const connection = await ready
-      await ensureDshTransport(connection, generation)
-      const configuration = privateConfiguration
-      if (configuration !== undefined) {
-        try {
-          await applyLatestConfiguration(connection)
-        } catch {
-          process.stderr.write('CheapAI configuration could not be applied to DSH\n')
-        }
+      const controller = accountController
+      if (controller === undefined) throw new RuntimeControlError('not-started', 'Account services are not ready')
+      const state = accountStateStore.getSnapshot()
+      if (state.status === 'signedIn' || (state.status === 'unavailable' && state.account !== null)) {
+        return controller.start()
       }
-      return connection
+      return startDevelopmentKeyRuntime()
     },
     stop: async () => {
       await stopDshRuntime()
@@ -342,6 +546,16 @@ async function main(): Promise<void> {
         && (normalized.apiKey.length === 0 || /[\r\n]/u.test(normalized.apiKey))) {
         throw new RuntimeControlError('invalid-provider-credential', 'CheapAI credential is empty or invalid')
       }
+      if (normalized.apiKey !== null && !developmentKeyModeEnabled()) {
+        throw new RuntimeControlError('development-key-mode-required', 'Static provider credentials are disabled')
+      }
+      const accountState = accountStateStore.getSnapshot()
+      if (normalized.apiKey !== null
+        && (accountState.status === 'signedIn'
+          || (accountState.status === 'unavailable' && accountState.account !== null))) {
+        throw new RuntimeControlError('account-mode-active', 'Use the signed-in account for CheapAI')
+      }
+      if (!developmentKeyModeEnabled()) return { applied: false }
       privateConfiguration = normalized
       configurationRevision += 1
 
@@ -354,6 +568,13 @@ async function main(): Promise<void> {
       }
       return { applied: true }
     },
+    account: request => {
+      if (accountController === undefined) {
+        throw new RuntimeControlError('not-started', 'Account services are not ready')
+      }
+      return accountController.handle(request)
+    },
+    onAccountState: listener => accountStateStore.subscribe(listener),
     transport: (operation, payload, publish) => dispatchDshTransport(operation, payload, publish),
   })
   control = runtimeControl
@@ -362,7 +583,9 @@ async function main(): Promise<void> {
   let shutdownPromise: Promise<void> | undefined
   const onShutdown = (): void => {
     if (shutdownPromise !== undefined) return
+    runtimeShuttingDown = true
     runtimeControl.close()
+    accountController?.shutdown()
     process.stdin.pause()
     process.off('SIGINT', onShutdown)
     process.off('SIGTERM', onShutdown)

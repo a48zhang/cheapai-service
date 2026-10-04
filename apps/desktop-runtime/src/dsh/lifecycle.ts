@@ -1,5 +1,6 @@
 import { StringDecoder } from 'node:string_decoder'
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
+import { isAbsolute } from 'node:path'
 import {
   connectDshHost,
   DshConnectionProbeError,
@@ -31,11 +32,13 @@ export interface DshLifecycleSnapshot {
   readonly generation: number
   readonly stage?: DshLifecycleStage
   readonly failure?: DshLifecycleFailure
+  /** Native supervisor only; this private pipe field never enters renderer status. */
+  readonly processId?: number | null
 }
 
 export interface DshLifecycleOptions {
   /** Launch one configured DSH child through the pinned runtime executable. */
-  readonly launch: () => LaunchedDshProcess
+  readonly launch: (home?: string) => LaunchedDshProcess
   readonly startupTimeoutMs?: number
   readonly shutdownGraceMs?: number
   readonly fetch?: DshFetch
@@ -56,6 +59,7 @@ export class DshLifecycleError extends Error {
 interface ActiveRun {
   readonly generation: number
   readonly child: ChildProcessWithoutNullStreams
+  readonly signalTree?: LaunchedDshProcess['signalTree']
   readonly abortController: AbortController
   readonly decoder: StringDecoder
   readonly readyPromise: Promise<DshConnectionInfo>
@@ -69,16 +73,16 @@ interface ActiveRun {
   probing: boolean
   exited: boolean
   stopping: boolean
-  startupTimer?: ReturnType<typeof setTimeout>
-  terminationTimer?: ReturnType<typeof setTimeout>
+  startupTimer?: ReturnType<typeof setTimeout> | undefined
+  terminationTimer?: ReturnType<typeof setTimeout> | undefined
   stopPromise?: Promise<void>
   connection?: DshConnectionInfo
   failure?: DshLifecycleFailure
-  stdoutDataListener?: (chunk: Buffer | string) => void
-  stdoutEndListener?: () => void
-  stderrDataListener?: () => void
-  childErrorListener?: (error: Error) => void
-  childCloseListener?: (code: number | null, signal: NodeJS.Signals | null) => void
+  stdoutDataListener?: ((chunk: Buffer | string) => void) | undefined
+  stdoutEndListener?: (() => void) | undefined
+  stderrDataListener?: (() => void) | undefined
+  childErrorListener?: ((error: Error) => void) | undefined
+  childCloseListener?: ((code: number | null, signal: NodeJS.Signals | null) => void) | undefined
 }
 
 const DEFAULT_STARTUP_TIMEOUT_MS = 30_000
@@ -89,10 +93,14 @@ const MAX_STDOUT_LINE_CHARS = 8_192
 export class DshLifecycle {
   private readonly startupTimeoutMs: number
   private readonly shutdownGraceMs: number
-  private readonly fetcher?: DshFetch
+  private readonly fetcher?: DshFetch | undefined
   private readonly onState?: DshLifecycleOptions['onState']
   private generation = 0
-  private active?: ActiveRun
+  private active: ActiveRun | undefined
+  private selectedHome: string | undefined
+  private bindingRequest = 0
+  private bindingQueue: Promise<void> = Promise.resolve()
+  private pendingBinding: Promise<boolean> | undefined
   private current: DshLifecycleSnapshot = Object.freeze({ state: 'stopped', generation: 0 })
 
   constructor(private readonly options: DshLifecycleOptions) {
@@ -117,7 +125,60 @@ export class DshLifecycle {
     return this.active?.connection
   }
 
+  /** The account-scoped DSH home used for the next child launch. */
+  get accountHome(): string | undefined {
+    return this.selectedHome
+  }
+
+  /**
+   * Serialize an account-home change. The external owner first disposes any
+   * Runtime transport/bridge, then this lifecycle stops the old child and
+   * commits the new home only if the account operation is still current.
+   */
+  bindHome(
+    home: string | undefined,
+    isCurrent: () => boolean,
+    beforeStop: () => Promise<void>,
+  ): Promise<boolean> {
+    if (home !== undefined && !isAbsolute(home)) {
+      return Promise.reject(new TypeError('Account DSH home must be an absolute path'))
+    }
+    if (typeof isCurrent !== 'function' || typeof beforeStop !== 'function') {
+      return Promise.reject(new TypeError('Account DSH binding callbacks are required'))
+    }
+
+    const request = ++this.bindingRequest
+    const operation = this.bindingQueue.then(async () => {
+      if (request !== this.bindingRequest || !isCurrent()) return false
+      await beforeStop()
+      if (request !== this.bindingRequest || !isCurrent()) return false
+      await this.stop()
+      if (request !== this.bindingRequest || !isCurrent()) return false
+      this.selectedHome = home
+      return true
+    })
+    this.bindingQueue = operation.then(() => undefined, () => undefined)
+    const pending = operation.finally(() => {
+      if (this.pendingBinding === pending) this.pendingBinding = undefined
+    })
+    this.pendingBinding = pending
+    return pending
+  }
+
   start(): Promise<DshConnectionInfo> {
+    const pendingBinding = this.pendingBinding
+    if (pendingBinding !== undefined) {
+      return pendingBinding.then(bound => {
+        if (!bound) {
+          throw new DshLifecycleError('stopped', 'shutdown', 'DSH account binding changed before launch')
+        }
+        return this.start()
+      })
+    }
+    return this.startCurrentHome()
+  }
+
+  private startCurrentHome(): Promise<DshConnectionInfo> {
     const existing = this.active
     if (existing !== undefined && !existing.exited) {
       if (this.current.state === 'ready' && existing.connection !== undefined) {
@@ -136,7 +197,7 @@ export class DshLifecycle {
 
     let launched: LaunchedDshProcess
     try {
-      launched = this.options.launch()
+      launched = this.options.launch(this.selectedHome)
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'DSH launcher failed'
       const failure: DshLifecycleFailure = {
@@ -159,6 +220,7 @@ export class DshLifecycle {
     const run: ActiveRun = {
       generation,
       child: launched.child,
+      ...(launched.signalTree === undefined ? {} : { signalTree: launched.signalTree }),
       abortController: new AbortController(),
       decoder: new StringDecoder('utf8'),
       readyPromise,
@@ -227,7 +289,7 @@ export class DshLifecycle {
       run.rejectReady(new DshLifecycleError('stopped', 'shutdown', 'DSH startup was stopped'))
     }
     this.publish({ state: 'stopping', generation: run.generation, stage: 'shutdown' })
-    this.signal(run, 'SIGTERM')
+    await this.signal(run, 'SIGTERM')
 
     let graceTimer: ReturnType<typeof setTimeout> | undefined
     await Promise.race([
@@ -238,7 +300,7 @@ export class DshLifecycle {
     ])
     if (graceTimer !== undefined) clearTimeout(graceTimer)
     if (!run.exited) {
-      this.signal(run, 'SIGKILL')
+      await this.signal(run, 'SIGKILL')
       let killTimer: ReturnType<typeof setTimeout> | undefined
       await Promise.race([
         run.exitPromise,
@@ -400,17 +462,31 @@ export class DshLifecycle {
   }
 
   private requestTermination(run: ActiveRun): void {
-    this.signal(run, 'SIGTERM')
-    run.terminationTimer = setTimeout(() => this.signal(run, 'SIGKILL'), this.shutdownGraceMs)
+    void this.signal(run, 'SIGTERM')
+    run.terminationTimer = setTimeout(() => { void this.signal(run, 'SIGKILL') }, this.shutdownGraceMs)
   }
 
-  private signal(run: ActiveRun, signal: NodeJS.Signals): void {
-    if (run.exited) return
+  private async signal(run: ActiveRun, signal: NodeJS.Signals): Promise<void> {
+    if (this.hasExited(run)) return
+    if (run.signalTree !== undefined) {
+      try {
+        const signaled = await run.signalTree(signal, () => this.hasExited(run))
+        if (signaled || this.hasExited(run)) return
+      } catch {
+        // Fall back to the owned ChildProcess when process-tree signaling is unavailable.
+      }
+    }
+    if (this.hasExited(run)) return
     try {
       run.child.kill(signal)
     } catch {
       // The close event remains the single authority for process cleanup.
     }
+  }
+
+  private hasExited(run: ActiveRun): boolean {
+    return run.exited || (run.child.exitCode !== null && run.child.exitCode !== undefined)
+      || (run.child.signalCode !== null && run.child.signalCode !== undefined)
   }
 
   private clearStartupTimer(run: ActiveRun): void {
@@ -463,8 +539,12 @@ export class DshLifecycle {
   }
 
   private publish(snapshot: DshLifecycleSnapshot): void {
+    const run = this.active
+    const pid = run?.child.pid
     this.current = Object.freeze({
       ...snapshot,
+      processId: run !== undefined && !run.exited && run.generation === snapshot.generation
+        && typeof pid === 'number' && Number.isSafeInteger(pid) && pid > 1 ? pid : null,
       ...(snapshot.failure === undefined ? {} : { failure: Object.freeze({ ...snapshot.failure }) }),
     })
     try {

@@ -41,3 +41,21 @@
 ## 本次验证边界
 
 仅从固定 GitHub 来源下载 LICENSE 和 48 个 apicompat 文件到工程外工作证据目录，49 个 Git blob 校验全部一致；未运行上游测试、未执行协议移植、未部署、未调用真实模型。P21-L 又核对官方完整许可文本及两个落盘副本，未新增业务代码。本声明与协议基线的静态检查结果不能作为运行兼容性或发布合规验收完成的证明；没有云、邮件或模型调用验收。
+
+## cheapai.dev Desktop 固定 Runtime 来源（2026-10-04）
+
+桌面构建使用以下固定来源。此记录覆盖版本与已取得声明；完整平台依赖闭包由实际 `release-manifest.json` / package-runtime 输出清单确定。当前依赖安装、原生打包与发行验收仍受环境阻塞，没有公开发布安装包。
+
+| 材料 | 固定来源 | 随仓库保存的完整上游文本 |
+| --- | --- | --- |
+| DSH 及其同版本工作区包 | `deepseek-ai/deepseek-harness`，commit `5badb15009ae1756c3afe0ae0cef1faafc290ccc`，`0.2.1-alpha.1` | [DSH-MIT.txt](LICENSES/desktop/DSH-MIT.txt)，MIT，Copyright (c) 2026 DeepSeek |
+| Bun 候选运行时 | `oven-sh/bun`，tag `bun-v1.4.2` | [Bun-LICENSE.md](LICENSES/desktop/Bun-LICENSE.md)，保留上游对 JavaScriptCore/WebKit、静态链接库和 polyfill 的完整声明 |
+| Node 对照/备选 | `nodejs/node`，tag `v24.19.0` | [Node-LICENSE.txt](LICENSES/desktop/Node-LICENSE.txt)，完整正文包含 Node 自身和其嵌入第三方库的声明，不只是 MIT 节选 |
+
+Bun 的上游声明包含静态链接 JavaScriptCore/WebKit 的 LGPL-2 要求以及重新构建/重链接路径；不能将整个 Bun 二进制及其所有依赖统一标成 MIT。真实发行时须按所选二进制和上游构建材料落实其适用分发要求，完整声明应随资源一起保留。
+
+Runtime 打包复制 npm production 依赖及传递闭包时，应保留各包的 LICENSE/NOTICE/COPYING 等文件；此表不能替代这些包自己的声明。前端 bundle 与 Tauri/Rust 锁中的依赖也按实际锁/构建清单记录。未安装的闭包、未构建的原生插件和未来更新没有在这里被宣称为完成审计。详见 [Runtime 分发说明](docs/desktop/runtime-distribution.md)。
+
+P02 的 `package-runtime.mjs` 将本节表中的三份完整 desktop license 与本文件复制到 `resources/generated/runtime/notices/LICENSES/desktop/` 和 `resources/generated/runtime/notices/THIRD_PARTY_NOTICES.md`。它按目标 runner 复制实际 Runtime production dependency closure，并保留各已解析包的许可文件；`release-manifest.json` 将记录实际包名、版本、路径、native addon 和资源文件哈希。该资源清单是组成记录，不等于逐包许可证审查。
+
+截至 2026-10-04，锁文件仍缺 desktop/runtime/contracts workspace importers，Tauri `Cargo.lock` 和前端/Runtime 编译输出也未生成。打包器会在这些前置条件缺失时失败；本仓库尚无本轮生成的 `release-manifest.json`、完整随包依赖闭包或安装包，因此不能将未来清单描述成已生成或已审计结果。

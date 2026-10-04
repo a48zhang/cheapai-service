@@ -335,7 +335,7 @@ export class DesktopCredentialBridgeClient {
         socket.destroy()
       }, this.timeoutMs)
       timer.unref?.()
-      const abort = (): void => socket.destroy()
+      const abort = (): void => { socket.destroy() }
       signal?.addEventListener('abort', abort, { once: true })
 
       const finish = (error?: DesktopCredentialBridgeError, result?: BridgeResult): void => {
@@ -393,7 +393,12 @@ function parseRequest(frame: Buffer): BridgeRequest | null {
       || value.version !== PROTOCOL_VERSION || typeof value.id !== 'string' || !UUID_PATTERN.test(value.id)
       || (value.command !== 'resolve' && value.command !== 'status')
       || value.ref !== CHEAPAI_API_KEY_CREDENTIAL_REF) return null
-    return value as BridgeRequest
+    return {
+      version: PROTOCOL_VERSION,
+      id: value.id,
+      command: value.command,
+      ref: CHEAPAI_API_KEY_CREDENTIAL_REF,
+    }
   } catch {
     return null
   }

@@ -273,6 +273,7 @@ function problemMessage(problem: DesktopAccountProblem): string {
     case 'insufficientBalance': return 'The account balance is insufficient.'
     case 'groupUnavailable': return 'The account group is unavailable.'
     case 'serviceUnavailable': return 'The desktop account service is unavailable.'
+    case 'noModels': return 'The account has no available models.'
   }
 }
 

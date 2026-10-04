@@ -1,0 +1,174 @@
+.conversation-message-list {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  flex-direction: column;
+  background: var(--color-canvas);
+}
+
+.conversation-message-list__viewport {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-8) var(--space-6);
+  scroll-behavior: auto;
+}
+
+.conversation-message-list__timeline {
+  display: grid;
+  width: min(100%, 58rem);
+  min-width: 0;
+  gap: var(--space-8);
+  margin: 0 auto;
+}
+
+.conversation-message-list__notice {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+}
+
+.conversation-message-list__timeline > .ui-button {
+  justify-self: start;
+}
+
+.conversation-message {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.conversation-message--user {
+  align-items: flex-end;
+}
+
+.conversation-message__role {
+  color: var(--color-ink-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.conversation-message__body {
+  min-width: 0;
+  max-width: min(100%, 48rem);
+  overflow-wrap: anywhere;
+}
+
+.conversation-message__assistant-content {
+  min-width: 0;
+}
+
+.conversation-message__plain-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.conversation-message__status {
+  margin: var(--space-2) 0 0;
+  color: var(--color-ink-muted);
+  font-size: var(--font-size-sm);
+}
+
+.conversation-message--user .conversation-message__body {
+  max-width: min(88%, 42rem);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid #d5e5ff;
+  border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-lg);
+  background: var(--color-primary-soft);
+  color: var(--color-ink);
+  white-space: pre-wrap;
+}
+
+.conversation-message--assistant .conversation-message__body {
+  width: 100%;
+  color: var(--color-ink);
+}
+
+.conversation-message__markdown {
+  /* The pinned DSH MarkdownText is styled through its public DSW tokens. */
+  --dsw-font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;
+  --ds-font-family-code: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --dsw-font-markdown-base: 1rem/1.75 var(--dsw-font-family);
+  --dsw-font-markdown-base-strong: 1rem/1.5 var(--dsw-font-family);
+  --dsw-font-markdown-h1: 1.75rem/1.25 var(--dsw-font-family);
+  --dsw-font-markdown-h2: 1.5rem/1.3 var(--dsw-font-family);
+  --dsw-font-markdown-h3: 1.25rem/1.35 var(--dsw-font-family);
+  --dsw-font-markdown-h4: 1.125rem/1.4 var(--dsw-font-family);
+  --dsw-font-markdown-code: 0.875rem/1.5 var(--ds-font-family-code);
+  --dsw-font-markdown-code-block: 0.875rem/1.55 var(--ds-font-family-code);
+  --dsw-font-markdown-table-head: 600 0.875rem/1.4 var(--dsw-font-family);
+  --dsw-font-markdown-table: 0.875rem/1.5 var(--dsw-font-family);
+  --dsw-alias-label-primary: var(--color-ink);
+  --dsw-alias-label-secondary: var(--color-ink-muted);
+  --dsw-alias-label-tertiary: var(--color-ink-subtle);
+  --dsw-alias-label-caption: var(--color-ink-subtle);
+  --dsw-alias-link: var(--color-primary);
+  --dsw-alias-state-business-primary: var(--color-focus);
+  --dsw-alias-border-l1: var(--color-border);
+  --dsw-alias-border-l2: var(--color-border);
+  --dsw-alias-border-l3: var(--color-border-strong);
+  --dsw-alias-bg-base: var(--color-surface);
+  --dsw-alias-markdown-inline-code: var(--color-surface-muted);
+  --dsw-alias-markdown-code-block: #f4f7fc;
+  --dsw-alias-markdown-code-block-banner: #eaf1fb;
+  --dsw-radius-xs: var(--radius-sm);
+  --dsw-radius-sm: var(--radius-sm);
+  --dsw-radius-md: var(--radius-md);
+  --dsw-radius-lg: var(--radius-lg);
+  --dsw-focus-ring-color: var(--color-focus);
+  --dsw-focus-ring-width: 2px;
+  --ds-transition-duration: 120ms;
+  --ds-ease-in-out: ease-in-out;
+  --shiki-background: #f4f7fc;
+  --shiki-foreground: var(--color-ink);
+
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.conversation-message__markdown .md-code-block {
+  max-width: 100%;
+}
+
+.conversation-message__markdown .md-code-block pre {
+  max-height: 32rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+  overflow-wrap: anywhere;
+}
+
+.conversation-message__tool-slot {
+  width: 100%;
+  min-width: 0;
+}
+
+.conversation-message-list__latest {
+  position: absolute;
+  right: var(--space-6);
+  bottom: var(--space-5);
+  z-index: 2;
+  box-shadow: var(--shadow-panel);
+}
+
+@media (max-width: 720px) {
+  .conversation-message-list__viewport {
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .conversation-message--user .conversation-message__body {
+    max-width: 94%;
+  }
+
+  .conversation-message-list__latest {
+    right: var(--space-4);
+    bottom: var(--space-4);
+  }
+}

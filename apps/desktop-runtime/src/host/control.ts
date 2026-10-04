@@ -2,11 +2,13 @@ import { createInterface, type Interface } from 'node:readline'
 import type { Readable, Writable } from 'node:stream'
 import type {
   DesktopAccountData,
+  DesktopAccountProblem,
   DesktopHostAccountRequest,
   DesktopHostAccountResult,
   DesktopPublicAccountState,
   HostStartupEvent,
 } from '@sub2api/desktop-contracts'
+import { DesktopAccountApiError } from '../cheapai/account-client.ts'
 import type { DshConnectionInfo } from '../dsh/connection-info.ts'
 import type { DshLifecycleSnapshot } from '../dsh/lifecycle.ts'
 import {
@@ -51,8 +53,8 @@ export class RuntimeControlError extends Error {
 
 /** One private JSON-lines request/response channel; ordinary logs use stderr. */
 export class RuntimeControlChannel {
-  private reader?: Interface
-  private unsubscribeAccountState?: () => void
+  private reader: Interface | undefined
+  private unsubscribeAccountState: (() => void) | undefined
   private startup?: HostStartupEvent
   private startupPromise: Promise<void> = Promise.resolve()
   private startupFailure?: RuntimeControlError
@@ -232,11 +234,26 @@ function writeLine(output: Writable, line: string): Promise<void> {
 
 function controlError(cause: unknown): RuntimeControlError {
   if (cause instanceof RuntimeControlError) return cause
+  if (cause instanceof DesktopAccountApiError) {
+    return new RuntimeControlError(cause.problem, accountProblemMessage(cause.problem))
+  }
   if (cause instanceof Error && cause.name === 'DshLifecycleError' && 'code' in cause) {
     const code = Reflect.get(cause, 'code')
     if (typeof code === 'string') return new RuntimeControlError(code, cause.message)
   }
   return new RuntimeControlError('runtime-error', 'Runtime command failed')
+}
+
+function accountProblemMessage(problem: DesktopAccountProblem): string {
+  switch (problem) {
+    case 'network': return 'Could not reach the CheapAI account service'
+    case 'serviceUnavailable': return 'The CheapAI account service is unavailable'
+    case 'noModels': return 'No models are available for this account'
+    case 'sessionExpired': return 'Sign in to CheapAI again'
+    case 'keyRevoked': return 'The account Key is unavailable'
+    case 'insufficientBalance': return 'The account has insufficient balance'
+    case 'groupUnavailable': return 'The account group is unavailable'
+  }
 }
 
 function projectPublicAccountState(state: DesktopPublicAccountState): DesktopPublicAccountState {

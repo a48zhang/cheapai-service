@@ -4,10 +4,80 @@ import type {
   DesktopPublicAccountState,
   DesktopPublicUser,
 } from '@sub2api/desktop-contracts'
+import {
+  resolveDshAccountHome,
+  type DshAccountHomeScope,
+} from '../dsh/paths.ts'
 
 export type DesktopAccountOperation = 'restore' | 'login' | 'refresh' | 'logout'
 export type DesktopAccountGeneration = number
 export type DesktopAccountStateListener = (state: DesktopPublicAccountState) => void
+
+export interface DshAccountBindingLifecycle {
+  readonly accountHome: string | undefined
+  bindHome(
+    home: string | undefined,
+    isCurrent: () => boolean,
+    beforeStop: () => Promise<void>,
+  ): Promise<boolean>
+}
+
+export interface DesktopDshAccountBindingOptions {
+  readonly state: Pick<DesktopAccountStateStore, 'isCurrent'>
+  readonly lifecycle: DshAccountBindingLifecycle
+  readonly baseHome: string
+  readonly scope: DshAccountHomeScope
+  /** Dispose the old account's bridge/transport before DshLifecycle stops its child. */
+  readonly beforeChange: () => Promise<void>
+}
+
+/**
+ * Account-to-home binding for L06. The Token is deliberately absent: backend
+ * user id selects persistent history, while the account-state generation
+ * prevents a late login/restore response from re-binding an older account.
+ */
+export class DesktopDshAccountBinding {
+  private boundUserId: string | undefined
+  private boundHome: string | undefined
+
+  constructor(private readonly options: DesktopDshAccountBindingOptions) {}
+
+  bind(generation: DesktopAccountGeneration, userId: string): Promise<boolean> {
+    if (!this.options.state.isCurrent(generation)) return Promise.resolve(false)
+    const home = resolveDshAccountHome(this.options.baseHome, userId, this.options.scope)
+    if (this.boundUserId === userId
+      && this.boundHome === home
+      && this.options.lifecycle.accountHome === home) {
+      return Promise.resolve(true)
+    }
+
+    return this.options.lifecycle.bindHome(
+      home,
+      () => this.options.state.isCurrent(generation),
+      this.options.beforeChange,
+    ).then(bound => {
+      if (!bound || !this.options.state.isCurrent(generation)) return false
+      this.boundUserId = userId
+      this.boundHome = home
+      return true
+    })
+  }
+
+  /** Clear the active binding without deleting that account's DSH history. */
+  unbind(generation: DesktopAccountGeneration): Promise<boolean> {
+    if (!this.options.state.isCurrent(generation)) return Promise.resolve(false)
+    return this.options.lifecycle.bindHome(
+      undefined,
+      () => this.options.state.isCurrent(generation),
+      this.options.beforeChange,
+    ).then(unbound => {
+      if (!unbound || !this.options.state.isCurrent(generation)) return false
+      this.boundUserId = undefined
+      this.boundHome = undefined
+      return true
+    })
+  }
+}
 
 const SIGNED_OUT: DesktopPublicAccountState = Object.freeze({ status: 'signedOut' as const })
 

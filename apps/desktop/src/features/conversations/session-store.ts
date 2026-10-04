@@ -79,7 +79,9 @@ function projectSummary(summary: SessionSummary): ConversationListItem {
 
 /**
  * In-memory UI projection only. DSH remains the source of truth for sessions;
- * changing any scope component clears rows, cursors, and active selection.
+ * changing a scope clears published rows/cursors, while a same-account,
+ * same-directory reconnect keeps only a private Session hint until a new DSH
+ * list confirms that identity.
  */
 export class SessionStore {
   private snapshot: SessionStoreSnapshot = Object.freeze({
@@ -92,6 +94,12 @@ export class SessionStore {
   })
 
   private readonly listeners = new Set<() => void>()
+  /** A private selection hint, never exposed as active until a new scoped DSH list confirms it. */
+  private resumeSelection: {
+    readonly accountId: string
+    readonly workspaceDirectory: string
+    readonly sessionId: ConversationSessionId
+  } | null = null
 
   readonly getSnapshot = (): SessionStoreSnapshot => this.snapshot
 
@@ -103,6 +111,25 @@ export class SessionStore {
   setScope(scope: SessionScope | null): void {
     const nextScope = scope === null ? null : freezeScope(scope)
     if (sameSessionScope(this.snapshot.scope, nextScope)) return
+
+    const previous = this.snapshot.scope
+    const sameAccountAndDirectory = previous !== null && nextScope !== null
+      && previous.accountId !== null
+      && previous.accountId === nextScope.accountId
+      && previous.workspaceDirectory !== null
+      && previous.workspaceDirectory === nextScope.workspaceDirectory
+    if (sameAccountAndDirectory && previous.connectionGeneration !== nextScope.connectionGeneration) {
+      if (this.snapshot.activeSessionId !== null) {
+        this.resumeSelection = Object.freeze({
+          accountId: previous.accountId,
+          workspaceDirectory: previous.workspaceDirectory,
+          sessionId: this.snapshot.activeSessionId,
+        })
+      }
+    } else if (!sameAccountAndDirectory) {
+      this.resumeSelection = null
+    }
+
     this.publish({
       scope: nextScope,
       listStatus: 'idle',
@@ -111,6 +138,15 @@ export class SessionStore {
       activeSessionId: null,
       historyCursors: EMPTY_CURSORS,
     })
+  }
+
+  /** Remove another account's in-memory rows and any retained reconnect selection. */
+  clearForAccountChange(previousAccountId: string): void {
+    if (typeof previousAccountId !== 'string' || previousAccountId.length === 0) {
+      throw new TypeError('Previous account id must be non-empty')
+    }
+    this.resumeSelection = null
+    if (this.snapshot.scope?.accountId === previousAccountId) this.setScope(null)
   }
 
   isCurrentScope(scope: SessionScope): boolean {
@@ -131,16 +167,25 @@ export class SessionStore {
     if (!this.isCurrentScope(scope)) return
     const sessions = Object.freeze(summaries.map(projectSummary))
     const visibleIds = new Set(sessions.map(session => session.sessionId))
+    let activeSessionId = this.snapshot.activeSessionId
+    const retained = this.resumeSelection
+    if (activeSessionId === null && retained !== null
+      && retained.accountId === scope.accountId
+      && retained.workspaceDirectory === scope.workspaceDirectory) {
+      if (visibleIds.has(retained.sessionId)) activeSessionId = retained.sessionId
+      this.resumeSelection = null
+    }
     const historyCursors = Object.fromEntries(
       Object.entries(this.snapshot.historyCursors)
         .filter(([sessionId]) => visibleIds.has(sessionId as ConversationSessionId)
-          || sessionId === this.snapshot.activeSessionId),
+          || sessionId === activeSessionId),
     ) as Readonly<Record<string, SessionHistoryCursor>>
     this.publish({
       ...this.snapshot,
       listStatus: 'ready',
       listError: null,
       sessions,
+      activeSessionId,
       historyCursors: Object.freeze(historyCursors),
     })
   }
@@ -152,7 +197,9 @@ export class SessionStore {
 
   /** Selects an authoritative listed session or the id returned by DSH create. */
   setActiveSession(scope: SessionScope, sessionId: ConversationSessionId | null): void {
-    if (!this.isCurrentScope(scope) || this.snapshot.activeSessionId === sessionId) return
+    if (!this.isCurrentScope(scope)) return
+    this.resumeSelection = null
+    if (this.snapshot.activeSessionId === sessionId) return
     this.publish({ ...this.snapshot, activeSessionId: sessionId })
   }
 

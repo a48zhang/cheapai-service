@@ -1,7 +1,7 @@
 import { constants } from 'node:fs'
 import { access, lstat, mkdir, readFile, realpath, stat } from 'node:fs/promises'
 import { spawn, spawnSync } from 'node:child_process'
-import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
@@ -11,22 +11,29 @@ const FIXTURE_MARKER = '.cheapai-desktop-fixture.json'
 const BOOTSTRAP_TIMEOUT_MS = 15_000
 const START_TIMEOUT_MS = 40_000
 const MAX_PROTOCOL_LINE_LENGTH = 1024 * 1024
+const DEVELOPMENT_KEY_MODE_VARIABLE = 'SUB2API_DESKTOP_DEVELOPMENT_KEY_MODE'
 
 function usage() {
   return [
-    'Usage: node scripts/desktop/dev-runtime.mjs --runtime <bun|node> --home <new-temp-home> --workspace <fixture-workspace> [--runtime-executable <absolute-path>]',
+    'Usage: node scripts/desktop/dev-runtime.mjs --runtime <bun|node> --home <new-temp-home> --workspace <fixture-workspace> [--runtime-executable <absolute-path>] [--development-key-mode]',
     'The workspace must come from create-fixture.mjs. The home must not exist and both paths must be inside the operating system temporary directory.',
-    'This script starts DSH without sending provider configuration or model credentials.',
+    'Without --development-key-mode, this command starts only the Runtime sidecar and exits; it does not start DSH.',
+    '--development-key-mode explicitly enables the no-account development fixture path. It reads and sends no Key.',
   ].join('\n')
 }
 
 function parseArguments(args) {
-  const options = {}
+  const options = { developmentKeyMode: false }
   const valueOptions = new Set(['--runtime', '--runtime-executable', '--home', '--workspace'])
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index]
     if (argument === '--help' || argument === '-h') {
       options.help = true
+      continue
+    }
+    if (argument === '--development-key-mode') {
+      if (options.developmentKeyMode) throw new Error(`${argument} may be supplied only once`)
+      options.developmentKeyMode = true
       continue
     }
     if (!valueOptions.has(argument)) throw new Error(`Unknown argument: ${argument}\n${usage()}`)
@@ -49,6 +56,7 @@ function parseArguments(args) {
     ...(options['--runtime-executable'] === undefined ? {} : { runtimeExecutable: options['--runtime-executable'] }),
     home: options['--home'],
     workspace: options['--workspace'],
+    developmentKeyMode: options.developmentKeyMode,
   }
 }
 
@@ -321,7 +329,7 @@ function safeStartedPort(response) {
   return connection.port
 }
 
-function runtimeEnvironment(home, workspace, runtimeExecutable) {
+function runtimeEnvironment(home, workspace, runtimeExecutable, developmentKeyMode) {
   const env = { ...process.env }
   for (const name of [
     'DSH_HOME',
@@ -336,10 +344,12 @@ function runtimeEnvironment(home, workspace, runtimeExecutable) {
     'GEMINI_API_KEY',
     'GOOGLE_API_KEY',
     'OPENROUTER_API_KEY',
+    DEVELOPMENT_KEY_MODE_VARIABLE,
   ]) delete env[name]
   env.SUB2API_DSH_HOME = home
   env.SUB2API_DSH_WORKSPACE_DIRECTORY = workspace
   env.SUB2API_DSH_RUNTIME_EXECUTABLE = runtimeExecutable
+  if (developmentKeyMode) env[DEVELOPMENT_KEY_MODE_VARIABLE] = '1'
   return env
 }
 
@@ -361,9 +371,10 @@ async function runRuntime(options, executable, home, workspace, pinnedVersion) {
   const runtimeEntry = join(runtimeDirectory, 'src', 'index.ts')
   await access(runtimeEntry)
 
-  const child = spawn(executable, [runtimeEntry], {
+  const runtimeArgs = options.runtime === 'node' ? ['--experimental-transform-types', runtimeEntry] : [runtimeEntry]
+  const child = spawn(executable, runtimeArgs, {
     cwd: runtimeDirectory,
-    env: runtimeEnvironment(home, workspace, executable),
+    env: runtimeEnvironment(home, workspace, executable, options.developmentKeyMode),
     shell: false,
     windowsHide: true,
     stdio: 'pipe',
@@ -388,7 +399,14 @@ async function runRuntime(options, executable, home, workspace, pinnedVersion) {
     await host.send({ type: 'host.startup', source: 'development', runtime: options.runtime })
     const bootstrap = await withTimeout(host.bootstrapPromise, BOOTSTRAP_TIMEOUT_MS, 'Runtime bootstrap')
     if (bootstrap.runtime !== options.runtime) throw new Error('Runtime bootstrapped with a different selected runtime')
-    process.stdout.write(`Runtime bootstrapped with ${options.runtime} ${pinnedVersion}; starting DSH without model credentials.\n`)
+    process.stdout.write(`Runtime bootstrapped with ${options.runtime} ${pinnedVersion}; no model Key was read or supplied.\n`)
+
+    if (!options.developmentKeyMode) {
+      if (host.failure !== undefined) throw host.failure
+      process.stdout.write('This fixture has no account session. DSH was not started; the Runtime sidecar exited after bootstrap. Pass --development-key-mode only to run this isolated no-account fixture.\n')
+      await stopChild(child, exitPromise)
+      return
+    }
 
     const response = await withTimeout(host.request('start'), START_TIMEOUT_MS, 'DSH startup')
     const port = safeStartedPort(response)

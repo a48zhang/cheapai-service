@@ -15,6 +15,8 @@
     "build": "pnpm run build:cloud",
     "typecheck": "pnpm run typecheck:cloud",
     "build:desktop": "pnpm -r --filter @sub2api/desktop --filter @sub2api/desktop-runtime --filter @sub2api/desktop-contracts run build",
+    "dev:desktop": "node scripts/desktop/dev-desktop.mjs dev",
+    "package:desktop": "node scripts/desktop/dev-desktop.mjs package",
     "typecheck:desktop": "pnpm -r --filter @sub2api/desktop --filter @sub2api/desktop-runtime --filter @sub2api/desktop-contracts run typecheck",
     "test": "vitest run",
     "test:node": "vitest run --project node",

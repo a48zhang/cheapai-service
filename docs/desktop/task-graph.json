@@ -6,7 +6,7 @@
   "repository": "https://github.com/a48zhang/sub2api-cloudflare",
   "baseline_commit": "5b721891e89ff52e7293bdc03061ecc454e9084d",
   "plan": "implementation-plan.md",
-  "state": "in_progress",
+  "state": "implementation_complete_with_external_blockers",
   "rules": {
     "max_files_per_task": 3,
     "dependency_semantics": "artifact_completion_not_test_success",
@@ -128,7 +128,7 @@
         "package.json",
         "pnpm-lock.yaml"
       ],
-      "execution_note": "2026-10-04: lockfile-only/offline preparation attempted with workspace cache/store; supply-chain metadata fetch encountered EPERM, timeout exit 124, lockfile unchanged. CLI networking and missing desktop dependencies remain blockers."
+      "execution_note": "2026-10-04 second diagnosis: managed environment reports network unrestricted/enforced but shell proxy connection refused; direct DNS unavailable. No install/lock mutation; trusted registry tarballs/metadata unavailable."
     },
     {
       "id": "F06",
@@ -337,7 +337,7 @@
       "write_locks": [
         "docs/desktop/evidence/runtime.md"
       ],
-      "execution_note": "2026-10-04: lifecycle pure Node tests 4/4 passed after fixing two fake-timer harness errors; full Runtime type/build/real DSH/Bun remains unverified. See evidence/runtime.md."
+      "execution_note": "2026-10-04: final evidence artifact written; actual commands, passed scope and missing target/dependency/port/real-model coverage recorded. Not a full-chain pass."
     },
     {
       "id": "U01",
@@ -443,11 +443,12 @@
       "title": "投影消息与流式状态",
       "work": "优先复用 DSH 已有投影；仅补 UI 所需映射。按真实事件 ID/游标规则处理增量、最终消息、工具结果及连接恢复后的快照，避免文本重复和终态倒退；草稿按会话保存。",
       "final_state": "页面获得稳定消息列表与执行状态；重连不会重复追加已提交消息。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "apps/desktop/src/features/conversations/event-projection.ts",
         "apps/desktop/src/features/conversations/message-store.ts"
-      ]
+      ],
+      "execution_note": "Implementation artifact handed off; centralized validation not yet run for this source."
     },
     {
       "id": "U06",
@@ -465,12 +466,13 @@
       "title": "实现消息展示",
       "work": "适配可复用的 DSH 消息组件，统一用户浅蓝背景、Assistant 正文、Markdown 与代码块。跟随最新消息但尊重向上阅读的位置，提供回到最新入口；代码复制使用组件事件，不执行代码。",
       "final_state": "消息展示使用蓝白风格，长代码和长输出有明确滚动边界。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "apps/desktop/src/features/conversations/MessageList.tsx",
         "apps/desktop/src/features/conversations/MessageBody.tsx",
         "apps/desktop/src/features/conversations/conversation.css"
-      ]
+      ],
+      "execution_note": "Implementation artifact handed off; centralized validation not yet run for this source."
     },
     {
       "id": "U07",
@@ -488,11 +490,12 @@
       "title": "承接工具展示和 DSH 原生交互",
       "work": "展示工具名称、执行状态和折叠详情；对 DSH 发出的用户问题或必要确认复用其既有交互协议/组件并返回结果。不新增权限模式、不实现自己的审批策略，也不能把上游等待输入状态丢弃。",
       "final_state": "工具状态和用户交互都能回到 DSH，同一请求不会重复提交回答。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "apps/desktop/src/features/conversations/ToolCall.tsx",
         "apps/desktop/src/features/conversations/DshInteraction.tsx"
-      ]
+      ],
+      "execution_note": "Real Gateway waterfalls, exact owner scopes and pinned timed wait/continued answers authored; browser-safe wire errors; centralized checks pending."
     },
     {
       "id": "U08",
@@ -510,11 +513,12 @@
       "title": "实现发送与停止",
       "work": "接入发送、停止和模型选择，保留输入草稿并处理中文输入法组合状态；使用 DSH 已支持的模型切换语义。未发生明确失败时不自动重发模型请求，防止重复执行和扣费。",
       "final_state": "输入框没有权限选择器；运行状态下显示停止，失败后保留可恢复的输入。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "apps/desktop/src/features/conversations/Composer.tsx",
         "apps/desktop/src/features/conversations/composer-controller.ts"
-      ]
+      ],
+      "execution_note": "Implementation artifact handed off; centralized validation pending."
     },
     {
       "id": "U09",
@@ -531,11 +535,12 @@
       "title": "实现会话侧栏",
       "work": "连接新对话、已加载标题搜索、时间分组、当前会话和重命名/删除菜单；显示运行中标记。底部预留账号和设置入口，不添加任务中心或资产库。",
       "final_state": "侧栏操作真实会话服务，业务状态不硬编码为静态演示数据。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "apps/desktop/src/components/layout/Sidebar.tsx",
         "apps/desktop/src/features/conversations/SessionMenu.tsx"
-      ]
+      ],
+      "execution_note": "2026-10-04: Sidebar/session menu handoff; real service/store, workspace required, deletion explicitly unsupported. Unvalidated artifact."
     },
     {
       "id": "U10",
@@ -552,11 +557,12 @@
       "title": "接入目录选择边界",
       "work": "定义目录选择 adapter，浏览器原型使用 DSH 已有目录选择能力，原生宿主后续替换为 Tauri 对话框。新会话可先显示未选目录；开始任务时遵循 DSH 真实工作区要求，必要时提示选择，不能默认对应用目录执行。已开始工作的会话换目录采用新会话，不另造目录权限机制。",
       "final_state": "目录路径成为会话配置，不使用进程 cwd 隐式操作仓库。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "apps/desktop/src/features/workspace/WorkspacePicker.tsx",
         "apps/desktop/src/adapters/native/directories.ts"
-      ]
+      ],
+      "execution_note": "Native picker plus scoped pinned workspaceFiles list/stat browser adapter; no cwd fallback, active-session directory change creates new session. Unvalidated artifact."
     },
     {
       "id": "U11",
@@ -577,12 +583,13 @@
       "title": "装配完整对话页面",
       "work": "组装侧栏、标题/目录、消息区、输入区和空会话页；绑定当前会话状态。切换会话不自动停止任务，任务仍由 DSH 管理，不另建调度系统。接入错误/等待交互，保留账号入口占位。",
       "final_state": "自有页面能表达完整会话链，所有 UI 命令均有真实 adapter 落点。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "apps/desktop/src/features/conversations/ConversationPage.tsx",
         "apps/desktop/src/components/layout/AppShell.tsx",
         "apps/desktop/src/app/App.tsx"
-      ]
+      ],
+      "execution_note": "2026-10-04: complete source handoff and UI/native wiring; centralized validation recorded separately, no compatibility claim."
     },
     {
       "id": "U12",
@@ -621,11 +628,12 @@
       "work": "仅在自有 event projection 包含实际逻辑时增加用例：增量与最终消息交接、重连快照不重复、旧会话事件不污染新会话、取消后迟到事件不恢复运行。若完全复用上游投影，仅覆盖本地订阅切换，删除重复上游用例。",
       "final_state": "测试针对会导致丢消息或错误显示执行状态的行为；fixture 根据固定 DSH 版本构造，任务不执行。",
       "test_necessity": "断线恢复和异步事件归属是自有 UI 的真实风险；不对文案、DOM 类名、消息全文或组件快照做严格比较。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "tests/desktop/conversation-events.node.test.ts",
         "tests/desktop/helpers/dsh-events.ts"
-      ]
+      ],
+      "execution_note": "Typed fixed DSH fixtures and local subscription/scope/late page cases authored; not executed yet."
     },
     {
       "id": "UV01",
@@ -645,7 +653,7 @@
       "write_locks": [
         "docs/desktop/evidence/conversation.md"
       ],
-      "execution_note": "2026-10-04: preliminary typecheck blocked at missing node/vite/client type definitions (exit 2); no UI build/browser/DSH chain exercised. See evidence/conversation.md."
+      "execution_note": "2026-10-04: final evidence artifact written; actual commands, passed scope and missing target/dependency/port/real-model coverage recorded. Not a full-chain pass."
     },
     {
       "id": "N01",
@@ -730,11 +738,12 @@
       "title": "完成关闭、重启和进程收尾",
       "work": "实现退出时先正常停止再有界终止自有服务/子进程；运行任务的退出提示采用现有活动状态。服务崩溃支持显式重启，避免自动重启循环。首版不承诺托盘常驻；普通关窗按明确的应用退出行为处理。",
       "final_state": "关闭应用不会遗留应用管理的 DSH 服务；服务异常有恢复入口，重启不自动重放任务。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "apps/desktop/src-tauri/src/runtime.rs",
         "apps/desktop/src-tauri/src/lib.rs"
-      ]
+      ],
+      "execution_note": "Native epoch, monotonic public generation, bounded restart/shutdown and activity prompt authored; process descendant cleanup is a supplemental artifact and centralized native validation pending."
     },
     {
       "id": "N05",
@@ -750,11 +759,12 @@
       "title": "连接原生目录与外部链接",
       "work": "提供目录选择、打开 cheapai 注册/控制台地址的宿主命令；取消选择返回空结果。目录选择不创建或修改目录，打开网页不向 URL 附加登录 Token/Key。",
       "final_state": "前端通过小接口使用系统目录对话框和浏览器，不依赖 Electron bridge。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "apps/desktop/src-tauri/src/native.rs",
         "apps/desktop/src-tauri/src/lib.rs"
-      ]
+      ],
+      "execution_note": "Implementation artifact handed off; centralized validation pending."
     },
     {
       "id": "N06",
@@ -816,12 +826,13 @@
       "title": "连接前端与真实宿主",
       "work": "将启动等待、服务重试和目录选择从开发 adapter 接到 Tauri；收到 ready 后才建立 DSH 连接。保留明确的浏览器开发模式，不因缺少 native 全局对象而伪报宿主已就绪。",
       "final_state": "同一 React UI 能在 Tauri 中使用随包服务，并呈现真实启动/失败状态。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "apps/desktop/src/adapters/native/runtime.ts",
         "apps/desktop/src/adapters/native/directories.ts",
         "apps/desktop/src/app/App.tsx"
-      ]
+      ],
+      "execution_note": "2026-10-04: complete source handoff and UI/native wiring; centralized validation recorded separately, no compatibility claim."
     },
     {
       "id": "N10",
@@ -866,12 +877,13 @@
       "title": "收口原生依赖与开发命令",
       "work": "集中生成本批 Cargo.lock，增加 dev:desktop、build:desktop、package:desktop 独立命令；脚本负责按依赖顺序准备资源、启动，不嵌入自动测试。桌面安装命令与 Cloudflare 部署命令没有隐式互调。 package:desktop 接受 --target <Rust target triple>；图标准备在 Runtime/安装包资源装配前运行。",
       "final_state": "宿主、前端、Runtime 有完整命令编排；锁文件统一由该任务写入。",
-      "status": "pending",
+      "status": "blocked_tooling",
       "write_locks": [
         "apps/desktop/src-tauri/Cargo.lock",
         "package.json",
         "scripts/desktop/dev-desktop.mjs"
-      ]
+      ],
+      "execution_note": "Independent dev/package scripts authored including manifest preparation; Cargo.lock cannot be generated: cargo/rustup and registry access unavailable. Never fabricated."
     },
     {
       "id": "NT01",
@@ -888,11 +900,12 @@
       "work": "仅对本地拥有的协议解析和状态迁移增加 Rust 单元测试：分块控制消息、进程退出、重复停止、重启世代隔离、私有凭据消息不会进入公开事件。使用内存输入和 fake process，不在 cargo test 中启动真实 DSH 或系统弹窗。",
       "final_state": "存在针对进程泄漏/状态串线风险的用例，且不与 RT01 重复测试同一层；不执行。",
       "test_necessity": "Tauri 和 Runtime 之间存在独立的异步边界，错误会泄漏进程或把私有响应发给错误接收方；不验证打印字符串。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "apps/desktop/src-tauri/src/runtime.rs",
         "apps/desktop/src-tauri/src/protocol.rs"
-      ]
+      ],
+      "execution_note": "Five Rust protocol/public-projection/lifecycle generation tests authored; no cargo/toolchain available, not executed."
     },
     {
       "id": "NV01",
@@ -907,10 +920,11 @@
       "title": "集中完成 macOS 原生交付验证",
       "work": "在 N 模块完整后执行一次原生构建及新增 Rust 测试，在目标 macOS 上安装并操作新建会话、工具执行、停止、退出、重启恢复；至少在不依赖预装 Node/Bun 的环境操作。记录 arm64/x64 实际覆盖，中文/空格路径、包体、启动时间、空闲内存和服务退出情况。未提供架构不得写为已验。",
       "final_state": "形成 macOS 安装与 Runtime 的实际证据；只写报告，不顺带修改业务代码。",
-      "status": "pending",
+      "status": "blocked_target",
       "write_locks": [
         "docs/desktop/evidence/native-macos.md"
-      ]
+      ],
+      "execution_note": "2026-10-04: final evidence artifact written; actual commands, passed scope and missing target/dependency/port/real-model coverage recorded. Not a full-chain pass."
     },
     {
       "id": "NV02",
@@ -925,10 +939,11 @@
       "title": "集中完成 Windows 原生交付验证",
       "work": "对 Windows x64 独立执行同一条完整原生链，覆盖 WebView2 交付策略、无预装 Node/Bun、中文/空格路径、命令停止与服务进程收尾。平台任务可以与 NV01 并行；共用纯逻辑测试若已有同提交结果不重复跑，平台特有测试/构建单独记录。",
       "final_state": "形成 Windows 真实安装证据；Linux、浏览器截图和 macOS 结果不代替此报告。",
-      "status": "pending",
+      "status": "blocked_target",
       "write_locks": [
         "docs/desktop/evidence/native-windows.md"
-      ]
+      ],
+      "execution_note": "2026-10-04: final evidence artifact written; actual commands, passed scope and missing target/dependency/port/real-model coverage recorded. Not a full-chain pass."
     },
     {
       "id": "A01",
@@ -1264,7 +1279,7 @@
       "write_locks": [
         "docs/desktop/evidence/backend-account.md"
       ],
-      "execution_note": "2026-10-04: Worker dry-run build passed; typecheck blocked by missing desktop-contracts workspace link and Workers tests exited before cases due listen EPERM. See evidence/backend-account.md."
+      "execution_note": "2026-10-04: final evidence artifact written; actual commands, passed scope and missing target/dependency/port/real-model coverage recorded. Not a full-chain pass."
     },
     {
       "id": "L01",
@@ -1352,12 +1367,13 @@
       "title": "接通原生存储与账号命令",
       "work": "将前端 login/restore/account/logout 调用转给 Runtime；私有凭据消息由宿主保存/读取，公开结果才返回页面。登录成功在持久保存完成后公布，存储失败如实返回，不展示已完成自动登录。",
       "final_state": "跨进程的登录与存储闭环完整，普通前端无需持有 Token 或 Key。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "apps/desktop/src-tauri/src/account.rs",
         "apps/desktop/src-tauri/src/protocol.rs",
         "apps/desktop/src-tauri/src/lib.rs"
-      ]
+      ],
+      "execution_note": "2026-10-04: source handoff complete; native/account/model/default-settings/update wiring implemented. Verification is recorded separately in evidence."
     },
     {
       "id": "L05",
@@ -1375,12 +1391,13 @@
       "title": "按账号绑定 DSH 本地数据",
       "work": "按后端稳定 userId 选择 DSH home，而不是按 Token 字符串建目录；换账号先停止旧账号执行并断开旧连接，再启动相应 home。退出保留该账号本地历史。验证阶段使用独立 dev home，不把测试 Key 会话合并到正式账号。",
       "final_state": "同账号重新登录保留历史，不同账号的列表、草稿和 Runtime 数据不串用。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "apps/desktop-runtime/src/dsh/paths.ts",
         "apps/desktop-runtime/src/dsh/lifecycle.ts",
         "apps/desktop-runtime/src/cheapai/account-state.ts"
-      ]
+      ],
+      "execution_note": "Stable hashed userId/scope home and generation-bound serialized bind/unbind handoff; no history deletion. Full account activation remains L06."
     },
     {
       "id": "L06",
@@ -1398,12 +1415,13 @@
       "title": "装配启动恢复与退出顺序",
       "work": "启动时先恢复账号，再选择 home 和配置 Provider，之后公布 ready；无账号则显示登录态但不启动可执行的用户会话。退出按服务端撤销→停止当前账号任务→清理本地凭据/页面状态处理；离线撤销失败明确显示未完成并允许重试，不建设持久撤销队列。迟到登录响应不得复活已退出状态。 区分 sidecar 控制通道就绪和 DSH 会话服务就绪，不能等待 DSH 登录后 ready 才开放登录命令。",
       "final_state": "账号生命周期与 Runtime 生命周期有单一顺序所有者；开发测试 Key 模式只能显式启用，发布包默认不走该模式。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "apps/desktop-runtime/src/index.ts",
         "apps/desktop-runtime/src/host/control.ts",
         "apps/desktop/src-tauri/src/runtime.rs"
-      ]
+      ],
+      "execution_note": "2026-10-04: complete source handoff and UI/native wiring; centralized validation recorded separately, no compatibility claim."
     },
     {
       "id": "L07",
@@ -1420,11 +1438,12 @@
       "title": "实现前端登录状态适配",
       "work": "接入 signedOut/restoring/signedIn/unavailable 等公开状态，维护当前用户、余额和错误，不保存凭据。请求取消和会话切换后忽略旧结果；网络错误保留已有账号与草稿。",
       "final_state": "页面通过 account adapter 操作登录，不直接调用模型接口换 Key。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "apps/desktop/src/adapters/native/account.ts",
         "apps/desktop/src/features/auth/auth-store.ts"
-      ]
+      ],
+      "execution_note": "Implementation artifact handed off; centralized validation not yet run for this source."
     },
     {
       "id": "L08",
@@ -1442,11 +1461,12 @@
       "title": "实现蓝白登录页",
       "work": "实现邮箱、密码、登录状态与错误提示，提交时禁止重复请求，保留邮箱；注册入口用宿主打开现有注册页。没有 API Key 输入、device-code、二维码或第三方登录。",
       "final_state": "登录页面与对话页面风格统一，使用真实 auth-store。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "apps/desktop/src/features/auth/LoginPage.tsx",
         "apps/desktop/src/features/auth/login.css"
-      ]
+      ],
+      "execution_note": "Implementation artifact handed off; centralized validation not yet run for this source."
     },
     {
       "id": "L09",
@@ -1465,12 +1485,13 @@
       "title": "接入账号、余额和退出入口",
       "work": "显示真实用户和余额，沿用已有金额表示及格式化规则；错误与零余额分开呈现。提供网页控制台和当前会话退出入口，不新增桌面 Key 管理页。",
       "final_state": "侧栏与设置都显示同一账号状态，退出目标清晰为当前客户端登录。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "apps/desktop/src/features/settings/AccountPanel.tsx",
         "apps/desktop/src/features/settings/SettingsPage.tsx",
         "apps/desktop/src/components/layout/Sidebar.tsx"
-      ]
+      ],
+      "execution_note": "Real safe account/balance settings and shared Sidebar auth state authored; awaits centralized validation."
     },
     {
       "id": "L10",
@@ -1490,12 +1511,13 @@
       "title": "连接账号路由和会话清理",
       "work": "根据宿主公开状态切换登录、启动恢复、工作区、服务故障页面；仅在确认账号变化时清空旧界面投影，持久历史仍由 DSH home 保留。登录到期保留当前账号草稿引用，重新登录同账号后恢复。 同时接入侧栏设置导航，使 U12/L09 的页面实际可到达。",
       "final_state": "安装后从登录到对话形成完整客户端链路，不存在旧账号消息闪现或假登录态。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "apps/desktop/src/app/App.tsx",
         "apps/desktop/src/features/conversations/session-store.ts",
         "apps/desktop/src/features/conversations/message-store.ts"
-      ]
+      ],
+      "execution_note": "2026-10-04: complete source handoff and UI/native wiring; centralized validation recorded separately, no compatibility claim."
     },
     {
       "id": "L11",
@@ -1514,12 +1536,13 @@
       "title": "完成错误与恢复交互",
       "work": "区分余额不足、无可用模型、登录过期、本地服务故障和网络失败；保留输入，给出对应重试或重新登录入口。Key 自然到期由 Runtime 处理，不弹人工换 Key 界面。不把失败中的模型调用自动重放。",
       "final_state": "主要页面具备与实际错误相符的恢复路径，不依赖统一的‘登录失败’兜底。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "apps/desktop/src/features/conversations/composer-controller.ts",
         "apps/desktop/src/features/conversations/ConversationPage.tsx",
         "apps/desktop/src/features/settings/SettingsPage.tsx"
-      ]
+      ],
+      "execution_note": "2026-10-04: source handoff complete; native/account/model/default-settings/update wiring implemented. Verification is recorded separately in evidence."
     },
     {
       "id": "LT01",
@@ -1536,11 +1559,12 @@
       "work": "使用注入时钟和可延迟响应覆盖：未过期 Key 不轮换、到期并发合并、logout 后迟到 login/getKey 不复活、不同账号 home 选择、网络失败保留登录。只测本地编排，后端原子性仍由 AT01 负责；不启动真实模型或系统密钥链。",
       "final_state": "测试覆盖会导致跨账号和多端异常的本地竞争，资源在每个用例后释放；不执行。",
       "test_necessity": "后端正确不代表客户端不会缓存旧 Key、重放请求或接受迟到凭据；这些是本地状态机独有风险。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "tests/desktop/account-lifecycle.node.test.ts",
         "tests/desktop/helpers/fake-account-api.ts"
-      ]
+      ],
+      "execution_note": "Artifact authored and handed off; final runtime/native wiring alignment and centralized validation pending."
     },
     {
       "id": "LV01",
@@ -1558,10 +1582,11 @@
       "title": "集中执行登录到模型的完整链路",
       "work": "在 L 模块完整后执行其类型/构建和 LT01，再使用隔离本地 Worker/D1、真实 Runtime 与自有 UI 跑两份独立客户端数据目录：登录→取 Key→调用→重启仍同 Key→模拟到期→换 Key→一端退出→另一端调用。测试期限由隔离 fixture/注入时钟控制，不能修改生产 TTL 或等待真实天数。先用 mock 上游，已有测试环境可补一次真实网关任务。",
       "final_state": "记录 Token/Key 关系的非敏感标识和实际行为，不记录密钥正文；真实双端与仅单进程模拟结果分别标记。",
-      "status": "pending",
+      "status": "partial",
       "write_locks": [
         "docs/desktop/evidence/account-e2e.md"
-      ]
+      ],
+      "execution_note": "2026-10-04: final evidence artifact written; actual commands, passed scope and missing target/dependency/port/real-model coverage recorded. Not a full-chain pass."
     },
     {
       "id": "P01",
@@ -1584,7 +1609,7 @@
         "apps/desktop/src/features/settings/SettingsPage.tsx",
         "apps/desktop/src/features/settings/preferences.ts"
       ],
-      "execution_note": "Implementation artifact completed; this does not imply tests, build, runtime compatibility or native delivery were validated."
+      "execution_note": "2026-10-04: source handoff complete; native/account/model/default-settings/update wiring implemented. Verification is recorded separately in evidence."
     },
     {
       "id": "P02",
@@ -1601,11 +1626,12 @@
       "title": "固定整包版本与资源清单",
       "work": "生成绑定应用版本、DSH/Bun版本、平台/架构和资源路径的发行清单；壳、前端与 Runtime 同批更新。安装资源只读，DSH home 与偏好位于用户数据目录；升级不能覆盖用户会话或依赖外部 pnpm 缓存。",
       "final_state": "安装包可识别自己的完整组成，后续报告可指向同一组产物。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "scripts/desktop/release-manifest.mjs",
         "scripts/desktop/package-runtime.mjs"
-      ]
+      ],
+      "execution_note": "Implementation artifact handed off; centralized validation pending."
     },
     {
       "id": "P03",
@@ -1623,12 +1649,13 @@
       "title": "接入标准更新机制",
       "work": "使用 Tauri 标准 updater 接口，更新源和签名材料由环境/发布配置提供，不写入私钥。检查更新和安装分开；只有确认退出运行任务后才安装。未配置更新源时公开 unavailable 状态，不使用占位URL。",
       "final_state": "宿主提供检查/下载/安装状态，不自建更新服务或静默强制升级策略。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "apps/desktop/src-tauri/src/updates.rs",
         "apps/desktop/src-tauri/src/lib.rs",
         "apps/desktop/src-tauri/tauri.conf.json"
-      ]
+      ],
+      "execution_note": "2026-10-04: source handoff complete; native/account/model/default-settings/update wiring implemented. Verification is recorded separately in evidence."
     },
     {
       "id": "P04",
@@ -1646,12 +1673,13 @@
       "title": "实现关于与更新界面",
       "work": "展示真实应用版本、更新可用/下载/失败状态和手动操作；连接宿主 updater。更新不可用时给出准确状态，不把网络失败显示成最新版本。",
       "final_state": "设置页更新入口有真实行为，文案不暴露 Runtime 内部实现细节。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "apps/desktop/src/features/settings/UpdatePanel.tsx",
         "apps/desktop/src/adapters/native/updates.ts",
         "apps/desktop/src/features/settings/SettingsPage.tsx"
-      ]
+      ],
+      "execution_note": "2026-10-04: complete source handoff and UI/native wiring; centralized validation recorded separately, no compatibility claim."
     },
     {
       "id": "P05",
@@ -1667,10 +1695,11 @@
       "title": "配置独立桌面构建任务",
       "work": "建立手动触发或发行批次触发的 macOS/Windows 构建矩阵，使用固定工具链并上传构建产物。构建任务不对每个微任务重复跑全库测试，不隐式部署 Worker；签名/公证能力缺失时保留未签名开发产物标记，不能宣称可正式发布。",
       "final_state": "桌面构建与既有 Cloudflare 预发流程分开，可记录平台产物和精确来源提交。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         ".github/workflows/desktop-package.yml"
-      ]
+      ],
+      "execution_note": "Manual unsigned development matrix authored; requires reviewed locks and pinned toolchain, workflow not run."
     },
     {
       "id": "P06",
@@ -1686,11 +1715,12 @@
       "title": "记录 Runtime 分发和第三方依赖",
       "work": "按实际随包 DSH/Bun/原生依赖记录版本、来源、许可和资源位置；列出 Git/Python 等哪些工具由用户项目环境提供，哪些确实随包，不作‘所有工具开箱即用’承诺。记录 Bun 备选 Node 的切换位置。",
       "final_state": "分发说明与实际清单一致，保留应随包的第三方声明。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "THIRD_PARTY_NOTICES.md",
         "docs/desktop/runtime-distribution.md"
-      ]
+      ],
+      "execution_note": "Artifact authored and handed off; final runtime/native wiring alignment and centralized validation pending."
     },
     {
       "id": "P07",
@@ -1711,12 +1741,13 @@
       "title": "完成使用与交付文档",
       "work": "写明登录/同 Key 重启/过期/退出、会话本地归属、关窗退出、模型与目录选择；记录各层职责与构建命令。发布文档使用现有 PR 独立预发或本地隔离环境，不引用已退役共享 staging；生产部署/公开发布不在本计划自动执行范围。",
       "final_state": "使用说明可解释实际行为，发布准备项和未覆盖平台诚实列出；不把计划状态写成验证完成。",
-      "status": "pending",
+      "status": "completed",
       "write_locks": [
         "docs/desktop/user-guide.md",
         "docs/desktop/architecture.md",
         "docs/desktop/release.md"
-      ]
+      ],
+      "execution_note": "User/architecture/release documentation authored; final interface and evidence alignment pending."
     },
     {
       "id": "PV01",
@@ -1737,10 +1768,11 @@
       "title": "集中执行候选版本集成检查",
       "work": "全部实现/测试编写任务合并到同一候选提交后，执行一次既有云端必需类型/测试/构建及桌面完整类型/构建/必要测试；单次任务内按项目归并，不把同一套测试通过根命令和子命令重复执行。随后在目标平台只补自 NV/LV 报告以来受变更影响的整包登录/任务/更新/历史保留链。无新变更且证据对应同提交的项目不重复。 更新源/签名/目标系统缺失时，只记录对应未运行项，不用未签名本地产物宣称公开发行完成。",
       "final_state": "发布候选报告绑定提交和产物，逐项区分通过/失败/未运行；本任务不 push、部署、上传公开安装包或自动关闭未验证项。",
-      "status": "pending",
+      "status": "partial",
       "write_locks": [
         "docs/desktop/evidence/release.md"
-      ]
+      ],
+      "execution_note": "2026-10-04: final evidence artifact written; actual commands, passed scope and missing target/dependency/port/real-model coverage recorded. Not a full-chain pass."
     }
   ],
   "summary": {
@@ -1755,10 +1787,11 @@
     },
     "all_file_budgets_within_three": true,
     "by_status": {
-      "completed": 43,
+      "completed": 70,
       "blocked_network": 1,
-      "partial": 3,
-      "pending": 32
+      "partial": 5,
+      "blocked_tooling": 1,
+      "blocked_target": 2
     }
   },
   "execution_checkpoint": "docs/desktop/execution-checkpoint.md",
@@ -2009,22 +2042,383 @@
       ],
       "status": "completed",
       "execution_note": "Manual review fixed the private credential predicate to narrow to an intersection assignable to its Record parameter. Type environment remains blocked before source checking."
+    },
+    {
+      "id": "N08-carrier",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src/adapters/native/runtime.ts"
+      ],
+      "write_locks": [
+        "apps/desktop/src/adapters/native/runtime.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Root implementation of native snapshot/events and official decoded RPC carrier, monotonic UI connection epoch across sidecar restart; frontend App wiring remains N08. No validation run."
+    },
+    {
+      "id": "F05-ui-deps",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/package.json"
+      ],
+      "write_locks": [
+        "apps/desktop/package.json"
+      ],
+      "status": "completed",
+      "execution_note": "Pin upstream public MarkdownText/CodeBlock primitives and scoped workspaceFiles remote at 0.2.1-alpha.1. Dependency installation/lock remains F05 blocked_network."
+    },
+    {
+      "id": "N-account-install-id",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src-tauri/Cargo.toml"
+      ],
+      "write_locks": [
+        "apps/desktop/src-tauri/Cargo.toml"
+      ],
+      "status": "completed",
+      "execution_note": "Declare exact uuid 1.18.1/v4 for a random stable installation namespace in native account storage; N09 alone generates Cargo.lock. Native build unverified."
+    },
+    {
+      "id": "R-node-source-transform",
+      "kind": "implementation",
+      "files": [
+        "scripts/desktop/dev-runtime.mjs",
+        "apps/desktop-runtime/package.json",
+        "apps/desktop-runtime/src/dsh/launcher.ts"
+      ],
+      "write_locks": [
+        "scripts/desktop/dev-runtime.mjs",
+        "apps/desktop-runtime/package.json",
+        "apps/desktop-runtime/src/dsh/launcher.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Explicit Node source transform flag handles TypeScript parameter properties in dev Runtime/provider imports; packaged JS/Bun unchanged. No product checks run."
+    },
+    {
+      "id": "P06-license-texts",
+      "kind": "documentation",
+      "files": [
+        "LICENSES/desktop/DSH-MIT.txt",
+        "LICENSES/desktop/Bun-LICENSE.md",
+        "LICENSES/desktop/Node-LICENSE.txt"
+      ],
+      "write_locks": [
+        "LICENSES/desktop/DSH-MIT.txt",
+        "LICENSES/desktop/Bun-LICENSE.md",
+        "LICENSES/desktop/Node-LICENSE.txt"
+      ],
+      "status": "completed",
+      "execution_note": "Preserve full upstream texts from fixed DSH release source, Bun bun-v1.4.2 and Node v24.19.0. P06/P02 must link/copy these and closure package license files; not a completed distribution audit."
+    },
+    {
+      "id": "U10-remote-mount",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src/adapters/dsh/client.ts"
+      ],
+      "write_locks": [
+        "apps/desktop/src/adapters/dsh/client.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Mount public workspaceFiles contribution for scoped directory browser. Runtime/native allowlist still blocks file-content reads. Unvalidated."
+    },
+    {
+      "id": "U07-remote-wire",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src/adapters/dsh/client.ts",
+        "apps/desktop/package.json",
+        "apps/desktop-runtime/src/dsh/transport.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Mount public userQuestions remote and forwarded-event type vocabulary; allow only upstream answer/attachWait endpoints. Host api-remotes already comes from pinned web-app profile. Unvalidated."
+    },
+    {
+      "id": "U11-global-activity",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src/features/conversations/session-monitor.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Observe real global session summaries/status events for exit activity, with baseline list race reconciliation and monotonic connection carrier. Unvalidated."
+    },
+    {
+      "id": "L04-private-pipe",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src-tauri/src/runtime.rs"
+      ],
+      "status": "completed",
+      "execution_note": "Expose restricted private account pipe after sidecar bootstrap independent of DSH ready, native error construction available for storage failures; no renderer credentials."
+    },
+    {
+      "id": "N09-manifest-wire",
+      "kind": "implementation",
+      "files": [
+        "scripts/desktop/dev-desktop.mjs"
+      ],
+      "status": "completed",
+      "execution_note": "Call release manifest after generated resources/icons and before native package; accept optional pnpm argument separator."
+    },
+    {
+      "id": "N04-childtree",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop-runtime/src/dsh/launcher.ts",
+        "apps/desktop-runtime/src/dsh/lifecycle.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Owned DSH process descendant termination; delegated to runtime_rt01 after U08."
+    },
+    {
+      "id": "L06-controller",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop-runtime/src/cheapai/account-controller.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Extract testable private account lifecycle orchestration before Runtime entry wiring."
+    },
+    {
+      "id": "N04-force-tree",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src-tauri/src/runtime.rs",
+        "apps/desktop/src-tauri/src/protocol.rs",
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "status": "completed",
+      "execution_note": "Native private owned-process cleanup after abrupt Runtime failure and truthful unknown activity confirmation; waits L04/L06 file locks."
+    },
+    {
+      "id": "U07-agent-context",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src/adapters/dsh/client.ts",
+        "apps/desktop/package.json"
+      ],
+      "status": "completed",
+      "execution_note": "Public upstream createScope/scopeOf + owned Context adapter enables Gateway Agent waterfalls without another Session manager or control loop."
+    },
+    {
+      "id": "N04-private-child-pid",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop-runtime/src/dsh/lifecycle.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Private pipe status includes owned live child process ID, never renderer projection."
+    },
+    {
+      "id": "UT-global-exit-activity",
+      "kind": "test_authoring",
+      "files": [
+        "tests/desktop/session-monitor.node.test.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Author global cross-directory task/baseline race, disposal and initial failure cases; not executed yet."
+    },
+    {
+      "id": "L11-no-models-contract",
+      "kind": "implementation",
+      "files": [
+        "packages/desktop-contracts/src/index.ts",
+        "apps/desktop-runtime/src/cheapai/account-client.ts",
+        "apps/desktop-runtime/src/cheapai/model-catalog.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Safe noModels projection for a real empty gateway catalog; custom DSH routes reject empty models, do not invent one. Catalog connection failures retain safe network meaning."
+    },
+    {
+      "id": "R07-dev-auth-gate",
+      "kind": "implementation",
+      "files": [
+        "scripts/desktop/dev-runtime.mjs"
+      ],
+      "status": "completed",
+      "execution_note": "Require explicit dev opt-in for no-account runtime fixture after default login gating. Authoring handoff complete; not executed."
+    },
+    {
+      "id": "LT-controller",
+      "kind": "test_authoring",
+      "files": [
+        "tests/desktop/account-controller.node.test.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Private two-phase account orchestration ordering and failure state tests, delegated runtime_rt01. Authoring handoff complete; not executed."
+    },
+    {
+      "id": "F05-local-contract-resolution",
+      "kind": "artifact_preparation",
+      "files": [],
+      "status": "completed",
+      "execution_note": "Link the actual local contracts workspace into ignored node_modules for attainable centralized checks; no registry substitutes, generated locks, or frozen-install claim."
+    },
+    {
+      "id": "L07-safe-problems",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src/adapters/native/account.ts",
+        "apps/desktop/src/features/auth/LoginPage.tsx",
+        "apps/desktop/src/features/settings/AccountPanel.tsx"
+      ],
+      "status": "completed",
+      "execution_note": "Recognize noModels and strict allowlisted native error codes without exposing arbitrary host error text."
+    },
+    {
+      "id": "U11-authorized-shell-path",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src/app/AppShell.tsx",
+        "apps/desktop/src/components/layout/AppShell.tsx",
+        "apps/desktop/src/app/App.tsx"
+      ],
+      "status": "completed",
+      "execution_note": "Move Shell to declared layout path, fence activity publication to owner epoch and preserve confirmed account change detection across Runtime owner remount."
+    },
+    {
+      "id": "U03-review-cleanup",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src/adapters/dsh/client.ts",
+        "apps/desktop/src/adapters/native/runtime.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Handle asynchronous agent scope release and bind uplink end to stream cancellation/current generation."
+    },
+    {
+      "id": "UT-monitor-generation",
+      "kind": "test_authoring",
+      "files": [
+        "apps/desktop/src/features/conversations/session-monitor.ts",
+        "tests/desktop/session-monitor.node.test.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Repair cross-generation baseline single-flight race and author delayed old-generation behavior case."
+    },
+    {
+      "id": "P01-default-wiring",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src/components/layout/AppShell.tsx",
+        "apps/desktop/src/features/conversations/session-service.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Real model/directory settings sources and account default application at initial workspace/new Session; failed post-create selection retains real Session and draft."
+    },
+    {
+      "id": "L11-root-recovery",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src/app/App.tsx"
+      ],
+      "status": "completed",
+      "execution_note": "Problem-specific recovery copy and explicit stopped-sidecar restart; known native error codes and fixed console command."
+    },
+    {
+      "id": "L06-terminal-credentials",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop-runtime/src/index.ts",
+        "apps/desktop-runtime/src/cheapai/account-controller.ts",
+        "apps/desktop-runtime/src/cheapai/session-manager.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Revoke terminal-child bridge capability and clear invalid session secrets, preserving already-started streams across natural expiry; explicit binding replacement/shutdown retain cleanup ownership."
+    },
+    {
+      "id": "LT-expiry-shutdown",
+      "kind": "test_authoring",
+      "files": [
+        "tests/desktop/account-controller.node.test.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Author invalid session/new Key rejection, transient network preservation and late activation shutdown cases; centralized execution pending."
+    },
+    {
+      "id": "U11-truthful-activity",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src/features/conversations/session-monitor.ts",
+        "tests/desktop/session-monitor.node.test.ts",
+        "apps/desktop/src/adapters/native/runtime.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Only a successful global baseline can mark task count known; propagate unknown state across official Connection loss/replacement."
+    },
+    {
+      "id": "P03-stopped-activity",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src-tauri/src/updates.rs"
+      ],
+      "status": "completed",
+      "execution_note": "Skip unknown-task confirmation when DSH is explicitly stopped."
+    },
+    {
+      "id": "F05-local-exact-types",
+      "kind": "implementation",
+      "files": [],
+      "status": "completed",
+      "execution_note": "Link actual already-installed @types/node 24.13.3 into ignored desktop workspaces for partial checks, not a frozen install or dependency replacement."
+    },
+    {
+      "id": "R-type-fix-account",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop-runtime/src/cheapai/credential-bridge.ts",
+        "apps/desktop-runtime/src/cheapai/model-catalog.ts",
+        "apps/desktop-runtime/src/cheapai/session-manager.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Centralized compiler found callback return, validated Record reconstruction and exact optional argument errors; fixed without weakening configuration, rechecked."
+    },
+    {
+      "id": "R-type-fix-lifecycle",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop-runtime/src/dsh/lifecycle.ts",
+        "apps/desktop-runtime/src/host/control.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Allow explicitly cleared optional listener/timer/reader fields under exactOptionalPropertyTypes; logic unchanged, centralized affected tests passed."
+    },
+    {
+      "id": "N04-user-quit",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src-tauri/src/lib.rs"
+      ],
+      "status": "completed",
+      "execution_note": "User ExitRequested(code=None) shares activity confirmation with window close; explicit app.exit(codeSome)/update does not confirm twice."
+    },
+    {
+      "id": "N08-activity-order",
+      "kind": "implementation",
+      "files": [
+        "apps/desktop/src/adapters/native/runtime.ts"
+      ],
+      "status": "completed",
+      "execution_note": "Serialize activity updates and fence queued calls to captured native generation so older known counts cannot overtake an unknown baseline."
     }
   ],
   "last_checkpoint": {
     "date": "2026-10-04",
     "branch": "feat/cheapai-desktop",
-    "batch_status": "handoffs_complete",
+    "batch_status": "full_plan_source_handoff_complete_with_external_blockers",
     "active_subagents": 0,
-    "validation": "partial; lifecycle 4/4, Worker dry-run passes; dependency/port/native blockers remain",
+    "validation": "cloud type/build and contracts pass; 49 Node files/1776 pass with one missing-dependency suite; final affected desktop 4 files/21 pass; full native/model/D1 blocked",
     "next_tasks": [
       "F05",
-      "N08",
-      "N04",
-      "L04",
-      "L05",
-      "L06",
-      "U05"
+      "N09",
+      "RV01",
+      "UV01",
+      "NV01",
+      "NV02",
+      "AV01",
+      "LV01",
+      "PV01"
     ]
   }
 }

@@ -327,7 +327,9 @@ class DshRuntimeTransportOwner implements DshRuntimeTransport {
           ? (mode === 'call' ? WORKSPACE_UNARY_METHODS : WORKSPACE_STREAM_METHODS)
           : namespace === 'workspaceFiles'
             ? (mode === 'call' ? WORKSPACE_FILES_UNARY_METHODS : WORKSPACE_FILES_STREAM_METHODS)
-            : undefined
+            : namespace === 'userQuestions'
+              ? new Set(mode === 'call' ? ['answer'] : ['attachWait'])
+              : undefined
     if (!allowed?.has(method)) {
       throw new RuntimeControlError('unsupported-endpoint', 'DSH Remote endpoint is not enabled in Desktop Runtime')
     }

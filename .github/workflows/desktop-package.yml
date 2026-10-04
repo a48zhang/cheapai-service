@@ -1,0 +1,78 @@
+name: Desktop development packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      runtime:
+        description: 'Pinned runtime (Bun compatibility is unverified)'
+        required: true
+        default: node
+        type: choice
+        options: [node, bun]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-package-${{ github.ref }}-${{ inputs.runtime }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: Unsigned development package / ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            target: aarch64-apple-darwin
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+          - runner: windows-2022
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      CI: 'true'
+      WRANGLER_SEND_METRICS: 'false'
+      RUSTUP_TOOLCHAIN: '1.99.0'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Require reviewed dependency locks
+        run: |
+          git ls-files --error-unmatch pnpm-lock.yaml apps/desktop/src-tauri/Cargo.lock
+          node -e "const v=require('./scripts/desktop/runtime-versions.json'); if(v.desktop.tauri.rust_toolchain!==process.env.RUSTUP_TOOLCHAIN) throw Error('Rust pin mismatch')"
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal --target '${{ matrix.target }}'
+          rustc --version
+      - name: Install locked workspace dependencies
+        run: pnpm install --frozen-lockfile --strict-peer-dependencies --registry=https://registry.npmjs.org
+      - name: Resolve Cargo dependencies from the reviewed lock
+        run: cargo fetch --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --target '${{ matrix.target }}'
+      - name: Build complete desktop package
+        run: pnpm package:desktop -- --runtime '${{ inputs.runtime }}' --target '${{ matrix.target }}'
+      - name: Verify build preserved source and dependency locks
+        run: git diff --exit-code
+      - name: Record delivery limits
+        run: |
+          node -e "require('fs').writeFileSync('desktop-delivery-status.txt', ['Source: '+process.env.GITHUB_SHA, 'Target: ${{ matrix.target }}', 'Runtime: ${{ inputs.runtime }}', 'Unsigned development artifact; no signing or notarization configured.', 'No public release or Worker deployment performed.', 'Native installation and task/history validation require a separate target-system run.'].join('\n')+'\n')"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-desktop-${{ matrix.target }}-${{ inputs.runtime }}-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/
+            apps/desktop/src-tauri/resources/generated/runtime/release-manifest.json
+            desktop-delivery-status.txt

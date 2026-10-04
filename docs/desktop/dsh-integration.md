@@ -59,4 +59,13 @@ For managed credentials, `packages/llm/llm-pi-ai/src/adapter.ts` resolves the AP
 
 A normal profile patch `name` is a matching assertion, as implemented in `vendor/include/src/index.ts`; it cannot replace a module. The launcher therefore disables the existing `credentials` entry and inserts a new `cheapai-credentials` entry with an absolute module file URL. This patch is generated only after a bridge address is explicitly supplied. Source launches point to the `.ts` provider; packaged launches point to `dist/src/cheapai/dsh-credential-provider.js`. The Runtime production dependency closure includes `@deepseek-ai/dsh-credentials-local`, because the CLI's development dependency alone does not guarantee it will be packaged.
 
-These are implementation artifacts. The account/keychain/home orchestration tasks L04–L06 have not yet activated the managed bridge in the Runtime entry. The existing explicit configuration path still uses the upstream local credential store. The new transport and provider have not been exercised against a real DSH process; dependency installation, Node/Bun comparison, and native validation remain separate tasks.
+These are implementation artifacts. L04–L06 now wire native persistence-before-restore, account-partitioned home binding, and the managed credential bridge into the Runtime entry. The explicit upstream local credential configuration path is gated to development source plus an explicit development flag. Transport/provider have not been exercised against a real DSH process; dependency installation, Node/Bun comparison, and native validation remain separate tasks.
+## 桌面完整装配补充（2026-10-04）
+
+固定 ref `5badb15009ae1756c3afe0ae0cef1faafc290ccc` 的 `packages/bundle/web-app/cordis.patch.yml` 已装配 Host `api-remotes`，不用重复注册 Gateway event source。Renderer 类型面引入 `@deepseek-ai/dsh-api-remotes/client`，仅挂载所用的 Session、workspaceFiles 与 userQuestions contribution，不加载整个上游页面。
+
+用户问题使用 Remote waterfall `user-questions/request`；当前请求的返回值经官方 `$events/result` 回传。定时等待的公开接线为 `userQuestions/attachWait` stream 与继续回答的 `userQuestions/answer` unary。确认请求使用 `approval/request` 并返回上游 `ApprovalOutcome`，不新增权限策略或猜测 REST 端点。
+
+全局运行任务计数来自 `session.list` 基线及公开 `api-session/added`、`removed`、`status`、`activity` 事件，覆盖当前账号其他目录的任务。`SessionControlStream` 属于单个会话，不能作为全局任务源。Native `runtime_set_task_activity` 校验当前 public generation，关窗确认仍由 native 执行。
+
+Runtime raw DSH generation 会随侧车重启重新计数。Native 将它映射为跨侧车单调的 public generation，并在 RPC/ack/stream 边界映射；页面另有连接 epoch，使旧回调、旧会话 scope 和重连后的新服务隔离。账号操作的 generation 独立于 DSH generation，凭据持久化成功前不广播登录成功。

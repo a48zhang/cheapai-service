@@ -214,7 +214,7 @@ export class DesktopSessionManager {
       const retry = (): void => {
         finish(() => {
           try {
-            resolve(this.getKey({ signal }))
+            resolve(this.getKey(signal === undefined ? {} : { signal }))
           } catch (error) {
             reject(error)
           }

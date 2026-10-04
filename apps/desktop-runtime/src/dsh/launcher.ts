@@ -31,6 +31,81 @@ export interface LaunchDshOptions {
 export interface LaunchedDshProcess {
   child: ChildProcessWithoutNullStreams
   paths: ResolvedDshPaths
+  /** Signal only the process tree created by this exact launcher invocation. */
+  signalTree?: (signal: NodeJS.Signals, leaderExited: () => boolean) => Promise<boolean>
+}
+
+const TASKKILL_TIMEOUT_MS = 1_000
+
+function signalOwnedTree(
+  child: ChildProcessWithoutNullStreams,
+  signal: NodeJS.Signals,
+  leaderExited: () => boolean,
+): Promise<boolean> {
+  if (leaderExited()) return Promise.resolve(false)
+  const pid = child.pid
+  if (pid === undefined) return Promise.resolve(false)
+  if (process.platform === 'win32') return runTaskkill(pid, signal, leaderExited)
+  if (leaderExited()) return Promise.resolve(false)
+  try {
+    process.kill(-pid, signal)
+    return Promise.resolve(true)
+  } catch (error: unknown) {
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ESRCH') {
+      return Promise.resolve(false)
+    }
+    return Promise.reject(error)
+  }
+}
+
+function runTaskkill(
+  pid: number,
+  signal: NodeJS.Signals,
+  leaderExited: () => boolean,
+): Promise<boolean> {
+  if (leaderExited()) return Promise.resolve(false)
+  return new Promise(resolve => {
+    const args = ['/PID', String(pid), '/T', ...(signal === 'SIGKILL' ? ['/F'] : [])]
+    let command: ReturnType<typeof spawn>
+    try {
+      command = spawn('taskkill.exe', args, {
+        shell: false,
+        windowsHide: true,
+        stdio: 'ignore',
+      })
+    } catch {
+      resolve(false)
+      return
+    }
+    let settled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const cleanup = (): void => {
+      if (timer !== undefined) clearTimeout(timer)
+      command.off('error', onError)
+      command.off('close', onClose)
+    }
+    const finish = (signaled: boolean): void => {
+      if (settled) {
+        cleanup()
+        return
+      }
+      settled = true
+      cleanup()
+      resolve(signaled)
+    }
+    const onError = (): void => finish(false)
+    const onClose = (code: number | null): void => finish(code === 0)
+    command.once('error', onError)
+    command.once('close', onClose)
+    timer = setTimeout(() => {
+      if (!settled) {
+        settled = true
+        resolve(false)
+        try { command.kill('SIGKILL') } catch { /* Bound the helper even if taskkill cannot be reaped. */ }
+        timer = setTimeout(cleanup, TASKKILL_TIMEOUT_MS)
+      }
+    }, TASKKILL_TIMEOUT_MS)
+  })
 }
 
 function writeCredentialProviderPatch(paths: ResolvedDshPaths): string {
@@ -105,12 +180,20 @@ export function launchDsh(options: LaunchDshOptions): LaunchedDshProcess {
   }
   if (credentialSocketAddress === undefined) delete env[DESKTOP_CREDENTIAL_SOCKET_ENV]
 
-  const child = spawn(paths.runtimeExecutable, [paths.cliEntry, ...profile.args], {
+  const nodeSourceFlags = paths.runtime === 'node' && paths.mode === 'development'
+    ? ['--experimental-transform-types']
+    : []
+  const child = spawn(paths.runtimeExecutable, [...nodeSourceFlags, paths.cliEntry, ...profile.args], {
     cwd: workspaceDirectory,
     env,
     shell: false,
+    detached: process.platform !== 'win32',
     windowsHide: true,
     stdio: 'pipe',
   })
-  return { child, paths }
+  return {
+    child,
+    paths,
+    signalTree: (signal, leaderExited) => signalOwnedTree(child, signal, leaderExited),
+  }
 }

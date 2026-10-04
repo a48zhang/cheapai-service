@@ -7,8 +7,13 @@ import {
 } from '@deepseek-ai/dsh-api-gateway/client'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import sessionRemote from '@deepseek-ai/dsh-api-session-controller/remote'
+import workspaceFilesRemote from '@deepseek-ai/dsh-api-workspace-files/remote'
+import userQuestionsRemote from '@deepseek-ai/dsh-user-questions/remote'
+import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import {
   createSessionControlStream,
+  createScope,
+  scopeOf,
   SessionEventStream,
   type SessionControlStream,
   type SessionControlStreamOptions,
@@ -16,7 +21,10 @@ import {
 } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionAddress } from '@deepseek-ai/dsh-api-session-controller/types'
 import { apply as installTypertClient } from '@deepseek-ai/dsh-typert-registry/client'
+import { typertOwnedValue } from '@deepseek-ai/dsh-typert-protocol'
 import type {} from '@deepseek-ai/dsh-api-session-controller/remote'
+import type {} from '@deepseek-ai/dsh-api-session-controller/remote-events'
+import type {} from '@deepseek-ai/dsh-api-workspace-files/remote'
 
 /** Public DSH services consumed by the desktop conversation features. */
 export interface DshClient {
@@ -42,8 +50,19 @@ export async function installDshClient(context: Context): Promise<DshClient> {
   }
 
   installTypertClient(context)
+  // Gateway waterfalls target an Agent Context before invoking root listeners.
+  // Use upstream tagged scopes without installing a second Session manager.
+  context.effect(() => context.typert.contexts.registerClient('agent', {
+    identity: scopeOf,
+    resolve: sessionId => {
+      const scope = createScope(context, sessionId)
+      return typertOwnedValue(scope.ctx, () => { void scope.fiber.dispose().catch(() => undefined) })
+    },
+  }), 'desktop.dsh.agent-context')
   installGatewayClient(context)
   await context.remote.$mount(sessionRemote)
+  await context.remote.$mount(workspaceFilesRemote)
+  await context.remote.$mount(userQuestionsRemote)
   return createDshClient(context)
 }
 
@@ -76,6 +95,11 @@ export {
   SessionEventStream,
   createSessionControlStream,
 } from '@deepseek-ai/dsh-api-session-controller/client'
+
+/** Read the upstream Agent tag on a Gateway owner without guessing the active UI Session. */
+export function sessionIdForDshOwner(owner: unknown): ReturnType<typeof scopeOf> {
+  return typeof owner === 'object' && owner !== null ? scopeOf(owner as Context) : undefined
+}
 export type {
   SessionControlStream,
   SessionControlStreamOptions,

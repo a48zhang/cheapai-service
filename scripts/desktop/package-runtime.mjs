@@ -1,4 +1,4 @@
-import { cp, lstat, mkdir, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises'
+import { copyFile, cp, lstat, mkdir, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -11,6 +11,15 @@ function fail(message) {
 
 function packagePath(root, name) {
   return join(root, ...name.split('/'))
+}
+
+function requireLockfileImporters(lockfile, importers) {
+  const entries = new Set(lockfile.split(/\r?\n/u))
+  for (const importer of importers) {
+    if (!entries.has(`  ${importer}:`)) {
+      fail(`pnpm-lock.yaml does not contain the ${importer} workspace importer; refresh the desktop workspace lock before packaging`)
+    }
+  }
 }
 
 function inside(parent, candidate) {
@@ -250,6 +259,26 @@ async function copyDirectory(source, destination, label) {
   await cp(source, destination, { recursive: true, dereference: true })
 }
 
+async function copyDesktopNotices(root, output) {
+  const notices = [
+    ['THIRD_PARTY_NOTICES.md', 'notices/THIRD_PARTY_NOTICES.md'],
+    ['LICENSES/desktop/DSH-MIT.txt', 'notices/LICENSES/desktop/DSH-MIT.txt'],
+    ['LICENSES/desktop/Bun-LICENSE.md', 'notices/LICENSES/desktop/Bun-LICENSE.md'],
+    ['LICENSES/desktop/Node-LICENSE.txt', 'notices/LICENSES/desktop/Node-LICENSE.txt'],
+  ]
+  for (const [sourceRelativePath, destinationRelativePath] of notices) {
+    const source = join(root, sourceRelativePath)
+    const metadata = await lstat(source).catch((error) => {
+      if (error.code === 'ENOENT') fail(`Required desktop license or notice is missing: ${sourceRelativePath}`)
+      throw error
+    })
+    if (!metadata.isFile()) fail(`Desktop license or notice is not a regular file: ${sourceRelativePath}`)
+    const destination = join(output, ...destinationRelativePath.split('/'))
+    await mkdir(dirname(destination), { recursive: true })
+    await copyFile(source, destination)
+  }
+}
+
 export async function packageRuntime({
   repositoryRoot = defaultRepositoryRoot,
   outputDirectory,
@@ -260,6 +289,16 @@ export async function packageRuntime({
   const root = resolve(repositoryRoot)
   const output = resolve(root, outputDirectory)
   if (output === root || !inside(root, output)) fail(`Runtime output must stay inside the repository: ${output}`)
+
+  const lockfile = await readFile(join(root, 'pnpm-lock.yaml'), 'utf8').catch((error) => {
+    if (error.code === 'ENOENT') fail('pnpm-lock.yaml is missing; install and lock the desktop workspace before packaging')
+    throw error
+  })
+  requireLockfileImporters(lockfile, [
+    'apps/desktop',
+    'apps/desktop-runtime',
+    'packages/desktop-contracts',
+  ])
 
   const versions = JSON.parse(await readFile(join(root, 'scripts/desktop/runtime-versions.json'), 'utf8'))
   const target = readTarget(versions, targetTriple)
@@ -306,6 +345,7 @@ export async function packageRuntime({
     join(root, 'apps/desktop-runtime/profiles/cheapai.yml'),
     join(output, 'profiles/cheapai.yml'),
   )
+  await copyDesktopNotices(root, output)
 
   return { outputDirectory: output, target }
 }

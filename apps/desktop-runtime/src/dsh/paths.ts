@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module'
+import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -6,6 +7,9 @@ import { DSH_PROFILE_NAME } from './config.ts'
 
 export type DshRuntimeName = 'bun' | 'node'
 export type DshRuntimeMode = 'development' | 'packaged'
+export type DshAccountHomeScope = 'development' | 'production'
+
+const ACCOUNT_HOME_HASH_PREFIX = 'sub2api-desktop-dsh-home-v1\0'
 
 export interface ResolveDshPathsOptions {
   mode: DshRuntimeMode
@@ -55,6 +59,31 @@ function requiredAbsolute(value: string | undefined, label: string): string {
     throw new Error(`${label} must be an absolute path`)
   }
   return resolve(value)
+}
+
+/**
+ * Derive a private, stable home from the backend's opaque user id. The raw id
+ * and session Token never enter the path; scope keeps dev fixtures separate
+ * from production data even when both use the same base directory.
+ */
+export function resolveDshAccountHome(
+  baseHome: string,
+  userId: string,
+  scope: DshAccountHomeScope,
+): string {
+  const root = requiredAbsolute(baseHome, 'DSH base home')
+  if (scope !== 'development' && scope !== 'production') {
+    throw new TypeError('DSH account home scope is invalid')
+  }
+  if (typeof userId !== 'string' || userId.length === 0 || userId.length > 256
+    || userId.trim() !== userId || /[\u0000-\u001f\u007f]/u.test(userId)) {
+    throw new TypeError('DSH account user id is invalid')
+  }
+  const accountId = createHash('sha256')
+    .update(ACCOUNT_HOME_HASH_PREFIX, 'utf8')
+    .update(userId, 'utf8')
+    .digest('hex')
+  return join(root, 'accounts', scope, accountId)
 }
 
 function runtimeExecutablePath(runtimeRoot: string, runtime: DshRuntimeName): string {

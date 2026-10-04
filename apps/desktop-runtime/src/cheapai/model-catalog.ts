@@ -1,6 +1,7 @@
 import {
   normalizeCheapAiBaseURL,
 } from './provider.ts'
+import { DesktopAccountApiError } from './account-client.ts'
 import type {
   CheapAiApiProtocol,
   CheapAiModelProfile,
@@ -174,11 +175,11 @@ export async function discoverCheapAiModels(
     response = await fetch(url, {
       method: 'GET',
       headers: authorizationHeaders(options.api, key),
-      signal: options.signal,
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
     })
   } catch (error) {
     if (options.signal?.aborted) throw options.signal.reason
-    throw new Error(`Could not reach CheapAI model catalog at ${url}`, { cause: error })
+    throw new DesktopAccountApiError('network')
   }
 
   if (!response.ok) {
@@ -197,6 +198,6 @@ export async function discoverCheapAiModels(
   }
 
   const models = parseModels(body)
-  if (models.length === 0) throw new Error('CheapAI model catalog returned no usable models')
+  if (models.length === 0) throw new DesktopAccountApiError('noModels')
   return models
 }

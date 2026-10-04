@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "recorded_at": "2026-10-03",
+  "recorded_at": "2026-10-04",
   "dsh": {
     "repository": "https://github.com/deepseek-ai/deepseek-harness",
     "release_tag": "dsh-v0.2.1-alpha.1",
@@ -16,7 +16,35 @@
     "node": {
       "version": "24.19.0",
       "role": "primary comparison baseline",
-      "basis": "Existing repository pin; satisfies the pinned DSH Node engine."
+      "release_tag": "v24.19.0",
+      "basis": "Official Node.js 24.19.0 release post and its SHA-256 list; satisfies the pinned DSH Node engine.",
+      "release_post": "https://github.com/nodejs/nodejs.org/blob/e2e1a23727ca876740413c52376bd45160d60d09/apps/site/pages/en/blog/release/v24.19.0.md",
+      "artifacts": {
+        "aarch64-apple-darwin": {
+          "url": "https://nodejs.org/dist/v24.19.0/node-v24.19.0-darwin-arm64.tar.gz",
+          "sha256": "8294b7aa9b03997481c06babf1e8b270c859358f27da57a11509afe537ac381d",
+          "archive": "tar.gz",
+          "executablePath": "node-v24.19.0-darwin-arm64/bin/node"
+        },
+        "x86_64-apple-darwin": {
+          "url": "https://nodejs.org/dist/v24.19.0/node-v24.19.0-darwin-x64.tar.gz",
+          "sha256": "d1b5e999db158c62fe8f7267a4476b035d8bd93b1a605bac24a3f0dd166e3316",
+          "archive": "tar.gz",
+          "executablePath": "node-v24.19.0-darwin-x64/bin/node"
+        },
+        "x86_64-pc-windows-msvc": {
+          "url": "https://nodejs.org/dist/v24.19.0/win-x64/node.exe",
+          "sha256": "3958e4bb3f2d4ef37c938215dfc65a9d3c9d839b5060fec103bd2345fa78e951",
+          "archive": "raw",
+          "executablePath": "node.exe"
+        },
+        "x86_64-unknown-linux-gnu": {
+          "url": "https://nodejs.org/dist/v24.19.0/node-v24.19.0-linux-x64.tar.xz",
+          "sha256": "14b342e71204f811bde6153be8e04b62aef63c236fef92b55f9c83154b409647",
+          "archive": "tar.xz",
+          "executablePath": "node-v24.19.0-linux-x64/bin/node"
+        }
+      }
     },
     "bun": {
       "version": "1.4.2",
@@ -57,6 +85,8 @@
       "cli": "2.8.4",
       "rust_crate": "2.8.5",
       "rust_minimum": "1.77.2",
+      "rust_toolchain": "1.99.0",
+      "rust_toolchain_release": "https://github.com/rust-lang/rust/releases/tag/1.99.0",
       "status": "selected v2 candidate; no native build performed"
     },
     "react": {

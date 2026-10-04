@@ -76,6 +76,7 @@ export interface DesktopKeyResponse {
 export type DesktopAccountProblem =
   | 'network'
   | 'serviceUnavailable'
+  | 'noModels'
   | 'sessionExpired'
   | 'keyRevoked'
   | 'insufficientBalance'

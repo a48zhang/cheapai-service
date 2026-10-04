@@ -2,6 +2,8 @@ import type {
   SessionCreateRequest,
   SessionCreateValue,
   SessionListValue,
+  ModelCatalog,
+  ModelSelection,
   SessionPage,
   SessionPageRequest,
   SessionRenameRequest,
@@ -9,6 +11,8 @@ import type {
   SessionSummary,
 } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { DshClient } from '../../adapters/dsh/client'
+import { getComposerModelOptions } from './composer-controller'
+import { readPreferences } from '../settings/preferences'
 import {
   SessionStore,
   type ConversationSessionId,
@@ -54,6 +58,12 @@ interface RequestLifetime {
   release(): void
 }
 
+/** Optional bridge for preserving a first-prompt draft if model selection fails after create. */
+export interface SessionCreationDraftBridge {
+  captureUncreatedSessionDraft(scope: SessionScope): string | null
+  preserveForCreatedSession(scope: SessionScope, sessionId: ConversationSessionId, draft: string): void
+}
+
 /**
  * Thin owner of typed pinned DSH session calls. It keeps one explicit scope;
  * scope changes dispose outstanding reads and all late results are discarded.
@@ -69,6 +79,7 @@ export class SessionService {
     private readonly client: DshClient,
     private readonly store: SessionStore,
     scope: SessionScope,
+    private readonly draftBridge?: SessionCreationDraftBridge,
   ) {
     this.scope = Object.freeze({ ...scope })
     this.store.setScope(this.scope)
@@ -133,7 +144,55 @@ export class SessionService {
       cwd,
       ...(options.agentPreset === undefined ? {} : { agentPreset: options.agentPreset }),
     }
-    const result = unwrapRemoteResult<SessionCreateValue>(await this.client.session.create(request))
+
+    let defaultSelection: ModelSelection | undefined
+    const defaultModelId = this.scope.accountId === null
+      ? null : readPreferences(this.scope.accountId).defaultModelId
+    if (defaultModelId !== null) {
+      try {
+        const catalogResponse = await this.client.session.modelCatalog()
+        this.assertCurrentScope()
+        const catalog = unwrapRemoteResult<ModelCatalog>(catalogResponse)
+        defaultSelection = getComposerModelOptions(catalog)
+          .find(option => option.key === defaultModelId)?.selection
+      } catch {
+        // Catalog failures and stale preferences leave DSH's own default intact.
+        this.assertCurrentScope()
+      }
+    }
+
+    this.assertCurrentScope()
+    const firstPromptDraft = this.draftBridge?.captureUncreatedSessionDraft(this.scope) ?? null
+    let result: SessionCreateValue
+    try {
+      const createResponse = await this.client.session.create(request)
+      this.assertCurrentScope()
+      result = unwrapRemoteResult<SessionCreateValue>(createResponse)
+    } catch (error: unknown) {
+      this.assertCurrentScope()
+      throw error
+    }
+
+    if (defaultSelection !== undefined) {
+      try {
+        const selectionResponse = await this.client.session.selectModel({
+          sessionId: result.sessionId,
+          ...defaultSelection,
+        })
+        this.assertCurrentScope()
+        unwrapRemoteResult<{ readonly selected: ModelSelection }>(selectionResponse)
+      } catch (error: unknown) {
+        this.assertCurrentScope()
+        this.store.setActiveSession(this.scope, result.sessionId)
+        if (firstPromptDraft !== null) {
+          this.draftBridge?.preserveForCreatedSession(this.scope, result.sessionId, firstPromptDraft)
+        }
+        // Session create is authoritative; the selected real Session remains visible.
+        void this.refreshSessions().catch(() => undefined)
+        throw error
+      }
+    }
+
     this.assertCurrentScope()
     this.store.setActiveSession(this.scope, result.sessionId)
     // Session create is authoritative even if this best-effort list refresh fails.
