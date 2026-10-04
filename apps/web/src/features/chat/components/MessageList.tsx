@@ -46,7 +46,7 @@ function availabilityReason(reason: string): string {
     case 'already-selected':
       return '此回答版本已经选中。';
     case 'no-selected-variant':
-      return '服务端当前没有选中的回答版本。';
+      return '尚未选中回答版本。';
     default:
       return '此操作当前不可用。';
   }
@@ -145,7 +145,7 @@ export function MessageList({
                 : !isLatestTurn
                   ? '只能重新生成最新一轮的回答。'
                   : !isCurrentSelection
-                    ? '当前回答未被服务端选中，无法重新生成。'
+                    ? '当前回答未选中，无法重新生成。'
                     : !canOperateOnAssistant(row.message)
                       ? '当前回答仍在生成，暂不能重新生成。'
                       : onRegenerate === undefined
@@ -169,7 +169,7 @@ export function MessageList({
                 : !isLatestTurn
                   ? '只能切换最新一轮的回答版本。'
                   : !isCurrentSelection
-                    ? '当前回答未被服务端选中，无法切换版本。'
+                    ? '当前回答未选中，无法切换版本。'
                     : !canOperateOnAssistant(row.message)
                       ? '当前回答仍在生成，暂不能切换版本。'
                       : onSelectVersion === undefined

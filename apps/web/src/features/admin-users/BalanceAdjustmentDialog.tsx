@@ -214,11 +214,7 @@ export function BalanceAdjustmentDialog({
                   <option value="adjustment">余额调整（可正可负）</option>
                 </select>
               </Field>
-              <Field
-                label="金额（USD）"
-                required
-                description="最多 8 位小数；使用精确十进制换算，不经浮点舍入。"
-              >
+              <Field label="金额（USD）" required description="最多 8 位小数。">
                 <Input
                   value={
                     activeIntent ? formatAdjustmentInput(activeIntent.input.deltaUnits) : amountUsd
@@ -243,7 +239,7 @@ export function BalanceAdjustmentDialog({
                 className="block w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
               />
             </Field>
-            <Field label="关联请求 ID（可选）" description="如填写，服务端会校验请求属于此用户。">
+            <Field label="关联请求 ID（可选）" description="仅支持该用户的请求。">
               <Input
                 value={activeIntent?.input.requestId ?? requestId}
                 onChange={(event) => setRequestId(event.currentTarget.value)}

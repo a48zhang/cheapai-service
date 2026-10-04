@@ -204,7 +204,7 @@ export function ChannelSetup({
         if (!busy && !progress.creationUncertain) onOpenChange(next);
       }}
       title="渠道快速配置"
-      description="分步保存渠道、模型映射和访问组关联。每步都会立即写入服务端；后续失败时，已保存资源会保留。"
+      description="每步单独保存，关闭后已保存的设置会保留。"
       closeButton={!busy && !progress.creationUncertain}
       footer={footer}
     >
@@ -295,9 +295,6 @@ export function ChannelSetup({
             className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"
           >
             <h3 className="font-semibold">渠道设置已完成</h3>
-            <p>
-              渠道、映射和访问组已分别保存。它们不是一个原子事务；各资源可在详情页单独继续管理。
-            </p>
             <div className="flex flex-wrap gap-3">
               <Link
                 to={`/admin/channels/${encodeURIComponent(progress.channel.id)}`}

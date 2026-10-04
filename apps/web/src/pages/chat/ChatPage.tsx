@@ -237,9 +237,6 @@ export default function ChatPage() {
               <Sparkles size={26} />
             </span>
             <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">今天想做些什么？</h1>
-            <p className="mt-3 text-sm leading-6 text-[var(--color-muted-foreground)]">
-              在一个工作台使用你需要的模型，开始新的想法。
-            </p>
             <div className="mt-6 grid w-full gap-2 sm:grid-cols-2">
               {[
                 '帮我整理一个清晰的开发计划',

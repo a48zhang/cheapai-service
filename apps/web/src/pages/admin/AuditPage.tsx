@@ -64,7 +64,7 @@ export default function AuditPage() {
   }
   return (
     <>
-      <PageHeader heading="管理审计" description="定位配置与权限变动，查看服务端脱敏后的记录。" />
+      <PageHeader heading="管理审计" />
       <form
         key={params.toString()}
         className="flex flex-wrap items-end gap-3 rounded-xl border border-[var(--color-border)] bg-white p-4"

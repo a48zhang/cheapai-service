@@ -81,17 +81,9 @@ export function ModelForm({ client, model, onSaved, onCancel }: ModelFormProps) 
                 </dd>
               </div>
             </dl>
-            <p className="mt-3 text-xs text-[var(--color-muted-foreground)]">
-              以上为只读参考，不会自动覆盖本地售价或渠道配置。
-            </p>
           </details>
         )}
-        <Field
-          label="目录状态"
-          required
-          error={errors.status?.message}
-          description="目录启用与渠道映射状态彼此独立。"
-        >
+        <Field label="目录状态" required error={errors.status?.message}>
           <select
             {...form.register('status')}
             className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
@@ -118,7 +110,7 @@ export function ModelForm({ client, model, onSaved, onCancel }: ModelFormProps) 
           label="最低余额门槛（USD 最小单位）"
           required
           error={errors.admissionMinBalanceUnits?.message}
-          description="使用非负整数，不经过浮点换算。"
+          description="填写非负整数。"
         >
           <Input
             {...form.register('admissionMinBalanceUnits')}

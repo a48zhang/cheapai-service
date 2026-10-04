@@ -119,7 +119,7 @@ export function RequestsPage() {
 
   return (
     <section className="space-y-5">
-      <PageHeader heading="我的请求" description="查看模型调用结果、用量和实际结算状态。" />
+      <PageHeader heading="我的请求" />
       <form
         onSubmit={applyFilters}
         className="flex flex-wrap items-end gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4"

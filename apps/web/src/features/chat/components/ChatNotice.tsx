@@ -19,9 +19,7 @@ export function ChatNotice({
       className="mx-auto w-full max-w-[52rem] rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
     >
       <p>{state.failure.message}</p>
-      {uncertain && (
-        <p className="mt-1 text-xs">此操作可能已被服务端接收。重试会复用原操作编号并核对结果。</p>
-      )}
+      {uncertain && <p className="mt-1 text-xs">结果尚未确认，请重试核对。</p>}
       <div className="mt-3 flex flex-wrap gap-2">
         {uncertain && (
           <Button variant="secondary" size="sm" onClick={onRetry}>

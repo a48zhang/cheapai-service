@@ -9,9 +9,6 @@ export default function LoginPage() {
     <>
       <header className="mb-7">
         <h1 className="text-2xl font-semibold">欢迎回来</h1>
-        <p className="mt-2 text-sm text-[var(--color-muted-foreground)]">
-          登录 cheapai，继续你的工作。
-        </p>
       </header>
       <LoginForm
         onSuccess={() => navigate(safeReturnPath(params.get('returnTo')), { replace: true })}

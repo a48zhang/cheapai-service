@@ -90,9 +90,6 @@ export function ModelTable({
 }: ModelTableProps) {
   return (
     <>
-      <p className="mb-3 text-xs leading-5 text-[var(--color-muted-foreground)]">
-        目录启用状态不会说明渠道是否可用；请在模型详情中单独查看渠道映射。
-      </p>
       <CursorTable
         rows={rows}
         columns={columns}

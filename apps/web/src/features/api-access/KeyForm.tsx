@@ -74,11 +74,7 @@ export function KeyForm(props: KeyFormProps) {
       open={open}
       onOpenChange={close}
       title={mode === 'create' ? '创建 API Key' : '编辑 Key'}
-      description={
-        mode === 'create'
-          ? '密钥只在创建成功时显示一次，请立即保存。'
-          : '更新授权分组或到期时间会增加 Key 版本。'
-      }
+
       closeLabel={mode === 'create' ? '关闭创建 API Key' : '关闭编辑 Key'}
       closeButton={!busy}
       footer={footer}

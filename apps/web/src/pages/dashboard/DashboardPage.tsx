@@ -106,7 +106,6 @@ export function DashboardPage() {
     <section className="space-y-7">
       <PageHeader
         heading="账户概览"
-        description="余额、接入入口与最近的模型请求。"
         actions={
           <Link
             className="rounded-md bg-[var(--color-primary)] px-4 py-2.5 text-sm font-medium text-white hover:opacity-90"
@@ -174,9 +173,6 @@ export function DashboardPage() {
             <h2 id="recent-requests-heading" className="m-0 text-lg font-semibold">
               最近请求
             </h2>
-            <p className="mb-0 mt-1 text-sm text-[var(--color-muted-foreground)]">
-              最多显示最近五条记录。
-            </p>
           </div>
           <Link
             className="text-sm font-medium text-[var(--color-primary)] hover:underline"

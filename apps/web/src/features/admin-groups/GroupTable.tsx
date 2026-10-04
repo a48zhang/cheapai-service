@@ -88,9 +88,6 @@ export function GroupTable({
 }: GroupTableProps) {
   return (
     <>
-      <p className="mb-3 text-xs leading-5 text-[var(--color-muted-foreground)]">
-        渠道关联只展示已保存的配置关系，不会计算用户最终授权结果；用户归属和请求准入仍由服务端规则决定。
-      </p>
       <CursorTable
         rows={rows}
         columns={columns}

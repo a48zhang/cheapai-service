@@ -172,7 +172,6 @@ export function ChannelPicker({
               渠道候选尚未就绪。
             </p>
           )}
-
           <div
             className="max-h-72 space-y-1 overflow-y-auto rounded-md border p-2"
             style={{ borderColor: 'var(--color-border)' }}
@@ -249,7 +248,7 @@ export function ChannelPicker({
           )}
           {!complete && !loading && errorMessage == null && (
             <p className="text-xs text-[var(--color-muted-foreground)]">
-              完成完整候选加载后才能应用新的选择；当前值会保留。
+              请先加载全部渠道，再更改选择。
             </p>
           )}
         </div>

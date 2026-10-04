@@ -64,7 +64,6 @@ export default function UsersPage() {
       <PageHeader
         eyebrow="用户与授权"
         heading="用户管理"
-        description="按服务端支持的状态和分组筛选用户；余额与访问设置以服务端安全投影为准。"
         actions={<Button onClick={() => setCreateOpen(true)}>创建普通用户</Button>}
       />
       <FilterBar
@@ -91,7 +90,7 @@ export default function UsersPage() {
             applyFilters(status, groupDraft.trim());
           }}
         >
-          <Field label="分组 ID" description="精确匹配服务端分组 ID。">
+          <Field label="分组 ID">
             <Input
               value={groupDraft}
               onChange={(event) => setGroupDraft(event.currentTarget.value)}

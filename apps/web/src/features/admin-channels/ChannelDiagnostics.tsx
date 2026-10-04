@@ -98,7 +98,6 @@ export function ChannelDiagnostics({ open, channel, api, onOpenChange }: Channel
         open={open}
         onOpenChange={closeSheet}
         title="渠道连接诊断"
-        description="只在你确认后发送一次上游请求。测试可能产生上游费用，但不会扣减用户余额或创建业务账单。"
         closeButton={!busy && !confirmOpen}
         footer={
           <>
@@ -121,10 +120,7 @@ export function ChannelDiagnostics({ open, channel, api, onOpenChange }: Channel
         <div className="space-y-5">
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
             <p className="font-semibold">费用提示</p>
-            <p className="mt-1 leading-6">
-              系统会发送一条最小测试提示并读取有限响应。上游服务可能计费；此操作不会扣减 cheapai
-              用户余额，也不会进入用户账单。
-            </p>
+            <p className="mt-1 leading-6">诊断可能产生上游费用，不扣用户余额。</p>
           </div>
 
           {channel.status !== 'active' && (
@@ -139,7 +135,7 @@ export function ChannelDiagnostics({ open, channel, api, onOpenChange }: Channel
           {channel.models.length > 0 ? (
             <Field
               label="选择模型映射"
-              description="诊断会携带当前渠道、映射和价格版本；版本变化时服务端会拒绝过期请求。"
+
               required
             >
               <Select
@@ -218,9 +214,6 @@ export function ChannelDiagnostics({ open, channel, api, onOpenChange }: Channel
                   </dd>
                 </div>
               </dl>
-              {result.mayIncurUpstreamCost && (
-                <p className="text-xs text-amber-800">此请求仍可能由上游服务计费。</p>
-              )}
             </section>
           )}
 
@@ -230,7 +223,7 @@ export function ChannelDiagnostics({ open, channel, api, onOpenChange }: Channel
               {error instanceof ApiClientError &&
                 (error.kind === 'network' || error.kind === 'aborted') && (
                   <p className="text-xs text-slate-600">
-                    未收到可确认的诊断结果。系统不会自动重试；再次操作需要重新确认费用提示。
+                    诊断结果未确认。再次诊断可能产生额外费用。
                   </p>
                 )}
             </div>

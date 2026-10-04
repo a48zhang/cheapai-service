@@ -76,7 +76,7 @@ export function ChannelSetupSteps({
       {step === 'channel' && (
         <form id={channelFormId} className="grid gap-4" onSubmit={onSubmitChannel}>
           <p className="text-sm text-[var(--color-muted-foreground)]">
-            先创建一条启用渠道，限额默认不限。凭证仅在此处提交，不会回显。
+            新渠道默认启用，请求与并发上限不限。
           </p>
           <Field label="渠道名称" required>
             <Input
@@ -97,7 +97,7 @@ export function ChannelSetupSteps({
               disabled={busy}
             />
           </Field>
-          <Field label="上游凭证" required description="成功创建后会清空本地输入。">
+          <Field label="上游凭证" required>
             <Input
               type="password"
               value={channelDraft.upstreamKey}
@@ -127,10 +127,7 @@ export function ChannelSetupSteps({
           <p className="text-sm text-[var(--color-muted-foreground)]">
             渠道已保存。选择已有模型目录中的公开模型，然后声明上游模型 ID 与协议。
           </p>
-          <Field
-            label="内置模型参考"
-            description="内置资料只提供公开模型参考与默认协议，不会替你创建模型或推断上游能力。"
-          >
+          <Field label="内置模型参考">
             <Select
               items={[
                 { value: '', label: '不使用内置参考' },
@@ -190,17 +187,13 @@ export function ChannelSetupSteps({
               disabled={busy}
             />
           </Field>
-          <p className="text-xs leading-5 text-amber-800">
-            此快捷流程不声明工具、流式或其他能力。创建后请在模型详情确认实际能力配置。
-          </p>
+          <p className="text-xs leading-5 text-amber-800">流式、工具调用等能力需在模型详情配置。</p>
         </form>
       )}
 
       {step === 'group' && (
         <form id={groupFormId} className="grid gap-4" onSubmit={onSubmitGroup}>
-          <p className="text-sm text-[var(--color-muted-foreground)]">
-            渠道与映射已保存。将新渠道加入现有访问组；写入时使用当前组版本。
-          </p>
+          <p className="text-sm text-[var(--color-muted-foreground)]">将新渠道加入访问组。</p>
           {groupsLoading && (
             <p role="status" className="text-sm text-[var(--color-muted-foreground)]">
               正在读取访问组…
@@ -210,7 +203,7 @@ export function ChannelSetupSteps({
             <div className="grid gap-2">
               <ApiErrorNotice error={groupsError} onRetry={onRetryGroups} />
               <p className="text-xs text-[var(--color-muted-foreground)]">
-                访问组候选可单独重试，前面已保存的渠道与映射会保留。
+                请重试加载访问组；渠道与映射已保存。
               </p>
             </div>
           )}
@@ -229,7 +222,7 @@ export function ChannelSetupSteps({
             </div>
           )}
           {groups.length > 0 && (
-            <Field label="访问组" required description="只修改渠道关联，保留组内其他设置。">
+            <Field label="访问组" required>
               <Select
                 items={groups.map((group) => ({
                   value: group.id,
@@ -245,14 +238,11 @@ export function ChannelSetupSteps({
           )}
           {selectedGroup && (
             <p className="rounded-md bg-[var(--color-muted)] p-3 text-xs text-[var(--color-muted-foreground)]">
-              当前组版本 v{selectedGroup.version}，已有 {selectedGroup.channelIds.length}{' '}
-              个渠道；成功后会追加新渠道，并保留倍率与其他关联。
+              已有 {selectedGroup.channelIds.length} 个渠道
             </p>
           )}
           {progressError && (
-            <p className="text-xs text-amber-800">
-              若这是版本冲突，请重新读取访问组并重新选中目标组后再试。
-            </p>
+            <p className="text-xs text-amber-800">若配置已变更，请刷新并重新选择访问组。</p>
           )}
         </form>
       )}

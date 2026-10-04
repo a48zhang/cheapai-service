@@ -104,9 +104,6 @@ export function UserAccessPanel({ user, api, onEdit, onRevoked }: UserAccessPane
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">访问与授权</h2>
-          <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
-            角色来自服务端，只能由服务端权限策略变更。
-          </p>
         </div>
         {onEdit && (
           <Button variant="secondary" onClick={onEdit}>
@@ -169,9 +166,7 @@ export function UserAccessPanel({ user, api, onEdit, onRevoked }: UserAccessPane
           <div>
             <h3 className="font-medium">撤销已有 Key</h3>
             <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--color-muted-foreground)]">
-              管理接口不提供按用户列举 Key。请使用可信来源核对此用户已有的 Key ID
-              与版本，再明确输入目标用户 ID 后撤销。接口按 Key ID 执行，不能在提交前验证 Key
-              所属者。
+              请先核对 Key ID、版本和所属用户。撤销前无法自动核验所属用户。
             </p>
           </div>
           <Button variant="danger" onClick={() => setRevokeOpen(true)}>
@@ -231,8 +226,7 @@ export function UserAccessPanel({ user, api, onEdit, onRevoked }: UserAccessPane
             }}
           >
             <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
-              请先确认 Key 属于当前用户。由于服务端不提供用户 Key 列表，错误的 Key ID
-              可能指向其他账户。
+              请确认 Key 属于当前用户，错误的 ID 可能撤销其他用户的 Key。
             </p>
             <Field label="Key ID" required>
               <Input
@@ -244,11 +238,7 @@ export function UserAccessPanel({ user, api, onEdit, onRevoked }: UserAccessPane
                 disabled={busy || locked}
               />
             </Field>
-            <Field
-              label="Key 版本"
-              required
-              description="使用可信 Key 记录中的当前版本；撤销时服务端会执行版本比较。"
-            >
+            <Field label="Key 版本" required description="填写 Key 当前版本。">
               <Input
                 value={intent ? String(intent.version) : versionText}
                 onChange={(event) => setVersionText(event.currentTarget.value)}

@@ -33,16 +33,13 @@ export function PriceFields({ value, errors = {}, disabled = false, onChange }: 
     >
       <legend className="px-1 text-sm font-semibold">模型价格</legend>
       <p className="text-xs leading-5 text-[var(--color-muted-foreground)] sm:col-span-2">
-        按 USD / 百万 Token 填写。缓存和推理价格单独计价；留空表示未配置该计费项。
+        单位：USD / 百万 Token。可选项留空表示未配置。
       </p>
       {BILLABLE_BUCKETS.map((bucket) => (
         <Field
           key={bucket}
           label={`${labels[bucket]}${bucket === 'input' || bucket === 'output' ? '（必填）' : '（可选）'}`}
           error={errors[bucket]}
-          description={
-            bucket === 'input' || bucket === 'output' ? undefined : '留空时不单独设置此项价格。'
-          }
         >
           <Input
             type="text"

@@ -48,11 +48,7 @@ export default function KeysPage() {
 
   return (
     <main className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
-      <PageHeader
-        eyebrow="个人控制台"
-        heading="API Keys"
-        description="管理应用密钥与授权分组，并查看不同协议的接入示例。完整密钥只在创建成功后显示一次。"
-      />
+      <PageHeader eyebrow="个人控制台" heading="API Keys" />
       <Tabs
         ariaLabel="API 接入"
         defaultValue="keys"

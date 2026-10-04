@@ -52,7 +52,6 @@ export function GroupsPage() {
       <PageHeader
         eyebrow="资源配置"
         heading="访问组"
-        description="管理服务端访问组、精确计费倍率和已保存的渠道关联。组成员和最终请求授权仍以服务端规则为准。"
         actions={
           <Button asChild>
             <Link to="/admin/groups/new">创建访问组</Link>

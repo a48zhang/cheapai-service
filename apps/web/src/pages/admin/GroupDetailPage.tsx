@@ -103,11 +103,6 @@ export function GroupDetailPage() {
       <PageHeader
         eyebrow="资源配置 · 访问控制"
         heading={createMode ? '创建访问组' : (group?.name ?? groupId)}
-        description={
-          createMode
-            ? '创建一个访问组并关联渠道。用户分配通过独立的用户管理流程完成。'
-            : '访问组配置渠道关联、状态与精确计费倍率。用户归属由用户管理流程维护，服务端负责最终请求准入。'
-        }
         actions={
           <Button asChild variant="outline">
             <Link to="/admin/groups">返回访问组列表</Link>
@@ -165,10 +160,6 @@ export function GroupDetailPage() {
           <h2 id="group-form-heading" className="text-lg font-semibold">
             {createMode ? '访问组设置' : '编辑访问组'}
           </h2>
-          <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
-            提交使用访问组自身的
-            version。冲突后可重新读取，检查字段，再明确采用最新版本并保留当前输入。
-          </p>
         </div>
         <GroupForm
           key={createMode ? 'new-group' : group?.id}
@@ -180,25 +171,6 @@ export function GroupDetailPage() {
           onCancel={createMode ? () => navigate('/admin/groups') : undefined}
         />
       </section>
-
-      {group && (
-        <aside className="rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)]/40 p-4 text-sm leading-6">
-          <h2 className="font-semibold">关系说明</h2>
-          <p className="mt-1">
-            此组当前保存 {group.channelIds.length}{' '}
-            个渠道关联。关联内容不会修改用户所属组，也不会覆盖单独的用户禁用状态或服务端准入条件。
-          </p>
-          {group.channelIds.length > 0 && (
-            <ul className="mt-2 grid gap-1 sm:grid-cols-2">
-              {group.channelIds.map((channelId) => (
-                <li key={channelId} className="break-all font-mono text-xs">
-                  {channelId}
-                </li>
-              ))}
-            </ul>
-          )}
-        </aside>
-      )}
     </section>
   );
 }

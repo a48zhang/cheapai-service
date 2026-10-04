@@ -78,7 +78,7 @@ export function ModelPicker({ selection, disabled = false }: ModelPickerProps) {
           ? {
               description:
                 selectedModel.maxOutputTokens === undefined
-                  ? '最大输出由服务端策略决定'
+                  ? '使用默认输出上限'
                   : `最大输出 ${selectedModel.maxOutputTokens.toLocaleString()} tokens`,
             }
           : {})}

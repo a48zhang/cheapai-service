@@ -86,9 +86,6 @@ export function MappingTable({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold">渠道映射</h2>
-          <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">
-            映射只记录上游配置和能力声明，不代表渠道已连通或探测成功。
-          </p>
         </div>
         {onCreate && (
           <Button size="sm" onClick={onCreate}>

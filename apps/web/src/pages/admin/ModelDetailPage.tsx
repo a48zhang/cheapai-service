@@ -69,11 +69,7 @@ export default function ModelDetailPage({ createMode = false }: { createMode?: b
   if (!createMode && modelQuery.isError && !modelQuery.data) {
     return (
       <section className="space-y-5">
-        <PageHeader
-          eyebrow="资源配置"
-          heading="模型详情暂不可用"
-          description="读取失败时不会显示旧输入作为当前服务端版本。"
-        />
+        <PageHeader eyebrow="资源配置" heading="模型详情暂不可用" />
         <ApiErrorNotice
           error={modelQuery.error}
           onRetry={() => {
@@ -117,11 +113,6 @@ export default function ModelDetailPage({ createMode = false }: { createMode?: b
       <PageHeader
         eyebrow="资源配置 · 模型目录"
         heading={createMode ? '新增公开模型' : (model?.publicModelId ?? modelId)}
-        description={
-          createMode
-            ? '创建公开目录条目后，可以在同一详情页配置价格与渠道映射。'
-            : '管理公开价格、准入条件和渠道上游映射。目录启用状态与渠道可用性分别配置。'
-        }
         actions={
           <Button asChild variant="outline">
             <Link to="/admin/models">返回模型列表</Link>
@@ -154,9 +145,6 @@ export default function ModelDetailPage({ createMode = false }: { createMode?: b
           <h2 id="model-settings-heading" className="text-lg font-semibold">
             目录与价格
           </h2>
-          <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
-            价格使用每百万 Token 的十进制字符串保存；修改只提交变化字段并使用独立 priceVersion。
-          </p>
         </div>
         <ModelForm
           key={createMode ? 'new-model' : model?.publicModelId}
@@ -176,10 +164,6 @@ export default function ModelDetailPage({ createMode = false }: { createMode?: b
             <h2 id="model-mappings-heading" className="text-lg font-semibold">
               渠道映射
             </h2>
-            <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
-              映射关联实际渠道和上游模型，并声明协议能力。它只表示配置存在，不代表渠道健康、已经探测或已成功转发。编辑使用
-              configVersion，与价格版本完全独立。
-            </p>
           </div>
           {mappingFeedback && (
             <p

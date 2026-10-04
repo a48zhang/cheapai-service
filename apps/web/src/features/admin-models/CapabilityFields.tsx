@@ -152,7 +152,7 @@ export function CapabilityFields({
     >
       <legend className="px-1 text-sm font-semibold">模型能力</legend>
       <p className="text-xs text-[var(--color-muted-foreground)]">
-        协议：{protocol}。仅勾选渠道明确支持的能力；这些字段会参与路由筛选。
+        {protocol} · 仅勾选渠道支持的能力。
       </p>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {featureGroups.map((group) => (
@@ -180,7 +180,7 @@ export function CapabilityFields({
         <Field
           label="最大输出 Token（可选）"
           error={errors.maxOutputTokens}
-          description="使用正整数；留空表示不覆盖模型目录默认值。"
+          description="正整数；留空使用模型默认值。"
         >
           <Input
             value={value.maxOutputTokens}
@@ -239,10 +239,6 @@ export function CapabilityFields({
           className="block min-h-20 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 font-mono text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] disabled:cursor-not-allowed disabled:opacity-60"
         />
       </Field>
-      <p className="text-xs text-[var(--color-muted-foreground)]">
-        所有 {CAPABILITY_FEATURES.length}{' '}
-        项已知能力均可显式设置。协议及能力依赖、重复项和扩展范围会在保存前校验。
-      </p>
     </fieldset>
   );
 }

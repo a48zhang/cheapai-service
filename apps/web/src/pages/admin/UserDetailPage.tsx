@@ -113,9 +113,6 @@ export default function UserDetailPage() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold">账户资料</h2>
-              <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
-                安全字段来自管理用户详情接口。
-              </p>
             </div>
             {profile.status === 'active' ? (
               <StatusBadge tone="success">启用</StatusBadge>
@@ -169,9 +166,6 @@ export default function UserDetailPage() {
         </section>
         <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
           <h2 className="text-lg font-semibold">相关记录</h2>
-          <p className="mt-1 text-sm leading-6 text-[var(--color-muted-foreground)]">
-            下列管理页面使用服务端支持的用户筛选参数。
-          </p>
           <div className="mt-4 grid gap-3">
             <Button asChild variant="outline" className="justify-start">
               <Link to={`/admin/requests?userId=${encodeURIComponent(profile.id)}`}>

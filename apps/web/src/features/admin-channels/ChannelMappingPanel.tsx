@@ -41,9 +41,6 @@ function ChannelModelMappings({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="break-all font-mono text-sm font-semibold">{publicModelId}</h3>
-          <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">
-            映射版本独立于渠道配置版本。
-          </p>
         </div>
         <Link
           to={`/admin/models/${encodeURIComponent(publicModelId)}`}

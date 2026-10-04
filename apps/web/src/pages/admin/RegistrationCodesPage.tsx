@@ -32,7 +32,6 @@ export default function RegistrationCodesPage() {
     <>
       <PageHeader
         heading="邀请码"
-        description="管理注册资格；账户余额由授额操作单独控制。"
         actions={<Button onClick={() => setOpen(true)}>生成邀请码</Button>}
       />
       <FilterBar

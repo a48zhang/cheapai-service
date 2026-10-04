@@ -12,7 +12,7 @@ export default function RegistrationSettingsPage() {
   const query = useQuery(options);
   return (
     <>
-      <PageHeader heading="注册设置" description="控制账户注册与邮箱验证。" />
+      <PageHeader heading="注册设置" />
       {query.isPending ? (
         <p role="status">正在读取注册策略…</p>
       ) : query.data ? (

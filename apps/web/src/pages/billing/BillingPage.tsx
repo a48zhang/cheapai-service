@@ -76,7 +76,7 @@ export function BillingPage() {
 
   return (
     <section className="space-y-5">
-      <PageHeader heading="账单明细" description="显示真实账本变动；请求费用与余额变动分别记录。" />
+      <PageHeader heading="账单明细" />
       <form
         onSubmit={applyFilters}
         className="flex flex-wrap items-end gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4"

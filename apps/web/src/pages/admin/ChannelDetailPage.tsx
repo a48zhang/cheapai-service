@@ -48,7 +48,6 @@ export function ChannelDetailPage() {
       <PageHeader
         eyebrow="资源配置 · 渠道详情"
         heading={channel?.name ?? '渠道详情'}
-        description="查看渠道配置、真实映射与版本。启用状态不会代表连接健康。"
         actions={
           <>
             <Button asChild variant="outline">

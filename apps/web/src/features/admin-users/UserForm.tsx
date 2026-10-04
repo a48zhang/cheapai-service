@@ -35,11 +35,7 @@ export function UserForm(props: Props) {
       open={open}
       onOpenChange={close}
       title={mode === 'create' ? '创建普通用户' : `编辑用户 · ${user?.email_normalized ?? ''}`}
-      description={
-        mode === 'create'
-          ? '初始角色与密码策略由服务端确定；不支持通过此表单更改角色。'
-          : '角色只读。状态、默认分组、授权分组与限额使用当前用户版本保存。'
-      }
+
       closeLabel="关闭用户表单"
       closeButton={!saving}
       footer={
@@ -83,12 +79,7 @@ export function UserForm(props: Props) {
                 maxLength={254}
               />
             </Field>
-            <Field
-              label="初始密码"
-              required
-              error={form.getFieldState('password').error?.message}
-              description="密码只发送给服务端，本页提交后会清除输入。"
-            >
+            <Field label="初始密码" required error={form.getFieldState('password').error?.message}>
               <Input
                 {...form.register('password')}
                 type="password"
@@ -105,7 +96,7 @@ export function UserForm(props: Props) {
                 <Field
                   label="初始分组"
                   error={fieldState.error?.message}
-                  description="留空时由服务端分配默认分组。"
+                  description="留空使用默认分组。"
                 >
                   <Select
                     value={field.value}
@@ -188,7 +179,7 @@ export function UserForm(props: Props) {
                     >
                       <legend className="px-1 text-sm font-medium">可访问分组</legend>
                       <p className="text-xs text-[var(--color-muted-foreground)]">
-                        默认分组必须保留。尚未加载或已停用的既有授权会保留，避免无意撤销。
+                        默认分组不可移除；未显示的已有授权会保留。
                       </p>
                       <div className="grid gap-2 sm:grid-cols-2">
                         {visible.map((group) => (
@@ -276,7 +267,7 @@ export function UserForm(props: Props) {
         )}
         {mode === 'create' && groupsQuery.isPending && (
           <p role="status" className="text-xs text-[var(--color-muted-foreground)]">
-            正在读取可选分组；也可使用服务器默认分组。
+            正在加载分组，也可留空使用默认分组。
           </p>
         )}
       </form>

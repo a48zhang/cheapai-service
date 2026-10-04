@@ -24,7 +24,7 @@ export default function BillingPage() {
   const rows = mergePageItems(query.data?.pages);
   return (
     <>
-      <PageHeader heading="全局账单" description="实际记账明细；消费、授额与调整分别列示。" />
+      <PageHeader heading="全局账单" />
       <form
         key={params.toString()}
         className="flex flex-wrap items-end gap-3 rounded-xl border border-[var(--color-border)] bg-white p-4"

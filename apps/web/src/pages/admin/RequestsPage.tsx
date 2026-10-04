@@ -50,7 +50,7 @@ export default function RequestsPage() {
   }
   return (
     <>
-      <PageHeader heading="全局请求" description="查看用户请求、上游执行和计费证据。" />
+      <PageHeader heading="全局请求" />
       <form
         key={serializeRequestFilters(filters, 'admin')}
         className="flex flex-wrap items-end gap-3 rounded-xl border border-[var(--color-border)] bg-white p-4"

@@ -101,7 +101,6 @@ export function ChannelsPage() {
       <PageHeader
         eyebrow="资源配置"
         heading="渠道"
-        description="查看上游渠道、已配置的模型映射与实际限额。连接诊断由管理员明确发起，并可能产生上游费用。"
         actions={
           <>
             <Button variant="outline" onClick={() => setSetupOpen(true)}>

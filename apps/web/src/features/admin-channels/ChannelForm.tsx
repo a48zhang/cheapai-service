@@ -47,13 +47,6 @@ export function ChannelForm({ open, channel, api, onOpenChange, onSaved }: Chann
       open={open}
       onOpenChange={handleOpenChange}
       title={channel === null ? '创建渠道' : `编辑渠道：${channel.name}`}
-      description={
-        channel === null
-          ? '填写安全连接信息与调度限额。凭证只提交给服务端，不会再次显示。'
-          : channel.hasCredential
-            ? '现有凭证不会显示。替换凭证时填写新值，留空会保留当前凭证。'
-            : '此渠道尚未配置凭证。留空会保留当前状态。'
-      }
       closeButton={!saving && !creationUncertain}
       footer={
         <>
@@ -97,7 +90,7 @@ export function ChannelForm({ open, channel, api, onOpenChange, onSaved }: Chann
         <Field
           label="上游 Base URL"
           error={errors.baseUrl}
-          description="服务端还会检查协议与目标地址安全策略。"
+
           required
         >
           <Input
@@ -112,11 +105,7 @@ export function ChannelForm({ open, channel, api, onOpenChange, onSaved }: Chann
         <Field
           label={creating ? '上游凭证' : '替换上游凭证'}
           error={errors.upstreamKey}
-          description={
-            creating
-              ? '密钥不会回显或写入页面持久状态。'
-              : '留空以保留已保存的凭证；输入新值才会替换。'
-          }
+          description={creating ? undefined : '留空保留当前凭证。'}
           required={creating}
         >
           <Input
@@ -141,7 +130,6 @@ export function ChannelForm({ open, channel, api, onOpenChange, onSaved }: Chann
             required
           />
         </Field>
-
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-3">
             <Field label="并发规则" error={errors.concurrency}>
@@ -185,7 +173,7 @@ export function ChannelForm({ open, channel, api, onOpenChange, onSaved }: Chann
               <Field
                 label="每分钟请求上限"
                 error={errors.rpm}
-                description="有限 RPM 范围为 1 到 4096。"
+                description="范围：1–4096。"
                 required
               >
                 <Input

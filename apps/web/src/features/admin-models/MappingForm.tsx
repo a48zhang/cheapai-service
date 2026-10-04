@@ -104,9 +104,7 @@ export function MappingForm({
         <div className="flex items-center justify-between gap-3">
           <div>
             <h3 className="font-semibold">渠道映射</h3>
-            <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">
-              {rows.length} 项 · 映射配置有独立版本
-            </p>
+            <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">{rows.length} 项</p>
           </div>
           <Button
             size="sm"
@@ -267,9 +265,7 @@ export function MappingForm({
                 />
               )}
             />
-            <p className="text-xs text-[var(--color-muted-foreground)]">
-              协议不可在编辑现有映射时更换；如需另一协议，请新建独立映射。
-            </p>
+            <p className="text-xs text-[var(--color-muted-foreground)]">更换协议需新建映射。</p>
             {form.formState.errors.protocol?.message && (
               <p role="alert" className="text-xs text-[var(--color-destructive)]">
                 {form.formState.errors.protocol.message}
@@ -332,17 +328,7 @@ export function MappingForm({
         </div>
         {!mappings.isSuccess && !mappingError && (
           <p role="status" className="text-xs text-[var(--color-muted-foreground)]">
-            首次读取模型映射成功前，不能提交配置。
-          </p>
-        )}
-        {channels.isError && (
-          <p className="text-xs text-[var(--color-muted-foreground)]">
-            渠道候选读取失败不会清空当前渠道，也不会影响映射列表的独立重试。
-          </p>
-        )}
-        {selected && (
-          <p className="text-xs text-[var(--color-muted-foreground)]">
-            当前映射版本：configVersion v{selected.configVersion}。渠道与协议保持不变。
+            正在加载映射，加载后可保存。
           </p>
         )}
         {duplicate && <span className="sr-only">请勿创建重复的渠道协议映射。</span>}

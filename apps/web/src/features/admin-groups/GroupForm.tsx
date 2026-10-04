@@ -46,7 +46,6 @@ export function GroupForm({
     needsRefresh,
     saveError,
     feedback,
-    status,
     selectedChannelIds,
     groupError,
     submit,
@@ -58,12 +57,7 @@ export function GroupForm({
   return (
     <form className="grid gap-5" noValidate onSubmit={form.handleSubmit(submit)}>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field
-          label="访问组名称"
-          required
-          error={form.formState.errors.name?.message}
-          description="用于管理和识别访问规则。"
-        >
+        <Field label="访问组名称" required error={form.formState.errors.name?.message}>
           <Input
             {...form.register('name')}
             required
@@ -76,7 +70,7 @@ export function GroupForm({
           label="计费倍率"
           required
           error={form.formState.errors.billingMultiplier?.message}
-          description="保存精确十进制文本，不做浮点换算；例如 1 或 0.2。"
+          description="1 为原价，0.2 为两折。"
         >
           <Input
             {...form.register('billingMultiplier')}
@@ -108,19 +102,11 @@ export function GroupForm({
               />
             )}
           />
-          <span className="text-xs text-[var(--color-muted-foreground)]">
-            {status === 'active'
-              ? '启用组保留其当前用户和渠道关联。'
-              : '停用组不再作为有效访问组；服务端会保护最后管理员。'}
-          </span>
         </div>
       </div>
-
       <div className="rounded-lg border border-[var(--color-border)] p-4">
         <h3 className="font-medium">渠道关联</h3>
-        <p className="mb-3 mt-1 text-xs leading-5 text-[var(--color-muted-foreground)]">
-          选择此组可关联的渠道。服务端根据组状态、用户归属、模型映射和其他规则决定请求准入；此表单不提供最终授权预览。
-        </p>
+
         <Controller
           name="channelIds"
           control={form.control}
@@ -141,8 +127,7 @@ export function GroupForm({
           )}
         />
         <p className="mt-3 text-xs text-[var(--color-muted-foreground)]">
-          已选择 {selectedChannelIds.length} 个渠道，包括可能已停用或不存在的历史
-          ID。完整候选成功前不能应用新的关系。
+          已选择 {selectedChannelIds.length} 个渠道
         </p>
       </div>
 
@@ -199,12 +184,6 @@ export function GroupForm({
           {feedback}
         </p>
       )}
-      {group && (
-        <p className="text-xs text-[var(--color-muted-foreground)]">
-          当前配置版本：v{baseline?.version ?? group.version}
-          。关联用户归属由独立的用户管理接口维护。
-        </p>
-      )}
       <div className="flex flex-wrap justify-end gap-3">
         {onCancel && (
           <Button variant="outline" disabled={saving} onClick={onCancel}>
@@ -217,7 +196,7 @@ export function GroupForm({
       </div>
       {!channelsComplete && !channelQuery.isError && (
         <p role="status" className="text-xs text-[var(--color-muted-foreground)]">
-          全部渠道候选读取成功后才能保存组关联。
+          正在加载渠道，加载后可保存。
         </p>
       )}
     </form>

@@ -6,9 +6,6 @@ export default function RegisterPage() {
     <>
       <header className="mb-7">
         <h1 className="text-2xl font-semibold">开始使用 cheapai</h1>
-        <p className="mt-2 text-sm text-[var(--color-muted-foreground)]">
-          一个账户，连接聊天与 API。
-        </p>
       </header>
       <RegisterForm />
       <p className="mt-6 text-center text-sm text-[var(--color-muted-foreground)]">

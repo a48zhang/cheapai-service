@@ -69,9 +69,6 @@ export function KeySecretDialog({ secret, keyName, onClose }: KeySecretDialogPro
           >
             {copyMessage}
           </p>
-          <p className="text-xs text-[var(--color-muted-foreground)]">
-            请将密钥保存在安全位置；此页面不会再次显示完整密钥。
-          </p>
         </div>
       )}
     </Dialog>
