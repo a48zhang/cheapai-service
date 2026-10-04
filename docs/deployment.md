@@ -130,6 +130,8 @@ Secrets 由受控密钥工具生成并放入仓库外的临时部署文件或密
 
 #### 发码返回 503，但 Resend 没有记录
 
+已确认的运行时陷阱：Workers 原生 `fetch` 不支持 `redirect: 'error'`，会在联网前抛出 `TypeError: Invalid redirect value`，随后被发送逻辑转换为 503；因此 Resend 不会收到请求。应使用 `redirect: 'manual'` 并显式拒绝 3xx。Node 的 fetch mock 不会执行这项参数校验，不能证明 Worker 能发出请求。`tests/auth/email-provider.test.ts` 通过原生 workerd fetch 和本地 HTTP 替身验证完整发码、D1/DO、验证码注册与会话恢复，以及同域/跨域重定向均不会被跟随；测试不发送真实邮件。
+
 `POST /api/v1/auth/send-verify-code` 返回 `503` 且带 `Retry-After: 60`，表示发送结果为 `failed` 或 `unknown`，且该结果已经写回挑战记录。60 秒是应用重发冷却时间，不能据此推断 Resend 限流。Resend 无记录也不能单独证明 Worker 没有发起请求：鉴权失败、账户不匹配或网络故障仍需区分。
 
 生产配置已启用 Cloudflare Workers Observability，`head_sampling_rate: 1` 保留所有调用的日志。部署后，在 Cloudflare Dashboard → Workers & Pages → `sub2api-cloudflare-production` → Observability → Logs 查看请求及其 console 日志；也可以从 `apps/worker` 运行 `pnpm exec wrangler tail --env production --format json` 实时观察。历史请求不会补产生日志。

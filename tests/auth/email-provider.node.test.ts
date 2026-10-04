@@ -21,7 +21,7 @@ describe('Resend transport diagnostics (mock HTTP only)', () => {
     const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({ id: 'accepted-id' }));
     expect(await sendEmail(sender(), message)).toEqual({ status: 'accepted', messageId: 'accepted-id' });
     expect(fetcher).toHaveBeenCalledExactlyOnceWith('https://api.resend.com/emails', expect.objectContaining({
-      method: 'POST', redirect: 'error',
+      method: 'POST', redirect: 'manual',
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...message, to: [message.to] }),
     }));

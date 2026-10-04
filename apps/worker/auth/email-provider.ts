@@ -32,12 +32,18 @@ export function resolveEmailSender(
         // Native Workers fetch, fixed HTTPS destination, no redirects or retries.
         const response = await fetch('https://api.resend.com/emails', {
           method: 'POST',
-          redirect: 'error',
+          // Workers rejects redirect:'error' before dispatch; manual preserves the fixed destination.
+          redirect: 'manual',
           signal: controller.signal,
           headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ from: message.from, to: [message.to], subject: message.subject, text: message.text }),
         });
         console.debug('Resend response received', { status: response.status, elapsedMs: Date.now() - startedAt });
+        if (response.status >= 300 && response.status < 400) {
+          try { await response.body?.cancel(); }
+          catch (error) { console.error('Failed to discard Resend redirect response', error); }
+          throw new Error(`Resend redirect rejected (HTTP ${response.status})`);
+        }
         if (!response.ok) {
           // Keep provider error details in Workers Logs; never return them to the client.
           let detail = '';

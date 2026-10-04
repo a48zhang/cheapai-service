@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { configDefaults, defineConfig } from 'vitest/config';
+import { createResendHttpFixture } from './tests/helpers/resend-http-fixture';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 // Pure modules must not require bindings; *.node.test.ts opts other folders in.
@@ -22,7 +23,7 @@ export default defineConfig(async () => {
             wrangler: { configPath: fileURLToPath(new URL('./apps/worker/wrangler.jsonc', import.meta.url)) },
             remoteBindings: false,
             miniflare: {
-              outboundService: () => { throw new Error('External network is disabled in Workers tests; inject a mock upstream.'); },
+              outboundService: createResendHttpFixture(),
             },
           })],
           test: {
