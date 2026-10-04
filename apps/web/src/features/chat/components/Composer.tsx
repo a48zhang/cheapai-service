@@ -81,7 +81,7 @@ export function Composer({
             compositionRef.current = true;
           }}
           onKeyDown={handleKeyDown}
-          placeholder={disabledReason ?? '向 cheapai 发送消息…'}
+          placeholder={disabledReason ?? '向 CheapAI 发送消息…'}
           value={value}
         />
         <div className="flex flex-wrap items-center justify-between gap-3">

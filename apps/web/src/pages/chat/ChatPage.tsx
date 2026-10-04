@@ -111,7 +111,7 @@ export default function ChatPage() {
   };
   const newConversation = () => {
     chat.controller.resetConversation();
-    navigate('/');
+    navigate('/chat');
   };
   const submitAction = async () => {
     if (!action || actionLock.current) return;

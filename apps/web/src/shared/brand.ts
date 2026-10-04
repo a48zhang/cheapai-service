@@ -1,8 +1,7 @@
 /** Product identity shared by page titles, wordmarks, and onboarding examples. */
 export const brand = Object.freeze({
-  name: 'cheapai',
-  wordmark: 'cheapai',
-  symbol: 'c',
+  name: 'CheapAI',
+  wordmark: 'CheapAI',
   exampleEmail: 'alex@cheapai.dev',
 });
 

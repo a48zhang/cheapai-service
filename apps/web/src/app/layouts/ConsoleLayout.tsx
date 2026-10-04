@@ -53,7 +53,7 @@ export function ConsoleLayout({ children }: { children?: ReactNode }) {
         <BrandLink className="px-6 py-5 text-xl font-semibold tracking-tight" />
         {navigation}
         <div className="border-t border-[var(--color-border)] p-4">
-          <Link to="/" className="text-xs text-[var(--color-muted-foreground)]">
+          <Link to="/chat" className="text-xs text-[var(--color-muted-foreground)]">
             ← 返回聊天
           </Link>
         </div>

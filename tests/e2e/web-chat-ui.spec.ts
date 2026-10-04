@@ -60,7 +60,7 @@ test('chat UI locks a new send before conversation creation and renders the stre
     });
   });
 
-  await page.goto('/');
+  await page.goto('/chat');
   const composer = page.getByRole('textbox', { name: '消息内容' });
   await expect(composer).toBeVisible();
   await expect(page.getByRole('group', { name: '当前模型', exact: true })).toContainText('ui-model');
@@ -120,7 +120,7 @@ for (const sameAccount of [true, false]) test(`FE-V01 expired streaming session 
 
 test('FE-V01 stores edits immediately and storage failure does not block composing', async ({ page }) => {
   await mockedChat(page);
-  await page.goto('/');
+  await page.goto('/chat');
   const composer = page.getByRole('textbox', { name: '消息内容' });
   await expect(composer).toBeEnabled();
   await composer.fill('unsent before reload');
@@ -190,7 +190,7 @@ test('FE-V02 history automatically appends deduplicated pages and retries the sa
   await page.route('**/api/v1/chat/conversations', route => fixture.fulfill(route, {
     items: [conversation], nextCursor: route.request().method() === 'GET' ? 'page-two' : null,
   }));
-  await page.goto('/');
+  await page.goto('/chat');
   await expect(page.getByRole('button', { name: '重试', exact: true })).toBeVisible();
   const history = page.getByRole('navigation', { name: '历史对话' });
   await expect(history.getByRole('listitem')).toHaveCount(1);
@@ -204,7 +204,7 @@ test('FE-V02 history first-page failure is distinct from empty and supports retr
   const fixture = await mockedChat(page);
   let calls = 0;
   await page.route('**/api/v1/chat/conversations', route => ++calls === 1 ? route.fulfill({ status: 503, body: 'temporary' }) : fixture.fulfill(route, { items: [], nextCursor: null }));
-  await page.goto('/');
+  await page.goto('/chat');
   await expect(page.getByText('还没有对话', { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: '重试', exact: true }).click();
   await expect(page.getByText('还没有对话', { exact: true })).toBeVisible();

@@ -17,7 +17,7 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { failed: bool
       return (
         <main className="mx-auto max-w-lg p-8">
           <h1 className="text-2xl font-semibold">页面暂时无法显示</h1>
-          <p className="my-4">重新载入 cheapai 以恢复页面。</p>
+          <p className="my-4">重新载入 CheapAI 以恢复页面。</p>
           <button type="button" onClick={() => window.location.reload()}>
             重新载入
           </button>

@@ -77,7 +77,7 @@ export function IntegrationGuide({
     : (scope.models[0] ?? '');
   const example = modelId ? integrationExample(protocol, baseUrl, modelId) : null;
   const setup = `# 将 API Key 存入环境变量，避免写进代码或提交到版本库
-read -s -p "cheapai API Key: " CHEAPAI_API_KEY; printf '\\n'
+read -s -p "CheapAI API Key: " CHEAPAI_API_KEY; printf '\\n'
 export CHEAPAI_API_KEY
 export CHEAPAI_BASE_URL="${baseUrl}"`;
 

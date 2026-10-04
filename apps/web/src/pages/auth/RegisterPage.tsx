@@ -8,7 +8,7 @@ export default function RegisterPage() {
   return (
     <>
       <header className="mb-7">
-        <h1 className="text-2xl font-semibold">开始使用 cheapai</h1>
+        <h1 className="text-2xl font-semibold">开始使用 CheapAI</h1>
       </header>
       <RegisterForm returnTo={returnTo} />
       <p className="mt-6 text-center text-sm text-[var(--color-muted-foreground)]">

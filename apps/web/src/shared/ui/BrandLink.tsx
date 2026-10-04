@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { LinkProps } from 'react-router-dom';
 import { brand } from '../brand';
+import { BrandMark } from './BrandMark';
 
 export interface BrandLinkProps {
   to?: LinkProps['to'];
@@ -15,12 +16,7 @@ export function BrandLink({ to = '/', className, compact = false }: BrandLinkPro
       aria-label={compact ? brand.wordmark : undefined}
       className={`inline-flex items-center gap-2 ${className ?? ''}`}
     >
-      <span
-        aria-hidden="true"
-        className={`grid place-items-center rounded-lg bg-[var(--color-primary)] text-white ${compact ? 'size-7 text-base' : 'size-8 text-lg'}`}
-      >
-        {brand.symbol}
-      </span>
+      <BrandMark className={compact ? 'size-7' : 'size-8'} />
       {!compact && <span>{brand.wordmark}</span>}
     </Link>
   );

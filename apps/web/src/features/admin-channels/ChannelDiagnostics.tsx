@@ -238,7 +238,7 @@ export function ChannelDiagnostics({ open, channel, api, onOpenChange }: Channel
         description={
           <span>
             将以 <strong>{selectedModel?.publicModelId}</strong>（{selectedModel?.protocol}
-            ）发送测试请求。上游可能产生费用；cheapai
+            ）发送测试请求。上游可能产生费用；CheapAI
             不扣用户余额。每次确认只执行一次，不会自动重试。
           </span>
         }

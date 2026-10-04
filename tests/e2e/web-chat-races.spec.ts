@@ -86,7 +86,7 @@ async function prepareUser(playwright: PlaywrightHarness, browser: BrowserHarnes
   const userApi = userContext.request;
   const userCsrf = await login(userApi, info, email, 'local-web-chat-race-password');
   const page = await userContext.newPage();
-  await page.goto('/');
+  await page.goto('/chat');
   await expect(page.getByRole('textbox', { name: '消息内容', exact: true })).toBeVisible();
   await expect(page.getByRole('textbox', { name: '消息内容', exact: true })).toBeEnabled();
   return { info, admin, userContext, page, userApi, userCsrf, modelId };

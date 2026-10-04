@@ -23,6 +23,7 @@ const BillingPage = lazy(() =>
 );
 const KeysPage = lazy(() => import('../pages/keys/KeysPage'));
 const ChatPage = lazy(() => import('../pages/chat/ChatPage'));
+const HomePage = lazy(() => import('../pages/home/HomePage'));
 const ChannelsPage = lazy(() => import('../pages/admin/ChannelsPage'));
 const ChannelDetailPage = lazy(() => import('../pages/admin/ChannelDetailPage'));
 const ModelsPage = lazy(() => import('../pages/admin/ModelsPage'));
@@ -82,7 +83,8 @@ export function AppRoutes() {
             </Route>
           </Route>
         </Route>
-        <Route path="/" element={<ChatPage />} />
+        <Route path="/" element={<HomePage />} />
+        <Route path="/chat" element={<ChatPage />} />
         <Route path="/chat/:id" element={<ChatPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
