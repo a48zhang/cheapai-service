@@ -37,7 +37,7 @@ interface EntryRow {
 }
 const projection = 'id,operation_id,kind,user_id,request_id,currency,delta_units,fingerprint,created_by,reason,created_at,usage_snapshot,price_snapshot';
 const identifier = (value: unknown): value is string => typeof value === 'string' && value.length <= 128
-  && /^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/.test(value) && !/(?:s2a_(?:key|session|invite)_|sk-|bearer|-----BEGIN)/i.test(value);
+  && /^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/.test(value) && !/(?:s2a_(?:key|session|invite|desktop)_|sk-|bearer|-----BEGIN)/i.test(value);
 
 async function prepareAdjustment(value: BalanceAdjustmentInput, trustedAdminId: string): Promise<PreparedAdjustment> {
   try {

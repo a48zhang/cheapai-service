@@ -2,6 +2,7 @@ export const TOKEN_SECRET_BYTES = 32;
 export const TOKEN_PREFIXES = Object.freeze({
   apiKey: 's2a_key_',
   session: 's2a_session_',
+  desktopSession: 's2a_desktop_',
   invitation: 's2a_invite_',
 });
 export type TokenKind = keyof typeof TOKEN_PREFIXES;

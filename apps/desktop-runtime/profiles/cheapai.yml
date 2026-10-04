@@ -1,0 +1,28 @@
+# This is a DSH profile patch layer for the pinned 0.2.1-alpha.1 Web bundle.
+# The Web bundle supplies the Host/session RPC composition. Tauri serves the
+# product UI from its own assets; the DSH browser surface stays loopback-only
+# and never opens a browser.
+
+- id: web-runtime
+  config:
+    openBrowser: false
+    printUrl: true
+    publicUrl: null
+    surfaceContext: false
+    trustedHosts: []
+
+# cheapai authenticates to its configured API provider. Do not mount DSH's
+# DeepSeek account/OAuth route or its account settings surface.
+# R04 installs the provider route with apiKeyEnv: CHEAPAI_API_KEY; DSH resolves
+# that credential reference through ctx.credentials for each model request.
+- id: deepseek-account
+  disabled: true
+
+- id: llm-deepseek-account
+  disabled: true
+
+- id: ui-settings-account
+  disabled: true
+
+- id: account-controller
+  disabled: true

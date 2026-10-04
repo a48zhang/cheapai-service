@@ -46,6 +46,7 @@
 
 - [一期目标与验收](phase-1.md)：产品范围及验收要求
 - [本轮执行计划与状态](implementation-plan.md)：2026-10-03 的 27 项开发及独立验证；文末另存旧 507 节点历史
+- [桌面客户端详细计划](desktop/implementation-plan.md)、[机器可读任务图](desktop/task-graph.json)：Tauri、Bun/DSH、自有 React 界面和 Token + Key 接入；79 项小粒度任务，全部为待执行计划，测试与验证按完整模块集中进行
 - [旧微任务清单](task-breakdown.md)、[旧任务图](task-graph.json)：历史完成与未收口事项，不与本轮同名 ID 混算
 - [旧系统调研](evidence.md)：2026-09-05 对旧四个 Worker 的调查，不能直接代表本仓库当前实现
 - [9 月 6 日集成审计](integration-audit-2026-09-06.md)、[9 月 8 日集成审计](integration-audit-2026-09-08.md)

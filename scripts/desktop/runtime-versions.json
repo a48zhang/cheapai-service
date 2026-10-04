@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-10-03",
+  "dsh": {
+    "repository": "https://github.com/deepseek-ai/deepseek-harness",
+    "release_tag": "dsh-v0.2.1-alpha.1",
+    "commit": "5badb15009ae1756c3afe0ae0cef1faafc290ccc",
+    "package": "@deepseek-ai/dsh",
+    "version": "0.2.1-alpha.1",
+    "bin": "dsh -> lib/bin.js",
+    "node_engine": "^22.19.0 || >=24.0.0",
+    "package_manager": "pnpm@11.7.0",
+    "release_channel": "prerelease"
+  },
+  "runtimes": {
+    "node": {
+      "version": "24.19.0",
+      "role": "primary comparison baseline",
+      "basis": "Existing repository pin; satisfies the pinned DSH Node engine."
+    },
+    "bun": {
+      "version": "1.4.2",
+      "release_tag": "bun-v1.4.2",
+      "role": "comparison candidate",
+      "compatibility": "unverified against DSH; do not describe as supported",
+      "artifacts": {
+            "aarch64-apple-darwin": {
+                  "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.4.2/bun-darwin-aarch64.zip",
+                  "sha256": "90987a3a16d7db556d886ac3d551e7b6d3edf0a1cf43acaed622e8676be1d12f",
+                  "archive": "zip",
+                  "executablePath": "bun-darwin-aarch64/bun"
+            },
+            "x86_64-apple-darwin": {
+                  "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.4.2/bun-darwin-x64.zip",
+                  "sha256": "80520d7e17526308c9185d261679ac6d27798d3803a0e9f7ff9121ab8affb012",
+                  "archive": "zip",
+                  "executablePath": "bun-darwin-x64/bun"
+            },
+            "x86_64-pc-windows-msvc": {
+                  "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.4.2/bun-windows-x64.zip",
+                  "sha256": "ce4c17497b2f29712a99d3d53f028de28cd42e3bacb8589599e7f000e49b6405",
+                  "archive": "zip",
+                  "executablePath": "bun-windows-x64/bun.exe"
+            },
+            "x86_64-unknown-linux-gnu": {
+                  "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.4.2/bun-linux-x64.zip",
+                  "sha256": "36368faef7527875d5ffa52e53cd48021741f2a83eb6208a8dd64068d422a913",
+                  "archive": "zip",
+                  "executablePath": "bun-linux-x64/bun"
+            }
+      }
+    }
+  },
+  "desktop": {
+    "tauri": {
+      "api": "2.8.0",
+      "cli": "2.8.4",
+      "rust_crate": "2.8.5",
+      "rust_minimum": "1.77.2",
+      "status": "selected v2 candidate; no native build performed"
+    },
+    "react": {
+      "react": "18.3.1",
+      "react_dom": "18.3.1",
+      "types_react": "18.3.31",
+      "types_react_dom": "18.3.7",
+      "basis": "Exact versions resolved by the pinned DSH pnpm lockfile."
+    }
+  },
+  "targets": [
+    {
+      "os": "macOS",
+      "arch": "arm64",
+      "triple": "aarch64-apple-darwin",
+      "upstream_desktop_target": "mac-arm64"
+    },
+    {
+      "os": "macOS",
+      "arch": "x64",
+      "triple": "x86_64-apple-darwin",
+      "upstream_desktop_target": "mac-x64"
+    },
+    {
+      "os": "Windows",
+      "arch": "x64",
+      "triple": "x86_64-pc-windows-msvc",
+      "upstream_desktop_target": "win-x64"
+    }
+  ],
+  "bun_status": "candidate only; this pin is not evidence of DSH or native-module compatibility"
+}

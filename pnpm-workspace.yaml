@@ -1,7 +1,10 @@
 packages:
   - apps/web
   - apps/worker
+  - apps/desktop
+  - apps/desktop-runtime
   - packages/apicompat
+  - packages/desktop-contracts
 
 engineStrict: true
 # Script execution must never install or update dependencies implicitly.

@@ -10,12 +10,16 @@
   "scripts": {
     "dev:web": "pnpm --filter ./apps/web run dev",
     "dev:worker": "pnpm --filter ./apps/worker run dev",
-    "build": "pnpm -r run build",
-    "typecheck": "pnpm -r run typecheck",
+    "build:cloud": "pnpm --filter @sub2api/web --filter @sub2api/worker --filter @sub2api/apicompat run build",
+    "typecheck:cloud": "pnpm --filter @sub2api/web --filter @sub2api/worker --filter @sub2api/apicompat run typecheck",
+    "build": "pnpm run build:cloud",
+    "typecheck": "pnpm run typecheck:cloud",
+    "build:desktop": "pnpm -r --filter @sub2api/desktop --filter @sub2api/desktop-runtime --filter @sub2api/desktop-contracts run build",
+    "typecheck:desktop": "pnpm -r --filter @sub2api/desktop --filter @sub2api/desktop-runtime --filter @sub2api/desktop-contracts run typecheck",
     "test": "vitest run",
     "test:node": "vitest run --project node",
     "test:workers": "vitest run --project workers",
-    "check": "pnpm run typecheck && pnpm run test && pnpm run build",
+    "check": "pnpm run typecheck:cloud && pnpm run test && pnpm run build:cloud",
     "production:check": "pnpm --filter @sub2api/web run build && pnpm --filter @sub2api/worker exec wrangler deploy --env production --dry-run --strict --outdir ../../.wrangler/build-production"
   },
   "devDependencies": {

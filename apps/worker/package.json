@@ -12,6 +12,7 @@
   "dependencies": {
     "@noble/hashes": "2.4.0",
     "@sub2api/apicompat": "workspace:*",
+    "@sub2api/desktop-contracts": "workspace:*",
     "hono": "4.13.7"
   },
   "devDependencies": {

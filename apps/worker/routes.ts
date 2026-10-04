@@ -11,6 +11,7 @@ import { createLoginRoutes, LOGIN_PATH } from './auth/login-routes';
 import { createRegisterRoutes, REGISTER_PATH } from './auth/register-routes';
 import { createSendCodeRoutes, SEND_VERIFY_CODE_PATH } from './auth/send-code';
 import { createSessionRoutes } from './auth/session-routes';
+import { createDesktopRoutes, DESKTOP_ACCOUNT_PATH, DESKTOP_KEY_PATH, DESKTOP_LOGIN_PATH, DESKTOP_LOGOUT_PATH } from './auth/desktop/routes';
 import { normalizeEmail } from './auth/email-proof';
 import { createRegistrationSettingsRoutes, ADMIN_REGISTRATION_SETTINGS_PATH } from './admin/registration-settings-routes';
 import { createRegistrationCodeRoutes, REGISTRATION_CODES_PATH, REGISTRATION_CODE_REVOKE_PATH } from './admin/registration-code-routes';
@@ -103,6 +104,13 @@ function registrationManagement(env: Env) {
 }
 const personalKeys = createKeyRoutes<Env>({ now: Date.now, trustedOrigin: env => trustedOriginFromConfig(env) });
 const adminKeys = createAdminKeyRoutes<Env>({ now: Date.now, trustedOrigin: env => trustedOriginFromConfig(env) });
+const desktop = createDesktopRoutes<Env>(env => ({
+  database: env.DB,
+  gates: env.GATE,
+  now: Date.now,
+  trustedIp: request => trustedClientIp(env, request),
+  keyring: () => readChannelKeyring(env),
+}));
 
 // Explicit method/path dispatch keeps factory wildcard middleware local and
 // leaves unsupported paths as the main app's JSON 404 rather than an auth error.
@@ -218,6 +226,14 @@ routes.get('/api/v1/auth/me', context => createSessionRoutes().fetch(context.req
 routes.post('/api/v1/auth/logout', context => createSessionRoutes({
   trustedOrigin: () => trustedOriginFromConfig(context.env),
 }).fetch(context.req.raw, context.env));
+
+// Desktop routes use their own bearer credential and do not inherit browser
+// Cookie/Origin/CSRF behavior. Resolve bindings per request; the Secret keyring
+// is read only when an authenticated Key request asks for it.
+routes.post(DESKTOP_LOGIN_PATH, context => desktop.fetch(context.req.raw, context.env));
+routes.post(DESKTOP_KEY_PATH, context => desktop.fetch(context.req.raw, context.env));
+routes.get(DESKTOP_ACCOUNT_PATH, context => desktop.fetch(context.req.raw, context.env));
+routes.post(DESKTOP_LOGOUT_PATH, context => desktop.fetch(context.req.raw, context.env));
 
 /** Only native edge metadata establishes that the connecting-IP header was
  * supplied by Cloudflare. User JSON, Host, Origin, XFF and synthetic CF headers
