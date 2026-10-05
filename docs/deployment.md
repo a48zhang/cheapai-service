@@ -48,7 +48,7 @@ pnpm --filter @sub2api/worker exec wrangler secret list --env production
 pnpm --filter @sub2api/worker exec wrangler deployments list --env production
 ```
 
-发布前确认账户权限、备份、23 份迁移水位、渠道 keyring 保留版本与活动版本；只检查 Secret 名称不等于验证值。生产和 PR 均默认关闭邮件，启用前必须验证发件身份、投递与获批收件人，不能只改 readiness。真实上游调用、负载及恢复验证另行限定目标、权限和预算。
+发布前确认账户权限、备份、26 份迁移水位及邮件运行时 Secrets；只检查 Secret 名称不等于验证值。邮件启用前必须验证发件身份、投递与获批收件人，不能只改 readiness。真实上游调用、负载及恢复验证另行限定目标、权限和预算。
 
 先完成类型、测试、构建和 PR 验证，再核对生产目标、备份、迁移与发布授权；部署后核对真实域名和功能。PR 默认没有邮件或 cron，不能用其 smoke test 代替这些能力的验收。需要完整隔离验证环境时另行明确配置并授权，不能复用已删除的共享资源。本文后续命令是操作手册，不代表已执行。
 
@@ -108,13 +108,13 @@ node $deploymentWrangler dev --config $deploymentConfig --local --persist-to $de
 
 ## 3. 环境选择
 
-production 已有独立资源和域名，bindings/vars 明确位于 `env.production`；不要重新创建数据库或复用旧资源。新 PR 的资源由[预发工作流](pr-previews.md)生成，每个 PR 独立 Worker、D1、KV 和 Gate DO。PR 配置使用 `--config .wrangler/pr-preview-<PR号>.json`，不使用已移除的命名 staging 环境。
+production 已有独立资源和域名，bindings/vars 明确位于 `env.production`；不要重新创建数据库或复用旧资源。新 PR 的资源由[预发工作流](pr-previews.md)生成，每个 PR 使用独立 Worker，多个 PR 共用专用预览 D1、KV 和 Gate host；这些资源与 production 分离。PR 配置使用 `--config .wrangler/pr-preview-<PR号>.json`，不使用已移除的命名 staging 环境。
 
-生产 `send_email: []`、`EMAIL_VERIFICATION_READY: "false"`；只有验证真实发件身份和投递后才启用验证邮件。不要为消除 Wrangler 的 binding 继承提示添加虚假发件身份。
+当前 Git 生产配置为 `send_email: []`、`EMAIL_VERIFICATION_READY: "true"`，通过 Resend 发信；这不证明线上 Secret 和实际投递已经通过验证。不要为消除 Wrangler 的 binding 继承提示添加虚假发件身份。
 
 ## 4. 环境值和 Secrets
 
-[routes.ts](../apps/worker/routes.ts) 与 [channel-keyring.ts](../apps/worker/channel-keyring.ts) 按请求解析配置，缺少必需值时失败关闭；不存在从客户端 Host/Origin 推断信任域名的回退。
+[routes.ts](../apps/worker/routes.ts) 按请求解析配置，缺少必需值时失败关闭；不存在从客户端 Host/Origin 推断信任域名的回退。
 
 | 名称 | 类型与要求 |
 | --- | --- |
@@ -124,23 +124,29 @@ production 已有独立资源和域名，bindings/vars 明确位于 `env.product
 | `EMAIL_FROM` | `vars`，与已验证发件身份一致的地址 |
 | `EMAIL_PROVIDER` | `vars`，`cloudflare`（未设置时默认）或 `resend`；Resend 不需要 `EMAIL` binding |
 | `RESEND_API_KEY` | 仅 Resend 使用的 Worker Secret；由用户在安全配置界面输入 Sending access key，不放进 `vars` 或前端 |
-| `EMAIL_HMAC_KEY` | Secret，标准 canonical base64，解码 32–512 个随机字节；不与渠道 AES 密钥共用 |
-| `CHANNEL_KEYRING_JSON` | Secret，JSON 对象；键为保留版本名，值为标准 canonical base64 的 **32 字节** AES-256 key（44 字符、尾部 `=`） |
-| `CHANNEL_ACTIVE_KEY_VERSION` | Secret，当前写入版本名，必须存在于 keyring 中 |
+| `EMAIL_HMAC_KEY` | Secret，标准 canonical base64，解码 32–512 个随机字节 |
 
-渠道版本名为 1–64 字符，首字符字母/数字，其余可用字母、数字、`.`、`_`、`-`；keyring 最多 16 项、JSON UTF-8 最多 8192 字节。不得提供示例全零密钥作为生产配置，也不要把 keyring 放入 `vars`。
+渠道和 Desktop 当前 API Key 直接存入 D1，不再使用 `CHANNEL_KEYRING_JSON` 或 `CHANNEL_ACTIVE_KEY_VERSION`。这两项不再是部署前置配置；用户密码及认证 Token 的散列校验保持不变。D1 备份和管理权限应按包含凭据的数据处理。
 
-Secrets 由受控密钥工具生成并放入仓库外的临时部署文件或密钥管理系统；本文不要求输出其值。使用 JSON secrets 文件时，`CHANNEL_KEYRING_JSON` 本身是一个 JSON **字符串**，不是外层嵌套对象。文件应包含本环境的完整保留版本集合和活动版本，并单独保存可恢复的受控副本。
+邮件 Secrets 通过受控密钥工具或管理界面配置，不写入 Git 中的 `vars`。Wrangler 正常发布会保留已有 Worker Secrets；构建环境变量和本地 `.dev.vars` 不会自动成为线上运行时绑定。
 
 首次发布使用已安装 CLI 支持的 `deploy --secrets-file` 将代码和 Secrets 一并提交。不要假定不存在的 Worker 可以预先 `secret put`。普通 `secret put` 会建立并立即部署新版本；需要只准备版本时另评估 `versions secret put`，不能把前者当成无发布副作用的配置写入。[官方 Secrets 说明](https://developers.cloudflare.com/workers/configuration/secrets/)
 
+### 移除渠道和 Desktop 的二次加密
+
+旧版本曾因 `CHANNEL_KEYRING_JSON` 缺失而在渠道写入 D1 前失败；当前版本已移除这项依赖，无需再配置渠道主密钥。
+
+发布前依次应用 `0025`、`0026`，然后发布匹配的 Worker。`0025` 增加渠道 `upstream_key`，旧渠道密文及版本仍保留；这些旧渠道需要在管理界面重新填写真实上游 Key，新写入不再加密。没有明文 Key 的旧渠道会被明确拒绝，不能把旧密文当作上游凭据发送。
+
+`0026` 增加 Desktop 会话的 `current_key`，撤销持有旧密文的会话及其活动 API Key，保留旧密文与历史记录。受影响 Desktop 用户重新登录后即可取得新凭据；未持有旧密文的会话、普通 API Key 和账务不受此迁移影响。退出或过期清理只清除新会话的可返回 Key，不删除历史密文。
+
 ### Resend 验证码邮件
 
-生产配置已准备 `EMAIL_PROVIDER: "resend"`、`EMAIL_FROM: "noreply@mail.cheapai.dev"`，`EMAIL_VERIFICATION_READY` 仍为 `"false"`，`send_email` 保持空数组。此变更不部署、不发送邮件、不添加数据库迁移，也不实现密码找回。
+当前 Git 生产配置为 `EMAIL_PROVIDER: "resend"`、`EMAIL_FROM: "noreply@mail.cheapai.dev"`、`EMAIL_VERIFICATION_READY: "true"`，`send_email` 保持空数组。仍需确认运行时 Secrets、发送域和实际投递；邮件配置不包含密码找回功能。
 
 1. 在 Resend 完成 `mail.cheapai.dev` 的发信域名验证；发件地址必须属于已验证域名。沿用可用于该域名的 Sending access key，无需为了接入再创建 key。不要将 key 粘贴到聊天、仓库、日志或 CheapAI 管理界面。
 2. 用户自行打开 Cloudflare Dashboard → Workers & Pages → `sub2api-cloudflare-production` → Settings → Variables and Secrets → Add，选择 **Secret**，名称填 **`RESEND_API_KEY`**，值由用户私下输入。`EMAIL_HMAC_KEY` 是原有验证码 HMAC Secret，需另行安全配置（canonical base64，解码 32–512 字节），不能复用 Resend key；已有值不需要读取或复制。Dashboard 保存部署和 CLI `secret put` 可能发布版本，应在获准的发布窗口操作；本次只准备代码和参数名。[Cloudflare Secret 配置](https://developers.cloudflare.com/workers/configuration/secrets/)
-3. 本 PR 合并并获准部署后，先完成隔离环境投递验收，再在正式环境将 `EMAIL_VERIFICATION_READY` 设为 `"true"`。将该非敏感开关同步至 `env.production.vars`，避免下一次 Wrangler 发布恢复为 false；当前 PR 故意不打开它。`PUBLIC_BASE_URL` 沿用 `https://cheapai.dev`。不要将生产 Secrets 注入 PR 预览。
+3. 核对目标 Worker 的运行时 Secrets 并完成投递验收。当前 `env.production.vars` 已将 `EMAIL_VERIFICATION_READY` 设为 `"true"`；后续调整该开关时同步修改配置，避免被下次发布覆盖。`PUBLIC_BASE_URL` 为 `https://cheapai.dev`。不要将生产 Secrets 注入 PR 预览。
 4. CheapAI 现有管理后台继续控制 `registrationMode`（closed/open/invite）和 `emailVerificationEnabled`。要求邮箱验证时，只有 provider、from、HMAC 和 readiness 完整才允许依赖邮件的注册；发信还要求注册未关闭且验证开启。不要用关闭邮箱验证来绕过发信故障。
 5. 获准真实验收后检查验证码接受/收件、注册消费、旧码失效、60 秒重发限制和失败提示；服务 accepted 不等于已投递。当前不执行真实发送，不更改套餐或按量付费。需要停用邮件时关闭 readiness；已有用户登录不依赖邮件就绪状态。
 
@@ -158,7 +164,7 @@ Secrets 由受控密钥工具生成并放入仓库外的临时部署文件或密
 
 上游请求、流式执行及结算、后台任务、KV 和租约续期失败也直接记录原始异常；JSON 上游 HTTP 拒绝记录已经读取的错误响应。未新增日志后端或 redact 流程，也不额外记录请求体、Authorization 或配置 Secret 值。
 
-排查渠道创建时，先用界面上的 `request_id` 找到 `API request failed`，再展开同一 invocation 的日志。密钥配置失败会显示 `CHANNEL_KEYRING_JSON` 缺失/格式错误、`CHANNEL_ACTIVE_KEY_VERSION` 缺失/不存在等具体原因；数据库失败保留 D1 原始异常。这些新日志只在发布后的请求中生成，需要重新操作获取新的请求 ID。
+排查渠道创建时，先用界面上的 `request_id` 找到 `API request failed`，再展开同一 invocation 的日志。数据库失败保留 D1 原始异常；旧渠道尚未重新填写 Key 时返回明确原因。这些新日志只在发布后的请求中生成，需要重新操作获取新的请求 ID。
 
 本轮本地验证：Node/React 1,858 项、Worker 2,089 项测试通过；最终渠道/配置/API Key/租约/JSON 网关定向回归 94 项通过，包含两项原始异常与响应请求 ID 关联测试。类型检查、production dry-run 和 diff 检查通过。未执行线上发布或核验 Cloudflare 历史日志。
 
@@ -168,7 +174,7 @@ Secrets 由受控密钥工具生成并放入仓库外的临时部署文件或密
 
 ## 5. D1 迁移与初始管理员
 
-当前源码迁移为 `0001_groups_settings.sql` 至 `0023_request_source_group.sql`，共 23 份。新环境应用全部迁移；升级环境先查实际水位，再按顺序应用所有未应用文件，不只执行最后一份：
+当前源码迁移为 `0001_groups_settings.sql` 至 `0026_desktop_plaintext_keys.sql`，共 26 份。`pnpm run deploy` 只发布 Worker，不自动应用或核验 D1 迁移；测试夹具自动应用全部迁移也不代表生产已更新。新环境应用全部迁移；升级环境先查实际水位，再按顺序应用所有未应用文件，不只执行最后一份：
 
 ```powershell
 Get-ChildItem migrations -Filter '*.sql' | Sort-Object Name | Select-Object Name
@@ -183,9 +189,11 @@ node $deploymentWrangler d1 execute DB --config $deploymentConfig --env producti
 
 `migrations apply` 没有本项目自定义的“整批 down”命令。Wrangler help 明确：某一迁移失败会回滚该迁移，前面已成功的迁移仍保留；交互确认在非交互执行时可能省略。因此发布程序应在命令前完成审阅，不能把交互提示当成 CI 的保护条件。
 
-关键结构包括注册原子触发器 `0012`、记账原子触发器 `0013`、默认数据 `0014`、注册码批次 `0015`、Key 创建幂等记录 `0016`、Key 分组 `0017`、内置模型 `0018`。`0019` 移除默认输出配置，`0020` 添加分组倍率，`0021` 调整 web_chat 内部 Key，`0022` 添加聊天存储，`0023` 添加请求来源/分组记录。`0014` 不创建管理员、不授额；`0018` 不创建渠道映射或开放用户授权。
+关键结构包括注册原子触发器 `0012`、记账原子触发器 `0013`、默认数据 `0014`、注册码批次 `0015`、Key 创建幂等记录 `0016`、Key 分组 `0017`、内置模型 `0018`。`0019` 移除默认输出配置，`0020` 添加分组倍率，`0021` 调整 web_chat 内部 Key，`0022` 添加聊天存储，`0023` 添加请求来源/分组记录，`0024` 添加 Desktop 会话及 API Key 归属关系；`0025`、`0026` 移除渠道和 Desktop 的二次加密依赖。`0014` 不创建管理员、不授额；`0018` 不创建渠道映射或开放用户授权。
 
 从已应用 0018 的环境升级聊天时，需要依次应用 0019–0023，并发布匹配的 Worker/前端。0021 涉及 Key 表结构及关联约束，应先核对备份、外键与回滚兼容性；保留既有用户、密钥、价格和账务，不通过重新创建数据库升级。
+
+当前 Worker 的普通 API Key 查询也使用 `0024` 新增的 `desktop_session_id` 列，所以升级至包含 Desktop 的版本前必须应用 `0024`，不能因暂不使用 Desktop 而跳过。新版本还要求 `0025`、`0026` 的新凭据列。2026-10-05 本地真实 Worker/D1 的 Desktop 定向回归 21 项通过，包含旧密文迁移、新会话并发取 Key、过期轮换、网关计费和退出清理；迁移回归的 `PRAGMA foreign_key_check` 无结果。这不证明远程 D1 的实际迁移水位。
 
 仅首次空环境需要管理员初始化；现有生产管理员不重复 bootstrap。必要时在交互终端运行 A29：
 
@@ -207,9 +215,9 @@ node $deploymentWrangler deployments list --config $deploymentConfig --env produ
 node $deploymentWrangler versions list --config $deploymentConfig --env production --json
 ```
 
-不要把 secrets 文件内容或其导出值写入发布记录。保存本次 Worker **version ID**、deployment ID、提交、迁移水位、DO tag、密钥版本标签（非值）、域名和测试结果。确认同一个版本携带匹配的 web assets、API 和 `scheduled` 入口。
+不要把 secrets 文件内容或其导出值写入发布记录。保存本次 Worker **version ID**、deployment ID、提交、迁移水位、DO tag、域名和测试结果。确认同一个版本携带匹配的 web assets、API 和 `scheduled` 入口。
 
-production 发布前完成独立 PR 验证及生产专属检查；上述命令始终显式选择 `production` 和对应 Secret 文件。正常升级已经配置 Secrets 时可省略 `--secrets-file`，但仍必须核对活动 keyring 的保留版本兼容性。
+production 发布前完成独立 PR 验证及生产专属检查；上述命令始终显式选择 `production` 和对应 Secret 文件。正常升级已经配置 Secrets 时可省略 `--secrets-file`，但仍必须核对邮件所需 Secrets 和 D1 迁移水位。
 
 ## 7. 发布后验证和维护
 

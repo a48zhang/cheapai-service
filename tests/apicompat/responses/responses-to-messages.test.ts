@@ -133,11 +133,8 @@ describe('P-RM-J3-E standalone Responses errors', () => {
     expect(responsesToMessagesResponse({ error }, context()).ok).toBe(false);
   });
 
-  it('rejects error mixtures and does not invoke nested error accessors', () => {
+  it('rejects error mixtures', () => {
     expect(responsesToMessagesResponse({ error: { type: 'server_error', message: 'failed' }, output: [] }, context()).ok).toBe(false);
-    let called = false;
-    expect(responsesToMessagesResponse({ error: { type: 'server_error', get message() { called = true; throw new Error('private'); } } }, context()).ok).toBe(false);
-    expect(called).toBe(false);
   });
 });
 

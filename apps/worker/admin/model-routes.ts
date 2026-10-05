@@ -73,7 +73,7 @@ export function createModelRoutes<B extends Bindings = Bindings>(dependencies: M
   app.use('*', requireAdmin);
   app.get(ADMIN_MODELS_PATH, async (context) => {
     const query = new URL(context.req.url).searchParams;
-    for (const field of query.keys()) if (!['limit', 'cursor', 'status'].includes(field) || query.getAll(field).length !== 1) throw new ApiError('invalid_request');
+    if (query.getAll('status').length > 1) throw new ApiError('invalid_request');
     const status = query.get('status');
     if (status !== null && status !== 'active' && status !== 'disabled') throw new ApiError('invalid_request');
     const page = parsePagination(query);
@@ -92,15 +92,13 @@ export function createModelRoutes<B extends Bindings = Bindings>(dependencies: M
   });
   app.get(`${ADMIN_MODELS_PATH}/:id`, async (context) => {
     const id = context.req.param('id');
-    if (!/^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$/.test(id) || id.split('/').some(part => !part || part === '.' || part === '..')
-      || new URL(context.req.url).search !== '') throw new ApiError('invalid_request');
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$/.test(id) || id.split('/').some(part => !part || part === '.' || part === '..')) throw new ApiError('invalid_request');
     const model = await getModelById(context.env.DB, id);
     if (!model) throw new ApiError('not_found');
     return apiSuccess(model, context.get('requestId'));
   });
   app.post(ADMIN_MODELS_PATH, async (context) => {
     await protectWrite(dependencies, context.env, context.req.raw);
-    if (new URL(context.req.url).search) throw new ApiError('invalid_request');
     const body = await readBody(context.req.raw);
     const result = await createModel(context.env.DB, body as unknown as CreateModelInput, {
       actorId: context.get('user').id, operationId: crypto.randomUUID(), now: context.get('modelNow'),
@@ -110,7 +108,7 @@ export function createModelRoutes<B extends Bindings = Bindings>(dependencies: M
   app.patch(`${ADMIN_MODELS_PATH}/:id`, async (context) => {
     await protectWrite(dependencies, context.env, context.req.raw);
     const id = context.req.param('id');
-    if (id.trim() !== id || id.length > 128 || !/^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/.test(id) || new URL(context.req.url).search) throw new ApiError('invalid_request');
+    if (id.trim() !== id || id.length > 128 || !/^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/.test(id)) throw new ApiError('invalid_request');
     const body = await readBody(context.req.raw);
     if (typeof body.version !== 'number' || !Number.isSafeInteger(body.version) || body.version < 1) throw new ApiError('invalid_request');
     const { version, ...patch } = body;

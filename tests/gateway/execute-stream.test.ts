@@ -7,7 +7,6 @@ import { admitRequest } from '../../apps/worker/gateway/admit';
 import type { AdmittedRequest } from '../../apps/worker/gateway/admit';
 import { authenticatePlatformKey } from '../../apps/worker/auth/api-key-auth';
 import { generateToken, hashToken } from '../../apps/worker/auth/tokens';
-import { encryptChannelSecret } from '../../apps/worker/admin/channel-secrets';
 import { LeaseStorage } from '../../apps/worker/limits/storage';
 import { getRequest } from '../../apps/worker/gateway/request-repository';
 import { createRequestFinalizer } from '../../apps/worker/gateway/finalize';
@@ -15,7 +14,6 @@ import { prepare } from '../../apps/worker/db';
 import { testEnv } from '../helpers/database';
 
 let admission: AdmittedRequest;
-let keyring: Map<string, Uint8Array>;
 const encoder = new TextEncoder();
 const adapters = { request: chatRequestAdapter, stream: chatStreamAdapter };
 const chunk = (delta: object = {}, finish: string | null = null) => JSON.stringify({ id: 'native-stream-id', object: 'chat.completion.chunk', created: 1,
@@ -25,7 +23,7 @@ const usage = JSON.stringify({ id: 'native-stream-id', object: 'chat.completion.
 const frame = (data: string) => encoder.encode(`data: ${data}\n\n`);
 const sourceResponse = (source: ReadableStream<Uint8Array>) => new Response(source, { headers: { 'Content-Type': 'text/event-stream' } });
 const active = (name: string) => runInDurableObject(testEnv.GATE.get(testEnv.GATE.idFromName(name)), (_instance, context) => new LeaseStorage(context.storage).read(Date.now()).leases.length);
-const dependencies = (fetcher: (url: string, init: RequestInit) => Promise<Response>) => ({ database: testEnv.DB, keyring, fetch: fetcher });
+const dependencies = (fetcher: (url: string, init: RequestInit) => Promise<Response>) => ({ database: testEnv.DB, fetch: fetcher });
 
 beforeEach(async () => {
   const now = Date.now();
@@ -35,10 +33,10 @@ beforeEach(async () => {
   const token = generateToken('apiKey');
   await prepare(testEnv.DB, `INSERT INTO api_keys(id,user_id,key_hash,display_prefix,name,status,created_at,updated_at)
     VALUES('g08-key','g08-user',?,'s2a_key_ABCDEFGH','G08 Key','active',0,0)`, [await hashToken('apiKey', token)]).run();
-  const encryptionKey = crypto.getRandomValues(new Uint8Array(32)); keyring = new Map([['test', encryptionKey]]);
-  const encrypted = await encryptChannelSecret('synthetic-upstream-secret', 'g08-channel', 'test', encryptionKey);
-  await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-    VALUES('g08-channel','G08 Channel','https://provider.example.com/',?,'test','active',1,2,60,1,0,0)`, [encrypted]).run();
+
+  const credential = 'synthetic-upstream-secret';
+  await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+    VALUES('g08-channel','G08 Channel','https://provider.example.com/',?,'active',1,2,60,1,0,0)`, [credential]).run();
   await prepare(testEnv.DB, `INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('g08-model','active',?,1,10,4096,0,0)`, [JSON.stringify({ input: '1', output: '2' })]).run();
   await prepare(testEnv.DB, "INSERT INTO channel_groups(channel_id,group_id) VALUES('g08-channel','g08-group')").run();
   await prepare(testEnv.DB, `INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,capabilities_json,config_version)

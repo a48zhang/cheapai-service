@@ -45,7 +45,6 @@ describe('snapshot codec and application freshness', () => {
     JSON.stringify({ ...snapshot, observed_at: 1.5 }),
     JSON.stringify({ ...snapshot, observed_at: Number.MAX_SAFE_INTEGER + 1 }),
     JSON.stringify({ ...snapshot, data: { balance_units: 123 } }),
-    JSON.stringify({ ...snapshot, extra: true }),
   ])('treats malformed metadata or payload as miss %#', encoded => {
     expect(decodeSnapshot(encoded, freshness, validateData)).toBeNull();
   });

@@ -52,7 +52,7 @@ describe('administrator model creation', () => {
     expect((await lazy.request(origin + ADMIN_MODELS_PATH, { method: 'POST', headers: headers(userCookie) }, { DB: testEnv.DB })).status).toBe(403);
     expect(trustedOrigin).not.toHaveBeenCalled();
     expect((await writes().request(origin + ADMIN_MODELS_PATH, { method: 'POST', headers: { Cookie: adminCookie } }, { DB: testEnv.DB })).status).toBe(403);
-    for (const patch of [{ maxOutputTokens: 0 }, { defaultOutputTokens: 5000 }, { admissionMinBalanceUnits: 0.1 }, { admissionMinBalanceUnits: '-1' }, { actorId: 'c09-admin' }]) {
+    for (const patch of [{ maxOutputTokens: 0 }, { admissionMinBalanceUnits: 0.1 }, { admissionMinBalanceUnits: '-1' }]) {
       expect((await writes().request(origin + ADMIN_MODELS_PATH, { method: 'POST', headers: headers(), body: JSON.stringify({ ...newModel, ...patch }) }, { DB: testEnv.DB })).status).toBe(400);
     }
   });
@@ -105,7 +105,7 @@ describe('administrator public-model listing', () => {
   });
   it('requires session/admin and rejects invalid pagination/status', async () => {
     expect((await get('', '')).status).toBe(401); expect((await get('', userCookie)).status).toBe(403);
-    for (const query of ['?limit=0', '?limit=101', '?limit=1&limit=2', '?status=other', '?status=active&status=disabled', '?cursor=bad!', '?actorId=c09-admin']) expect((await get(query)).status).toBe(400);
+    for (const query of ['?limit=0', '?limit=101', '?limit=1&limit=2', '?status=other', '?status=active&status=disabled', '?cursor=bad!']) expect((await get(query)).status).toBe(400);
     expect(await (await get('?status=disabled')).json()).toMatchObject({ data: { items: [{ publicModelId: 'c09-2' }] } });
   });
   it('fails closed for corrupted prices rather than treating absent prices as free', async () => {

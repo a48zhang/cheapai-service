@@ -1,8 +1,5 @@
-import { parseChatRequest } from "../types/chat.js";
 import type { ChatRequest } from "../types/chat.js";
-import { validateResponsesRequest } from "../types/responses.js";
 import type { ResponsesRequest } from "../types/responses.js";
-import { parseMessagesRequest } from "../types/messages.js";
 import type { MessagesRequest } from "../types/messages.js";
 import type { ConversionDirection, ConversionResult, Protocol, ProtocolError } from "../types/shared.js";
 
@@ -33,13 +30,13 @@ export interface NativeExtensionPermission {
 
 export interface ChannelCapabilities {
   readonly protocol: Protocol;
-  /** Absent entries are unsupported. Basic text needs no feature flag. */
+  /** Informational model capabilities; native requests are forwarded unchanged. */
   readonly features: readonly CapabilityFeature[];
   readonly maxOutputTokens?: number;
   /** Explicit policy default needed when converting an uncapped request to Messages. */
   readonly reasoningEfforts?: readonly string[];
   readonly cacheTtls?: readonly ("5m" | "1h")[];
-  /** Exact structural scope/name allowlist, effective only for same-protocol data. */
+  /** Legacy metadata, retained for stored configuration compatibility; never gates forwarding. */
   readonly nativeExtensions?: readonly NativeExtensionPermission[];
 }
 
@@ -87,21 +84,15 @@ const present = (value: unknown): boolean => value !== undefined && value !== nu
 const positive = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 
 /**
- * Uses the existing wire validators, then examines protocol fields only. Tool
+ * Examines an already parsed request; wire validation belongs to ingress. Tool
  * input/schema, arbitrary metadata and text are data, never traversed as wire.
  * This is a semantic prerequisite check, not a claim that a converter is shipped.
  */
 export function identifyRequestFeatures(input: ProtocolRequest): ConversionResult<RequestFeatures> {
-  const parsed = input.protocol === "chat" ? parseChatRequest(input.request, { unknownFields: "preserve" })
-    : input.protocol === "responses" ? validateResponsesRequest(input.request, { unknownFields: "preserve" })
-      : parseMessagesRequest(input.request, { unknownFields: "preserve" });
-  if (!parsed.ok) return parsed;
-
   const request = input.request as RecordValue;
   const required: FeatureRequirement[] = [];
   const extensions: (NativeExtensionPermission & { path: string })[] = [];
   const cacheTtls = new Set<"5m" | "1h">();
-  let cacheBreakpoints = 0;
   const invalid: ProtocolError[] = [];
   let outputTokenLimit: number | undefined;
   let reasoningEffort: string | undefined;
@@ -132,8 +123,7 @@ export function identifyRequestFeatures(input: ProtocolRequest): ConversionResul
   const cache = (value: unknown, path: string, chatExtension = false): void => {
     if (!present(value)) return;
     if (!object(value) || value.type !== "ephemeral" || (value.ttl !== undefined && value.ttl !== "5m" && value.ttl !== "1h")
-      || Object.keys(value).some(key => key !== "type" && key !== "ttl")) { bad(path); return; }
-    if (++cacheBreakpoints > 4) bad(path);
+      || Object.keys(value).some(key => key !== "type" && key !== "ttl")) { need("cache_control", path, true); return; }
     need("cache_control", path, !chatExtension, chatExtension ? [input.protocol, "messages"] : undefined);
     cacheTtls.add(value.ttl === "1h" ? "1h" : "5m");
     fields(value, ["type", "ttl"], "cache_control", path);
@@ -237,7 +227,7 @@ export function identifyRequestFeatures(input: ProtocolRequest): ConversionResul
     if (object(request.reasoning)) {
       effort(request.reasoning.effort, "$.reasoning.effort");
       if (present(request.reasoning.summary)) {
-        if (typeof request.reasoning.summary !== "string" || !["auto", "concise", "detailed"].includes(request.reasoning.summary)) bad("$.reasoning.summary");
+        if (typeof request.reasoning.summary !== "string") bad("$.reasoning.summary");
         need("reasoning_summary", "$.reasoning.summary", true);
       }
       fields(request.reasoning, ["effort", "summary"], "reasoning", "$.reasoning");
@@ -245,7 +235,7 @@ export function identifyRequestFeatures(input: ProtocolRequest): ConversionResul
     if (object(request.text)) {
       if (present(request.text.format)) format(request.text.format, "$.text.format", false);
       if (present(request.text.verbosity)) {
-        if (typeof request.text.verbosity !== "string" || !["low", "medium", "high"].includes(request.text.verbosity)) bad("$.text.verbosity");
+        if (typeof request.text.verbosity !== "string") bad("$.text.verbosity");
         need("verbosity", "$.text.verbosity", true);
       }
       fields(request.text, ["format", "verbosity"], "text", "$.text");
@@ -317,7 +307,7 @@ export function identifyRequestFeatures(input: ProtocolRequest): ConversionResul
     if (object(request.thinking)) {
       const thinking = request.thinking;
       need(thinking.type === "enabled" ? "thinking_budget" : thinking.type === "adaptive" ? "thinking_adaptive" : "thinking_control", "$.thinking", true);
-      if (thinking.type === "enabled" && (typeof thinking.budget_tokens !== "number" || thinking.budget_tokens < 1024 || thinking.budget_tokens >= outputTokenLimit)) bad("$.thinking.budget_tokens");
+      if (thinking.type === "enabled" && (typeof thinking.budget_tokens !== "number" || thinking.budget_tokens >= outputTokenLimit)) bad("$.thinking.budget_tokens");
       fields(thinking, thinking.type === "enabled" ? ["type", "budget_tokens", "display"] : thinking.type === "adaptive" ? ["type", "display"] : ["type"], "thinking", "$.thinking");
     }
     const blocks = (value: unknown, path: string, toolResult = false): void => {
@@ -371,9 +361,9 @@ export function identifyRequestFeatures(input: ProtocolRequest): ConversionResul
  * lookup or billing. Successful native references still require caller checks;
  * the gateway must also select an implemented direct converter (P22).
  */
-export function checkRequestCapabilities(input: ProtocolRequest, channel: ChannelCapabilities): CapabilityCheckResult {
+export function checkRequestCapabilities(input: ProtocolRequest, channel: ChannelCapabilities, identifiedFeatures?: RequestFeatures): CapabilityCheckResult {
   const direction = { from: input.protocol, to: channel.protocol };
-  const identified = identifyRequestFeatures(input);
+  const identified = identifiedFeatures ? { ok: true as const, value: identifiedFeatures } : identifyRequestFeatures(input);
   if (!identified.ok) return { ...direction, supported: false, reasons: [{ code: identified.error.kind === "unsupported_feature" ? "no_protocol_mapping" : "invalid_request", path: identified.error.param ?? "$", message: identified.error.message }] };
   const features = identified.value;
   const reasons: CapabilityReason[] = [];
@@ -381,25 +371,20 @@ export function checkRequestCapabilities(input: ProtocolRequest, channel: Channe
   if (channel.maxOutputTokens !== undefined && !positive(channel.maxOutputTokens)) {
     problem("invalid_channel_capabilities", "$channel", "Channel maximum output must be a positive safe integer.");
   }
-  const supported = new Set(channel.features);
   for (const requirement of features.required) {
-    if ((requirement.mapping === "native" && input.protocol !== channel.protocol) || (requirement.targets && !requirement.targets.includes(channel.protocol))) {
+    if (input.protocol !== channel.protocol && (requirement.mapping === "native" || (requirement.targets && !requirement.targets.includes(channel.protocol)))) {
       problem("no_protocol_mapping", requirement.path, "This constraint has no equivalent mapping to the target protocol.", requirement.feature);
-    } else if (!supported.has(requirement.feature)) {
-      problem("missing_capability", requirement.path, "The channel does not declare this required capability.", requirement.feature);
     }
   }
   for (const extension of features.extensions) {
-    if (input.protocol !== channel.protocol || !channel.nativeExtensions?.some(allowed => allowed.scope === extension.scope && allowed.name === extension.name)) {
-      problem("extension_not_allowed", extension.path, "The extension requires an explicit same-protocol scope/name permission.");
+    if (input.protocol !== channel.protocol) {
+      problem("no_protocol_mapping", extension.path, "The extension cannot be translated to the target protocol.");
     }
   }
   const outputTokenLimit = features.outputTokenLimit;
   if (channel.protocol === "messages" && outputTokenLimit === undefined) problem("output_limit_required", "$.max_tokens", "Messages requires an explicit output limit in the client request.");
   if (outputTokenLimit !== undefined && channel.maxOutputTokens !== undefined && outputTokenLimit > channel.maxOutputTokens) problem("output_limit_exceeded", "$.max_output_tokens", "Requested output exceeds the channel limit; it cannot be silently clamped.");
-  if (channel.protocol === "messages" && features.temperature !== undefined && features.temperature > 1) problem("parameter_not_representable", "$.temperature", "Messages cannot represent this temperature without changing it.", "temperature");
-  if (features.reasoningEffort !== undefined && !channel.reasoningEfforts?.includes(features.reasoningEffort)) problem("reasoning_effort_not_supported", "$.reasoning", "The channel does not declare the requested reasoning effort.", "reasoning_effort");
-  for (const ttl of features.cacheTtls) if (!channel.cacheTtls?.includes(ttl)) problem("cache_ttl_not_supported", "$.cache_control", "The channel does not declare the requested cache TTL.", "cache_control");
+  if (input.protocol !== channel.protocol && channel.protocol === "messages" && features.temperature !== undefined && features.temperature > 1) problem("parameter_not_representable", "$.temperature", "Messages cannot represent this temperature without changing it.", "temperature");
   if (reasons.length) return { ...direction, supported: false, features, reasons };
   const requiredChecks: RequiredCapabilityCheck[] = [];
   if (features.requiresHistoryBinding) requiredChecks.push("response_history_binding");

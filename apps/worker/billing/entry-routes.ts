@@ -19,11 +19,12 @@ const noStore = (response: Response): Response => { response.headers.set('Cache-
 function queryOptions(request: Request, admin = false): EntryQueryOptions {
   if (request.body !== null) throw new ApiError('invalid_request');
   const query = new URL(request.url).searchParams;
-  for (const key of query.keys()) if (!['limit', 'cursor', 'kind', 'requestId', 'createdFrom', 'createdBefore', ...(admin ? ['userId'] : [])].includes(key) || query.getAll(key).length !== 1) throw new ApiError('invalid_request');
+  for (const key of query.keys()) if (query.getAll(key).length !== 1) throw new ApiError('invalid_request');
   const page = parsePagination(query);
   const kind = query.get('kind');
   const requestId = query.get('requestId');
   const userId = query.get('userId');
+  if (!admin && userId !== null) throw new ApiError('invalid_request');
   const times: { createdFrom?: number; createdBefore?: number } = {};
   for (const key of ['createdFrom', 'createdBefore'] as const) {
     const raw = query.get(key);
@@ -47,11 +48,7 @@ function responsePage(page: BillingEntryPage): BillingEntriesResponse {
 /** Full-path read-only router; no Origin resolver, CSRF write policy or mutation route. */
 export function createBillingEntryRoutes(options: { now?: () => number } = {}): Hono<AuthEnv> {
   const app = new Hono<AuthEnv>();
-  const clock = () => {
-    const now = options.now ? options.now() : Date.now();
-    if (!Number.isSafeInteger(now) || now < 0 || now > 8_640_000_000_000_000) throw new ApiError('service_unavailable');
-    return now;
-  };
+  const clock = options.now ?? Date.now;
   app.use('*', async (context, next) => { await next(); context.res.headers.set('Cache-Control', 'no-store'); });
   app.onError((error, context) => noStore(apiError(error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }), context.get('requestId') ?? createRequestId())));
   app.notFound(context => noStore(apiError(new ApiError('not_found'), context.get('requestId') ?? createRequestId())));

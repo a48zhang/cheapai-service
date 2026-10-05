@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { app } from '../../apps/worker/app';
 import type { Env } from '../../apps/worker/env';
+import { DEFAULT_CONFIG } from '../../apps/worker/config';
 import { readCookieSession } from '../../apps/worker/auth/sessions';
 import { testEnv } from '../helpers/database';
 
@@ -196,11 +197,22 @@ describe('real production app entry with native D1/GATE (not a socket/mail accep
     expect(response.status).toBe(503);
   });
 
-  it('does not accept trustedIp in request JSON', async () => {
+  it('ignores JSON trustedIp and charges the server-selected IP quota', async () => {
     const headers = await nonce();
     const response = await fetchPath('/api/v1/auth/login', { method: 'POST', headers,
       body: JSON.stringify({ ...credentials, trustedIp: '198.51.100.3' }) });
-    expect(response.status).toBe(400);
+    // Unknown fields are accepted; this unseeded account still fails authentication.
+    expect(response.status).toBe(401);
+    expect(await response.json()).toMatchObject({ error: { code: 'unauthorized' } });
+    const remaining = async (ip: string) => {
+      const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ip)));
+      const name = `auth:login-ip:v1:${Array.from(hash, byte => byte.toString(16).padStart(2, '0')).join('')}`;
+      return (await testEnv.GATE.get(testEnv.GATE.idFromName(name)).ratePeek({
+        limit: DEFAULT_CONFIG.loginIpAttemptLimit, windowMs: DEFAULT_CONFIG.loginWindowMs,
+      })).remaining;
+    };
+    expect(await remaining('127.0.0.1')).toBe(DEFAULT_CONFIG.loginIpAttemptLimit - 1);
+    expect(await remaining('198.51.100.3')).toBe(DEFAULT_CONFIG.loginIpAttemptLimit);
   });
 
   it('mounts send-code but refuses missing readiness/HMAC without sending mail', async () => {

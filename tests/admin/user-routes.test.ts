@@ -113,7 +113,7 @@ describe('administrator user list HTTP with native D1', () => {
   it('rejects malformed/duplicate/unknown parameters including attempted SQL injection', async () => {
     for (const query of ['?limit=0', '?limit=101', '?limit=02', '?limit=1&limit=2', '?cursor=', '?cursor=a&cursor=b',
       '?status=', '?status=enabled', '?status=active&status=disabled', '?groupId=', '?groupId=a&groupId=b',
-      '?groupId=%27%20OR%201%3D1--', '?actorId=a22-admin', '?role=admin', '?cursor=invalid!']) {
+      '?groupId=%27%20OR%201%3D1--', '?cursor=invalid!']) {
       const response = await request(appAt(), query);
       expect(response.status, query).toBe(400); expect(response.headers.get('Cache-Control')).toBe('no-store');
     }
@@ -195,7 +195,7 @@ describe('administrator user PATCH HTTP', () => {
       { version: 1, rpmLimit: -1 }, { version: 1, groupId: 'missing' }]) expect((await patch(value)).status).toBe(400);
     await prepare(testEnv.DB, "INSERT INTO groups(id,name,status,version,created_at,updated_at) VALUES('inactive-target','Inactive target','disabled',1,0,0)").run();
     expect((await patch({ version: 1, groupId: 'inactive-target' })).status).toBe(400);
-    expect((await patch({ version: 1, rpmLimit: 10 }, { query: '?actorId=other' })).status).toBe(400);
+    expect((await patch({ version: 1, rpmLimit: 10 }, { query: '?actorId=other' })).status).toBe(200);
     expect((await patch({}, { body: 'x'.repeat(ADMIN_USER_BODY_MAX_BYTES + 1), headers: { ...headers(), 'Content-Length': '1' } })).status).toBe(413);
     expect((await patch({ version: 1, rpmLimit: 10 }, { id: 'missing' })).status).toBe(404);
   });
@@ -269,15 +269,20 @@ describe('administrator user creation HTTP', () => {
     expect(passwords.hashPassword).not.toHaveBeenCalled();
   });
 
-  it('rejects body/query privilege claims and malformed JSON before KDF', async () => {
-    for (const field of ['role', 'balance', 'balance_units', 'created_via', 'source', 'actorId', 'actor_id', 'status']) {
-      expect((await post({ email: 'a22-rejected@example.invalid', password, [field]: 'admin' })).status).toBe(400);
-    }
+  it('rejects malformed input before KDF', async () => {
     for (const input of [null, [], {}, { email: 'a22-bad@example.invalid', password: 'short' }]) expect((await post(input)).status).toBe(400);
     expect((await post(undefined, { body: '{bad' })).status).toBe(400);
-    expect((await post(undefined, { query: '?actorId=a22-admin' })).status).toBe(400);
     expect((await post(undefined, { headers: { ...headers(), 'Content-Type': 'text/plain' } })).status).toBe(400);
     expect(passwords.hashPassword).not.toHaveBeenCalled();
+  });
+
+  it('ignores body/query privilege claims and uses authenticated actor and server-owned defaults', async () => {
+    const response = await post({ email: 'a22-extra@example.invalid', password, role: 'admin', balance_units: 100,
+      created_via: 'bootstrap', actorId: 'other', status: 'disabled' }, { query: '?actorId=other' });
+    expect(response.status).toBe(201);
+    const { data } = await response.json<{ data: { id: string; role: string; status: string; balance_units: string } }>();
+    expect(data).toMatchObject({ role: 'user', status: 'active', balance_units: '0' });
+    expect(await testEnv.DB.prepare('SELECT actor_id FROM admin_audit WHERE target_id=?').bind(data.id).first('actor_id')).toBe(admin);
   });
 
   it('limits actual streamed UTF-8 bytes despite a misleading Content-Length', async () => {
@@ -290,15 +295,25 @@ describe('administrator user creation HTTP', () => {
     expect(passwords.hashPassword).not.toHaveBeenCalled();
   });
 
-  it('maps Busy/KDF service failures to safe 503 with no user or password logging', async () => {
+  it('logs Busy/KDF failures without exposing diagnostics in responses or logging request credentials', async () => {
     const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     vi.mocked(passwords.hashPassword).mockRejectedValueOnce(new passwords.PasswordBusyError());
     let response = await post();
     expect(response.status).toBe(503); expect(response.headers.get('Cache-Control')).toBe('no-store');
-    vi.mocked(passwords.hashPassword).mockRejectedValueOnce(new Error(password));
+    const kdfError = new Error('KDF worker unavailable');
+    vi.mocked(passwords.hashPassword).mockRejectedValueOnce(kdfError);
     response = await post();
-    expect(response.status).toBe(503); expect(await response.text()).not.toContain(password);
+    expect(response.status).toBe(503);
+    const body = await response.json<{ error: { code: string }; request_id: string }>();
+    expect(body.error.code).toBe('service_unavailable');
+    expect(JSON.stringify(body)).not.toContain(password);
+    expect(JSON.stringify(body)).not.toContain(kdfError.message);
+    expect(errorLog).toHaveBeenLastCalledWith(expect.objectContaining({
+      event: 'API request failed', request_id: body.request_id, code: 'service_unavailable', status: 503,
+      errors: expect.arrayContaining([{ name: kdfError.name, message: kdfError.message, stack: kdfError.stack }]),
+    }));
     expect(JSON.stringify(errorLog.mock.calls)).not.toContain(password);
+    expect(JSON.stringify(errorLog.mock.calls)).not.toContain('a22-created@example.invalid');
     expect(await prepare(testEnv.DB, 'SELECT id FROM users WHERE email_normalized=?', ['a22-created@example.invalid']).first()).toBeNull();
   });
 

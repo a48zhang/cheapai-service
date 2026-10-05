@@ -139,11 +139,11 @@ describe('Messages native streaming lifecycle and usage', () => {
     expect(JSON.stringify(failed)).not.toContain('SECRET');
   });
 
-  it('supports explicit unknown-event ignore, rejects unsafe preserve, and checks frame/type agreement', () => {
+  it('supports explicit unknown-event ignore, supports native preserve, and checks frame/type agreement', () => {
     expect(session({ ...options, unknownEventPolicy: 'ignore' }).push(frame({ type: 'future_event' }))).toEqual({ events: [], usageUpdates: [] });
-    expect(session({ ...options, unknownEventPolicy: 'preserve' }).push(frame({ type: 'future_event' })).terminal?.status).toBe('failed');
+    expect(session({ ...options, unknownEventPolicy: 'preserve' }).push(frame({ type: 'future_event' })).terminal).toBeUndefined();
     expect(session().push({ event: 'message_stop', data: JSON.stringify(start) }).terminal?.status).toBe('failed');
-    expect(session().push(frame({ ...start, headers: { authorization: 'SECRET' } })).terminal?.status).toBe('failed');
+    expect(session().push(frame({ ...start, headers: { authorization: 'SECRET' } })).terminal).toBeUndefined();
     expect(session().push(frame({ type: 'ping' }))).toEqual({ events: [frame({ type: 'ping' })], usageUpdates: [] });
   });
 

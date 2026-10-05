@@ -23,7 +23,7 @@ describe('typed administrator model mapping HTTP', () => {
     adminCookie = (await createCookieSession(testEnv.DB, 'c11-admin', now)).setCookie.split(';')[0]!;
     userCookie = (await createCookieSession(testEnv.DB, 'c11-user', now)).setCookie.split(';')[0]!;
     const audit = { actorId: 'c11-admin', operationId: 'setup', now };
-    channelId = (await createChannel(testEnv.DB, { name: 'C11 channel', baseUrl: 'https://provider.example.com', upstreamKey: 'private-channel-key', concurrencyLimit: 2, rpmLimit: 60 }, audit, { keyVersion: 'v1', key: crypto.getRandomValues(new Uint8Array(32)) })).id;
+    channelId = (await createChannel(testEnv.DB, { name: 'C11 channel', baseUrl: 'https://provider.example.com', upstreamKey: 'private-channel-key', concurrencyLimit: 2, rpmLimit: 60 }, audit)).id;
     await createModel(testEnv.DB, { publicModelId: 'c11-public', sellPrices: { input: '1', output: '2' }, admissionMinBalanceUnits: '0', maxOutputTokens: 4096 }, audit);
   });
   it('creates separate protocol mappings and lists them without credential leakage or write config', async () => {
@@ -41,8 +41,8 @@ describe('typed administrator model mapping HTTP', () => {
     expect((await app().request(listUrl, {}, { DB: testEnv.DB })).status).toBe(401);
     expect((await app().request(listUrl, { headers: { Cookie: userCookie } }, { DB: testEnv.DB })).status).toBe(403);
     expect((await app().request(listUrl, { method: 'POST', headers: { Cookie: adminCookie } }, { DB: testEnv.DB })).status).toBe(403);
-    for (const extra of [{ publicModelId: 'other' }, { groupId: 'c11-group' }, { actorId: 'c11-admin' }, { protocol: 'invalid' },
-      { capabilities: { protocol: 'messages', features: [] } }, { capabilities: { protocol: 'chat', features: [], supported: true } }]) {
+    for (const extra of [{ protocol: 'invalid' },
+      { capabilities: { protocol: 'messages', features: [] } }]) {
       expect((await app().request(listUrl, { method: 'POST', headers: headers(), body: JSON.stringify({ ...input(), ...extra }) }, { DB: testEnv.DB })).status).toBe(400);
     }
   });
@@ -59,7 +59,7 @@ describe('typed administrator model mapping HTTP', () => {
     await create(); await testEnv.DB.prepare('UPDATE channels SET status=? WHERE id=?').bind('disabled', channelId).run();
     const response = await app().request(listUrl + '?activeOnly=true', { headers: { Cookie: adminCookie } }, { DB: testEnv.DB });
     expect(await response.json()).toMatchObject({ data: { items: [] } });
-    for (const query of ['?protocol=chat&protocol=messages', '?activeOnly=1', '?groupId=c11-group']) expect((await app().request(listUrl + query, { headers: { Cookie: adminCookie } }, { DB: testEnv.DB })).status).toBe(400);
+    for (const query of ['?protocol=chat&protocol=messages', '?activeOnly=1']) expect((await app().request(listUrl + query, { headers: { Cookie: adminCookie } }, { DB: testEnv.DB })).status).toBe(400);
   });
   it('rejects stream overflow and rolls back writes if audit fails', async () => {
     const body = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new Uint8Array(MAPPING_BODY_MAX_BYTES + 1)); controller.close(); } });

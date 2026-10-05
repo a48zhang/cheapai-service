@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { billingMultiplierSchema, decodeGroup } from '@cheapai/contracts/groups';
+import { billingMultiplierSchema, decodeGroup, groupInputSchema } from '@cheapai/contracts/groups';
+import { decodeMapping } from '@cheapai/contracts/mappings';
 import { decodeRequest } from '@cheapai/contracts/requests';
 import { createChannelsApi } from '@cheapai/api-client/channels';
 import { createApiClient } from '@cheapai/api-client/client';
@@ -24,6 +25,20 @@ const priceSnapshot = (patch: Record<string, unknown> = {}) => ({
 });
 
 describe('web admin API contracts', () => {
+  it('accepts future response fields and more than 100 channel assignments', () => {
+    const channelIds = Array.from({ length: 150 }, (_, index) => `channel-${index}`);
+    expect(groupInputSchema.parse({ name: 'Large group', channelIds }).channelIds).toHaveLength(150);
+    expect(decodeGroup(group({ channelIds, future_field: true })).channelIds).toHaveLength(150);
+  });
+  it('accepts new capability metadata and ignores the obsolete extension allowlist', () => {
+    expect(decodeMapping({
+      channelId: 'channel-1', publicModelId: 'model-1', protocol: 'chat',
+      upstreamModel: 'upstream-1', configVersion: 1,
+      capabilities: { protocol: 'chat', features: ['vendor_feature'], reasoningEfforts: ['future'],
+        cacheTtls: ['1d'], nativeExtensions: [{ scope: 'new_scope', name: 'future' }] },
+    }).capabilities).toEqual({ protocol: 'chat', features: ['vendor_feature'], reasoningEfforts: ['future'], cacheTtls: ['1d'] });
+  });
+
   it('keeps group multipliers as exact non-negative decimal strings', () => {
     expect(isBillingMultiplier('0')).toBe(true);
     expect(isBillingMultiplier('0.2')).toBe(true);
@@ -49,7 +64,7 @@ describe('web admin API contracts', () => {
     expect(decodeRequest(request())).toMatchObject({ price_snapshot: null, price_snapshot_valid: false });
     expect(() => decodeRequest(request({ price_snapshot: priceSnapshot({ group_version: 0 }), price_snapshot_valid: true }))).toThrow();
     expect(() => decodeRequest(request({ price_snapshot: priceSnapshot({ billing_multiplier: '1e-1' }), price_snapshot_valid: true }))).toThrow();
-    expect(() => decodeRequest(request({ price_snapshot: priceSnapshot({ extra: 'unexpected' }), price_snapshot_valid: true }))).toThrow();
+    expect(decodeRequest(request({ price_snapshot: priceSnapshot({ extra: 'future-field' }), price_snapshot_valid: true })).price_snapshot).toMatchObject({ public_model_id: 'model-1' });
   });
 });
 

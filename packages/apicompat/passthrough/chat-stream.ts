@@ -49,7 +49,7 @@ function makeSession(context: ResponseContext, options: StreamOptions, budget: B
       try {
         if (typeof frame.data !== 'string' || encoder.encode(frame.data).byteLength > max) return fail('frame_limit_exceeded');
         if (frame.event === 'error') return fail('upstream_error');
-        if (frame.event !== undefined && frame.event !== 'message') return policy === 'ignore' ? empty() : fail('unsupported_event');
+        if (frame.event !== undefined && frame.event !== 'message') return policy === 'preserve' ? { events: [frame], usageUpdates: [] } : policy === 'ignore' ? empty() : fail('unsupported_event');
         if (frame.data === '[DONE]') {
           if (choices.size === 0 || [...choices.values()].some(choice => !choice.terminal)) return fail('missing_choice_finish');
           const terminals = [...choices.values()].map(choice => choice.terminal!);
@@ -60,7 +60,7 @@ function makeSession(context: ResponseContext, options: StreamOptions, budget: B
         }
         const raw: unknown = JSON.parse(frame.data);
         if (raw && typeof raw === 'object' && Object.hasOwn(raw, 'error')) return fail('upstream_error');
-        const parsed = parseChatStreamChunk(raw);
+        const parsed = parseChatStreamChunk(raw, { unknownFields: 'preserve', native: true });
         if (!parsed.ok) return fail('invalid_chunk');
         const value = parsed.value;
         if (nativeId !== undefined && nativeId !== value.id) return fail('upstream_identity_mismatch');

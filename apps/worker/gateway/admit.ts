@@ -1,4 +1,4 @@
-import type { ProtocolRequest, RequiredCapabilityCheck } from '@sub2api/apicompat/capabilities/check';
+import type { ProtocolRequest, RequestFeatures, RequiredCapabilityCheck } from '@sub2api/apicompat/capabilities/check';
 import type { Protocol } from '@sub2api/apicompat/types/shared';
 import type { InternalPlatformKeyAuth } from '../auth/key-repository';
 import { checkBalanceAdmission } from '../billing/admission';
@@ -23,6 +23,7 @@ import type { RequestSource } from './request-repository';
 export interface AdmissionBindings { DB: D1Database; CACHE: KVNamespace; GATE: LeaseBinding }
 export interface CandidateExclusion { channelId: string; protocol?: Protocol }
 export interface AdmissionOptions {
+  features?: RequestFeatures;
   now?: () => number;
   random?: () => number;
   adapterAvailable?: SelectionOptions['adapterAvailable'];
@@ -123,10 +124,9 @@ export async function admitRequest(bindings: AdmissionBindings, subject: Interna
   // from the original native history channel just because another has capacity.
   const constrained = { ...routes.snapshot, data: { ...routes.snapshot.data, candidates: routes.snapshot.data.candidates.filter(candidate =>
     (historyBinding === null || matchesResponseHistoryBinding(historyBinding, candidate)) &&
-    (!options.requireChatStreamUsage || request.request.stream !== true || candidate.mapping.protocol !== 'chat' || candidate.mapping.capabilities.features.includes('stream_usage')) &&
     !excluded.some(item => item.channelId === candidate.channel.id && (item.protocol === undefined || item.protocol === candidate.mapping.protocol))) } };
   const selection = selectChannelCandidates(constrained, subject, request, {
-    now: clock(), ...(options.random === undefined ? {} : { random: options.random }),
+    now: clock(), ...(options.features === undefined ? {} : { features: options.features }), ...(options.random === undefined ? {} : { random: options.random }),
     ...(options.adapterAvailable === undefined ? {} : { adapterAvailable: options.adapterAvailable }),
   });
   if (selection.kind === 'adapter_availability_required') throw new ApiError('service_unavailable');

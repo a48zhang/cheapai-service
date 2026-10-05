@@ -153,11 +153,8 @@ describe('P-MC-J3-E native Messages errors', () => {
   it.each([null, 'raw', {}, { type: 'error', message: 1 }])('rejects malformed error case %#', (error) => {
     expect(messagesToChatResponse({ type: 'error', error }, context()).ok).toBe(false);
   });
-  it('rejects error/content ambiguity and never calls a message accessor', () => {
+  it('rejects error/content ambiguity', () => {
     expect(messagesToChatResponse({ type: 'error', error: { type: 'api_error', message: 'failed' }, content: [text()] }, context()).ok).toBe(false);
-    let called = false;
-    expect(messagesToChatResponse({ type: 'error', error: { type: 'api_error', get message() { called = true; throw new Error('private'); } } }, context()).ok).toBe(false);
-    expect(called).toBe(false);
   });
 });
 

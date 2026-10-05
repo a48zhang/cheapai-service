@@ -542,7 +542,7 @@ function parseStreamOpenRequest(value: unknown, generation: number): ParsedStrea
 }
 
 function parseStreamRequest(value: unknown, generation: number): ParsedStreamRequest {
-  const record = parseTransportPayload(value, ['generation', 'streamId'], ['value'])
+  const record = parseTransportPayload(value, ['generation', 'streamId'])
   return {
     generation: requestGeneration(record.generation, generation),
     streamId: requestId(record.streamId),
@@ -552,12 +552,9 @@ function parseStreamRequest(value: unknown, generation: number): ParsedStreamReq
 function parseTransportPayload(
   value: unknown,
   required: readonly string[],
-  optional: readonly string[] = [],
 ): Record<string, unknown> {
   if (!isRecord(value)) throw new RuntimeControlError('invalid-request', 'DSH transport payload is invalid')
-  const keys = Reflect.ownKeys(value)
-  if (!required.every(key => Object.hasOwn(value, key))
-    || keys.some(key => typeof key !== 'string' || (!required.includes(key) && !optional.includes(key)))) {
+  if (!required.every(key => Object.hasOwn(value, key))) {
     throw new RuntimeControlError('invalid-request', 'DSH transport payload fields are invalid')
   }
   return value

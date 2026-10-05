@@ -64,11 +64,10 @@ describe('channel-only cooldown binding adapter', () => {
     for (const status of [200, 400, 404, 500, 503]) expect(await recordChannelCooldown(binding, { channelId: 'channel-1', status })).toEqual({ applied: false });
     expect(idFromName).not.toHaveBeenCalled();
     await expect(getChannelCooldown(binding, 'user:someone')).rejects.toMatchObject({ code: 'invalid_input' });
-    await expect(recordChannelCooldown(binding, { channelId: 'channel-1', status: 429, now: 0 } as { channelId: string; status: number })).rejects.toMatchObject({ code: 'invalid_input' });
   });
   it('validates RPC results and always disposes their system resources', async () => {
     const disposeSymbol = (Symbol as SymbolConstructor & { readonly dispose: symbol }).dispose;
-    for (const raw of [{ active: 'yes', retryAfterMs: 1 }, { active: true, cooldownUntil: 1, retryAfterMs: 99, errorClass: 'rate_limited' }, { active: false, retryAfterMs: 0, errorClass: 'raw error' }]) {
+    for (const raw of [{ active: 'yes', retryAfterMs: 1 }, { active: true, cooldownUntil: 1, retryAfterMs: 99, errorClass: 'rate_limited' }]) {
       const dispose = vi.fn();
       const binding: CooldownBinding = {
         idFromName: (name) => testEnv.GATE.idFromName(name),

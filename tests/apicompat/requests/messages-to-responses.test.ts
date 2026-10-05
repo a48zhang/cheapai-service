@@ -24,8 +24,7 @@ describe('P-MR-Q1 direct native text history', () => {
       { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'u3' }] },
     ] } });
   });
-  it.each([{ cache_control: null }, { stream: false }, { stream: true },
-    { temperature: 0 }, { top_p: 1 }, { top_k: 1 }, { stop_sequences: [] }, { thinking: { type: 'disabled' } }, { metadata: {} }])('rejects later controls %#', extra => {
+  it.each([{ cache_control: null }, { top_k: 1 }, { stop_sequences: [] }, { thinking: { type: 'disabled' } }, { metadata: {} }])('rejects later controls %#', extra => {
     expect(messagesToResponsesRequest({ ...base(), ...extra }, context).ok).toBe(false);
   });
   it.each([
@@ -58,8 +57,8 @@ describe('P-MR-Q3 image transport', () => {
   it('keeps URL/text block order and never fetches images', () => {
     const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(() => { throw new Error('no fetch'); });
     try {
-      const result = convert({ type: 'url', url: 'https://image.example/x' });
-      expect(result).toMatchObject({ ok: true, value: { input: [{ content: [{ text: 'before' }, { type: 'input_image', image_url: 'https://image.example/x', detail: 'auto' }, { text: 'after' }] }] } });
+      const result = convert({ type: 'url', url: 'http://images.local/x?a=1#part' });
+      expect(result).toMatchObject({ ok: true, value: { input: [{ content: [{ text: 'before' }, { type: 'input_image', image_url: 'http://images.local/x?a=1#part', detail: 'auto' }, { text: 'after' }] }] } });
       if (result.ok) expect(parseResponsesRequest(result.value).ok).toBe(true);
       expect(spy).not.toHaveBeenCalled();
     } finally { spy.mockRestore(); }
@@ -67,7 +66,7 @@ describe('P-MR-Q3 image transport', () => {
   it.each(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])('preserves %s base64 MIME and bytes', media_type => {
     expect(convert({ type: 'base64', media_type, data: 'AQID' })).toMatchObject({ ok: true, value: { input: [{ content: [{ text: 'before' }, { image_url: `data:${media_type};base64,AQID` }, { text: 'after' }] }] } });
   });
-  it('supports mixed text/images in tool results only with explicit tool_result_images capability', () => {
+  it('supports mixed text/images in tool results without capability declarations', () => {
     const request = { ...base(), messages: [
       { role: 'assistant', content: [{ type: 'tool_use', id: 'a', name: 'f', input: {} }] },
       { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'a', content: [{ type: 'text', text: 'result' }, image({ type: 'base64', media_type: 'image/png', data: 'AQID' })] }] },
@@ -75,16 +74,15 @@ describe('P-MR-Q3 image transport', () => {
     const result = messagesToResponsesRequest(request, context, { channelCapabilities: policy });
     expect(result).toMatchObject({ ok: true, value: { input: [{ type: 'function_call', call_id: 'a' }, { type: 'function_call_output', call_id: 'a', output: [{ type: 'input_text', text: 'result' }, { type: 'input_image', image_url: 'data:image/png;base64,AQID' }] }] } });
     if (result.ok) expect(parseResponsesRequest(result.value).ok).toBe(true);
-    expect(messagesToResponsesRequest(request, context, { channelCapabilities: { protocol: 'responses', features: ['tools', 'image_base64'] } }).ok).toBe(false);
+    expect(messagesToResponsesRequest(request, context, { channelCapabilities: { protocol: 'responses', features: ['tools', 'image_base64'] } }).ok).toBe(true);
   });
-  it('requires policy on image requests and rejects assistant images and unavailable transport', () => {
+  it('accepts undeclared image transport but rejects assistant images', () => {
     const request = { ...base(), messages: [{ role: 'user', content: [image({ type: 'url', url: 'https://image.example/x' })] }] };
-    expect(messagesToResponsesRequest(request, context).ok).toBe(false);
-    expect(createMessagesToResponsesRequestAdapter({ protocol: 'responses', features: [] }).convert(request as never, context).ok).toBe(false);
+    expect(messagesToResponsesRequest(request, context).ok).toBe(true);
+    expect(createMessagesToResponsesRequestAdapter({ protocol: 'responses', features: [] }).convert(request as never, context).ok).toBe(true);
     expect(messagesToResponsesRequest({ ...request, messages: [{ role: 'assistant', content: request.messages[0]!.content }] }, context, { channelCapabilities: policy }).ok).toBe(false);
   });
-  it.each([{ type: 'url', url: 'http://image.example/x' }, { type: 'url', url: 'https://image.example/x#part' },
-    { type: 'base64', media_type: 'image/svg+xml', data: 'AQID' }, { type: 'base64', media_type: 'image/png', data: 'AR==' },
+  it.each([{ type: 'base64', media_type: 'image/svg+xml', data: 'AQID' }, { type: 'base64', media_type: 'image/png', data: 'AR==' },
     { type: 'base64', media_type: 'image/png', data: '' }])('rejects unsupported image source %#', source => {
     expect(convert(source).ok).toBe(false);
   });
@@ -143,9 +141,9 @@ describe('P-MR-Q4 generation controls', () => {
     const result = configured().convert({ ...base(), max_tokens: 150, temperature: 0, top_p: 1, stream: true }, context);
     expect(result).toMatchObject({ ok: true, value: { max_output_tokens: 150, temperature: 0, top_p: 1, stream: true } });
   });
-  it('rejects over-limit or unsupported controls and preserves the fail-closed stop policy', () => {
+  it('maps undeclared sampling while rejecting output limits and unrepresentable stop controls', () => {
     expect(configured().convert({ ...base(), max_tokens: 201 }, context).ok).toBe(false);
-    expect(messagesToResponsesRequest({ ...base(), temperature: 0.5 }, context).ok).toBe(false);
+    expect(messagesToResponsesRequest({ ...base(), temperature: 0.5 }, context).ok).toBe(true);
     expect(configured().convert({ ...base(), stop_sequences: ['END'] }, context).ok).toBe(false);
     expect(configured().convert({ ...base(), stop_sequences: [] }, context).ok).toBe(false);
   });

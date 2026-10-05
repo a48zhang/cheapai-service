@@ -33,7 +33,7 @@ export function routesCacheKey(groupId: string, publicModelId: string): string {
 }
 function object(value: unknown, fields: string[]): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value) &&
-    Object.keys(value).length === fields.length && fields.every(field => Object.hasOwn(value, field));
+    fields.every(field => Object.hasOwn(value, field));
 }
 function integer(value: unknown, minimum: number): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= minimum;
@@ -73,11 +73,7 @@ export async function readRoutes(database: D1Database, kv: KVNamespace, groupId:
   const key = routesCacheKey(groupId, publicModelId);
   const maxAgeMs = options.maxAgeMs ?? DEFAULT_CONFIG.routingCacheTtlMs;
   if (!integer(maxAgeMs, 1) || (options.forceRefresh !== undefined && typeof options.forceRefresh !== 'boolean')) throw new ApiError('invalid_request');
-  const clock = (): number => {
-    const time = (options.now ?? Date.now)();
-    if (!integer(time, 0)) throw new ApiError('service_unavailable');
-    return time;
-  };
+  const clock = options.now ?? Date.now;
   const validate = (value: unknown): value is RouteData => validRoutes(value, groupId, publicModelId);
   if (!options.forceRefresh) {
     const cached = await readSnapshot(kv, key, { now: clock(), maxAgeMs }, validate);
@@ -110,7 +106,6 @@ export async function readRoutes(database: D1Database, kv: KVNamespace, groupId:
         upstreamModel: mapping.upstreamModel, capabilities: mapping.capabilities, configVersion: mapping.configVersion } });
     }
     data = { group: { id: group.id, version: group.version }, model: { publicModelId: model.publicModelId, priceVersion: model.priceVersion }, candidates };
-    if (!validate(data)) throw new Error('Invalid D1 route configuration');
   } catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
   const snapshot: Snapshot<RouteData> = { schema_version: 1, observed_at: observedAt, data };
   await writeSnapshot(kv, key, snapshot, { now: clock(), maxAgeMs }, validate);

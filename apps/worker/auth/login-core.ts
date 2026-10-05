@@ -34,14 +34,7 @@ export class LoginRateError extends ApiError {
 }
 
 function parseInput(input: unknown): LoginInput {
-  if (input === null || typeof input !== 'object' || Array.isArray(input)
-      || (Object.getPrototypeOf(input) !== Object.prototype && Object.getPrototypeOf(input) !== null)
-      || Reflect.ownKeys(input).length !== 2) throw new ApiError('invalid_request');
-  for (const key of Reflect.ownKeys(input)) {
-    if (key !== 'email' && key !== 'password') throw new ApiError('invalid_request');
-    const descriptor = Object.getOwnPropertyDescriptor(input, key);
-    if (!descriptor || !('value' in descriptor)) throw new ApiError('invalid_request');
-  }
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) throw new ApiError('invalid_request');
   const values = input as Record<string, unknown>;
   if (typeof values.email !== 'string' || typeof values.password !== 'string' || values.password.length > 256) {
     throw new ApiError('invalid_request');
@@ -63,12 +56,6 @@ function publicUser(user: InternalAuthUser): PublicUser {
   return { id: user.id, email_normalized: user.email_normalized, role: user.role, status: user.status,
     group_id: user.group_id, group_status: user.group_status, balance_units: user.balance_units,
     email_verified_at: user.email_verified_at };
-}
-
-function clock(dependencies: LoginCoreDependencies): number {
-  const now = dependencies.now();
-  if (!Number.isSafeInteger(now) || now < 0) throw new ApiError('service_unavailable');
-  return now;
 }
 
 /** Shared account-password verification. `trustedIp` and dependencies come from
@@ -103,7 +90,7 @@ export async function loginWithCredential<Credential>(
     const verified = await findInternalAuthUserByEmail(dependencies.database, credentials.email);
     if (!sameIdentity(original, verified)) throw new ApiError('unauthorized');
 
-    const credential = await issuer.issue(verified.id, clock(dependencies));
+    const credential = await issuer.issue(verified.id, dependencies.now());
     let current: InternalAuthUser | null;
     try {
       // Credential creation itself should atomically check user.active. This
@@ -113,7 +100,7 @@ export async function loginWithCredential<Credential>(
     } catch (error) {
       // Never return the new credential if revalidation fails. Revoke only the
       // credential just issued; even failed cleanup cannot disclose its secret.
-      await issuer.revoke(verified.id, credential, clock(dependencies));
+      await issuer.revoke(verified.id, credential, dependencies.now());
       throw error;
     }
     return { user: publicUser(current), credential };

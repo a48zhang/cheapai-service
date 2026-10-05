@@ -55,9 +55,9 @@ beforeEach(async () => {
     priceVersion: 1, sellPrices: { input: '1', output: '2' } }).json;
   await prepare(testEnv.DB, `INSERT INTO api_keys(id,user_id,key_hash,display_prefix,name,status,created_at,updated_at)
     VALUES('b20-key',?,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','s2a_key_ABCDEFGH','B20','active',0,0)`, [owner]).run();
-  await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-    VALUES('b20-channel','B20','https://provider.example',?,'v1','active',1,1,60,1,0,0)`,
-  [JSON.stringify({ algorithm: 'A256GCM', format_version: 1, key_version: 'v1', nonce: 'synthetic', ciphertext: 'synthetic' })]).run();
+  await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+    VALUES('b20-channel','B20','https://provider.example',?,'active',1,1,60,1,0,0)`,
+  ['test-upstream-key']).run();
   await prepare(testEnv.DB, `INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('b20-model','active','{"input":"1","output":"2"}',1,0,4096,0,0)`).run();
   await insertRequest('b20-owner-request'); await insertRequest('b20-other-request', other, 1001);
 });

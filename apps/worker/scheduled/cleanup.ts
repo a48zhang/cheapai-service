@@ -10,12 +10,12 @@ export interface IdentityCleanupResult {
   challengesDeleted: number;
   moreSessions: boolean;
   moreChallenges: boolean;
-  desktopSessionCiphertextsCleared: number;
-  moreDesktopSessionCiphertexts: boolean;
+  desktopSessionKeysCleared: number;
+  moreDesktopSessionKeys: boolean;
 }
 
 /** One indexed page per table, at most 2*limit row deletions plus limit desktop
- * ciphertext clears per invocation. Callers choose whether/when to schedule
+ * credential clears per invocation. Callers choose whether/when to schedule
  * another page; this function never loops. Only expired browser sessions and
  * challenges are deleted; desktop session rows, Keys, requests and ledger stay.
  */
@@ -38,6 +38,6 @@ export async function cleanupExpiredIdentityData(database: D1Database, now: numb
   const desktopSecrets = await cleanupExpiredDesktopSessionSecrets(database, now, { limit });
   return { cutoff: now, sessionsDeleted: results[0].rows.length, challengesDeleted: results[1].rows.length,
     moreSessions: results[2].rows[0]?.pending === 1, moreChallenges: results[3].rows[0]?.pending === 1,
-    desktopSessionCiphertextsCleared: desktopSecrets.ciphertextsCleared,
-    moreDesktopSessionCiphertexts: desktopSecrets.more };
+    desktopSessionKeysCleared: desktopSecrets.keysCleared,
+    moreDesktopSessionKeys: desktopSecrets.more };
 }

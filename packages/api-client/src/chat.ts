@@ -4,8 +4,6 @@ import {
   decodeConversationDetail,
   decodeConversationPage,
   decodeDeleted,
-  chatRegenerateInputSchema,
-  chatSendInputSchema,
 } from '@cheapai/contracts/chat';
 import type {
   ChatList,
@@ -171,14 +169,12 @@ export function createChatApi(options: ChatApiOptions = {}): ChatApi {
       handlers: ChatStreamHandlers = {},
       signal?: AbortSignal,
     ): Promise<ChatSendResult> {
-      const parsed = chatSendInputSchema.safeParse(input);
-      if (!parsed.success) throw new ApiClientError('request', '聊天请求参数无效。');
       const body = {
-        operationId: parsed.data.operationId,
-        conversationVersion: parsed.data.conversationVersion,
-        groupId: parsed.data.groupId,
-        modelId: parsed.data.modelId,
-        content: parsed.data.content,
+        operationId: input.operationId,
+        conversationVersion: input.conversationVersion,
+        groupId: input.groupId,
+        modelId: input.modelId,
+        content: input.content,
       };
       return sendChatStream(conversationPath(id) + '/messages', body, {
         ...streamOptions,
@@ -192,13 +188,11 @@ export function createChatApi(options: ChatApiOptions = {}): ChatApi {
       handlers: ChatStreamHandlers = {},
       signal?: AbortSignal,
     ): Promise<ChatSendResult> {
-      const parsed = chatRegenerateInputSchema.safeParse(input);
-      if (!parsed.success) throw new ApiClientError('request', '重新生成参数无效。');
       const body = {
-        operationId: parsed.data.operationId,
-        conversationVersion: parsed.data.conversationVersion,
-        groupId: parsed.data.groupId,
-        modelId: parsed.data.modelId,
+        operationId: input.operationId,
+        conversationVersion: input.conversationVersion,
+        groupId: input.groupId,
+        modelId: input.modelId,
       };
       return sendChatStream(conversationPath(id) + '/regenerate', body, {
         ...streamOptions,

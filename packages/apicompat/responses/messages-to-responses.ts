@@ -90,11 +90,8 @@ function serializeArguments(input: JsonObject): string | undefined {
     }
     if (typeof value !== 'object' || seen.has(value)) return undefined;
     seen.add(value);
-    if (!Array.isArray(value) && Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) return undefined;
     for (const key of Object.keys(value)) {
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      if (!descriptor || !('value' in descriptor)) return undefined;
-      pending.push({ value: descriptor.value, depth: item.depth + 1 });
+      pending.push({ value: (value as Record<string, unknown>)[key], depth: item.depth + 1 });
     }
   }
   try {
@@ -113,8 +110,7 @@ function itemId(context: ResponseContext, key: string, used: Set<string>): strin
 
 function nativeError(input: unknown, context: ResponseContext): ConversionResult<Output> | undefined {
   if (!input || typeof input !== 'object') return undefined;
-  const descriptor = Object.getOwnPropertyDescriptor(input, 'type');
-  if (!descriptor || !('value' in descriptor) || descriptor.value !== 'error') return undefined;
+  if ((input as Record<string, unknown>).type !== 'error') return undefined;
   const parsed = parseMessagesStreamEvent(input, { unknownFields: 'preserve' });
   if (!parsed.ok) return parsed as ConversionResult<Output>;
   const extra = extraKey(parsed.value, ['type', 'error', 'request_id']);

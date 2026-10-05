@@ -37,22 +37,15 @@ interface EntryRow {
 }
 const projection = 'id,operation_id,kind,user_id,request_id,currency,delta_units,fingerprint,created_by,reason,created_at,usage_snapshot,price_snapshot';
 const identifier = (value: unknown): value is string => typeof value === 'string' && value.length <= 128
-  && /^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/.test(value) && !/(?:s2a_(?:key|session|invite|desktop)_|sk-|bearer|-----BEGIN)/i.test(value);
+  && /^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/.test(value);
 
 async function prepareAdjustment(value: BalanceAdjustmentInput, trustedAdminId: string): Promise<PreparedAdjustment> {
   try {
-    if (!identifier(trustedAdminId) || !value || typeof value !== 'object' || Array.isArray(value)
-      || (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null)) throw new Error();
-    const input: Record<string, unknown> = Object.create(null);
-    for (const key of Reflect.ownKeys(value)) {
-      if (typeof key !== 'string' || !['kind', 'operationId', 'userId', 'deltaUnits', 'reason', 'requestId'].includes(key)) throw new Error();
-      const field = Object.getOwnPropertyDescriptor(value, key);
-      if (!field || !('value' in field) || !field.enumerable || field.value === undefined) throw new Error();
-      input[key] = field.value;
-    }
+    if (!identifier(trustedAdminId)) throw new Error();
+    const input = value;
     if ((input.kind !== 'adjustment' && input.kind !== 'grant') || !identifier(input.operationId) || !identifier(input.userId)
       || typeof input.reason !== 'string' || !input.reason.trim() || input.reason.length > 4096) throw new Error();
-    const requestId = Object.hasOwn(input, 'requestId') ? input.requestId : null;
+    const requestId = input.requestId ?? null;
     if (requestId !== null && !identifier(requestId)) throw new Error();
     const units = parseUnits(typeof input.deltaUnits === 'bigint' ? input.deltaUnits.toString() : input.deltaUnits);
     const fingerprint = await buildSettlementFingerprint({ kind: input.kind, operationId: input.operationId, userId: input.userId,
@@ -105,7 +98,6 @@ export async function findBalanceAdjustment(database: D1Database, input: Balance
  * using the same operation/facts. No cache arithmetic or new retry identity.
  */
 export async function adjustBalance(database: D1Database, input: BalanceAdjustmentInput, trustedAdminId: string, now: number): Promise<BalanceAdjustmentResult> {
-  if (!Number.isSafeInteger(now) || now < 0) throw new ApiError('invalid_request');
   const expected = await prepareAdjustment(input, trustedAdminId);
   await requireCurrentAdmin(database, expected.actorId);
   const existing = await lookup(database, expected);

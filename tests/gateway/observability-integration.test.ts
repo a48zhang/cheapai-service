@@ -5,7 +5,6 @@ import type { Env } from '../../apps/worker/env';
 import { createCookieSession } from '../../apps/worker/auth/sessions';
 import { issueCsrfToken } from '../../apps/worker/auth/csrf';
 import { generateToken, hashToken } from '../../apps/worker/auth/tokens';
-import { encryptChannelSecret } from '../../apps/worker/admin/channel-secrets';
 import { testEnv } from '../helpers/database';
 
 const origin = 'https://console.example';
@@ -17,7 +16,6 @@ let env: Env;
 let adminCookie: string;
 let userCookie: string;
 let token: string;
-let key: Uint8Array;
 
 function jsonResponse(value: unknown): Response { return Response.json(value); }
 const chatResponse = () => jsonResponse({ id: 'g22-upstream', object: 'chat.completion', created: 1, model: 'g22-upstream',
@@ -47,12 +45,12 @@ beforeEach(async () => {
   await testEnv.DB.prepare("INSERT INTO api_keys(id,user_id,key_hash,display_prefix,name,status,created_at,updated_at) VALUES('g22-key',?,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','s2a_key_ABCDEFGH','G22','active',0,0)")
     .bind(user).run();
   await testEnv.DB.prepare("UPDATE api_keys SET key_hash=? WHERE id='g22-key'").bind(await hashToken('apiKey', token)).run();
-  key = crypto.getRandomValues(new Uint8Array(32));
+
   env = { ...testEnv, ENVIRONMENT: 'local', PUBLIC_BASE_URL: origin,
-    CHANNEL_KEYRING_JSON: JSON.stringify({ v1: btoa(String.fromCharCode(...key)) }), CHANNEL_ACTIVE_KEY_VERSION: 'v1' } as Env;
-  const encrypted = await encryptChannelSecret('G22-PRIVATE-UPSTREAM-KEY', channel, 'v1', key);
-  await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-    VALUES(?,?,?,?,'v1','active',1,2,60,1,0,0)`).bind(channel, 'G22', 'https://provider.example.invalid/g22', encrypted).run();
+     } as Env;
+  const credential = 'G22-PRIVATE-UPSTREAM-KEY';
+  await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+    VALUES(?,?,?,?,'active',1,2,60,1,0,0)`).bind(channel, 'G22', 'https://provider.example.invalid/g22', credential).run();
   await testEnv.DB.prepare("INSERT INTO channel_groups(channel_id,group_id) VALUES('g22-channel','g22-group')").run();
   await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES (?,'active','{"input":"1","output":"2"}', 1, 0, 64, 0, 0)`).bind(model).run();
   await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,upstream_model,protocol,capabilities_json,config_version)

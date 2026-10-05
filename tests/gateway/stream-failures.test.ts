@@ -9,7 +9,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createExecutionContext, runInDurableObject, waitOnExecutionContext } from 'cloudflare:test';
 import { app } from '../../apps/worker/app';
 import type { Env } from '../../apps/worker/env';
-import { encryptChannelSecret } from '../../apps/worker/admin/channel-secrets';
 import { generateToken, hashToken } from '../../apps/worker/auth/tokens';
 import { LeaseStorage } from '../../apps/worker/limits/storage';
 import { testEnv } from '../helpers/database';
@@ -52,12 +51,12 @@ beforeEach(async () => {
   token = generateToken('apiKey');
   await testEnv.DB.prepare("INSERT INTO api_keys(id,user_id,key_hash,display_prefix,name,status,created_at,updated_at) VALUES('q09-key','q09-user',?,'s2a_key_ABCDEFGH','Q09','active',0,0)")
     .bind(await hashToken('apiKey', token)).run();
-  const key = crypto.getRandomValues(new Uint8Array(32));
-  const encrypted = await encryptChannelSecret('q09-upstream-secret', channel, 'v1', key);
+
+  const credential = 'q09-upstream-secret';
   env = { ...testEnv, ENVIRONMENT: 'local', PUBLIC_BASE_URL: origin,
-    CHANNEL_KEYRING_JSON: JSON.stringify({ v1: btoa(String.fromCharCode(...key)) }), CHANNEL_ACTIVE_KEY_VERSION: 'v1' } as Env;
-  await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-    VALUES('q09-channel','Q09','https://provider-q09.example.invalid',?,'v1','active',1,1,60,1,0,0)`).bind(encrypted).run();
+     } as Env;
+  await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+    VALUES('q09-channel','Q09','https://provider-q09.example.invalid',?,'active',1,1,60,1,0,0)`).bind(credential).run();
   await testEnv.DB.prepare("INSERT INTO channel_groups(channel_id,group_id) VALUES('q09-channel','q09-group')").run();
   await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('q09-model','active','{"input":"1","output":"2"}',1,0,64,0,0)`).run();
   await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,upstream_model,protocol,capabilities_json,config_version)
@@ -144,8 +143,6 @@ describe('Q09 stream failure lifecycles through the real Worker HTTP entry', () 
     const admission = await admitRequest(testEnv, subject, { protocol: 'chat', request: {
       model, stream: true, messages: [{ role: 'user', content: 'observation abort' }],
     } }, { adapterAvailable: () => true });
-    const encoded = JSON.parse(env.CHANNEL_KEYRING_JSON!).v1 as string;
-    const keyring = new Map([['v1', Uint8Array.from(atob(encoded), value => value.charCodeAt(0))]]);
     const abort = new AbortController();
     const cancel = vi.fn();
     let upstreamSignal: AbortSignal | undefined;
@@ -153,7 +150,7 @@ describe('Q09 stream failure lifecycles through the real Worker HTTP entry', () 
       abort.abort();
       await new Promise<void>(() => {});
     });
-    const execution = executeStream({ database: testEnv.DB, keyring, fetch: async (_url, init) => {
+    const execution = executeStream({ database: testEnv.DB, fetch: async (_url, init) => {
       upstreamSignal = init.signal as AbortSignal;
       return streamResponse(new ReadableStream<Uint8Array>({ cancel }, { highWaterMark: 0 }));
     } }, admission, { request: chatRequestAdapter, stream: chatStreamAdapter }, {

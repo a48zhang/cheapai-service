@@ -30,10 +30,10 @@ async function user(id: string, groupId: string) {
 async function accessibleModel(modelId: string, groupId = 'a25-group') {
   const channelId = `channel-${modelId}`;
   // Synthetic schema-valid envelope; this test never decrypts/calls an upstream.
-  const envelope = JSON.stringify({ algorithm: 'A256GCM', format_version: 1, key_version: 'test', nonce: 'synthetic', ciphertext: 'synthetic' });
+  const envelope = 'test-upstream-key';
   await testEnv.DB.prepare(`INSERT INTO channels
-    (id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-    VALUES (?,?,'https://example.invalid',?,'test','active',0,2,60,1,?,?)`)
+    (id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+    VALUES (?,?,'https://example.invalid',?,'active',0,2,60,1,?,?)`)
     .bind(channelId, channelId, envelope, now, now).run();
   await testEnv.DB.prepare('INSERT INTO channel_groups(channel_id,group_id) VALUES (?,?)').bind(channelId, groupId).run();
   await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES (?,'active','{}',1,0,1024,?,?)`).bind(modelId, now, now).run();
@@ -283,7 +283,7 @@ describe('platform Key reads on native D1', () => {
     expect((await listPlatformKeys(testEnv.DB, owner, { state: 'active' }, now + 20)).items).toEqual([]);
   });
 
-  it.each(['[null]', '[1]', '[""]', '["x","x"]', '[" bad "]', JSON.stringify(Array.from({ length: 101 }, (_, i) => `m${i}`))])('fails closed on malformed stored restrictions %#', async json => {
+  it.each(['[null]', '[1]', '[""]', '["x","x"]', '[" bad "]'])('fails closed on malformed stored restrictions %#', async json => {
     const created = await createPlatformKey(testEnv.DB, owner, { name: 'Malformed' }, now);
     await testEnv.DB.prepare('UPDATE api_keys SET allowed_models_json=? WHERE id=?').bind(json, created.key.id).run();
     await expect(findPlatformKeyById(testEnv.DB, owner, created.key.id, now)).rejects.toThrow(PlatformKeyStorageError);
@@ -358,6 +358,20 @@ describe('platform Key creation on native D1', () => {
     expect(await testEnv.DB.prepare('SELECT balance_units FROM users WHERE id=?').bind(owner).first('balance_units')).toBe(0);
   });
 
+  it('creates and updates permitted model selections above the old 100-item cap', async () => {
+    await accessibleModel('model-0');
+    await testEnv.DB.prepare(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<100)
+      INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at)
+      SELECT 'model-'||i,'active','{}',1,0,1024,?,? FROM n`).bind(now, now).run();
+    await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,upstream_model,protocol,capabilities_json,config_version)
+      SELECT 'channel-model-0',public_model_id,'upstream','chat','{}',1 FROM models WHERE public_model_id<>'model-0'`).run();
+    const models = Array.from({ length: 101 }, (_, index) => `model-${index}`);
+    const created = await createPlatformKey(testEnv.DB, owner, { name: 'All models', allowedModels: models }, now);
+    expect(created.key.allowedModels).toHaveLength(101);
+    const updated = await updatePlatformKey(testEnv.DB, owner, created.key.id, 1, { allowedModels: models }, now + 1);
+    expect(updated).toMatchObject({ kind: 'updated', key: { allowedModels: [...models].sort() } });
+  });
+
   it.each(['missing', 'other-group', 'disabled-model', 'disabled-channel', 'removed-mapping'])('does not grant unavailable model selection %s', async kind => {
     if (kind !== 'missing') await accessibleModel('target', kind === 'other-group' ? 'a25-other-group' : 'a25-group');
     if (kind === 'disabled-model') await testEnv.DB.prepare("UPDATE models SET status='disabled' WHERE public_model_id='target'").run();
@@ -381,9 +395,10 @@ describe('platform Key creation on native D1', () => {
     expect(await testEnv.DB.prepare('SELECT COUNT(*) FROM api_keys').first('COUNT(*)')).toBe(0);
   });
 
-  it('takes ownership only from the trusted parameter, rejecting body ownership', async () => {
+  it('takes ownership only from the trusted parameter, ignoring body ownership', async () => {
     for (const extra of [{ userId: 'other-owner' }, { ownerId: 'other-owner' }]) {
-      await expect(createPlatformKey(testEnv.DB, owner, { name: 'Invalid', ...extra }, now)).rejects.toThrow(TypeError);
+      const created = await createPlatformKey(testEnv.DB, owner, { name: 'Owned', ...extra }, now);
+      expect(created.key.userId).toBe(owner);
     }
     const created = await createPlatformKey(testEnv.DB, 'other-owner', { name: 'Other' }, now);
     expect(created.key.userId).toBe('other-owner');
@@ -414,7 +429,7 @@ describe('platform Key creation on native D1', () => {
     for (const expiresAt of [now, now - 1]) await expect(createPlatformKey(testEnv.DB, owner, { name: 'Expired', expiresAt }, now)).rejects.toThrow(TypeError);
   });
 
-  it.each([[''], [' x'], ['x', 'x'], ['x\n'], ['x'.repeat(129)], Array.from({ length: 101 }, (_, i) => `m-${i}`)].map(models => [models]))('rejects malformed model selection %#', async models => {
+  it.each([[''], [' x'], ['x', 'x'], ['x\n'], ['x'.repeat(129)]].map(models => [models]))('rejects malformed model selection %#', async models => {
     await expect(createPlatformKey(testEnv.DB, owner, { name: 'Models', allowedModels: models }, now)).rejects.toThrow(TypeError);
   });
 });

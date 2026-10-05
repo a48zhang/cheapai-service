@@ -70,7 +70,6 @@ export async function preparePlatformKeyCreation(
 ): Promise<PreparedPlatformKeyCreation> {
   if (!validText(trustedOwnerId, 128)) throw new TypeError('Invalid Key owner.');
   if (input === null || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('Invalid Key input.');
-  for (const field of Object.keys(input)) if (!['operationId', 'name', 'expiresAt', 'allowedModels', 'groupId'].includes(field)) throw new TypeError('Unknown Key input field.');
   if (typeof input.operationId !== 'string' || !input.operationId.length || input.operationId.length > 128
     || /[^A-Za-z0-9_.:-]/u.test(input.operationId)) throw new TypeError('Invalid creation operation ID.');
   if (typeof input.name !== 'string' || input.name.length > 256 || /[\u0000-\u001f\u007f]/u.test(input.name)) throw new TypeError('Invalid Key name.');
@@ -82,19 +81,12 @@ export async function preparePlatformKeyCreation(
   const groupId = input.groupId ?? null;
   if (groupId !== null && !validText(groupId, 128)) throw new TypeError('Invalid Key group.');
   const selection = input.allowedModels === undefined ? null : input.allowedModels;
-  if (selection !== null && (!Array.isArray(selection) || selection.length > 100
+  if (selection !== null && (!Array.isArray(selection)
     || !Array.from(selection).every(model => validText(model, 128)) || new Set(selection).size !== selection.length)) {
     throw new TypeError('Invalid Key model selection.');
   }
-  if (options === null || typeof options !== 'object' || Array.isArray(options)
-    || Object.keys(options).some(field => field !== 'insertGuard' && field !== 'desktopSessionId')) throw new TypeError('Invalid Key creation options.');
   const guard = options.insertGuard;
-  if (guard !== undefined && (guard === null || typeof guard !== 'object' || Array.isArray(guard)
-    || Object.keys(guard).some(field => field !== 'sql' && field !== 'values')
-    || typeof guard.sql !== 'string' || !guard.sql.trim()
-    || (guard.values !== undefined && !Array.isArray(guard.values)))) throw new TypeError('Invalid Key insertion guard.');
   const desktopSessionId = options.desktopSessionId ?? null;
-  if (desktopSessionId !== null && !validText(desktopSessionId, 128)) throw new TypeError('Invalid desktop session ID.');
 
   // Copy caller-controlled values before awaiting crypto/DB operations.
   const operationId = input.operationId;

@@ -72,9 +72,8 @@ function canonicalIp(ip: string): string {
 
 function subject(input: AuthRateSubject): { ip: string; email: string } {
   if (!input || typeof input !== 'object' || Array.isArray(input)
-    || !Object.hasOwn(input, 'trustedIp') || !Object.hasOwn(input, 'email')
-    || Reflect.ownKeys(input).some((key) => key !== 'trustedIp' && key !== 'email')) {
-    throw new TypeError('Expected trusted IP and email only');
+    || !Object.hasOwn(input, 'trustedIp') || !Object.hasOwn(input, 'email')) {
+    throw new TypeError('Expected trusted IP and email');
   }
   return { ip: canonicalIp(input.trustedIp), email: normalizeEmail(input.email) };
 }
@@ -153,8 +152,8 @@ export async function checkRegistrationRate(
   config: RegistrationRateConfig = DEFAULT_CONFIG,
 ): Promise<AuthRateDecision> {
   if (!input || typeof input !== 'object' || Array.isArray(input)
-    || !Object.hasOwn(input, 'trustedIp') || Reflect.ownKeys(input).some((key) => key !== 'trustedIp')) {
-    throw new TypeError('Expected trusted IP only');
+    || !Object.hasOwn(input, 'trustedIp')) {
+    throw new TypeError('Expected trusted IP');
   }
   const ip = canonicalIp(input.trustedIp);
   const limit = config.registrationIpMaxAttempts;

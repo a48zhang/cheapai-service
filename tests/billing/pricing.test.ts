@@ -95,7 +95,7 @@ describe('mutually exclusive billing buckets', () => {
     expect(calculatePrice(usage({}, { cacheRead: 'unknown', cacheWrite: 'unknown', reasoning: 'unknown', cacheWriteTtl: 'unknown' }), rates).costUnits).toBe(200_000n);
   });
 
-  it('rejects missing aggregates, malformed counts, and unknown counting fields', () => {
+  it('rejects missing aggregates and malformed known counts', () => {
     for (const key of ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens', 'reasoningTokens']) {
       const evidence = usage() as Extract<UsageSnapshot, { quality: 'complete' }>;
       const counts = { ...evidence.counts } as Record<string, unknown>;
@@ -105,7 +105,7 @@ describe('mutually exclusive billing buckets', () => {
     for (const value of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1, NaN, Infinity, '1', null, undefined]) {
       expect(() => normalizeUsageToBuckets(usage({ cacheWrite1hTokens: value as number }), rates)).toThrow(PricingError);
     }
-    expect(() => normalizeUsageToBuckets(usage({ audioTokens: 4 } as TokenCounts), rates)).toThrow(PricingError);
+    expect(normalizeUsageToBuckets(usage({ audioTokens: 4 } as TokenCounts), rates)).toEqual(normalizeUsageToBuckets(usage(), rates));
     expect(() => normalizeUsageToBuckets(usage({ totalTokens: -1 }), rates)).toThrow(PricingError);
   });
 
@@ -150,7 +150,7 @@ describe('price validation and aggregate half-up rounding', () => {
     for (const rate of ['-1', 'NaN', '1e2', '0.000000001', 1, undefined]) {
       expect(() => calculatePrice(usage(), { input: '1', output: '2', cacheRead: rate } as PriceTable)).toThrow(PricingError);
     }
-    expect(() => calculatePrice(usage(), { ...rates, extra: '0' } as PriceTable)).toThrow(PricingError);
+    expect(calculatePrice(usage(), { ...rates, extra: '0' } as PriceTable)).toEqual(calculatePrice(usage(), rates));
   });
 
   it('rounds below/at/above half a unit only after all products are summed', () => {

@@ -25,8 +25,7 @@ export function createBalanceRoutes(options: { now?: () => number } = {}) {
     response.headers.set('Cache-Control', 'no-store'); return response;
   });
   app.get(ACCOUNT_BALANCE_PATH, requireSession(options.now), async context => {
-    // No identity/filter inputs: even an admin may only read their own balance.
-    if (new URL(context.req.url).search !== '') throw new ApiError('invalid_request');
+    // Query fields cannot select an identity: even admins read their own balance.
     const owner = context.get('user').id;
     const row = await prepare<{ balance_units: string }>(context.env.DB,
       `SELECT CAST(u.balance_units AS TEXT) AS balance_units FROM users u

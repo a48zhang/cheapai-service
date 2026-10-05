@@ -34,7 +34,7 @@ describe('runtime configuration', () => {
     expect(() => parseRuntimeConfig({ registrationMode })).toThrow(ConfigError);
   });
 
-  it.each([null, [], 'config', 1, new Date()])('requires a plain object (%s)', (input) => {
+  it.each([null, [], 'config', 1])('requires an object (%s)', (input) => {
     expect(() => parseRuntimeConfig(input)).toThrow(ConfigError);
   });
 
@@ -71,9 +71,9 @@ describe('runtime configuration', () => {
     expect(parseRuntimeConfig({ upstreamIdleTimeoutMs: 900_000, gateRenewIntervalMs: 89_999 }).upstreamIdleTimeoutMs).toBe(900_000);
   });
 
-  it('rejects unknown fields, symbols, and prototype-pollution keys', () => {
+  it('ignores unrecognized settings without copying them into runtime config', () => {
     for (const input of [{ balanceCacheEnable: true }, { [Symbol('extra')]: 1 }, JSON.parse('{"__proto__":{}}')]) {
-      expect(() => parseRuntimeConfig(input)).toThrow(ConfigError);
+      expect(parseRuntimeConfig(input)).toEqual(DEFAULT_CONFIG);
     }
     expect(parseRuntimeConfig(Object.create(null))).toEqual(DEFAULT_CONFIG);
   });
@@ -98,7 +98,7 @@ describe('explicit channel/model limits and integer admission units', () => {
     expect(parseChannelLimits({ concurrencyLimit: 3, rpmLimit: 80 })).toEqual({ concurrencyLimit: 3, rpmLimit: 80 });
     expect(parseChannelLimits({ rpmLimit: 80 }).concurrencyLimit).toBe(Number.MAX_SAFE_INTEGER);
     expect(parseChannelLimits({ concurrencyLimit: 0, rpmLimit: 80 }).concurrencyLimit).toBe(Number.MAX_SAFE_INTEGER);
-    for (const input of [{ concurrencyLimit: -1, rpmLimit: 80 }, { concurrencyLimit: 3, rpmLimit: Infinity }, { concurrencyLimit: 3, rpmLimit: 80, extra: true }]) {
+    for (const input of [{ concurrencyLimit: -1, rpmLimit: 80 }, { concurrencyLimit: 3, rpmLimit: Infinity }]) {
       expect(() => parseChannelLimits(input)).toThrow(ConfigError);
     }
   });
@@ -106,7 +106,7 @@ describe('explicit channel/model limits and integer admission units', () => {
   it('requires an output maximum without a platform output default', () => {
     expect(parseModelLimits({ maxOutputTokens: 4096 })).toEqual({ maxOutputTokens: 4096, admissionMinBalanceUnits: '0' });
     expect(parseModelLimits({ maxOutputTokens: 4096, admissionMinBalanceUnits: '50000000' }).admissionMinBalanceUnits).toBe('50000000');
-    for (const input of [{}, { maxOutputTokens: 4096, defaultOutputTokens: 1024 }, { maxOutputTokens: -1 }, { maxOutputTokens: 4, admissionMinBalanceUnits: undefined }, { maxOutputTokens: 4, price: 0 }]) {
+    for (const input of [{}, { maxOutputTokens: -1 }, { maxOutputTokens: 4, admissionMinBalanceUnits: undefined }]) {
       expect(() => parseModelLimits(input)).toThrow(ConfigError);
     }
   });

@@ -3,7 +3,7 @@ import type {
   CapabilityFeature,
   Protocol,
 } from '@cheapai/api-client/mappings';
-import { CAPABILITY_FEATURES, EXTENSION_SCOPES } from '@cheapai/api-client/mappings';
+import { CAPABILITY_FEATURES } from '@cheapai/api-client/mappings';
 import { Field } from '../../shared/ui/Field';
 import { Input } from '../../shared/ui/Input';
 
@@ -11,8 +11,7 @@ export interface CapabilityFieldValues {
   readonly features: CapabilityFeature[];
   readonly maxOutputTokens: string;
   readonly reasoningEfforts: string;
-  readonly cacheTtls: Array<'5m' | '1h'>;
-  readonly nativeExtensions: string;
+  readonly cacheTtls: string[];
 }
 
 export interface CapabilityFieldErrors {
@@ -20,7 +19,6 @@ export interface CapabilityFieldErrors {
   readonly maxOutputTokens?: string | undefined;
   readonly reasoningEfforts?: string | undefined;
   readonly cacheTtls?: string | undefined;
-  readonly nativeExtensions?: string | undefined;
 }
 
 const featureGroups: ReadonlyArray<{
@@ -90,17 +88,12 @@ const featureGroups: ReadonlyArray<{
   { label: '缓存', values: ['cache_control'] },
 ];
 const groupedFeatures = new Set(featureGroups.flatMap((group) => group.values));
-const otherFeatures = CAPABILITY_FEATURES.filter((feature) => !groupedFeatures.has(feature));
 export function capabilityFieldValues(value: ChannelCapabilities): CapabilityFieldValues {
   return {
     features: [...value.features],
     maxOutputTokens: value.maxOutputTokens === undefined ? '' : String(value.maxOutputTokens),
     reasoningEfforts: value.reasoningEfforts?.join(', ') ?? '',
     cacheTtls: [...(value.cacheTtls ?? [])],
-    nativeExtensions:
-      value.nativeExtensions
-        ?.map((extension) => `${extension.scope}:${extension.name}`)
-        .join('\n') ?? '',
   };
 }
 
@@ -117,13 +110,16 @@ export function CapabilityFields({
   readonly disabled?: boolean;
   readonly onChange: (value: CapabilityFieldValues) => void;
 }) {
+  const otherFeatures = [...new Set([...CAPABILITY_FEATURES, ...value.features])].filter(
+    (feature) => !groupedFeatures.has(feature),
+  );
   const toggleFeature = (feature: CapabilityFeature, checked: boolean) => {
     const features = checked
       ? [...value.features, feature]
       : value.features.filter((item) => item !== feature);
     onChange({ ...value, features });
   };
-  const toggleTtl = (ttl: '5m' | '1h', checked: boolean) => {
+  const toggleTtl = (ttl: string, checked: boolean) => {
     const cacheTtls = checked
       ? [...value.cacheTtls, ttl]
       : value.cacheTtls.filter((item) => item !== ttl);
@@ -152,7 +148,7 @@ export function CapabilityFields({
     >
       <legend className="px-1 text-sm font-semibold">模型能力</legend>
       <p className="text-xs text-[var(--color-muted-foreground)]">
-        {protocol} · 仅勾选渠道支持的能力。
+        {protocol} · 能力作为渠道说明，不限制同协议参数透传。
       </p>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {featureGroups.map((group) => (
@@ -208,7 +204,7 @@ export function CapabilityFields({
       <fieldset className="grid gap-2">
         <legend className="text-sm font-medium">缓存 TTL（可选）</legend>
         <div className="flex flex-wrap gap-4">
-          {(['5m', '1h'] as const).map((ttl) => (
+          {[...new Set(['5m', '1h', ...value.cacheTtls])].map((ttl) => (
             <label key={ttl} className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -225,20 +221,6 @@ export function CapabilityFields({
           </p>
         )}
       </fieldset>
-      <Field
-        label="原生扩展（可选）"
-        error={errors.nativeExtensions}
-        description={`每行一个 scope:name；可用 scope：${EXTENSION_SCOPES.join('、')}。output_config 仅适用于 Messages。`}
-      >
-        <textarea
-          value={value.nativeExtensions}
-          rows={3}
-          maxLength={2200}
-          placeholder="request:vendor_flag"
-          onChange={(event) => onChange({ ...value, nativeExtensions: event.currentTarget.value })}
-          className="block min-h-20 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 font-mono text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] disabled:cursor-not-allowed disabled:opacity-60"
-        />
-      </Field>
     </fieldset>
   );
 }

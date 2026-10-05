@@ -13,7 +13,6 @@ const encoder = new TextEncoder();
 const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown): v is string => typeof v === 'string';
 const index = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
-const keys = (v: Record<string, unknown>, names: readonly string[]) => Object.keys(v).every(name => names.includes(name));
 const empty = (): ResponsesStreamStep => ({ events: [], usageUpdates: [] });
 const error = (code: string): ProtocolError => ({ kind: 'stream_error', code, message: 'The Responses stream could not be completed safely.' });
 const envelopeTypes = new Set(['response.created', 'response.queued', 'response.in_progress', 'response.completed', 'response.incomplete', 'response.failed']);
@@ -56,7 +55,7 @@ function makeSession(context: ResponseContext, options: StreamOptions, budget: B
   }
   function validPart(value: unknown, summary: boolean): value is Record<string, unknown> {
     if (!object(value)) return false;
-    if (summary) return value.type === 'summary_text' && text(value.text) && keys(value, ['type', 'text']);
+    if (summary) return value.type === 'summary_text' && text(value.text);
     return validItem({ type: 'message', id: 'validation_item', role: 'assistant', status: 'in_progress', content: [value] });
   }
   return { ok: true, value: {
@@ -69,12 +68,12 @@ function makeSession(context: ResponseContext, options: StreamOptions, budget: B
         const type = event.type;
         if (type === 'error') return fail('upstream_error');
         if (!envelopeTypes.has(type) && !itemTypes.has(type) && !partTypes.has(type) && !leafTypes.has(type)) {
-          return policy === 'ignore' ? empty() : fail('unsupported_event');
+          return policy === 'preserve' ? { events: [frame], usageUpdates: [] } : policy === 'ignore' ? empty() : fail('unsupported_event');
         }
         if (!index(event.sequence_number) || event.sequence_number >= Number.MAX_SAFE_INTEGER || event.sequence_number <= lastSequence) return fail('invalid_event_sequence');
         lastSequence = event.sequence_number;
         if (envelopeTypes.has(type)) {
-          if (!keys(event, ['type', 'sequence_number', 'response']) || !object(event.response)) return fail('invalid_response_envelope');
+          if (!object(event.response)) return fail('invalid_response_envelope');
           const value = event.response;
           const status = type.slice('response.'.length);
           const terminal = ['completed', 'incomplete', 'failed'].includes(status);
@@ -102,7 +101,7 @@ function makeSession(context: ResponseContext, options: StreamOptions, budget: B
         if (!started || !index(event.output_index)) return fail('missing_response_start');
         let item = items.get(event.output_index);
         if (itemTypes.has(type)) {
-          if (!keys(event, ['type', 'sequence_number', 'output_index', 'item']) || !validItem(event.item)) return fail('invalid_output_item');
+          if (!validItem(event.item)) return fail('invalid_output_item');
           const value = event.item;
           if (type.endsWith('.added')) {
             if (item || event.output_index !== items.size || [...items.values()].some(known => known.id === value.id)) return fail('duplicate_output_item');
@@ -127,8 +126,7 @@ function makeSession(context: ResponseContext, options: StreamOptions, budget: B
           if (toolEvent) {
             if (item.type !== 'function_call' || item.argsDone) return fail('invalid_tool_order');
             const done = type.endsWith('.done');
-            if (!keys(event, ['type', 'sequence_number', 'output_index', 'item_id', done ? 'arguments' : 'delta', ...(done ? ['name'] : [])]) ||
-              !text(done ? event.arguments : event.delta)) return fail('invalid_tool_event');
+            if (!text(done ? event.arguments : event.delta)) return fail('invalid_tool_event');
             if (done) {
               if (event.name !== undefined && event.name !== item.name) return fail('tool_name_mismatch');
               const args = event.arguments as string;
@@ -145,7 +143,7 @@ function makeSession(context: ResponseContext, options: StreamOptions, budget: B
             let part = item.parts.get(ordinal);
             const baseKeys = ['type', 'sequence_number', 'output_index', 'item_id', summary ? 'summary_index' : 'content_index'];
             if (partTypes.has(type)) {
-              if (!keys(event, [...baseKeys, 'part']) || !validPart(event.part, summary)) return fail('invalid_content_part');
+              if (!validPart(event.part, summary)) return fail('invalid_content_part');
               if (type.endsWith('.added')) {
                 if (part || ordinal !== item.parts.size) return fail('duplicate_content_part');
                 releases.push(budget.reserve(64));
@@ -158,7 +156,7 @@ function makeSession(context: ResponseContext, options: StreamOptions, budget: B
               const done = type.endsWith('.done');
               const refusal = type.startsWith('response.refusal.');
               const field = done ? refusal ? 'refusal' : 'text' : 'delta';
-              if (!keys(event, [...baseKeys, field]) || !text(event[field]) || !part || part.closed || part.leafDone ||
+              if (!text(event[field]) || !part || part.closed || part.leafDone ||
                 part.type !== (summary ? 'summary_text' : refusal ? 'refusal' : 'output_text')) return fail('invalid_content_delta');
               if (done) part.leafDone = true;
             }

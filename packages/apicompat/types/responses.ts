@@ -134,6 +134,8 @@ export type ResponsesStreamEvent =
 export interface ResponsesUnknownEvent { readonly type: string; readonly raw: JsonObject }
 
 export interface ResponsesValidationOptions {
+  /** Native passthrough retains provider-specific discriminators. */
+  readonly native?: boolean;
   /** Default reject. Preserve retains unknown JSON fields verbatim; it is NOT permission to forward them. */
   readonly unknownFields?: 'reject' | 'preserve';
 }
@@ -146,7 +148,6 @@ function json(v: unknown, depth = 0, ancestors = new Set<object>()): v is JsonVa
   if (v === null || typeof v === 'string' || typeof v === 'boolean') return true;
   if (typeof v === 'number') return Number.isFinite(v);
   if (typeof v !== 'object' || ancestors.has(v)) return false;
-  if (!Array.isArray(v) && Object.getPrototypeOf(v) !== Object.prototype && Object.getPrototypeOf(v) !== null) return false;
   ancestors.add(v);
   const valid = (Array.isArray(v) ? Array.from(v) : Object.values(v)).every(x => json(x, depth + 1, ancestors));
   ancestors.delete(v);
@@ -200,7 +201,7 @@ export function validateResponsesRequest(value: unknown, options: ResponsesValid
         case 'refusal':
           if (!outputAllowed || typeof part.refusal !== 'string') return p;
           extra = keys(part, ['type', 'refusal'], p); break;
-        default: unsupported = true; return `${p}.type`;
+        default: if (options.native && nonempty(part.type)) break; unsupported = true; return `${p}.type`;
       }
       if (extra) return extra;
     }
@@ -241,7 +242,7 @@ export function validateResponsesRequest(value: unknown, options: ResponsesValid
         }
         return optional(v, 'encrypted_content', x => x === null || typeof x === 'string', p)
           ?? keys(v, ['type', 'id', 'summary', 'encrypted_content', 'status'], p);
-      default: unsupported = true; return `${p}.type`;
+      default: if (options.native && nonempty(v.type)) return undefined; unsupported = true; return `${p}.type`;
     }
   };
   if (!nonempty(value.model)) return invalid('model');
@@ -269,7 +270,7 @@ export function validateResponsesRequest(value: unknown, options: ResponsesValid
     for (const [i, tool] of value.tools.entries()) {
       const p = `tools[${i}]`;
       if (!object(tool)) return invalid(p);
-      if (tool.type !== 'function') return invalid(`${p}.type`, true);
+      if (tool.type !== 'function') { if (options.native && nonempty(tool.type)) continue; return invalid(`${p}.type`, true); }
       if (!nonempty(tool.name)) return invalid(`${p}.name`);
       const bad = optional(tool, 'description', x => typeof x === 'string', p)
         ?? optional(tool, 'parameters', x => x === null || object(x), p)

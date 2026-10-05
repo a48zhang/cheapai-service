@@ -19,9 +19,9 @@ beforeEach(async () => {
     VALUES(?,?,'test-only-hash','user','active','b11-group',100,2,60,'admin',0,0)`, [user, `${user}@example.invalid`]).run();
   await prepare(testEnv.DB, `INSERT INTO api_keys(id,user_id,key_hash,display_prefix,name,status,created_at,updated_at)
     VALUES('b11-key','b11-user',?,'s2a_key_ABCDEFGH','B11 Key','active',0,0)`, ['a'.repeat(64)]).run();
-  const ciphertext = JSON.stringify({ algorithm: 'A256GCM', format_version: 1, key_version: 'test', nonce: 'synthetic', ciphertext: 'synthetic-only' });
-  await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-    VALUES('b11-channel','B11 Channel','https://example.invalid',?,'test','active',1,2,60,1,0,0)`, [ciphertext]).run();
+  const credential = 'PRIVATE-UPSTREAM-KEY';
+  await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+    VALUES('b11-channel','B11 Channel','https://example.invalid',?,'active',1,2,60,1,0,0)`, [credential]).run();
   await prepare(testEnv.DB, `INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('b11-model','active',?,1,10,4096,0,0)`, [JSON.stringify({ output: '2', input: '1' })]).run();
   await prepare(testEnv.DB, "INSERT INTO channel_groups(channel_id,group_id) VALUES('b11-channel','b11-group')").run();
   await prepare(testEnv.DB, `INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,capabilities_json,config_version)

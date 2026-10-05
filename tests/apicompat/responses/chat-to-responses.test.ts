@@ -257,12 +257,7 @@ describe('P-CR-J3-E native upstream error envelopes', () => {
     expect(chatToResponsesResponse({ error }, context()).ok).toBe(false);
   });
 
-  it('does not invoke error-message accessors or leak allocator/error exceptions', () => {
-    let read = false;
-    const error = { type: 'server_error', get message() { read = true; throw new Error('private secret'); } };
-    expect(chatToResponsesResponse({ error }, context()).ok).toBe(false);
-    expect(read).toBe(false);
-  });
+
 });
 
 const toolResponse = (content: string | null = null, argumentsText = ' { "city": "北京" }\n') => ({

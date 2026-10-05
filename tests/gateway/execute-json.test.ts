@@ -5,14 +5,12 @@ import { admitRequest } from '../../apps/worker/gateway/admit';
 import { authenticatePlatformKey } from '../../apps/worker/auth/api-key-auth';
 import type { InternalPlatformKeyAuth } from '../../apps/worker/auth/key-repository';
 import { generateToken, hashToken } from '../../apps/worker/auth/tokens';
-import { encryptChannelSecret } from '../../apps/worker/admin/channel-secrets';
 import * as settlement from '../../apps/worker/billing/settlement-repository';
 import type { ProtocolRequest } from '../../packages/apicompat/capabilities/check';
 import { testEnv } from '../helpers/database';
 
 const now = 1_800_000_000_000;
 let subject: InternalPlatformKeyAuth;
-let keyring: Map<string, Uint8Array>;
 const request: ProtocolRequest = { protocol: 'chat', request: { model: 'g07-model', messages: [{ role: 'user', content: 'test prompt' }], max_completion_tokens: 1024 } };
 const wire = { id: 'upstream_response_1', object: 'chat.completion', choices: [{ index: 0, message: { role: 'assistant', content: 'Hello' }, finish_reason: 'stop' }], usage: { prompt_tokens: 1000, completion_tokens: 500, total_tokens: 1500 } };
 function adapters(): JsonExecutionAdapters<unknown, unknown, unknown, Record<string, unknown>> {
@@ -25,7 +23,7 @@ function adapters(): JsonExecutionAdapters<unknown, unknown, unknown, Record<str
   };
 }
 const admitted = () => admitRequest(testEnv, subject, request, { now: () => now, adapterAvailable: () => true });
-const deps = (fetch: (url: string, init: RequestInit) => Promise<Response>) => ({ database: testEnv.DB, keyring, fetch, now: () => now });
+const deps = (fetch: (url: string, init: RequestInit) => Promise<Response>) => ({ database: testEnv.DB, fetch, now: () => now });
 const settleOptions = { settlement: { retryDelayMs: 0 } };
 async function saved(id: string) {
   return { request: await testEnv.DB.prepare('SELECT execution_status,billing_status,usage_quality,cost_units,response_id FROM requests WHERE id=?').bind(id).first(),
@@ -41,10 +39,10 @@ describe('ordinary JSON execution with actual admission, D1 accounting and mock 
       VALUES ('g07-user','g07@example.invalid','test-only','user','active','g07-group',50000000,2,60,'admin',0,0)`).run();
     const token = generateToken('apiKey');
     await testEnv.DB.prepare("INSERT INTO api_keys(id,user_id,key_hash,display_prefix,name,status,created_at,updated_at) VALUES('g07-key','g07-user',?,'s2a_key_ABCDEFGH','G07 key','active',0,0)").bind(await hashToken('apiKey', token)).run();
-    const key = crypto.getRandomValues(new Uint8Array(32)); keyring = new Map([['v1', key]]);
-    const ciphertext = await encryptChannelSecret('trusted-upstream', 'g07-channel', 'v1', key);
-    await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-      VALUES('g07-channel','G07 channel','https://provider.example.com',?,'v1','active',1,2,60,1,0,0)`).bind(ciphertext).run();
+
+    const credential = 'trusted-upstream';
+    await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+      VALUES('g07-channel','G07 channel','https://provider.example.com',?,'active',1,2,60,1,0,0)`).bind(credential).run();
     await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('g07-model','active','{"input":"500","output":"500"}',1,0,4096,0,0)`).run();
     await testEnv.DB.prepare("INSERT INTO channel_groups(channel_id,group_id) VALUES('g07-channel','g07-group')").run();
     await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,capabilities_json,config_version)

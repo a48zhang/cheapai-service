@@ -8,7 +8,6 @@ import { validateCsrfRequest } from '../auth/csrf';
 import { listAuthorizedChatModels } from './models';
 import { ChatService, createChatService } from './service';
 import type { ChatGateway, ChatGatewayDependencies, ChatServiceOptions, ChatStorage, ChatStartInput } from './service';
-import type { GatewayDispatchDependencies } from '../gateway/dispatch';
 import { readGatewayJson } from '../gateway/read-json';
 
 export const CHAT_API_PATH = '/api/v1/chat';
@@ -21,9 +20,7 @@ export interface ChatRouteOptions {
   readonly service?: ChatService;
   readonly storage?: ChatStorage | ((database: D1Database, env: Env) => ChatStorage);
   readonly gateway?: ChatGateway | ((env: Env) => ChatGateway);
-  /** Resolved only while a send is executing; GET routes never read secrets. */
-  readonly keyring?: GatewayDispatchDependencies['keyring'];
-  readonly gatewayDependencies?: Omit<ChatGatewayDependencies, 'DB' | 'keyring'> & { readonly keyring?: GatewayDispatchDependencies['keyring'] };
+  readonly gatewayDependencies?: Omit<ChatGatewayDependencies, 'DB'>;
   readonly now?: () => number;
   readonly trustedOrigin?: string | ((env: Env) => string);
   readonly authenticate?: ChatServiceOptions['authenticate'];
@@ -47,7 +44,7 @@ function requestId(context: { get(name: string): unknown }): string {
 }
 
 function object(value: unknown): Record<string, unknown> {
-  if (value === null || typeof value !== 'object' || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype) throw new ApiError('invalid_request');
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new ApiError('invalid_request');
   return value as Record<string, unknown>;
 }
 
@@ -57,10 +54,6 @@ async function jsonBody(request: Request): Promise<Record<string, unknown>> {
   // method-normalized one-shot Request; no unbounded request.json path exists.
   const bounded = request.method === 'POST' ? request : new Request(request.url, { method: 'POST', headers: request.headers, body: request.body, signal: request.signal });
   return object(await readGatewayJson(bounded));
-}
-
-function exact(body: Record<string, unknown>, allowed: readonly string[]): void {
-  for (const key of Object.keys(body)) if (!allowed.includes(key)) throw new ApiError('invalid_request');
 }
 
 function required<T>(body: Record<string, unknown>, key: string): T {
@@ -76,10 +69,8 @@ function serviceFor(options: ChatRouteOptions, env: Env): ChatService {
   const gateway = options.gateway === undefined ? undefined : typeof options.gateway === 'function' ? options.gateway(env) : options.gateway;
   const deps = options.gatewayDependencies === undefined ? {
     DB: database, CACHE: env.CACHE, GATE: env.GATE,
-    keyring: options.keyring ?? (() => { throw new ApiError('service_unavailable'); }),
   } : {
     ...options.gatewayDependencies, DB: database,
-    keyring: options.gatewayDependencies.keyring ?? options.keyring ?? (() => { throw new ApiError('service_unavailable'); }),
   };
   const serviceOptions: ChatServiceOptions = { database, ...(storage === undefined ? {} : { storage }), ...(gateway === undefined ? {} : { gateway }),
     gatewayDependencies: deps, ...(options.now === undefined ? {} : { now: options.now }), ...(options.authenticate === undefined ? {} : { authenticate: options.authenticate }) };
@@ -103,13 +94,10 @@ function csrf(options: ChatRouteOptions): MiddlewareHandler<ChatEnv> {
 
 function queryCursor(request: Request): { cursor: string | null; limit: number } {
   const query = new URL(request.url).searchParams;
-  for (const key of query.keys()) if (!['cursor', 'limit'].includes(key)) throw new ApiError('invalid_request');
   return parsePagination(query);
 }
 
 function input(body: Record<string, unknown>, regeneration: boolean): ChatStartInput {
-  exact(body, regeneration ? ['operationId', 'conversationVersion', 'groupId', 'modelId', 'maxOutputTokens']
-    : ['operationId', 'conversationVersion', 'groupId', 'modelId', 'content', 'maxOutputTokens']);
   const result: ChatStartInput = {
     operationId: required<string>(body, 'operationId'), conversationVersion: required<number>(body, 'conversationVersion'),
     groupId: required<string>(body, 'groupId'), modelId: required<string>(body, 'modelId'),
@@ -122,7 +110,7 @@ function input(body: Record<string, unknown>, regeneration: boolean): ChatStartI
 /**
  * Browser chat routes.  The factory is intentionally independent of the
  * global `routes.ts`: root can mount it with `forwardMounted`, passing a
- * request-local keyring/gateway while GET catalogue/history calls only touch
+ * request-local gateway while GET catalogue/history calls only touch
  * session, D1 and chat storage.
  */
 export function createChatRoutes(options: ChatRouteOptions = {}): Hono<ChatEnv> {
@@ -148,7 +136,7 @@ export function createChatRoutes(options: ChatRouteOptions = {}): Hono<ChatEnv> 
 
   app.post(`${root}/conversations`, async context => {
     const user = context.get('user'); const body = await jsonBody(context.req.raw);
-    exact(body, ['title', 'groupId', 'modelId']);
+
     const data = await serviceFor(options, context.env).createConversation(user.id, {
       ...(body.title === undefined ? {} : { title: body.title as string }),
       ...(body.groupId === undefined ? {} : { groupId: body.groupId as string | null }),
@@ -163,7 +151,7 @@ export function createChatRoutes(options: ChatRouteOptions = {}): Hono<ChatEnv> 
   });
 
   app.patch(`${root}/conversations/:id`, async context => {
-    const user = context.get('user'); const body = await jsonBody(context.req.raw); exact(body, ['version', 'title', 'groupId', 'modelId']);
+    const user = context.get('user'); const body = await jsonBody(context.req.raw);
     const patch = {
       ...(body.title === undefined ? {} : { title: body.title as string }),
       ...(body.groupId === undefined ? {} : { groupId: body.groupId as string | null }),
@@ -174,7 +162,7 @@ export function createChatRoutes(options: ChatRouteOptions = {}): Hono<ChatEnv> 
   });
 
   app.delete(`${root}/conversations/:id`, async context => {
-    const user = context.get('user'); const body = await jsonBody(context.req.raw); exact(body, ['version']);
+    const user = context.get('user'); const body = await jsonBody(context.req.raw);
     const data = await serviceFor(options, context.env).deleteConversation(user.id, context.req.param('id'), required<number>(body, 'version'));
     return noStore(apiSuccess(data, requestId(context)));
   });
@@ -200,7 +188,7 @@ export function createChatRoutes(options: ChatRouteOptions = {}): Hono<ChatEnv> 
   });
 
   app.post(`${root}/conversations/:id/select`, async context => {
-    const user = context.get('user'); const body = await jsonBody(context.req.raw); exact(body, ['conversationVersion', 'messageId']);
+    const user = context.get('user'); const body = await jsonBody(context.req.raw);
     const data = await serviceFor(options, context.env).selectVersion(user.id, context.req.param('id'), required<string>(body, 'messageId'), required<number>(body, 'conversationVersion'));
     return noStore(apiSuccess(data, requestId(context)));
   });

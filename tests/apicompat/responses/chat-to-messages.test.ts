@@ -128,11 +128,8 @@ describe('P-CM-J3-E native Chat errors', () => {
     expect(chatToMessagesResponse({ error }, context()).ok).toBe(false);
   });
 
-  it('rejects success/error mixtures and does not invoke error accessors', () => {
+  it('rejects success/error mixtures', () => {
     expect(chatToMessagesResponse({ ...basic(), error: { type: 'server_error', message: 'failed' } }, context()).ok).toBe(false);
-    let called = false;
-    expect(chatToMessagesResponse({ error: { type: 'server_error', get message() { called = true; throw new Error('private'); } } }, context()).ok).toBe(false);
-    expect(called).toBe(false);
   });
 });
 

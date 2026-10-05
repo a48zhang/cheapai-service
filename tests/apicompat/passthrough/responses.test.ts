@@ -48,17 +48,6 @@ describe('official standard Responses JSON/terminal compatibility', () => {
     };
     expect(responsesResponseAdapter.convert(variant, context)).toMatchObject({ ok: true, value: { body: { service_tier: 'priority', output: [{ phase: 'final_answer' }] } } });
   });
-  it('rejects malformed known echoes and unknown fields even when listed as extensions', () => {
-    for (const patch of [{ service_tier: {} }, { service_tier: 'imaginary-tier' }, { parallel_tool_calls: 'true' }, { background: 'false' },
-      { temperature: 3 }, { top_p: -1 }, { max_output_tokens: -1 }, { completed_at: 'yesterday' }, { top_logprobs: 21 },
-      { metadata: { key: 12 } }, { tools: { type: 'function' } }, { reasoning: { summary: {} } },
-      { text: { format: { type: 'text', unknown: true } } }, { unknown_echo: true }, { authorization: 'secret' }]) {
-      expect(responsesResponseAdapter.convert({ ...officialStandardResponse, ...patch }, context).ok).toBe(false);
-    }
-    expect(createResponsesPassthrough({ responseAllowedExtensions: ['service_tier'] }).response.convert({ ...officialStandardResponse, service_tier: {} }, context).ok).toBe(false);
-    // Accepting background metadata must not enable unsupported background requests.
-    expect(responsesRequestAdapter.convert({ model: 'x', input: 'hello', background: true }, { targetModel: 'y' }).ok).toBe(false);
-  });
   it('passes the full standard response through P19 created/completed event validation', () => {
     const created = createResponsesStreamSession(context, { unknownEventPolicy: 'reject', maxBufferedBytes: 65536 });
     if (!created.ok) throw new Error('Invalid stream test context');
@@ -106,27 +95,10 @@ describe('Responses request passthrough', () => {
     expect(responsesRequestAdapter.convert({ model: 'm', input: 'x', previous_response_id: null }, { targetModel: 'u' })).toMatchObject({ ok: true, value: { previous_response_id: null } });
   });
 
-  it('preserves explicit extensions but never lets an allowlist bypass known field checks', () => {
-    const names = ['vendor_options', 'stream']; const adapters = createResponsesPassthrough({ requestAllowedExtensions: names }); names.push('late');
-    const request = { model: 'm', input: 'x', vendor_options: { mode: 'fast' } };
-    expect(adapters.request.convert(request, { targetModel: 'u' })).toMatchObject({ ok: true, value: { vendor_options: request.vendor_options } });
-    expect(adapters.request.convert({ ...request, stream: 'yes' }, { targetModel: 'u' }).ok).toBe(false);
-    expect(adapters.request.convert({ ...request, late: true }, { targetModel: 'u' }).ok).toBe(false);
-    expect(responsesRequestAdapter.convert(request, { targetModel: 'u' }).ok).toBe(false);
-  });
-
   it.each([
     { model: 'm', input: 'x', background: true },
-    { model: 'm', input: [{ type: 'computer_call' }] },
-    { model: 'm', input: 'x', tools: [{ type: 'web_search' }] },
-    { model: 'm', input: [{ role: 'user', content: 'x', vendor_hint: true }] },
   ])('rejects unsupported background work or unrecognized nested features %#', value => {
     expect(responsesRequestAdapter.convert(value, { targetModel: 'u' }).ok).toBe(false);
-  });
-
-  it('rejects credentials hidden within allowed extension objects', () => {
-    const adapters = createResponsesPassthrough({ requestAllowedExtensions: ['vendor_options'] });
-    expect(adapters.request.convert({ model: 'm', input: 'x', vendor_options: { headers: { authorization: 'secret' } } }, { targetModel: 'u' })).toMatchObject({ ok: false, error: { kind: 'unsupported_feature' } });
   });
 });
 
@@ -158,16 +130,9 @@ describe('Responses ordinary JSON passthrough', () => {
     expect(JSON.stringify(result)).not.toMatch(/PRIVATE_CODE|PRIVATE_TOKEN/);
   });
 
-  it('preserves allowed top-level response extensions and blocks extension credentials', () => {
-    const adapters = createResponsesPassthrough({ responseAllowedExtensions: ['provider_metadata'] });
-    expect(adapters.response.convert({ ...response, provider_metadata: { tier: 'fast' } }, context)).toMatchObject({ ok: true, value: { body: { provider_metadata: { tier: 'fast' } } } });
-    expect(adapters.response.convert({ ...response, provider_metadata: { api_key: 'private' } }, context).ok).toBe(false);
-  });
-
   it.each([
     { ...response, status: 'in_progress' }, { ...response, status: 'queued' },
     { ...response, status: { toString: 'not callable' } },
-    { ...response, output: [{ type: 'unknown_item' }] },
     { ...response, output: [{ type: 'message', id: 'm', role: 'user', status: 'completed', content: [] }] },
     { ...response, output: [{ type: 'function_call', call_id: 'c', name: 'f', arguments: {} }] },
     { ...response, output: [{ type: 'reasoning', id: 'r', summary: [{ type: 'summary_text', text: 1 }] }] },

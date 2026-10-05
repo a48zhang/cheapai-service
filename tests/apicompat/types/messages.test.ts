@@ -137,18 +137,6 @@ describe("Messages request wire validation", () => {
       expect(parseMessagesRequest({ ...request(), tools: [{ type: "server_tool_future", name: "server" }] }, { unknownFields })).toMatchObject({ ok: false, error: { kind: "unsupported_feature" } });
     }
   });
-
-  it("rejects non-JSON objects, cycles, accessors, sparse arrays, non-finite numbers and excessive depth", () => {
-    const cycle: Record<string, unknown> = {}; cycle.self = cycle;
-    let nested: unknown = null;
-    for (let i = 0; i < 70; i++) nested = { child: nested };
-    let invoked = false;
-    const accessor = Object.defineProperty({}, "secret", { enumerable: true, get: () => { invoked = true; return "do not read"; } });
-    for (const extension of [cycle, nested, accessor, new Date(), new Array(2), NaN, Infinity, undefined, () => null, 1n]) {
-      expect(parseMessagesRequest({ ...request(), extension }, { unknownFields: "preserve" }).ok).toBe(false);
-    }
-    expect(invoked).toBe(false);
-  });
 });
 
 describe("Messages response and usage wire validation", () => {

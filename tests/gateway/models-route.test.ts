@@ -21,8 +21,8 @@ beforeEach(async () => {
   token = generateToken('apiKey');
   await testEnv.DB.prepare("INSERT INTO api_keys(id,user_id,key_hash,display_prefix,name,status,created_at,updated_at) VALUES('g15-key','g15-user',?,'s2a_key_ABCDEFGH','G15 key','active',0,0)").bind(await hashToken('apiKey', token)).run();
   for (const [id, group, status] of [['g15-channel', 'g15-group', 'active'], ['g15-other-channel', 'g15-other', 'active'], ['g15-disabled-channel', 'g15-group', 'disabled']]) {
-    await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-      VALUES(?,?,'https://private.example',?,'test',?,0,2,60,1,0,0)`).bind(id, id, JSON.stringify({ algorithm: 'A256GCM', format_version: 1, key_version: 'test', nonce: 'private-nonce', ciphertext: 'private-ciphertext' }), status).run();
+    await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+      VALUES(?,?,'https://private.example',?,?,0,2,60,1,0,0)`).bind(id, id, 'test-upstream-key', status).run();
     await testEnv.DB.prepare('INSERT INTO channel_groups(channel_id,group_id) VALUES(?,?)').bind(id, group).run();
   }
   await model('visible-a'); await model('visible-b'); await model('foreign-group', 'g15-other-channel');
@@ -56,8 +56,11 @@ describe('native authenticated model catalog', () => {
     }
     expect((await get('', { Authorization: `Bearer ${token}`, 'x-api-key': generateToken('apiKey') })).status).toBe(400);
     expect((await get('', { 'x-api-key': token })).status).toBe(200);
-    expect((await get('?userId=g15-user')).status).toBe(400);
-    expect((await get('?limit=1')).status).toBe(400);
+    for (const query of ['?userId=another-user&groupId=g15-other', '?limit=1']) {
+      const response = await get(query);
+      expect(response.status).toBe(200);
+      expect((await response.json<{ data: { id: string }[] }>()).data.map(row => row.id)).toEqual(['visible-a', 'visible-b']);
+    }
   });
   it('rechecks revoked/expired Keys and disabled users/groups in D1', async () => {
     await testEnv.DB.prepare("UPDATE api_keys SET status='revoked' WHERE id='g15-key'").run(); expect((await get()).status).toBe(401);

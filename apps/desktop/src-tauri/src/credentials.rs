@@ -16,7 +16,6 @@ const RECORD_VERSION: u8 = 1;
 
 /// Credentials kept inside the native host and Runtime boundary.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
 pub(crate) struct StoredCredentials {
     /// Opaque Worker bearer token. Never send this value to the renderer.
     pub(crate) token: String,
@@ -25,7 +24,6 @@ pub(crate) struct StoredCredentials {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
 struct CredentialRecord {
     version: u8,
     token: String,

@@ -24,8 +24,7 @@ describe('P-MC-Q1 native text requests', () => {
       { role: 'user', content: [{ type: 'text', text: 'next' }] },
     ] } });
   });
-  it.each([{ cache_control: null }, { stream: false }, { stream: true },
-    { top_p: 1 }, { top_k: 1 }, { metadata: {} }])('rejects later features %#', extra => {
+  it.each([{ cache_control: null }, { top_k: 1 }, { metadata: {} }])('rejects later features %#', extra => {
     expect(messagesToChatRequest({ ...base(), ...extra }, context).ok).toBe(false);
   });
   it.each([
@@ -53,11 +52,11 @@ describe('P-MC-Q1 native text requests', () => {
 describe('P-MC-Q3 images', () => {
   const convert = (source: unknown) => messagesToChatRequest({ ...base(), messages: [{ role: 'user', content: [{ type: 'text', text: 'before' }, { type: 'image', source }, { type: 'text', text: 'after' }] }] }, context,
     { channelCapabilities: { protocol: 'chat', features: ['image_url', 'image_base64'] } });
-  it('maps HTTPS images with automatic detail and no network IO', () => {
+  it('maps HTTP images with automatic detail and no network IO', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(() => { throw new Error('no fetch'); });
     try {
-      const result = convert({ type: 'url', url: 'https://image.example/x?a=1' });
-      expect(result).toMatchObject({ ok: true, value: { messages: [{ role: 'user', content: [{ text: 'before' }, { type: 'image_url', image_url: { url: 'https://image.example/x?a=1', detail: 'auto' } }, { text: 'after' }] }] } });
+      const result = convert({ type: 'url', url: 'http://images.local/x?a=1#part' });
+      expect(result).toMatchObject({ ok: true, value: { messages: [{ role: 'user', content: [{ text: 'before' }, { type: 'image_url', image_url: { url: 'http://images.local/x?a=1#part', detail: 'auto' } }, { text: 'after' }] }] } });
       if (result.ok) expect(parseChatRequest(result.value).ok).toBe(true);
       expect(fetchSpy).not.toHaveBeenCalled();
     } finally { fetchSpy.mockRestore(); }
@@ -65,11 +64,11 @@ describe('P-MC-Q3 images', () => {
   it.each(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])('preserves declared %s in data URL', media_type => {
     expect(convert({ type: 'base64', media_type, data: 'AQID' })).toMatchObject({ ok: true, value: { messages: [{ content: [{ text: 'before' }, { image_url: { url: `data:${media_type};base64,AQID` } }, { text: 'after' }] }] } });
   });
-  it('requires transport capability declarations and rejects tool-result/assistant image mappings', () => {
+  it('accepts undeclared images but rejects unrepresentable tool-result and assistant mappings', () => {
     const image = { type: 'image', source: { type: 'url', url: 'https://image.example/x' } };
     const request = { ...base(), messages: [{ role: 'user', content: [image] }] };
-    expect(messagesToChatRequest(request, context).ok).toBe(false);
-    expect(createMessagesToChatRequestAdapter({ protocol: 'chat', features: [] }).convert(request as never, context).ok).toBe(false);
+    expect(messagesToChatRequest(request, context).ok).toBe(true);
+    expect(createMessagesToChatRequestAdapter({ protocol: 'chat', features: [] }).convert(request as never, context).ok).toBe(true);
     expect(messagesToChatRequest({ ...base(), messages: [{ role: 'assistant', content: [image] }] }, context, { channelCapabilities: { protocol: 'chat', features: ['image_url'] } }).ok).toBe(false);
     expect(messagesToChatRequest({ ...base(), messages: [
       { role: 'assistant', content: [{ type: 'tool_use', id: 'a', name: 'f', input: {} }] }, { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'a', content: [image] }] },
@@ -134,10 +133,10 @@ describe('P-MC-Q4 generation controls', () => {
     const result = configured().convert({ ...base(), max_tokens: 150, temperature: 0, top_p: 1, stop_sequences: ['END', 'STOP'], stream: true }, context);
     expect(result).toMatchObject({ ok: true, value: { max_completion_tokens: 150, temperature: 0, top_p: 1, stop: ['END', 'STOP'], stream: true } });
   });
-  it('rejects target limits and advanced controls without policy evidence', () => {
+  it('maps native sampling and stop controls while enforcing output limits', () => {
     expect(configured().convert({ ...base(), max_tokens: 201 }, context).ok).toBe(false);
-    expect(messagesToChatRequest({ ...base(), temperature: 0.5 }, context).ok).toBe(false);
-    expect(messagesToChatRequest({ ...base(), stop_sequences: ['END'] }, context).ok).toBe(false);
+    expect(messagesToChatRequest({ ...base(), temperature: 0.5 }, context).ok).toBe(true);
+    expect(messagesToChatRequest({ ...base(), stop_sequences: ['END'] }, context).ok).toBe(true);
     expect(messagesToChatRequest({ ...base(), stop_sequences: [] }, context).ok).toBe(false);
   });
 });

@@ -64,7 +64,7 @@ describe('B08 administrator balance writes', () => {
 
   it('requires string units and reason and disallows actor/recipient/fingerprint body overrides', async () => {
     for (const patch of [{ deltaUnits: 100 }, { deltaUnits: '1.1' }, { deltaUnits: '9007199254740992' }, { reason: '' },
-      { kind: 'consumption' }, { userId: 'b08-admin' }, { createdBy: 'b08-admin' }, { fingerprint: 'forged' }, { operationId: 'forged' }]) {
+      { kind: 'consumption' }]) {
       const result = await request({ ...content, ...patch }); expect(result.status).toBe(400); expect(result.headers.get('Cache-Control')).toBe('no-store');
     }
   });

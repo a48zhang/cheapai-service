@@ -21,13 +21,12 @@ export class FingerprintError extends Error {
  * Version 1: finite JSON numbers use ECMAScript JSON spelling; strings retain
  * their code points; object keys sort by UTF-16 ordinal order, never locale.
  * Object members are emitted directly so integer-like keys are not reordered
- * by JSON.stringify(object). Arrays retain order. No coercion/toJSON/getters.
+ * by JSON.stringify(object). Arrays retain order. No coercion or toJSON hooks.
  * BigInt amounts must be converted explicitly at the settlement boundary.
  */
 export function canonicalJson(value: unknown, version: number = CANONICAL_JSON_VERSION): string {
   if (version !== CANONICAL_JSON_VERSION) throw new FingerprintError('unsupported_version');
   const chunks: string[] = [];
-  const ancestors = new WeakSet<object>();
   const encoder = new TextEncoder();
   let nodes = 0;
   let bytes = 0;
@@ -49,38 +48,22 @@ export function canonicalJson(value: unknown, version: number = CANONICAL_JSON_V
       if (!Number.isFinite(entry)) throw new FingerprintError('invalid_json');
       emit(JSON.stringify(entry)); return;
     }
-    if (typeof entry !== 'object' || ancestors.has(entry)) throw new FingerprintError('invalid_json');
-    const array = Array.isArray(entry);
-    const prototype = Object.getPrototypeOf(entry);
-    if (array ? prototype !== Array.prototype : prototype !== Object.prototype && prototype !== null) throw new FingerprintError('invalid_json');
-    const keys = Reflect.ownKeys(entry);
-    if (keys.length > CANONICAL_JSON_LIMITS.nodes) throw new FingerprintError('json_too_large');
-    if (keys.some(key => typeof key !== 'string')) throw new FingerprintError('invalid_json');
-    ancestors.add(entry);
-    try {
-      if (array) {
-        const length = Object.getOwnPropertyDescriptor(entry, 'length')?.value as unknown;
-        if (typeof length !== 'number' || keys.length !== length + 1) throw new FingerprintError('invalid_json');
-        emit('[');
-        for (let index = 0; index < length; index++) {
-          const descriptor = Object.getOwnPropertyDescriptor(entry, String(index));
-          if (!descriptor || !('value' in descriptor) || !descriptor.enumerable) throw new FingerprintError('invalid_json');
-          if (index) emit(',');
-          visit(descriptor.value, depth + 1);
-        }
-        emit(']');
-      } else {
-        emit('{');
-        const sorted = (keys as string[]).sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
-        sorted.forEach((key, index) => {
-          const descriptor = Object.getOwnPropertyDescriptor(entry, key);
-          if (!descriptor || !('value' in descriptor) || !descriptor.enumerable) throw new FingerprintError('invalid_json');
-          if (index) emit(',');
-          emit(quoted(key)); emit(':'); visit(descriptor.value, depth + 1);
-        });
-        emit('}');
+    if (typeof entry !== 'object') throw new FingerprintError('invalid_json');
+    if (Array.isArray(entry)) {
+      emit('[');
+      for (let index = 0; index < entry.length; index++) {
+        if (index) emit(',');
+        visit(entry[index], depth + 1);
       }
-    } finally { ancestors.delete(entry); }
+      emit(']');
+    } else {
+      emit('{');
+      Object.keys(entry).sort().forEach((key, index) => {
+        if (index) emit(',');
+        emit(quoted(key)); emit(':'); visit((entry as Record<string, unknown>)[key], depth + 1);
+      });
+      emit('}');
+    }
   };
   try { visit(value, 0); return chunks.join(''); }
   catch (error) {
@@ -124,22 +107,14 @@ export interface StoredPriceSnapshot {
   readonly json: string;
 }
 
-function dataFields(value: unknown, allowed: readonly string[], code: 'invalid_snapshot' | 'invalid_facts'): Record<string, unknown> {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)
-    || (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null)) throw new FingerprintError(code);
-  const output: Record<string, unknown> = Object.create(null);
-  for (const key of Reflect.ownKeys(value)) {
-    if (typeof key !== 'string' || !allowed.includes(key)) throw new FingerprintError(code);
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    if (!descriptor || !('value' in descriptor) || !descriptor.enumerable || descriptor.value === undefined) throw new FingerprintError(code);
-    output[key] = descriptor.value;
-  }
-  return output;
+function dataFields(value: unknown, code: 'invalid_snapshot' | 'invalid_facts'): Record<string, unknown> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new FingerprintError(code);
+  return value as Record<string, unknown>;
 }
 const id = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 256 && value.trim() === value && !/[\u0000-\u001f\u007f]/.test(value);
 
 function copyPrices(value: unknown): PriceTable {
-  const input = dataFields(value, BILLABLE_BUCKETS, 'invalid_snapshot');
+  const input = dataFields(value, 'invalid_snapshot');
   if (!Object.hasOwn(input, 'input') || !Object.hasOwn(input, 'output')) throw new FingerprintError('invalid_snapshot');
   const output: Record<string, string> = Object.create(null);
   for (const bucket of BILLABLE_BUCKETS) {
@@ -174,7 +149,7 @@ function snapshot(input: PriceSnapshotInput): PriceSnapshot {
 
 /** Copy a selected model's actual PriceTable, then serialize exactly once. No timestamp. */
 export function createPriceSnapshot(input: PriceSnapshotInput): StoredPriceSnapshot {
-  const fields = dataFields(input, ['publicModelId', 'upstreamModel', 'upstreamProtocol', 'priceVersion', 'sellPrices', 'groupId', 'groupVersion', 'billingMultiplier'], 'invalid_snapshot');
+  const fields = dataFields(input, 'invalid_snapshot');
   const value = snapshot(fields as unknown as PriceSnapshotInput);
   return Object.freeze({ snapshot: value, json: canonicalJson(value) });
 }
@@ -183,7 +158,7 @@ export function createPriceSnapshot(input: PriceSnapshotInput): StoredPriceSnaps
 export function readPriceSnapshot(json: string): StoredPriceSnapshot {
   if (typeof json !== 'string' || new TextEncoder().encode(json).byteLength > CANONICAL_JSON_LIMITS.bytes) throw new FingerprintError('invalid_snapshot');
   try {
-    const value = dataFields(JSON.parse(json), ['schema_version', 'canonical_json_version', 'calculation_version', 'currency', 'decimals', 'tokens_per_price_unit', 'rounding', 'public_model_id', 'upstream_model', 'upstream_protocol', 'price_version', 'sell_prices', 'group_id', 'group_version', 'billing_multiplier'], 'invalid_snapshot');
+    const value = dataFields(JSON.parse(json), 'invalid_snapshot');
     if (value.schema_version !== PRICE_SNAPSHOT_VERSION || value.canonical_json_version !== CANONICAL_JSON_VERSION || value.calculation_version !== BILLING_CALCULATION_VERSION) throw new FingerprintError('unsupported_version');
     if (value.currency !== MONEY_CURRENCY || value.decimals !== MONEY_DECIMALS || value.tokens_per_price_unit !== 1_000_000 || value.rounding !== 'half_up_after_sum') throw new FingerprintError('invalid_snapshot');
     const parsed = snapshot({ publicModelId: value.public_model_id, upstreamModel: value.upstream_model, upstreamProtocol: value.upstream_protocol, priceVersion: value.price_version, sellPrices: value.sell_prices,
@@ -226,7 +201,7 @@ export interface PreparedSettlementFingerprint {
  */
 export async function buildSettlementFingerprint(facts: SettlementFacts): Promise<PreparedSettlementFingerprint> {
   const keys = ['kind', 'operationId', 'userId', 'requestId', 'priceSnapshotJson', 'usage', 'deltaUnits', 'createdBy', 'reason'] as const;
-  const input = dataFields(facts, keys, 'invalid_facts');
+  const input = dataFields(facts, 'invalid_facts');
   if (keys.some(key => !Object.hasOwn(input, key)) || !['consumption', 'adjustment', 'grant'].includes(input.kind as string)
     || !id(input.operationId) || !id(input.userId) || (input.requestId !== null && !id(input.requestId))
     || (input.createdBy !== null && !id(input.createdBy)) || (input.reason !== null && (typeof input.reason !== 'string' || !input.reason.trim() || input.reason.length > 4096))) throw new FingerprintError('invalid_facts');

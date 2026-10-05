@@ -44,13 +44,9 @@ export function parseRetryAfter(value: unknown, now: number): number | null {
   return Math.min(MAX_COOLDOWN_TTL_MS, Math.max(0, timestamp - now));
 }
 
-function fields(value: unknown, required: readonly string[], optional: readonly string[], response = false): Record<string, unknown> {
+function fields(value: unknown, required: readonly string[], response = false): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)
-    || required.some((key) => !Object.hasOwn(value, key))
-    || Reflect.ownKeys(value).some((key) => {
-      if (response && key === RPC_DISPOSE && typeof (value as Record<symbol, unknown>)[key] === 'function') return false;
-      return typeof key !== 'string' || (!required.includes(key) && !optional.includes(key));
-    })) throw new CooldownClientError(response ? 'invalid_response' : 'invalid_input');
+    || required.some((key) => !Object.hasOwn(value, key))) throw new CooldownClientError(response ? 'invalid_response' : 'invalid_input');
   return value as Record<string, unknown>;
 }
 
@@ -81,13 +77,13 @@ async function callCooldown(invoke: () => Promise<unknown>, requireActive = fals
   let raw: unknown;
   try { raw = await invoke(); } catch (error) { throw remoteError(error); }
   try {
-    const result = fields(raw, ['active', 'retryAfterMs'], ['cooldownUntil', 'errorClass'], true);
+    const result = fields(raw, ['active', 'retryAfterMs'], true);
     if (result.active === false && !requireActive) {
-      fields(result, ['active', 'retryAfterMs'], [], true);
+      fields(result, ['active', 'retryAfterMs'], true);
       if (result.retryAfterMs !== 0) throw new CooldownClientError('invalid_response');
       return { active: false, retryAfterMs: 0 };
     }
-    fields(result, ['active', 'cooldownUntil', 'errorClass', 'retryAfterMs'], [], true);
+    fields(result, ['active', 'cooldownUntil', 'errorClass', 'retryAfterMs'], true);
     if (result.active !== true || typeof result.cooldownUntil !== 'number' || !Number.isSafeInteger(result.cooldownUntil)
       || typeof result.retryAfterMs !== 'number' || !Number.isSafeInteger(result.retryAfterMs)
       || result.retryAfterMs <= 0 || result.retryAfterMs > MAX_COOLDOWN_TTL_MS || result.cooldownUntil < result.retryAfterMs
@@ -115,8 +111,8 @@ export async function recordChannelCooldown(
   input: ChannelCooldownInput,
   options: { clock?: () => number } = {},
 ): Promise<{ applied: false } | { applied: true; cooldown: Extract<GateCooldownResult, { active: true }> }> {
-  fields(input, ['channelId', 'status'], ['retryAfter']);
-  fields(options, [], ['clock']);
+  fields(input, ['channelId', 'status']);
+  fields(options, []);
   requireChannel(input.channelId);
   if (!Number.isInteger(input.status) || input.status < 100 || input.status > 599
     || (options.clock !== undefined && typeof options.clock !== 'function')) throw new CooldownClientError('invalid_input');

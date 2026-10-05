@@ -17,19 +17,42 @@ describe('single-attempt upstream transport with local fetch mocks', () => {
   });
   it('rejects invalid targets/timeouts and pre-cancellation without invoking fetch', async () => {
     const mock = vi.fn(async () => new Response('unexpected'));
-    for (const patch of [{ baseUrl: 'http://provider.example.com' }, { baseUrl: 'https://127.0.0.1' }, { headersTimeoutMs: 0 }, { idleTimeoutMs: 1001 }]) {
+    for (const patch of [{ baseUrl: 'ftp://provider.example.com' }, { baseUrl: '/relative' }, { headersTimeoutMs: 0 }, { idleTimeoutMs: 1001 }]) {
       await expect(sendUpstream({ ...options, ...patch }, { fetch: mock })).rejects.toMatchObject({ execution: 'not_started', reason: 'invalid_configuration' });
     }
     const controller = new AbortController(); controller.abort('private reason');
     await expect(sendUpstream({ ...options, signal: controller.signal }, { fetch: mock })).rejects.toMatchObject({ execution: 'not_started', reason: 'cancelled' });
     expect(mock).not.toHaveBeenCalled();
   });
-  it('never follows same-origin or cross-origin redirects, nor replays server errors', async () => {
-    for (const location of ['/new-path', 'https://attacker.example/steal']) {
-      const mock = vi.fn(async () => new Response(null, { status: 307, headers: { Location: location } }));
-      await expect(sendUpstream(options, { fetch: mock })).rejects.toMatchObject({ reason: 'redirect_rejected', execution: 'uncertain', upstreamStatus: 307 });
-      expect(mock).toHaveBeenCalledOnce();
+  it.each([301, 302, 303, 307, 308])('follows HTTP %s with standard method and credential handling', async (status) => {
+    for (const location of ['/new-path?version=preview', 'http://localhost:8080/target']) {
+      const mock = vi.fn(async (_url: string, _init: RequestInit) => mock.mock.calls.length === 1
+        ? new Response(null, { status, headers: { Location: location } }) : new Response('ok'));
+      const exchange = await sendUpstream(options, { fetch: mock });
+      expect(await exchange.response.text()).toBe('ok');
+      expect(await exchange.done).toEqual({ ok: true });
+      expect(mock).toHaveBeenCalledTimes(2);
+      const [target, init] = mock.mock.calls[1]!;
+      const preservesBody = status === 307 || status === 308;
+      expect(target).toBe(new URL(location, options.baseUrl).href);
+      expect(init.method).toBe(preservesBody ? 'POST' : 'GET');
+      expect(init.body).toBe(preservesBody ? options.body : undefined);
+      expect(new Headers(init.headers).get('authorization')).toBe(location.startsWith('/') ? 'Bearer trusted-secret' : null);
     }
+  });
+  it('removes Messages credentials and configured cookies on a cross-origin redirect', async () => {
+    const mock = vi.fn(async (_url: string, _init: RequestInit) => mock.mock.calls.length === 1
+      ? new Response(null, { status: 307, headers: { Location: 'https://other.example/target' } }) : new Response('ok'));
+    const exchange = await sendUpstream({ ...options, upstreamProtocol: 'messages', customHeaders: { Cookie: 'provider-session' } }, { fetch: mock });
+    await exchange.response.text();
+    expect(new Headers(mock.mock.calls[0]![1].headers).get('x-api-key')).toBe('trusted-secret');
+    expect(new Headers(mock.mock.calls[1]![1].headers).has('x-api-key')).toBe(false);
+    expect(new Headers(mock.mock.calls[1]![1].headers).has('cookie')).toBe(false);
+  });
+  it('bounds redirect loops and does not retry provider errors', async () => {
+    const looping = vi.fn(async () => new Response(null, { status: 307, headers: { Location: '/loop' } }));
+    await expect(sendUpstream(options, { fetch: looping })).rejects.toMatchObject({ reason: 'network_error', execution: 'uncertain' });
+    expect(looping).toHaveBeenCalledTimes(21);
     const mock = vi.fn(async () => new Response('provider error', { status: 503 }));
     const exchange = await sendUpstream(options, { fetch: mock });
     expect(exchange.response.status).toBe(503); await exchange.response.text();

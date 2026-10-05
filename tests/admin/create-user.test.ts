@@ -1,3 +1,4 @@
+import type { CreateUserInput } from '../../apps/worker/admin/create-user';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createUser } from '../../apps/worker/admin/create-user';
 import * as passwords from '../../apps/worker/auth/password';
@@ -50,9 +51,9 @@ describe('administrator user creation on native D1', () => {
     expect((await createUser(testEnv.DB, { email: input.email, password: input.password }, context)).group_id).toBe('a21-group');
   });
 
-  it.each(['role', 'balance_units', 'balance', 'status', 'created_via'])('rejects caller-controlled %s', async (field) => {
-    await expect(createUser(testEnv.DB, { ...input, [field]: 'admin' }, context)).rejects.toMatchObject({ code: 'invalid_request' });
-    expect(passwords.hashPassword).not.toHaveBeenCalled();
+  it('ignores extra and server-owned fields without changing role, status or balance', async () => {
+    const result = await createUser(testEnv.DB, { ...input, role: 'admin', balance_units: 100, status: 'disabled', extra: true } as CreateUserInput, context);
+    expect(result).toMatchObject({ role: 'user', status: 'active', balance_units: '0' });
   });
 
   it('rejects duplicate normalized email before hashing', async () => {

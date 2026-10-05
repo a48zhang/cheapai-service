@@ -102,16 +102,9 @@ export class ConfigError extends Error {
   }
 }
 
-function objectInput(input: unknown, allowedKeys: readonly string[]): Record<string, unknown> {
-  if (input === null || typeof input !== 'object' || Array.isArray(input)
-      || (Object.getPrototypeOf(input) !== Object.prototype && Object.getPrototypeOf(input) !== null)) {
-    throw new ConfigError('config', 'must be a plain object');
-  }
-  // Reject typos and unknown keys rather than silently ignoring policy settings.
-  for (const key of Reflect.ownKeys(input)) {
-    if (typeof key !== 'string' || !allowedKeys.includes(key)) {
-      throw new ConfigError('config', 'contains an unknown field');
-    }
+function objectInput(input: unknown): Record<string, unknown> {
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+    throw new ConfigError('config', 'must be an object');
   }
   return input as Record<string, unknown>;
 }
@@ -141,9 +134,10 @@ export function parseRuntimeConfig(
   input: unknown = {},
   readiness: { emailAvailable?: boolean } = {},
 ): Readonly<RuntimeConfig> {
-  const values = objectInput(input, Object.keys(DEFAULT_CONFIG));
+  const values = objectInput(input);
   const config: RuntimeConfig = { ...DEFAULT_CONFIG };
-  for (const key of Object.keys(values) as (keyof RuntimeConfig)[]) {
+  for (const key of Object.keys(DEFAULT_CONFIG) as (keyof RuntimeConfig)[]) {
+    if (!Object.hasOwn(values, key)) continue;
     const value = values[key];
     if (key === 'registrationMode') {
       if (value !== 'closed' && value !== 'open' && value !== 'invite') {
@@ -195,7 +189,7 @@ export interface ChannelLimits {
 
 /** Supplier-specific limits are mandatory; no invented channel capacity defaults. */
 export function parseChannelLimits(input: unknown): Readonly<ChannelLimits> {
-  const values = objectInput(input, ['concurrencyLimit', 'rpmLimit']);
+  const values = objectInput(input);
   return Object.freeze({
     concurrencyLimit: parseConcurrencyLimit(values.concurrencyLimit),
     rpmLimit: parseRpmLimit(values.rpmLimit),
@@ -209,7 +203,7 @@ export interface ModelLimits {
 
 /** Model maximum must be explicit; requests have no platform output default. Price validation belongs to pricing. */
 export function parseModelLimits(input: unknown): Readonly<ModelLimits> {
-  const values = objectInput(input, ['maxOutputTokens', 'admissionMinBalanceUnits']);
+  const values = objectInput(input);
   const limits = {
     maxOutputTokens: positiveInteger(values.maxOutputTokens, 'maxOutputTokens'),
     admissionMinBalanceUnits: parseAdmissionMinBalanceUnits(

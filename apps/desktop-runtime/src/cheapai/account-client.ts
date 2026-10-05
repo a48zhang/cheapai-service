@@ -89,10 +89,6 @@ export class DesktopAccountClient {
     credentials: DesktopLoginRequest,
     options: DesktopAccountRequestOptions = {},
   ): Promise<DesktopLoginResponse> {
-    if (typeof credentials?.email !== 'string' || credentials.email.length === 0
-      || typeof credentials.password !== 'string' || credentials.password.length > 256) {
-      throw new DesktopAccountApiError('serviceUnavailable', 'invalid_request')
-    }
     const response = await this.request(DESKTOP_LOGIN_PATH, {
       method: 'POST',
       body: { email: credentials.email, password: credentials.password },
@@ -110,9 +106,6 @@ export class DesktopAccountClient {
     session: DesktopSessionCredential,
     options: DesktopAccountRequestOptions = {},
   ): Promise<DesktopKeyResponse> {
-    if (!isCredential(session?.token) || !isTimestamp(session.expiresAt)) {
-      throw new DesktopAccountApiError('sessionExpired', 'unauthorized')
-    }
     const response = await this.request(DESKTOP_KEY_PATH, {
       method: 'POST', token: session.token, ...options,
     })
@@ -128,7 +121,6 @@ export class DesktopAccountClient {
     token: string,
     options: DesktopAccountRequestOptions = {},
   ): Promise<DesktopAccountData> {
-    if (!isCredential(token)) throw new DesktopAccountApiError('sessionExpired', 'unauthorized')
     const response = await this.request(DESKTOP_ACCOUNT_PATH, { method: 'GET', token, ...options })
     const data = successData(response)
     if (!isRecord(data) || !isDesktopPublicUser(data.user) || !isBalance(data.balance)) {
@@ -146,7 +138,6 @@ export class DesktopAccountClient {
   }
 
   async logout(token: string, options: DesktopAccountRequestOptions = {}): Promise<void> {
-    if (!isCredential(token)) throw new DesktopAccountApiError('sessionExpired', 'unauthorized')
     const response = await this.request(DESKTOP_LOGOUT_PATH, { method: 'POST', token, ...options })
     const data = successData(response)
     if (!isRecord(data) || data.loggedOut !== true) throw invalidServerResponse(response)

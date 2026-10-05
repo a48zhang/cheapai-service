@@ -42,7 +42,7 @@ export function decodeSnapshot<T>(
     const value: unknown = JSON.parse(encoded);
     if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
     const fields = value as Record<string, unknown>;
-    if (Object.keys(fields).length !== 3 || !Object.hasOwn(fields, 'data') ||
+    if (!Object.hasOwn(fields, 'data') ||
         fields.schema_version !== SNAPSHOT_SCHEMA_VERSION || !timestamp(fields.observed_at)) return null;
     const age = freshness.now - fields.observed_at;
     if (age < 0 || age >= freshness.maxAgeMs || !validateData(fields.data)) return null;

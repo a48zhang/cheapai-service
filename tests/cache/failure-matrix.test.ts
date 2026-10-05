@@ -49,9 +49,9 @@ beforeEach(async () => {
   apiToken = generateToken('apiKey');
   await prepare(testEnv.DB, `INSERT INTO api_keys(id,user_id,key_hash,display_prefix,name,status,created_at,updated_at)
     VALUES('q05-key','q05-user',?,'s2a_key_ABCDEFGH','Q05 Key','active',0,0)`, [await hashToken('apiKey', apiToken)]).run();
-  const ciphertext = JSON.stringify({ algorithm: 'A256GCM', format_version: 1, key_version: 'test', nonce: 'synthetic', ciphertext: 'synthetic-only' });
-  await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-    VALUES('q05-channel','Q05 Channel','https://provider.example.com',?,'test','active',1,2,60,1,0,0)`, [ciphertext]).run();
+  const credential = 'PRIVATE-UPSTREAM-KEY';
+  await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+    VALUES('q05-channel','Q05 Channel','https://provider.example.com',?,'active',1,2,60,1,0,0)`, [credential]).run();
   await prepare(testEnv.DB, `INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('q05-model','active',?,1,10,4096,0,0)`, [JSON.stringify({ input: '1', output: '2' })]).run();
   await prepare(testEnv.DB, "INSERT INTO channel_groups(channel_id,group_id) VALUES('q05-channel','q05-group')").run();
   await prepare(testEnv.DB, `INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,capabilities_json,config_version)

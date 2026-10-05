@@ -8,7 +8,6 @@ import { createMessagesUsageSession } from '@sub2api/apicompat/usage/messages';
 import type { RequestAdapter, StreamAdapter, StreamSession } from '@sub2api/apicompat/types/adapter';
 import type { ProtocolError, SseFrame, TerminalState, UsageSnapshot } from '@sub2api/apicompat/types/shared';
 import { readChannelForForwarding } from '../catalog/channels';
-import type { ChannelKeyring } from '../catalog/channel-secrets';
 import { DEFAULT_CONFIG } from '../config';
 import { createRequestLifecycle } from './request-lifecycle';
 import type { RequestStopReason } from './request-lifecycle';
@@ -45,7 +44,7 @@ async function observeUpstreamResponse(
   }
 }
 
-export interface StreamExecutionDependencies { database: D1Database; keyring: ChannelKeyring; fetch?: UpstreamFetch; now?: () => number }
+export interface StreamExecutionDependencies { database: D1Database; fetch?: UpstreamFetch; now?: () => number }
 export interface StreamExecutionAdapters<Input, Output> { request: RequestAdapter<Input, Output>; stream: StreamAdapter<SseFrame, SseFrame> }
 export interface StreamCompletion {
   requestId: string; terminal: TerminalState; usage: UsageSnapshot; usageUpdateCount: number;
@@ -267,15 +266,15 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
     const ids = createResponseIds({ seed: record.id });
     if (!ids.ok) throw new Error('Invalid internal response ID');
     const created = adapters.stream.create({ identity: ids.value.identity, idFor: ids.value.idFor, targetModel: record.public_model_id,
-      createdAt: Math.floor(record.created_at / 1000) }, { unknownEventPolicy: 'reject', maxBufferedBytes: maxAdapterBytes });
+      createdAt: Math.floor(record.created_at / 1000) }, { unknownEventPolicy: record.downstream_protocol === record.upstream_protocol ? 'preserve' : 'reject', maxBufferedBytes: maxAdapterBytes });
     if (!created.ok) throw new Error('Invalid stream adapter');
     session = created.value;
-    const channel = await Promise.race([readChannelForForwarding(database, record.channel_id, dependencies.keyring), interrupted]);
+    const channel = await Promise.race([readChannelForForwarding(database, record.channel_id), interrupted]);
     if (!channel || channel.status !== 'active' || channel.configVersion !== admission.selected.candidate.channel.configVersion ||
         channel.baseUrl !== admission.selected.candidate.channel.baseUrl) throw new Error('Channel changed');
     const boundedInput = { ...admission.requestForAdapter.request, stream: true };
     const converted = adapters.request.convert(boundedInput as Input, { targetModel: record.upstream_model });
-    if (!converted.ok) { startupFailure = 'invalid_request'; throw new Error('Request conversion rejected.'); }
+    if (!converted.ok) { startupFailure = 'invalid_request'; throw new Error(converted.error.message, { cause: converted.error }); }
     try {
       exchange = await sendUpstream({ ...options.transport, baseUrl: channel.baseUrl, upstreamProtocol: record.upstream_protocol,
         upstreamKey: channel.upstreamKey, stream: true, body: JSON.stringify(converted.value), signal: lifecycle.signal },

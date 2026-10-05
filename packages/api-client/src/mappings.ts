@@ -1,9 +1,4 @@
-import {
-  decodeMapping,
-  decodeMappings,
-  modelMappingInputSchema,
-  modelMappingPatchSchema,
-} from '@cheapai/contracts/mappings';
+import { decodeMapping, decodeMappings } from '@cheapai/contracts/mappings';
 import type {
   ChannelCapabilities,
   ModelMappingInput,
@@ -18,7 +13,6 @@ import type { ApiClient, ApiReadOptions } from './types.js';
 export type {
   CapabilityFeature,
   ChannelCapabilities,
-  ExtensionScope,
   ModelMappingInput,
   ModelMappingList,
   ModelMappingPatch,
@@ -28,7 +22,6 @@ export type {
 } from '@cheapai/contracts/mappings';
 export {
   CAPABILITY_FEATURES,
-  EXTENSION_SCOPES,
   decodeCapabilities,
   decodeMapping,
   decodeMappings,
@@ -47,14 +40,6 @@ function capabilitiesBody(value: ChannelCapabilities) {
       ? {}
       : { reasoningEfforts: [...value.reasoningEfforts] }),
     ...(value.cacheTtls === undefined ? {} : { cacheTtls: [...value.cacheTtls] }),
-    ...(value.nativeExtensions === undefined
-      ? {}
-      : {
-          nativeExtensions: value.nativeExtensions.map((extension) => ({
-            scope: extension.scope,
-            name: extension.name,
-          })),
-        }),
   };
 }
 
@@ -78,15 +63,14 @@ export function createMappingsApi(api: ApiClient) {
     publicModelId: string,
     input: ModelMappingInput,
   ): Promise<ModelMappingView> {
-    const value = modelMappingInputSchema.parse(input);
     return (
       await api.post(
         mappingPath(publicModelId),
         {
-          channelId: value.channelId,
-          protocol: value.protocol,
-          upstreamModel: value.upstreamModel,
-          capabilities: capabilitiesBody(value.capabilities),
+          channelId: input.channelId,
+          protocol: input.protocol,
+          upstreamModel: input.upstreamModel,
+          capabilities: capabilitiesBody(input.capabilities),
         },
         { decode: decodeMapping },
       )
@@ -100,22 +84,15 @@ export function createMappingsApi(api: ApiClient) {
     configVersion: number,
     input: ModelMappingPatch,
   ): Promise<ModelMappingView> {
-    const patch = modelMappingPatchSchema.parse(input);
-    if (!Number.isSafeInteger(configVersion) || configVersion < 1) {
-      throw new TypeError('Invalid administrator model mapping version.');
-    }
-    if (patch.capabilities !== undefined && patch.capabilities.protocol !== protocol) {
-      throw new TypeError('Model mapping capability protocol must match the mapping protocol.');
-    }
     return (
       await api.patch(
         `${mappingPath(publicModelId)}/${encodeURIComponent(channelId)}/${protocol}`,
         {
           version: configVersion,
-          ...(patch.upstreamModel === undefined ? {} : { upstreamModel: patch.upstreamModel }),
-          ...(patch.capabilities === undefined
+          ...(input.upstreamModel === undefined ? {} : { upstreamModel: input.upstreamModel }),
+          ...(input.capabilities === undefined
             ? {}
-            : { capabilities: capabilitiesBody(patch.capabilities) }),
+            : { capabilities: capabilitiesBody(input.capabilities) }),
         },
         { decode: decodeMapping },
       )

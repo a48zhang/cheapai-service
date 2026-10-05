@@ -81,45 +81,41 @@ export function createKeyRoutes<B extends Bindings = Bindings>(dependencies: Key
     return authenticate(context, next);
   });
   app.get('/api/v1/account/key-groups', async context => {
-    if (new URL(context.req.url).search) throw new ApiError('invalid_request');
     return apiSuccess({ items: await listAvailableKeyGroups(context.env.DB, context.get('user').id) }, context.get('requestId'));
   });
   app.get(PLATFORM_KEYS_PATH, async context => {
     const query = new URL(context.req.url).searchParams;
-    for (const key of query.keys()) if (!['limit', 'cursor', 'state'].includes(key) || query.getAll(key).length !== 1) throw new ApiError('invalid_request');
     const rawLimit = query.get('limit');
     if (rawLimit !== null && !/^[1-9]\d{0,2}$/.test(rawLimit)) throw new ApiError('invalid_request');
     const state = query.get('state') ?? 'all';
-    if (!['all', 'active', 'expired', 'revoked'].includes(state)) throw new ApiError('invalid_request');
     const page = await listPlatformKeys(context.env.DB, context.get('user').id, {
       limit: rawLimit === null ? 20 : Number(rawLimit), state: state as PlatformKeyListState, cursor: query.get('cursor'),
     }, context.get('keyNow'));
     return apiSuccess(page, context.get('requestId'));
   });
   app.get(`${PLATFORM_KEYS_PATH}/:id`, async context => {
-    if (new URL(context.req.url).search) throw new ApiError('invalid_request');
     const key = await findPlatformKeyById(context.env.DB, context.get('user').id, context.req.param('id'), context.get('keyNow'));
     if (!key) throw new ApiError('not_found');
     return apiSuccess(key, context.get('requestId'));
   });
   app.post(PLATFORM_KEYS_PATH, async context => {
     await protectWrite(dependencies, context.env, context.req.raw);
-    if (new URL(context.req.url).search) throw new ApiError('invalid_request');
     const operationId = context.req.header('Idempotency-Key');
-    if (typeof operationId !== 'string' || !operationId.length || operationId.length > 128 || /[^A-Za-z0-9_.:-]/u.test(operationId)) throw new ApiError('invalid_request');
     const body = await readBody(context.req.raw);
-    if (Object.keys(body).some(field => !['name', 'expiresAt', 'allowedModels', 'groupId'].includes(field))) throw new ApiError('invalid_request');
     const result = await createPlatformKey(context.env.DB, context.get('user').id,
-      { ...body, operationId } as CreatePlatformKeyInput, context.get('keyNow'));
+      { name: body.name, expiresAt: body.expiresAt, allowedModels: body.allowedModels, groupId: body.groupId, operationId } as CreatePlatformKeyInput, context.get('keyNow'));
     return apiSuccess(result, context.get('requestId'), result.kind === 'created' ? 201 : 200);
   });
   app.patch(`${PLATFORM_KEYS_PATH}/:id`, async context => {
     await protectWrite(dependencies, context.env, context.req.raw);
-    if (new URL(context.req.url).search) throw new ApiError('invalid_request');
     const body = await readBody(context.req.raw);
-    if (Object.keys(body).some(field => !['version', 'name', 'expiresAt', 'allowedModels', 'groupId'].includes(field))
-      || typeof body.version !== 'number' || !Number.isSafeInteger(body.version) || body.version < 1) throw new ApiError('invalid_request');
-    const { version, ...patch } = body;
+    const version = body.version as number;
+    const patch = {
+      ...(Object.hasOwn(body, 'name') ? { name: body.name } : {}),
+      ...(Object.hasOwn(body, 'expiresAt') ? { expiresAt: body.expiresAt } : {}),
+      ...(Object.hasOwn(body, 'allowedModels') ? { allowedModels: body.allowedModels } : {}),
+      ...(Object.hasOwn(body, 'groupId') ? { groupId: body.groupId } : {}),
+    };
     const result = await updatePlatformKey(context.env.DB, context.get('user').id, context.req.param('id'), version,
       patch as PlatformKeyPatch, context.get('keyNow'));
     // Uniform zero-row response: no foreign-Key existence or permission oracle.
@@ -128,12 +124,9 @@ export function createKeyRoutes<B extends Bindings = Bindings>(dependencies: Key
   });
   app.post(`${PLATFORM_KEYS_PATH}/:id/revoke`, async context => {
     await protectWrite(dependencies, context.env, context.req.raw);
-    if (new URL(context.req.url).search) throw new ApiError('invalid_request');
     const body = await readBody(context.req.raw);
-    if (Object.keys(body).length !== 1 || typeof body.version !== 'number'
-      || !Number.isSafeInteger(body.version) || body.version < 1) throw new ApiError('invalid_request');
     const result = await revokePlatformKey(context.env.DB, context.get('user').id,
-      context.req.param('id'), body.version, context.get('keyNow'));
+      context.req.param('id'), body.version as number, context.get('keyNow'));
     if (result.kind === 'not_revoked') throw new ApiError('conflict');
     return apiSuccess(result, context.get('requestId'));
   });

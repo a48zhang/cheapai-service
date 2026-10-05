@@ -59,16 +59,8 @@ export function chatToResponsesRequest(input: unknown, context: RequestContext, 
     // dropping this upstream-only field never authorizes dropping billable usage.
   }
   const outputLimit = request.max_completion_tokens ?? request.max_tokens;
-  const hasImages = request.messages.some(message => typeof message.content !== "string" && message.content != null && message.content.some(part => part.type === "image_url"));
-  const hasRefusal = request.messages.some(message => message.role === "assistant" && (message.refusal != null
-    || (typeof message.content !== "string" && message.content != null && message.content.some(part => part.type === "refusal"))));
-  if (hasImages || outputLimit != null || request.temperature != null || request.top_p != null
-    || hasRefusal || request.stream_options?.include_usage === true || request.reasoning_effort != null
-    || (request.response_format !== undefined && request.response_format.type !== "text")) {
-    if (!options.channelCapabilities || options.channelCapabilities.protocol !== "responses") return unsupported("channelCapabilities");
-    const check = checkRequestCapabilities({ protocol: "chat", request }, options.channelCapabilities);
-    if (!check.supported) return unsupported(check.reasons[0]?.path ?? "messages");
-  }
+  const checked = checkRequestCapabilities({ protocol: 'chat', request }, options.channelCapabilities ?? { protocol: 'responses', features: [] });
+  if (!checked.supported) return unsupported(checked.reasons[0]?.path ?? '$');
   for (const key of Object.keys(request)) if (!["model", "messages", "stream", "tools", "tool_choice", "parallel_tool_calls",
     "max_tokens", "max_completion_tokens", "temperature", "top_p", "stop", "n", "response_format", "reasoning_effort", "stream_options"].includes(key)) return unsupported(`$.${key}`);
   let text: JsonObject | undefined;
@@ -222,11 +214,11 @@ export function createChatToResponsesRequestAdapter(channelCapabilities: Channel
 function validImageUrl(value: string): boolean {
   if (value.startsWith("data:")) {
     if (value.length > 8_388_608) return false;
-    const match = /^data:image\/(?:png|jpeg|gif|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
+    const match = /^data:image\/[A-Za-z0-9!#$&^_.+-]+;base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
     if (!match?.[1] || match[1].length % 4) return false;
     try { return btoa(atob(match[1])) === match[1]; } catch { return false; }
   }
   if (value.length > 8192 || /[\s\u0000-\u001f\u007f]/u.test(value)) return false;
-  try { const url = new URL(value); return url.protocol === "https:" && Boolean(url.hostname) && !url.username && !url.password && !url.hash; }
+  try { const url = new URL(value); return (url.protocol === "https:" || url.protocol === "http:") && Boolean(url.hostname) && !url.username && !url.password; }
   catch { return false; }
 }

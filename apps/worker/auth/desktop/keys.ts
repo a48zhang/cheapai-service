@@ -2,8 +2,6 @@ import { ApiError } from '../../http';
 import type { AuthenticatedDesktopSession } from './authenticate';
 import { verifyToken } from '../tokens';
 import { DESKTOP_KEY_MAX_TTL_MS } from './types';
-import { decryptDesktopKey, encryptDesktopKey } from './key-cipher';
-import type { DesktopKeyEncryptionKey, DesktopKeyring } from './key-cipher';
 import { commitDesktopSessionKeyCreation, DesktopKeyError, findDesktopSessionKeyState, prepareDesktopSessionKeyCreation } from './key-repository';
 import type { DesktopSessionKeyState } from './key-repository';
 
@@ -46,11 +44,11 @@ function validateSessionState(
     || state.authorized_default_group_id !== state.default_group_id) throw new DesktopKeyError('group_unavailable');
 
   if (state.current_key_id === null) {
-    if (state.current_key_ciphertext !== null || state.key_id !== null || state.key_generation !== 0) {
+    if (state.current_key !== null || state.key_id !== null || state.key_generation !== 0) {
       throw new DesktopKeyError('binding_unavailable');
     }
-  } else if (!validText(state.current_key_id) || typeof state.current_key_ciphertext !== 'string'
-    || state.current_key_ciphertext.length === 0 || state.key_id !== state.current_key_id || state.key_generation < 1) {
+  } else if (!validText(state.current_key_id) || typeof state.current_key !== 'string'
+    || state.current_key.length === 0 || state.key_id !== state.current_key_id || state.key_generation < 1) {
     throw new DesktopKeyError('binding_unavailable');
   }
   return state;
@@ -58,7 +56,6 @@ function validateSessionState(
 
 async function readCurrentKey(
   state: DesktopSessionKeyState,
-  keyring: DesktopKeyring,
 ): Promise<DesktopCurrentKey | null> {
   if (state.current_key_id === null) return null;
   if (state.key_user_id !== state.user_id || state.key_desktop_session_id !== state.id || state.key_kind !== 'api'
@@ -75,7 +72,7 @@ async function readCurrentKey(
   if (state.key_status !== 'active') throw new DesktopKeyError('binding_unavailable');
 
   try {
-    const key = await decryptDesktopKey(state.current_key_ciphertext!, state.id, state.current_key_id, keyring);
+    const key = state.current_key!;
     if (!await verifyToken('apiKey', key, state.key_hash)) throw new DesktopKeyError('binding_unavailable');
     return { keyId: state.current_key_id, key, expiresAt: state.key_expires_at };
   } catch (error) {
@@ -94,20 +91,17 @@ export async function getOrCreateCurrentKey(
   database: D1Database,
   session: DesktopKeySessionIdentity,
   now: number,
-  activeKey: DesktopKeyEncryptionKey,
-  keyring: DesktopKeyring,
 ): Promise<DesktopCurrentKey> {
   if (!time(now)) throw new ApiError('service_unavailable');
   try {
     const state = validateSessionState(await findDesktopSessionKeyState(database, session.id), session, now);
-    const current = await readCurrentKey(state, keyring);
+    const current = await readCurrentKey(state);
     if (current !== null && current.expiresAt > now) return current;
 
     const expiresAt = nextExpiry(now, state.expires_at);
     if (expiresAt <= now) throw new DesktopKeyError('session_expired');
     const creation = await prepareDesktopSessionKeyCreation(database, state, now, expiresAt);
-    const ciphertext = await encryptDesktopKey(creation.candidate.token, state.id, creation.candidate.id, activeKey);
-    const committed = await commitDesktopSessionKeyCreation(database, state, now, creation, ciphertext);
+    const committed = await commitDesktopSessionKeyCreation(database, state, now, creation);
     if (committed.kind === 'committed') {
       return { keyId: creation.candidate.id, key: creation.candidate.token, expiresAt };
     }
@@ -115,7 +109,7 @@ export async function getOrCreateCurrentKey(
     // A concurrent request may have won the same generation. Read its stored
     // binding and return that exact credential rather than issuing another.
     const winnerState = validateSessionState(await findDesktopSessionKeyState(database, state.id), session, now);
-    const winner = await readCurrentKey(winnerState, keyring);
+    const winner = await readCurrentKey(winnerState);
     if (winner !== null && winner.expiresAt > now) return winner;
     throw new DesktopKeyError('key_creation_unavailable');
   } catch (error) {

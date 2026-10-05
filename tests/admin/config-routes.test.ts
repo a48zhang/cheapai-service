@@ -1,8 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../apps/worker/app';
 import type { Env } from '../../apps/worker/env';
-import { readChannelKeyring, CHANNEL_KEYRING_LIMITS } from '../../apps/worker/channel-keyring';
-import { decryptChannelSecret } from '../../apps/worker/admin/channel-secrets';
 import { createCookieSession } from '../../apps/worker/auth/sessions';
 import { issueCsrfToken } from '../../apps/worker/auth/csrf';
 import { testEnv } from '../helpers/database';
@@ -11,8 +9,6 @@ const origin = 'https://console.example';
 const actor = 'c17-admin';
 const ordinary = 'c17-user';
 let env: Env;
-let encodedV1: string;
-let encodedV2: string;
 const cookies = new Map<string, string>();
 const channelInput = { name: 'C17 Channel', baseUrl: 'https://provider.example.invalid', upstreamKey: 'c17-local-upstream-secret', concurrencyLimit: 2, rpmLimit: 60 };
 const modelInput = { publicModelId: 'c17-model', sellPrices: { input: '1', output: '2' }, admissionMinBalanceUnits: '0', maxOutputTokens: 4096 };
@@ -33,10 +29,7 @@ async function data<T>(response: Response, status = 200): Promise<T> {
 async function channel() { return data<{ id: string; configVersion: number }>(await call('/api/v1/admin/channels', { method: 'POST', body: channelInput }), 201); }
 beforeEach(async () => {
   cookies.clear();
-  encodedV1 = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))));
-  encodedV2 = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))));
-  env = { ...testEnv, ENVIRONMENT: 'local', PUBLIC_BASE_URL: origin, EMAIL_VERIFICATION_READY: false,
-    CHANNEL_KEYRING_JSON: JSON.stringify({ v1: encodedV1, v2: encodedV2 }), CHANNEL_ACTIVE_KEY_VERSION: 'v1' };
+  env = { ...testEnv, ENVIRONMENT: 'local', PUBLIC_BASE_URL: origin, EMAIL_VERIFICATION_READY: false };
   const now = Date.now();
   for (const [id, role] of [[actor, 'admin'], [ordinary, 'user']] as const) {
     await testEnv.DB.prepare(`INSERT INTO users(id,email_normalized,password_hash,role,status,group_id,concurrency_limit,rpm_limit,created_via,created_at,updated_at)
@@ -65,64 +58,20 @@ describe('configuration CRUD through the real app entry', () => {
     await data(await call(`/api/v1/admin/channels/${createdChannel.id}`, { method: 'PATCH', body: { version: 1, status: 'disabled' } }));
     for (const path of ['/api/v1/admin/channels', '/api/v1/admin/groups', '/api/v1/admin/models', mappingPath]) {
       const output = JSON.stringify(await data(await call(path)));
-      expect(output).not.toContain(channelInput.upstreamKey); expect(output).not.toContain(encodedV1);
-      expect(output).not.toMatch(/secret_ciphertext|secret_key_version|ciphertext|nonce/);
+      expect(output).not.toContain(channelInput.upstreamKey);
+      expect(output).not.toMatch(/upstream_key/);
     }
     const audits = (await testEnv.DB.prepare('SELECT action,redacted_change_json FROM admin_audit WHERE actor_id=?').bind(actor).all()).results;
     expect(audits.map(item => item.action)).toEqual(expect.arrayContaining(['channel.create', 'channel.update', 'group.create', 'group.update', 'model.create', 'model.update']));
-    expect(JSON.stringify(audits)).not.toContain(channelInput.upstreamKey); expect(JSON.stringify(audits)).not.toContain(encodedV1);
+    expect(JSON.stringify(audits)).not.toContain(channelInput.upstreamKey);
     expect(await testEnv.DB.prepare('SELECT config_version FROM channel_models WHERE channel_id=?').bind(createdChannel.id).first()).toEqual({ config_version: 2 });
   });
 
-  it('uses the active encryption version and retains old-version decryption across rotation', async () => {
+  it('creates and replaces stored credentials without an encryption configuration', async () => {
     const created = await channel();
-    const old = await testEnv.DB.prepare('SELECT secret_ciphertext,secret_key_version FROM channels WHERE id=?').bind(created.id).first<{ secret_ciphertext: string; secret_key_version: string }>();
-    expect(old!.secret_key_version).toBe('v1');
-    env.CHANNEL_ACTIVE_KEY_VERSION = 'v2';
-    const keyring = readChannelKeyring(env);
-    expect(keyring.active.keyVersion).toBe('v2'); expect(keyring.keyring.size).toBe(2);
-    expect(await decryptChannelSecret(old!.secret_ciphertext, created.id, keyring.keyring)).toBe(channelInput.upstreamKey);
+    expect(await testEnv.DB.prepare('SELECT upstream_key FROM channels WHERE id=?').bind(created.id).first('upstream_key')).toBe(channelInput.upstreamKey);
     await data(await call(`/api/v1/admin/channels/${created.id}`, { method: 'PATCH', body: { version: 1, upstreamKey: 'c17-new-local-secret' } }));
-    const rotated = await testEnv.DB.prepare('SELECT secret_ciphertext,secret_key_version FROM channels WHERE id=?').bind(created.id).first<{ secret_ciphertext: string; secret_key_version: string }>();
-    expect(rotated!.secret_key_version).toBe('v2');
-    expect(await decryptChannelSecret(rotated!.secret_ciphertext, created.id, keyring.keyring)).toBe('c17-new-local-secret');
-  });
-
-  it('never reads encryption Secrets for GET, anonymous/ordinary writes, or metadata-only channel updates', async () => {
-    const created = await channel();
-    const getter = vi.fn(() => { throw new Error('PRIVATE KEYRING'); });
-    const lazyEnv = { ...env };
-    Object.defineProperty(lazyEnv, 'CHANNEL_KEYRING_JSON', { enumerable: true, get: getter });
-    Object.defineProperty(lazyEnv, 'CHANNEL_ACTIVE_KEY_VERSION', { enumerable: true, get: getter });
-    delete lazyEnv.PUBLIC_BASE_URL;
-    for (const path of ['/api/v1/admin/channels', '/api/v1/admin/groups', '/api/v1/admin/models', '/api/v1/admin/models/c17-model/mappings']) {
-      await data(await call(path, { bindings: lazyEnv }));
-      expect((await call(path, { method: 'POST', body: {}, actor: 'missing', bindings: lazyEnv })).status).toBe(401);
-      expect((await call(path, { method: 'POST', body: {}, actor: ordinary, bindings: lazyEnv })).status).toBe(403);
-    }
-    expect(getter).not.toHaveBeenCalled();
-    lazyEnv.PUBLIC_BASE_URL = origin;
-    await data(await call(`/api/v1/admin/channels/${created.id}`, { method: 'PATCH', body: { version: 1, name: 'Metadata only' }, bindings: lazyEnv }));
-    expect(getter).not.toHaveBeenCalled();
-    const rejected = await call('/api/v1/admin/channels', { method: 'POST', body: channelInput, bindings: lazyEnv });
-    expect(rejected.status).toBe(503); expect(await rejected.text()).not.toContain('PRIVATE');
-  });
-
-  it('rejects malformed/oversized keyrings and missing active versions without echoing Secret data', async () => {
-    const cases: Partial<Env>[] = [
-      { CHANNEL_KEYRING_JSON: 'PRIVATE invalid JSON' }, { CHANNEL_KEYRING_JSON: '[]' }, { CHANNEL_KEYRING_JSON: '{}' },
-      { CHANNEL_KEYRING_JSON: JSON.stringify({ v1: btoa('a'.repeat(31)) }) },
-      { CHANNEL_KEYRING_JSON: JSON.stringify({ v1: encodedV1 + '\n' }) },
-      { CHANNEL_KEYRING_JSON: JSON.stringify({ 'bad version': encodedV1 }) },
-      { CHANNEL_ACTIVE_KEY_VERSION: 'missing' }, { CHANNEL_ACTIVE_KEY_VERSION: 'v1\n' },
-      { CHANNEL_KEYRING_JSON: ' '.repeat(CHANNEL_KEYRING_LIMITS.bytes + 1) },
-      { CHANNEL_KEYRING_JSON: JSON.stringify(Object.fromEntries(Array.from({ length: CHANNEL_KEYRING_LIMITS.entries + 1 }, (_, index) => [`v${index}`, encodedV1]))) },
-    ];
-    for (const patch of cases) {
-      const response = await call('/api/v1/admin/channels', { method: 'POST', body: channelInput, bindings: { ...env, ...patch } });
-      expect(response.status).toBe(503); const text = await response.text(); expect(text).not.toContain('PRIVATE'); expect(text).not.toContain(encodedV1);
-    }
-    expect((await testEnv.DB.prepare('SELECT id FROM channels').all()).results).toEqual([]);
+    expect(await testEnv.DB.prepare('SELECT upstream_key FROM channels WHERE id=?').bind(created.id).first('upstream_key')).toBe('c17-new-local-secret');
   });
 
   it('enforces cross-role/Origin/CSRF protection and preserves unknown-path JSON404', async () => {

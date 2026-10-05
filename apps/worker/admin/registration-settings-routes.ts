@@ -58,7 +58,7 @@ export async function readAdminRegistrationSettings(database: D1Database, emailA
     const stored = value as Record<string, unknown>;
     if (stored.registrationMode === 'closed' || stored.registrationMode === 'open' || stored.registrationMode === 'invite') result.registrationMode = stored.registrationMode;
     if (typeof stored.emailVerificationEnabled === 'boolean') result.emailVerificationEnabled = stored.emailVerificationEnabled;
-    if (Object.keys(stored).length !== 2 || result.registrationMode === null || result.emailVerificationEnabled === null
+    if (result.registrationMode === null || result.emailVerificationEnabled === null
         || result.version === null || result.updatedAt === null) throw new Error();
     parseRuntimeConfig(stored, { emailAvailable: true });
     result.valid = true;
@@ -95,10 +95,13 @@ async function readPatch(request: Request): Promise<{ version: number; patch: Pa
   } finally { reader.releaseLock(); }
   if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new ApiError('invalid_request');
   const body = value as Record<string, unknown>;
-  if (Object.keys(body).some((key) => !['version', 'registrationMode', 'emailVerificationEnabled'].includes(key))
-      || typeof body.version !== 'number' || !Number.isSafeInteger(body.version) || body.version < 1
+  if (typeof body.version !== 'number' || !Number.isSafeInteger(body.version) || body.version < 1
       || (!Object.hasOwn(body, 'registrationMode') && !Object.hasOwn(body, 'emailVerificationEnabled'))) throw new ApiError('invalid_request');
-  const { version, ...patch } = body;
+  const version = body.version;
+  const patch = {
+    ...(Object.hasOwn(body, 'registrationMode') ? { registrationMode: body.registrationMode } : {}),
+    ...(Object.hasOwn(body, 'emailVerificationEnabled') ? { emailVerificationEnabled: body.emailVerificationEnabled } : {}),
+  };
   return { version, patch: patch as Partial<RegistrationSettings> }; // A09 validates both policy fields.
 }
 

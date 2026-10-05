@@ -28,22 +28,8 @@ export function messagesToResponsesRequest(input: unknown, context: RequestConte
   };
   const request = parsed.value;
   const outputLimit = request.max_tokens;
-  const hasImages = request.messages.some(message => typeof message.content !== 'string' && message.content.some(block => block.type === 'image'
-    || (block.type === 'tool_result' && block.content !== undefined && typeof block.content !== 'string' && block.content.some(part => part.type === 'image'))));
-  const hasSampling = request.temperature !== undefined || request.top_p !== undefined;
-  const hasStreaming = request.stream !== undefined;
-  const hasStop = request.stop_sequences !== undefined;
-  const hasOutputConfig = request.output_config !== undefined
-    && (request.output_config.effort !== undefined && request.output_config.effort !== null
-      || request.output_config.format !== undefined && request.output_config.format !== null);
-  const hasAdvanced = hasImages || hasSampling || hasStreaming || hasStop || hasOutputConfig
-    || request.top_k !== undefined || request.thinking !== undefined;
-  if (hasAdvanced && !options.channelCapabilities) return unsupported('channelCapabilities');
-  if (options.channelCapabilities) {
-    if (options.channelCapabilities.protocol !== 'responses') return unsupported('channelCapabilities', 'invalid_channel_capabilities');
-    const checked = checkRequestCapabilities({ protocol: 'messages', request }, options.channelCapabilities);
-    if (!checked.supported) return unsupported(checked.reasons[0]?.path ?? 'messages', checked.reasons[0]?.code ?? 'missing_capability');
-  }
+  const checked = checkRequestCapabilities({ protocol: 'messages', request }, options.channelCapabilities ?? { protocol: 'responses', features: [] });
+  if (!checked.supported) return unsupported(checked.reasons[0]?.path ?? '$');
   for (const field of Object.keys(request)) if (!['model', 'max_tokens', 'system', 'messages', 'tools', 'tool_choice',
     'stream', 'temperature', 'top_p', 'output_config'].includes(field)) return unsupported(field);
   if (request.thinking !== undefined) return unsupported('thinking', 'unrepresentable_thinking');
@@ -210,7 +196,7 @@ function imageUrl(block: MessagesImageBlock, path: string): ConversionResult<str
     return { ok: true, value: `data:${source.media_type};base64,${source.data}` };
   }
   if (source.url.length > 8192 || /[\s\u0000-\u001f\u007f]/u.test(source.url)) return unsupported(`${path}.source.url`);
-  try { const url = new URL(source.url); if (url.protocol !== 'https:' || !url.hostname || url.username || url.password || url.hash) return unsupported(`${path}.source.url`); }
+  try { const url = new URL(source.url); if ((url.protocol !== 'https:' && url.protocol !== 'http:') || !url.hostname || url.username || url.password) return unsupported(`${path}.source.url`); }
   catch { return unsupported(`${path}.source.url`); }
   return { ok: true, value: source.url };
 }

@@ -4,7 +4,7 @@ import type { ObservationDetails, RequestObservation } from '../../apps/worker/g
 
 const identity = () => ({ id: crypto.randomUUID(), public_model_id: 'vendor/model', channel_id: 'channel-1', downstream_protocol: 'chat' as const, upstream_protocol: 'messages' as const });
 
-describe('bounded redacted request telemetry', () => {
+describe('request telemetry', () => {
   it('correlates stages by one internal request UUID and measures durations', () => {
     let now = 1000; const records: RequestObservation[] = []; const request = identity();
     const observer = createRequestObserver(request, { sink: record => records.push(record), now: () => now });
@@ -44,20 +44,13 @@ describe('bounded redacted request telemetry', () => {
     expect(records[1]).toMatchObject({ cost_units: '0', balance_units: '9007199254740991' });
   });
 
-  it('drops malformed money and credential-shaped IDs', () => {
+  it('reports malformed money while retaining upstream identifiers', () => {
     const records: RequestObservation[] = [];
     createRequestObserver({ ...identity(), public_model_id: 'sk-credential' }, { sink: record => records.push(record), now: () => 1000 })
       .finish({ costUnits: 'NaN', balanceUnits: '1e20', upstreamRequestId: 's2a_key_secret' });
     expect(records[1]).not.toHaveProperty('cost_units'); expect(records[1]).not.toHaveProperty('balance_units');
-    expect(records[1]).not.toHaveProperty('upstream_request_id'); expect(records[1]).not.toHaveProperty('public_model_id');
-    expect(JSON.stringify(records)).not.toMatch(/credential|s2a_key|NaN|1e20/);
-  });
-
-  it('does not invoke getters/toJSON while sanitizing observation details', () => {
-    const getter = vi.fn(() => { throw new Error('secret getter'); }); const records: RequestObservation[] = [];
-    const details = Object.defineProperty({ toJSON: getter }, 'usage', { get: getter, enumerable: true });
-    createRequestObserver(identity(), { sink: record => records.push(record), now: () => 1000 }).finish(details as ObservationDetails);
-    expect(getter).not.toHaveBeenCalled(); expect(records).toHaveLength(2);
+    expect(records[1]).toMatchObject({ upstream_request_id: 's2a_key_secret', public_model_id: 'sk-credential' });
+    expect(records[1]?.anomalies).toEqual(expect.arrayContaining(['invalid_cost', 'invalid_balance']));
   });
 
   it('ignores duplicate stages and stops all emissions after completion', () => {

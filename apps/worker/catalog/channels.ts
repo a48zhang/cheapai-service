@@ -1,9 +1,5 @@
 import { prepare } from '../db';
 import { ApiError } from '../http';
-import { decryptChannelSecret } from './channel-secrets';
-import type { ChannelKeyring } from './channel-secrets';
-
-export interface ChannelEncryptionKey { keyVersion: string; key: Uint8Array }
 
 export interface ChannelView {
   id: string; name: string; baseUrl: string; status: 'active' | 'disabled';
@@ -15,7 +11,7 @@ interface ChannelRow {
   id: string; name: string; base_url: string; status: 'active' | 'disabled'; priority: number;
   concurrency_limit: number; rpm_limit: number; config_version: number; created_at: number; updated_at: number; has_credential: number; models_json: string;
 }
-const projection = `id,name,base_url,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at,1 AS has_credential,
+const projection = `id,name,base_url,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at,CASE WHEN upstream_key IS NOT NULL AND length(upstream_key)>0 THEN 1 ELSE 0 END AS has_credential,
   (SELECT json_group_array(json_object('publicModelId',cm.public_model_id,'upstreamModel',cm.upstream_model,'protocol',cm.protocol,'mappingVersion',cm.config_version,'priceVersion',m.price_version))
     FROM channel_models cm JOIN models m ON m.public_model_id=cm.public_model_id WHERE cm.channel_id=channels.id) AS models_json`;
 function text(value: unknown, max: number): string {
@@ -41,12 +37,12 @@ export async function getChannelById(database: D1Database, id: string): Promise<
 /** Forwarding-only secret access. Never expose this result through admin routes.
  * Current authorization/admission and active-state checks remain gateway duties.
  */
-export async function readChannelForForwarding(database: D1Database, id: string, keyring: ChannelKeyring): Promise<{ id: string; baseUrl: string; upstreamKey: string; configVersion: number; status: 'active' | 'disabled' } | null> {
-  const row = await prepare<{ id: string; base_url: string; secret_ciphertext: string; config_version: number; status: 'active' | 'disabled' }>(database,
-    'SELECT id,base_url,secret_ciphertext,config_version,status FROM channels WHERE id=?', [idValue(id)]).first();
+export async function readChannelForForwarding(database: D1Database, id: string): Promise<{ id: string; baseUrl: string; upstreamKey: string; configVersion: number; status: 'active' | 'disabled' } | null> {
+  const row = await prepare<{ id: string; base_url: string; upstream_key: string | null; config_version: number; status: 'active' | 'disabled' }>(database,
+    'SELECT id,base_url,upstream_key,config_version,status FROM channels WHERE id=?', [idValue(id)]).first();
   if (!row) return null;
-  try { return { id: row.id, baseUrl: row.base_url, upstreamKey: await decryptChannelSecret(row.secret_ciphertext, row.id, keyring), configVersion: row.config_version, status: row.status }; }
-  catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
+  if (!row.upstream_key) throw new ApiError('service_unavailable', { cause: new Error('Channel upstream key is missing; re-enter the key in channel settings.') });
+  return { id: row.id, baseUrl: row.base_url, upstreamKey: row.upstream_key, configVersion: row.config_version, status: row.status };
 }
 
 export type { ChannelRow };

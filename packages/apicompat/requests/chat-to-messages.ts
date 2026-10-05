@@ -71,21 +71,9 @@ export function createChatToMessagesRequestAdapter(options: ChatToMessagesReques
       }
       const outputLimit = request.max_completion_tokens ?? request.max_tokens ?? maxTokens;
       if (outputLimit == null) return unsupported('max_tokens', 'output_limit_required');
-      const hasCache = request.cache_control != null || request.tools?.some(tool => tool.cache_control != null)
-        || request.messages.some(message => typeof message.content !== 'string' && message.content != null && message.content.some(part => part.cache_control != null));
-      const hasStrictTools = request.tools?.some(tool => tool.function.strict === true);
-      const hasImages = request.messages.some(message => typeof message.content !== 'string'
-        && message.content != null && message.content.some(part => part.type === 'image_url'));
-      if (hasImages || request.max_tokens != null || request.max_completion_tokens != null || request.temperature != null || request.top_p != null || request.stop != null || request.stream === true
-        || hasCache || hasStrictTools || request.reasoning_effort != null || (request.response_format !== undefined && request.response_format.type !== 'text')) {
-        if (!channel) return unsupported('channelCapabilities', hasImages ? 'image_capabilities_required' : 'channel_capabilities_required');
-        /* include_usage is intentionally absent from this capability probe:
-         * it is consumed by the downstream Chat presentation wrapper and is
-         * never sent to a Messages upstream. */
-        const { stream_options: _streamOptions, ...capabilityRequest } = request;
-        const checked = checkRequestCapabilities({ protocol: 'chat', request: { ...capabilityRequest, ...(request.max_completion_tokens == null && request.max_tokens == null ? { max_completion_tokens: outputLimit } : {}) } }, channel);
-        if (!checked.supported) return unsupported(checked.reasons[0]?.path ?? 'messages', checked.reasons[0]?.code ?? 'image_capability_rejected');
-      }
+      const { stream_options: _streamOptions, ...capabilityRequest } = request;
+      const checked = checkRequestCapabilities({ protocol: 'chat', request: { ...capabilityRequest, max_completion_tokens: outputLimit } }, channel ?? { protocol: 'messages', features: [] });
+      if (!checked.supported) return unsupported(checked.reasons[0]?.path ?? 'messages', checked.reasons[0]?.code);
       for (const key of Object.keys(request)) if (!['model', 'messages', 'tools', 'tool_choice', 'parallel_tool_calls',
         'max_tokens', 'max_completion_tokens', 'temperature', 'top_p', 'stop', 'stream', 'stream_options', 'n', 'response_format', 'reasoning_effort', 'cache_control'].includes(key)) return unsupported(key);
       const automaticCache = cacheMarker(request.cache_control, 'cache_control');
@@ -281,7 +269,7 @@ function convertImage(part: ChatImagePart, path: string): ConversionResult<Messa
   if (url.length > 8192 || /[\s\u0000-\u001f\u007f]/u.test(url)) return unsupported(`${path}.image_url.url`, 'invalid_image_url');
   try {
     const parsed = new URL(url);
-    if (parsed.protocol !== 'https:' || !parsed.hostname || parsed.username || parsed.password || parsed.hash) return unsupported(`${path}.image_url.url`, 'invalid_image_url');
+    if ((parsed.protocol !== 'https:' && parsed.protocol !== 'http:') || !parsed.hostname || parsed.username || parsed.password) return unsupported(`${path}.image_url.url`, 'invalid_image_url');
   } catch { return unsupported(`${path}.image_url.url`, 'invalid_image_url'); }
   return { ok: true, value: { type: 'image', source: { type: 'url', url }, ...cache } };
 }

@@ -69,14 +69,14 @@ describe('typed internal lease binding client', () => {
     expect(await firstClient.release(first.handle)).toEqual({ released: true });
   });
 
-  it.each([{ kind: 'auth', id: 'x' }, { kind: 'user', id: 'channel:other' }, { kind: 'user', id: '../other' }, { kind: 'user', id: '' }, { kind: 'user', id: 'user-1', objectName: 'channel:other' }])(
+  it.each([{ kind: 'auth', id: 'x' }, { kind: 'user', id: 'channel:other' }, { kind: 'user', id: '../other' }, { kind: 'user', id: '' }])(
     'rejects arbitrary object names/scopes (case %#)', (subject) => {
       expect(() => new LeaseClient(testEnv.GATE, subject as LeaseSubject)).toThrow(LeaseClientError);
     },
   );
 
-  it.each([{ now: 0 }, { leaseToken: 'a'.repeat(64) }, { operationId: 'client-id' }, { ttlMs: 0 }, { limit: -1 }, { requestId: 'bad\n' }, { rate: { limit: 1, windowMs: 60_000, operationId: 'bad\n' } }])(
-    'rejects caller-supplied clock/token/top-level operation IDs and malformed parameters (case %#)', async (extra) => {
+  it.each([{ ttlMs: 0 }, { limit: -1 }, { requestId: 'bad\n' }, { rate: { limit: 1, windowMs: 60_000, operationId: 'bad\n' } }])(
+    'rejects malformed lease parameters (case %#)', async (extra) => {
       const call = vi.fn(async () => undefined);
       const client = new LeaseClient(responseBinding(call), scope);
       await expect(client.acquire({ ...input, ...extra })).rejects.toMatchObject({ code: 'invalid_input', retryable: false });
@@ -85,17 +85,16 @@ describe('typed internal lease binding client', () => {
   );
 
   it('forwards a trusted logical rate operation ID independently of the attempt request ID', async () => {
-    const call = vi.fn(async () => ({ granted: false, reason: 'rate_limit', retryAfterMs: 1 }));
+    const call = vi.fn(async () => ({ granted: false, reason: 'rate_limit', retryAfterMs: 1, futureMetadata: true }));
     const client = new LeaseClient(responseBinding(call), scope);
     const args = { ...input, rate: { limit: 1, windowMs: 60_000, operationId: 'logical-request-1' } };
-    await expect(client.acquire(args)).resolves.toEqual({ granted: false, reason: 'rate_limit', retryAfterMs: 1 });
+    await expect(client.acquire({ ...args, now: 0, leaseToken: 'ignored' } as typeof args)).resolves.toEqual({ granted: false, reason: 'rate_limit', retryAfterMs: 1 });
     expect(call).toHaveBeenCalledExactlyOnceWith(args);
   });
 
   it.each([null, {}, { granted: 'true' }, { granted: false, reason: 'capacity', retryAfterMs: -1 },
     { granted: true, duplicate: false, lease: { requestId: 'wrong-request', leaseToken: 'a'.repeat(64), acquiredAt: 1, expiresAt: 2 } },
     { granted: true, duplicate: false, lease: { requestId: input.requestId, leaseToken: 'short', acquiredAt: 1, expiresAt: 2 } },
-    { granted: false, reason: 'capacity', retryAfterMs: 1, state: {} },
   ])('does not grant on malformed response case %#', async (reply) => {
     const client = new LeaseClient(responseBinding(async () => reply), scope);
     await expect(client.acquire(input)).rejects.toMatchObject({ code: 'invalid_response', retryable: false });

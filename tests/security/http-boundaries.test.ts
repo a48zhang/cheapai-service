@@ -4,7 +4,6 @@ import { app } from '../../apps/worker/app';
 import type { Env } from '../../apps/worker/env';
 import { createCookieSession } from '../../apps/worker/auth/sessions';
 import { issueCsrfToken } from '../../apps/worker/auth/csrf';
-import { encryptChannelSecret } from '../../apps/worker/admin/channel-secrets';
 import { generateToken, hashToken } from '../../apps/worker/auth/tokens';
 import { testEnv } from '../helpers/database';
 
@@ -57,12 +56,12 @@ beforeEach(async () => {
   ownerCookie = (await createCookieSession(testEnv.DB, owner, now)).setCookie.split(';')[0]!;
   ownerKeyId = 'q10-owner-key'; otherKeyId = 'q10-other-key';
   ownerKey = await addKey(ownerKeyId, owner); ownerSecondKey = await addKey('q10-owner-key-second', owner); otherKey = await addKey(otherKeyId, other);
-  const key = crypto.getRandomValues(new Uint8Array(32));
-  const encrypted = await encryptChannelSecret('q10-private-upstream-key', channel, 'v1', key);
+
+  const credential = 'q10-private-upstream-key';
   env = { ...testEnv, ENVIRONMENT: 'local', PUBLIC_BASE_URL: origin,
-    CHANNEL_KEYRING_JSON: JSON.stringify({ v1: btoa(String.fromCharCode(...key)) }), CHANNEL_ACTIVE_KEY_VERSION: 'v1' } as Env;
-  await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-    VALUES(?,?,?,?,'v1','active',1,2,60,1,0,0)`).bind(channel, 'Q10', 'https://provider-q10.example.invalid', encrypted).run();
+     } as Env;
+  await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+    VALUES(?,?,?,?,'active',1,2,60,1,0,0)`).bind(channel, 'Q10', 'https://provider-q10.example.invalid', credential).run();
   await testEnv.DB.prepare("INSERT INTO channel_groups(channel_id,group_id) VALUES('q10-channel','q10-group')").run();
   await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('q10-model','active','{"input":"1","output":"2"}',1,0,64,0,0)`).run();
   await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,upstream_model,protocol,capabilities_json,config_version)
@@ -93,8 +92,11 @@ describe('Q10 HTTP permission and security boundaries through the Worker', () =>
   it('keeps IDs and management scopes bound to the authenticated identity, with CSRF before writes', async () => {
     const foreignKey = await call(`/api/v1/keys/${otherKeyId}`, { headers: { Cookie: ownerCookie } });
     expect(foreignKey.response.status).toBe(404);
+    await testEnv.DB.prepare('UPDATE users SET balance_units=0 WHERE id=?').bind(other).run();
     const foreignBalance = await call(`/api/v1/account/balance?userId=${other}`, { headers: { Cookie: ownerCookie } });
-    expect(foreignBalance.response.status).toBe(400);
+    expect(foreignBalance.response.status).toBe(200);
+    const ownBalance = await call('/api/v1/account/balance', { headers: { Cookie: ownerCookie } });
+    expect(JSON.parse(foreignBalance.text).data).toEqual(JSON.parse(ownBalance.text).data);
     const forbiddenAdjustment = await call(`/api/v1/admin/users/${other}/balance-adjustments`, { method: 'POST', headers: writeHeaders(ownerCookie), body: JSON.stringify({ kind: 'grant', deltaUnits: '1', reason: 'must be denied' }) });
     expect(forbiddenAdjustment.response.status).toBe(403);
     expect(await testEnv.DB.prepare('SELECT COUNT(*) AS n FROM billing_entries').first('n')).toBe(0);
@@ -104,7 +106,7 @@ describe('Q10 HTTP permission and security boundaries through the Worker', () =>
     expect(missingCsrf.response.status).toBe(403); expect(await testEnv.DB.prepare("SELECT status,version FROM users WHERE id='q10-owner'").first()).toEqual(before);
   });
 
-  it('does not grant cross-origin browser access and rejects URL, Secret, and auth-header injection', async () => {
+  it('keeps Origin and credential boundaries while allowing administrator HTTP, private and query URLs', async () => {
     const evilPreflight = await call('/v1/chat/completions', { method: 'OPTIONS', headers: {
       Origin: 'https://evil.example', 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'Authorization',
     } });
@@ -120,13 +122,18 @@ describe('Q10 HTTP permission and security boundaries through the Worker', () =>
     expect(conflicting.response.status).toBe(400); expect(upstream).not.toHaveBeenCalled();
 
     const validChannel = { name: 'Q10 injected channel', baseUrl: 'https://provider-q10-new.example.invalid', upstreamKey: 'q10-new-secret', concurrencyLimit: 1, rpmLimit: 60, priority: 1, status: 'active' };
-    const badValues = ['https://user:pass@provider.example.invalid', 'https://127.0.0.1', 'https://provider.example.invalid/path?x=1'];
+    const badValues = ['https://user:pass@provider.example.invalid'];
     for (const baseUrl of badValues) {
       const result = await call('/api/v1/admin/channels', { method: 'POST', headers: writeHeaders(adminCookie), body: JSON.stringify({ ...validChannel, baseUrl }) });
       expect(result.response.status, baseUrl).toBe(400);
     }
+    for (const baseUrl of ['http://127.0.0.1:8080', 'https://provider.example.invalid/path?x=1']) {
+      const result = await call('/api/v1/admin/channels', { method: 'POST', headers: writeHeaders(adminCookie), body: JSON.stringify({ ...validChannel, baseUrl }) });
+      expect(result.response.status, baseUrl).toBe(201);
+      expect(result.text).not.toContain(validChannel.upstreamKey);
+    }
     const injectedSecret = await call('/api/v1/admin/channels', { method: 'POST', headers: writeHeaders(adminCookie), body: JSON.stringify({ ...validChannel, upstreamKey: 'q10-secret\r\nX-Injected: yes' }) });
     expect(injectedSecret.response.status).toBe(400);
-    expect(await testEnv.DB.prepare("SELECT COUNT(*) AS n FROM channels WHERE id='q10-injected'").first('n')).toBe(0);
+    expect(await testEnv.DB.prepare("SELECT COUNT(*) AS n FROM channels WHERE name='Q10 injected channel'").first('n')).toBe(2);
   });
 });

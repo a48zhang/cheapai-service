@@ -86,12 +86,4 @@ describe('Responses ingress wire structure', () => {
     expect(validateResponsesRequest(request, { unknownFields: 'preserve' })).toMatchObject({ ok: false, error: { kind: 'unsupported_feature' } });
   });
 
-  it('rejects non-JSON preserved data, cycles and excessive nesting without throwing', () => {
-    const cycle: Record<string, unknown> = {}; cycle.self = cycle;
-    let deep: unknown = 'leaf'; for (let i = 0; i < 70; i++) deep = { child: deep };
-    for (const extension of [undefined, Infinity, NaN, 1n, () => 1, new Date(), cycle, deep, [ , 'hole']]) {
-      expect(validateResponsesRequest({ model: 'm', input: 'x', extension }, { unknownFields: 'preserve' })).toMatchObject({ ok: false, error: { param: '$' } });
-    }
-  });
-
 });

@@ -3,14 +3,12 @@ import { createExecutionContext, waitOnExecutionContext } from 'cloudflare:test'
 import { app } from '../../apps/worker/app';
 import type { Env } from '../../apps/worker/env';
 import { generateToken, hashToken } from '../../apps/worker/auth/tokens';
-import { encryptChannelSecret } from '../../apps/worker/admin/channel-secrets';
 import { testEnv } from '../helpers/database';
 
 const origin = 'https://console.example';
 const protocols = ['chat', 'responses', 'messages'] as const;
 let env: Env;
 let token: string;
-let key: Uint8Array;
 const modelFor = (protocol: typeof protocols[number]) => `g19-${protocol}-model`;
 
 function request(path: string, init: RequestInit = {}): Request {
@@ -53,15 +51,15 @@ beforeEach(async () => {
   token = generateToken('apiKey');
   await testEnv.DB.prepare("INSERT INTO api_keys(id,user_id,key_hash,display_prefix,name,status,created_at,updated_at) VALUES('g19-key','g19-user',?,'s2a_key_ABCDEFGH','G19','active',0,0)")
     .bind(await hashToken('apiKey', token)).run();
-  key = crypto.getRandomValues(new Uint8Array(32));
+
   env = { ...testEnv, ENVIRONMENT: 'local', PUBLIC_BASE_URL: origin,
-    CHANNEL_KEYRING_JSON: JSON.stringify({ v1: btoa(String.fromCharCode(...key)) }), CHANNEL_ACTIVE_KEY_VERSION: 'v1' } as Env;
+     } as Env;
   for (const protocol of protocols) {
     await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES (?,'active','{"input":"1","output":"2"}', 1, 0, 64, 0, 0)`).bind(modelFor(protocol)).run();
     const channelId = `g19-${protocol}-channel`;
-    const encrypted = await encryptChannelSecret(`G19-${protocol}-UPSTREAM`, channelId, 'v1', key);
-    await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-      VALUES(?,?,?,?,'v1','active',1,2,60,1,0,0)`).bind(channelId, channelId, `https://provider-${protocol}.example`, encrypted).run();
+    const credential = `G19-${protocol}-UPSTREAM`;
+    await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+      VALUES(?,?,?,?,'active',1,2,60,1,0,0)`).bind(channelId, channelId, `https://provider-${protocol}.example`, credential).run();
     await testEnv.DB.prepare("INSERT INTO channel_groups(channel_id,group_id) VALUES(?, 'g19-group')").bind(channelId).run();
     const features = ['streaming', ...(protocol === 'chat' ? ['stream_usage'] : [])];
     await testEnv.DB.prepare('INSERT INTO channel_models(channel_id,public_model_id,upstream_model,protocol,capabilities_json,config_version) VALUES(?,?,?,?,?,1)')

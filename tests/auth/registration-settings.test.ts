@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { readDefaultGroupId, readRegistrationSettings, updateRegistrationSettings } from '../../apps/worker/auth/registration-settings';
 import type { RegistrationSettingsUpdate } from '../../apps/worker/auth/registration-settings';
 import { prepare } from '../../apps/worker/db';
@@ -25,8 +25,7 @@ describe('registration settings read policy', () => {
   });
 
   it('fails closed for missing or malformed policy shapes', async () => {
-    for (const json of ['null', '[]', '{}', '{"registrationMode":"open"}', '{"registrationMode":"open","emailVerificationEnabled":"false"}',
-      '{"registrationMode":"open","emailVerificationEnabled":false,"extra":true}']) {
+    for (const json of ['null', '[]', '{}', '{"registrationMode":"open"}', '{"registrationMode":"open","emailVerificationEnabled":"false"}']) {
       await prepare(testEnv.DB, 'UPDATE settings SET value_json=? WHERE key=?', [json, 'registration']).run();
       expect(await readRegistrationSettings(testEnv.DB, { emailAvailable: true })).toMatchObject({ registrationMode: 'closed', emailVerificationEnabled: true, valid: false });
     }
@@ -57,7 +56,7 @@ describe('registration settings read policy', () => {
 
 describe('registration settings atomic updates', () => {
   it('persists only the two policy fields with one matching O01 audit', async () => {
-    expect(await update()).toEqual({ registrationMode: 'invite', emailVerificationEnabled: false, version: 2, updatedAt: now, valid: true });
+    expect(await update({ patch: { registrationMode: 'invite', emailVerificationEnabled: false, extra: true } as RegistrationSettingsUpdate['patch'] })).toEqual({ registrationMode: 'invite', emailVerificationEnabled: false, version: 2, updatedAt: now, valid: true });
     const row = await prepare<{ value_json: string }>(testEnv.DB, 'SELECT value_json FROM settings WHERE key=?', ['registration']).first();
     expect(JSON.parse(row!.value_json)).toEqual({ registrationMode: 'invite', emailVerificationEnabled: false });
     const saved = (await audits()).rows;
@@ -104,14 +103,10 @@ describe('registration settings atomic updates', () => {
     expect((await audits()).rows).toEqual([]);
   });
 
-  it('rejects unknown fields, accessors and unsafe versions/times before changing state', async () => {
+  it('rejects empty or invalid policy patches and unsafe versions/times', async () => {
     for (const patch of [{}, { other: true }, { registrationMode: 'unknown' }, { emailVerificationEnabled: 'false' }]) {
       await expect(update({ patch: patch as RegistrationSettingsUpdate['patch'] })).rejects.toMatchObject({ code: 'invalid_request' });
     }
-    const getter = vi.fn(() => 'open');
-    const patch = Object.defineProperty({}, 'registrationMode', { get: getter });
-    await expect(update({ patch })).rejects.toMatchObject({ code: 'invalid_request' });
-    expect(getter).not.toHaveBeenCalled();
     for (const expectedVersion of [0, -1, 1.5, Number.MAX_SAFE_INTEGER]) await expect(update({ expectedVersion })).rejects.toMatchObject({ code: 'invalid_request' });
     await expect(update({ now: -1 })).rejects.toMatchObject({ code: 'invalid_request' });
     expect((await audits()).rows).toEqual([]);

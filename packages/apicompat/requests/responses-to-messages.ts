@@ -52,25 +52,8 @@ export function createResponsesToMessagesRequestAdapter(options: ResponsesToMess
       const outputLimit = request.max_output_tokens ?? maxTokens;
       if (outputLimit == null) return unsupported('max_tokens', 'output_limit_required');
       const format = request.text?.format;
-      const hasCache = request.cache_control != null || request.tools?.some(tool => tool.cache_control != null)
-        || (typeof request.input !== 'string' && request.input?.some(item => {
-          if (item.type === 'function_call_output') return typeof item.output !== 'string' && item.output.some(part => part.cache_control != null);
-          if (item.type === undefined || item.type === 'message') return typeof item.content !== 'string' && item.content.some(part => part.cache_control != null);
-          return false;
-        }));
-      const hasTools = Boolean(request.tools?.length || request.tool_choice !== undefined || request.parallel_tool_calls !== undefined
-        || (typeof request.input !== 'string' && request.input?.some(item => item.type === 'function_call' || item.type === 'function_call_output')));
-      const hasImages = typeof request.input !== 'string' && request.input?.some(item => {
-        if (item.type === 'function_call_output') return typeof item.output !== 'string' && item.output.some(part => part.type === 'input_image');
-        if (item.type === undefined || item.type === 'message') return typeof item.content !== 'string' && item.content.some(part => part.type === 'input_image');
-        return false;
-      });
-      if (hasTools || hasImages || request.max_output_tokens != null || request.temperature != null || request.top_p != null || request.stream === true
-        || hasCache || request.reasoning?.effort != null || (format !== undefined && (!objectSchema(format) || format.type !== 'text'))) {
-        if (!policy) return unsupported('channelCapabilities');
-        const checked = checkRequestCapabilities({ protocol: 'responses', request: { ...request, max_output_tokens: outputLimit } }, policy);
-        if (!checked.supported) return unsupported(checked.reasons[0]?.path ?? 'input');
-      }
+      const checked = checkRequestCapabilities({ protocol: 'responses', request: { ...request, max_output_tokens: outputLimit } }, policy ?? { protocol: 'messages', features: [] });
+      if (!checked.supported) return unsupported(checked.reasons[0]?.path ?? 'input');
       for (const field of Object.keys(request)) if (!['model', 'instructions', 'input', 'tools', 'tool_choice', 'parallel_tool_calls', 'max_output_tokens', 'temperature', 'top_p', 'stream', 'text', 'reasoning', 'cache_control'].includes(field)) return unsupported(field);
       const automatic = marker(request.cache_control, 'cache_control'); if (!automatic.ok) return automatic;
       let outputConfig: MessagesOutputConfig | undefined;
@@ -234,7 +217,7 @@ function imageBlock(input: ResponsesInputImage, path: string): ConversionResult<
     return { ok: true, value: { type: 'image', source: { type: 'base64', media_type: match[1] as 'image/png'|'image/jpeg'|'image/gif'|'image/webp', data: match[2] },...caching } };
   }
   if (value.length > 8192 || /[\s\u0000-\u001f\u007f]/u.test(value)) return unsupported(path);
-  try { const url = new URL(value); if (url.protocol !== 'https:' || !url.hostname || url.username || url.password || url.hash) return unsupported(path); }
+  try { const url = new URL(value); if ((url.protocol !== 'https:' && url.protocol !== 'http:') || !url.hostname || url.username || url.password) return unsupported(path); }
   catch { return unsupported(path); }
   return { ok: true, value: { type: 'image', source: { type: 'url', url: value },...caching } };
 }

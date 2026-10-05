@@ -38,11 +38,12 @@ describe('B07 authoritative self-service balance', () => {
     expect(await second.json()).toMatchObject({ data: { balance_units: '777' } });
   });
 
-  it('requires a live session and rejects identity query overrides, including for administrators', async () => {
+  it('requires a live session and ignores identity query overrides, including for administrators', async () => {
     expect((await routes().request(path, {}, testEnv)).status).toBe(401);
     await prepare(testEnv.DB, "UPDATE users SET role='admin' WHERE id=?", [owner]).run();
     const response = await routes().request(path + '?userId=b07-other', { headers: { Cookie: cookie } }, testEnv);
-    expect(response.status).toBe(400); expect(response.headers.get('Cache-Control')).toBe('no-store');
+    expect(response.status).toBe(200); expect(response.headers.get('Cache-Control')).toBe('no-store');
+    expect(await response.json()).toMatchObject({ data: { balance_units: '-123' } });
     await prepare(testEnv.DB, "UPDATE users SET status='disabled' WHERE id=?", [owner]).run();
     expect((await routes().request(path, { headers: { Cookie: cookie } }, testEnv)).status).toBe(401);
   });

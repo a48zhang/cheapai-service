@@ -68,10 +68,9 @@ function makeSession(context: ResponseContext, options: StreamOptions, budget: B
         const eventType = (raw as { type?: unknown }).type;
         if (typeof eventType !== 'string' || (frame.event !== undefined && frame.event !== eventType)) return fail('event_type_mismatch');
         if (!types.has(eventType)) {
-          // Unknown native events have no approved equivalent preserve contract.
-          return unknownPolicy === 'ignore' ? empty() : fail('unsupported_event');
+          return unknownPolicy === 'preserve' ? { events: [frame], usageUpdates: [] } : unknownPolicy === 'ignore' ? empty() : fail('unsupported_event');
         }
-        const parsed = parseMessagesStreamEvent(raw);
+        const parsed = parseMessagesStreamEvent(raw, { unknownFields: 'preserve', native: true });
         if (!parsed.ok) return fail('invalid_event');
         const event = parsed.value;
         if (event.type === 'error') return fail('upstream_error');
@@ -94,7 +93,7 @@ function makeSession(context: ResponseContext, options: StreamOptions, budget: B
           const expected = active.type === 'tool_use' ? ['input_json_delta']
             : active.type === 'thinking' ? ['thinking_delta', 'signature_delta']
             : active.type === 'text' ? ['text_delta', 'citations_delta'] : [];
-          if (!expected.includes(event.delta.type)) return fail('invalid_block_delta');
+          if (expected.length > 0 && !expected.includes(event.delta.type)) return fail('invalid_block_delta');
           if (event.delta.type === 'input_json_delta') {
             argumentsBuffer.appendText(event.delta.partial_json);
             hasArgumentDeltas ||= event.delta.partial_json.length > 0;

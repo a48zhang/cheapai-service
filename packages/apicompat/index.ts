@@ -69,16 +69,10 @@ export interface ProtocolRegistry {
   readonly directions: readonly Readonly<{ from: Protocol; to: Protocol }>[];
 }
 
-function nativeOptions(context: RegistryFactoryContext) {
-  return {
-    requestAllowedExtensions: context.capabilities.nativeExtensions?.filter(entry => entry.scope === 'request').map(entry => entry.name) ?? [],
-    responseAllowedExtensions: [...(context.nativeResponseExtensions ?? [])],
-  };
-}
 const nativeRegistrations: readonly AnyProtocolRegistration[] = [
-  { from: 'chat', to: 'chat', create(context) { const body = createChatPassthrough(nativeOptions(context)); return { ok: true, value: { request: body.request, response: body.response, stream: chatStreamAdapter } }; } },
-  { from: 'responses', to: 'responses', create(context) { const body = createResponsesPassthrough(nativeOptions(context)); return { ok: true, value: { request: body.request, response: body.response, stream: responsesStreamAdapter } }; } },
-  { from: 'messages', to: 'messages', create(context) { const body = createMessagesPassthrough(nativeOptions(context)); return { ok: true, value: { request: body.request, response: body.response, stream: messagesStreamAdapter } }; } },
+  { from: 'chat', to: 'chat', create() { const body = createChatPassthrough(); return { ok: true, value: { request: body.request, response: body.response, stream: chatStreamAdapter } }; } },
+  { from: 'responses', to: 'responses', create() { const body = createResponsesPassthrough(); return { ok: true, value: { request: body.request, response: body.response, stream: responsesStreamAdapter } }; } },
+  { from: 'messages', to: 'messages', create() { const body = createMessagesPassthrough(); return { ok: true, value: { request: body.request, response: body.response, stream: messagesStreamAdapter } }; } },
 ];
 
 /*

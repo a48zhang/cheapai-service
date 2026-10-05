@@ -1,12 +1,12 @@
 import { ApiError } from '../../http';
-import { getTokenDisplayPrefix, hashToken } from '../tokens';
+import { hashToken, TokenFormatError } from '../tokens';
 import { findDesktopAuthUserById, findDesktopSessionByHash } from './session-repository';
 import type { DesktopAuthUserRow } from './session-repository';
 import type { StoredDesktopSession, DesktopSessionFailureReason } from './types';
 import type { PublicUser } from '../users';
 
 export interface AuthenticatedDesktopSession {
-  /** Publicly safe identity fields only; hashes and Key ciphertext stay private. */
+  /** Publicly safe identity fields only; hashes and Key credentials stay private. */
   session: Pick<StoredDesktopSession, 'id' | 'user_id' | 'expires_at'>;
   user: PublicUser;
 }
@@ -34,11 +34,6 @@ function bearerToken(request: Request): string {
   if (authorization === null || authorization.length > 256) return invalid();
   const match = /^Bearer ([A-Za-z0-9_-]+)$/i.exec(authorization);
   if (!match?.[1]) return invalid();
-  try {
-    getTokenDisplayPrefix('desktopSession', match[1]);
-  } catch {
-    return invalid();
-  }
   return match[1];
 }
 
@@ -71,6 +66,7 @@ export async function authenticateDesktopSession(
   try {
     tokenHash = await hashToken('desktopSession', token);
   } catch (error) {
+    if (error instanceof TokenFormatError) return invalid();
     throw new ApiError('service_unavailable', { cause: error });
   }
 

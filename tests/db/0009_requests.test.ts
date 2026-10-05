@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { encryptChannelSecret } from '../../apps/worker/admin/channel-secrets';
+import { legacyChannelSecret } from '../helpers/legacy-channel-secret';
 import { testEnv } from '../helpers/database';
 
 type Value = string | number | null;
@@ -23,7 +23,7 @@ describe('0009 execution and billing request records in native D1', () => {
     await testEnv.DB.prepare(`INSERT INTO api_keys
       (id,user_id,key_hash,display_prefix,name,status,created_at,updated_at)
       VALUES ('d09-key','d09-user',?,'s2a_key_ABCDEFGH','D09 key','active',0,0)`).bind('9'.repeat(64)).run();
-    const secret = await encryptChannelSecret('test-only-upstream', 'd09-channel', 'test-v1', crypto.getRandomValues(new Uint8Array(32)));
+    const secret = legacyChannelSecret();
     await testEnv.DB.prepare(`INSERT INTO channels
       (id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
       VALUES ('d09-channel','D09 channel','https://example.invalid',?,'test-v1','active',0,2,60,1,0,0)`).bind(secret).run();

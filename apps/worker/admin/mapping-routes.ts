@@ -67,7 +67,7 @@ export function createMappingRoutes<B extends Bindings = Bindings>(dependencies:
   app.use('*', requireAdmin);
   app.get(ADMIN_MAPPINGS_PATH, async (context) => {
     const query = new URL(context.req.url).searchParams;
-    for (const field of query.keys()) if (!['protocol', 'activeOnly'].includes(field) || query.getAll(field).length !== 1) throw new ApiError('invalid_request');
+    if (query.getAll('protocol').length > 1 || query.getAll('activeOnly').length > 1) throw new ApiError('invalid_request');
     const protocol = query.get('protocol');
     if (protocol !== null && !['chat', 'responses', 'messages'].includes(protocol)) throw new ApiError('invalid_request');
     const active = query.get('activeOnly');
@@ -78,9 +78,7 @@ export function createMappingRoutes<B extends Bindings = Bindings>(dependencies:
   });
   app.post(ADMIN_MAPPINGS_PATH, async (context) => {
     await protect(dependencies, context.env, context.req.raw);
-    if (new URL(context.req.url).search) throw new ApiError('invalid_request');
     const body = await readBody(context.req.raw);
-    if (Object.keys(body).some((field) => !['channelId', 'protocol', 'upstreamModel', 'capabilities'].includes(field))) throw new ApiError('invalid_request');
     const result = await createModelMapping(context.env.DB, {
       publicModelId: context.req.param('publicModelId'), channelId: body.channelId as string,
       protocol: body.protocol as Protocol, upstreamModel: body.upstreamModel as string, capabilities: body.capabilities as ChannelCapabilities,
@@ -89,10 +87,8 @@ export function createMappingRoutes<B extends Bindings = Bindings>(dependencies:
   });
   app.patch(ADMIN_MAPPING_UPDATE_PATH, async (context) => {
     await protect(dependencies, context.env, context.req.raw);
-    if (new URL(context.req.url).search) throw new ApiError('invalid_request');
     const body = await readBody(context.req.raw);
-    if (Object.keys(body).some((field) => !['version', 'upstreamModel', 'capabilities'].includes(field))
-        || typeof body.version !== 'number' || !Number.isSafeInteger(body.version) || body.version < 1) throw new ApiError('invalid_request');
+    if (typeof body.version !== 'number' || !Number.isSafeInteger(body.version) || body.version < 1) throw new ApiError('invalid_request');
     const { version, ...patch } = body;
     const result = await updateModelMapping(context.env.DB, { publicModelId: context.req.param('publicModelId'),
       channelId: context.req.param('channelId'), protocol: context.req.param('protocol') as Protocol }, version, patch as ModelMappingPatch,

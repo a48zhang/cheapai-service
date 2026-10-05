@@ -54,7 +54,7 @@ export const modelFormSchema = z
     admissionMinBalanceUnits: modelInputSchema.shape.admissionMinBalanceUnits,
     maxOutputTokens: maxOutputTokensText,
   })
-  .strict()
+
   .pipe(requiredModelInputSchema);
 
 export type ModelFormValues = z.input<typeof modelFormSchema>;

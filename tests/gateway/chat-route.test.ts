@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createExecutionContext, waitOnExecutionContext } from 'cloudflare:test';
 import { createChatRoute, CHAT_COMPLETIONS_PATH } from '../../apps/worker/gateway/chat-route';
 import { generateToken, hashToken } from '../../apps/worker/auth/tokens';
-import { encryptChannelSecret } from '../../apps/worker/admin/channel-secrets';
 import type { Env } from '../../apps/worker/env';
 import { testEnv } from '../helpers/database';
 
@@ -15,11 +14,11 @@ beforeEach(async () => {
     VALUES('route-user','route@example.invalid','synthetic','user','active','route-group',1000,1,60,'admin',0,0)`).run();
   token = generateToken('apiKey');
   await testEnv.DB.prepare("INSERT INTO api_keys(id,user_id,key_hash,display_prefix,name,status,created_at,updated_at) VALUES('route-key','route-user',?,'s2a_key_ABCDEFGH','Fixture','active',0,0)").bind(await hashToken('apiKey', token)).run();
-  const key = crypto.getRandomValues(new Uint8Array(32));
-  const encrypted = await encryptChannelSecret('synthetic-upstream', 'route-channel', 'v1', key);
-  env = { DB: testEnv.DB, CACHE: testEnv.CACHE, GATE: testEnv.GATE, CHANNEL_KEYRING_JSON: JSON.stringify({ v1: btoa(String.fromCharCode(...key)) }), CHANNEL_ACTIVE_KEY_VERSION: 'v1' } as Env;
-  await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-    VALUES('route-channel','Fixture','https://provider.example',?,'v1','active',1,1,60,1,0,0)`).bind(encrypted).run();
+
+  const credential = 'synthetic-upstream';
+  env = { DB: testEnv.DB, CACHE: testEnv.CACHE, GATE: testEnv.GATE,  } as Env;
+  await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+    VALUES('route-channel','Fixture','https://provider.example',?,'active',1,1,60,1,0,0)`).bind(credential).run();
   await testEnv.DB.prepare("INSERT INTO channel_groups(channel_id,group_id) VALUES('route-channel','route-group')").run();
   await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('route-model','active','{"input":"1","output":"2"}',1,0,64,0,0)`).run();
   await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,upstream_model,protocol,capabilities_json,config_version)
@@ -45,16 +44,11 @@ describe('G16 native Chat route', () => {
     expect(await testEnv.DB.prepare('SELECT cost_units FROM requests').first('cost_units')).toBe(800);
   });
 
-  it('returns native auth/input errors without evaluating broken Secret getters', async () => {
-    const getter = vi.fn(() => { throw new Error('PRIVATE SECRET'); });
-    const broken = Object.defineProperty({ DB: testEnv.DB, CACHE: testEnv.CACHE, GATE: testEnv.GATE }, 'CHANNEL_KEYRING_JSON', { get: getter }) as Env;
+  it('returns native auth/input errors before dispatch', async () => {
     for (const [value, auth, status] of [[{}, false, 401], [{}, true, 400]] as const) {
-      const context = createExecutionContext(); const result = await createChatRoute().fetch(post(value, auth), broken, context);
+      const context = createExecutionContext(); const result = await createChatRoute().fetch(post(value, auth), env, context);
       expect(result.status).toBe(status); expect(await result.json()).toHaveProperty('error'); await waitOnExecutionContext(context);
     }
-    expect(getter).not.toHaveBeenCalled();
-    const context = createExecutionContext(); const configured = await createChatRoute().fetch(post(body()), broken, context);
-    expect(configured.status).toBe(503); expect(await configured.text()).not.toContain('PRIVATE'); await waitOnExecutionContext(context);
   });
 
   it('has only the fixed POST path', async () => {

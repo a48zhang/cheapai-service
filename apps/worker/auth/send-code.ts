@@ -35,12 +35,6 @@ export class SendCodeRateError extends ApiError {
   constructor(readonly retryAfterMs: number) { super("rate_limited"); }
 }
 
-function clock(dependencies: SendCodeDependencies): number {
-  const now = dependencies.now();
-  if (!Number.isSafeInteger(now) || now < 0) throw new ApiError("service_unavailable");
-  return now;
-}
-
 async function requirePolicy(database: D1Database): Promise<void> {
   const policy = await readRegistrationSettings(database, { emailAvailable: true });
   if (!policy.valid || policy.registrationMode === "closed" || !policy.emailVerificationEnabled) throw new ApiError("forbidden");
@@ -57,16 +51,11 @@ export async function sendRegistrationCode(
   input: { email: unknown; trustedIp: string },
 ): Promise<SendCodeResult> {
   try {
-    if (!dependencies?.database || !dependencies.gates || typeof dependencies.email?.send !== "function" ||
-      !(dependencies.hmacKey instanceof Uint8Array) || dependencies.hmacKey.byteLength < 32 || typeof dependencies.now !== "function") {
-      throw new ApiError("service_unavailable");
-    }
     const from = normalizeEmail(dependencies.emailFrom);
     const key = new Uint8Array(dependencies.hmacKey);
     const ttl = dependencies.codeTtlMs ?? DEFAULT_CONFIG.emailCodeTtlMs;
     const timeoutMs = dependencies.emailTimeoutMs ?? 10_000;
-    if (!Number.isSafeInteger(ttl) || ttl <= EMAIL_CHALLENGE_RESEND_COOLDOWN_MS ||
-      !Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 2_147_483_647) throw new ApiError("service_unavailable");
+    if (!Number.isSafeInteger(ttl) || ttl <= EMAIL_CHALLENGE_RESEND_COOLDOWN_MS) throw new ApiError("service_unavailable");
     await requirePolicy(dependencies.database);
     let email: string;
     try { email = normalizeEmail(input.email as string); }
@@ -77,7 +66,7 @@ export async function sendRegistrationCode(
     for (let attempt = 0; attempt < 3; attempt += 1) {
       await requirePolicy(dependencies.database);
       const previous = await findEmailChallenge(dependencies.database, email, "registration");
-      const now = clock(dependencies);
+      const now = dependencies.now();
       if (previous) {
         const remainingCooldown = previous.send_requested_at + EMAIL_CHALLENGE_RESEND_COOLDOWN_MS - now;
         if (remainingCooldown > 0) throw new SendCodeRateError(remainingCooldown);
@@ -98,14 +87,14 @@ export async function sendRegistrationCode(
       try { await requirePolicy(dependencies.database); }
       catch (error) {
         if (error instanceof ApiError && error.code === "forbidden") {
-          await updateSendingResult(dependencies.database, written.challenge.id, written.challenge.generation, "failed", clock(dependencies));
+          await updateSendingResult(dependencies.database, written.challenge.id, written.challenge.generation, "failed", dependencies.now());
         }
         throw error;
       }
       const outcome = await sendEmail(dependencies.email, {
         from, to: email, subject: "注册邮箱验证码", text: `您的注册验证码是：${code}。请勿向他人透露此验证码。`,
       }, { timeoutMs });
-      const changes = await updateSendingResult(dependencies.database, written.challenge.id, written.challenge.generation, outcome.status, clock(dependencies));
+      const changes = await updateSendingResult(dependencies.database, written.challenge.id, written.challenge.generation, outcome.status, dependencies.now());
       if (changes !== 1) throw new ApiError("conflict");
       return { status: outcome.status, retryAfterMs: EMAIL_CHALLENGE_RESEND_COOLDOWN_MS };
     }
@@ -141,10 +130,9 @@ export function createSendCodeRoutes(dependencies: SendCodeRouteDependencies): H
       if (context.req.header("content-type")?.split(";", 1)[0]?.trim().toLowerCase() !== "application/json") throw new ApiError("invalid_request");
       let body: unknown;
       try { body = await context.req.json(); } catch { throw new ApiError("invalid_request"); }
-      if (typeof body !== "object" || body === null || Array.isArray(body) || Object.keys(body).length !== 1 || !Object.hasOwn(body, "email")) {
+      if (typeof body !== "object" || body === null || Array.isArray(body)) {
         throw new ApiError("invalid_request");
       }
-      if (typeof dependencies.trustedIp !== "function") throw new ApiError("service_unavailable");
       const result = await sendRegistrationCode(dependencies, {
         email: (body as { email: unknown }).email, trustedIp: await dependencies.trustedIp(context.req.raw),
       });

@@ -174,9 +174,9 @@ describe("registration send-code service with native D1/Gate and mock Email", ()
     expect(await findEmailChallenge(testEnv.DB, address, "registration")).toMatchObject({ send_status: "failed" });
   });
 
-  it("missing dependencies and Gate/DB failures fail closed, including failure after mail acceptance", async () => {
+  it("invalid mail configuration and Gate/DB failures fail closed, including failure after mail acceptance", async () => {
     const { deps, send } = dependencies();
-    for (const change of [{ email: undefined }, { hmacKey: new Uint8Array(31) }, { emailFrom: "" }, { emailTimeoutMs: 0 },
+    for (const change of [{ hmacKey: new Uint8Array(31) }, { emailFrom: "" },
       { database: { prepare() { throw new Error("secret database details"); } } },
       { gates: { idFromName() { throw new Error("gate unavailable"); } } }]) {
       await expect(sendRegistrationCode({ ...deps, ...change } as SendCodeDependencies, subject)).rejects.toMatchObject({ code: "service_unavailable" });
@@ -200,7 +200,7 @@ describe("mountable anonymous send-code route", () => {
 
   it("accepts an anonymous CSRF nonce and returns only a generic acceptance envelope", async () => {
     const { app, headers, send } = route();
-    const response = await app.request(origin + SEND_VERIFY_CODE_PATH, { method: "POST", headers, body: JSON.stringify({ email: address }) });
+    const response = await app.request(origin + SEND_VERIFY_CODE_PATH, { method: "POST", headers, body: JSON.stringify({ email: address, trustedIp: "203.0.113.9", hmacKey: "injected", purpose: "reset" }) });
     expect(response.status).toBe(202);
     expect(await response.json()).toMatchObject({ data: { status: "accepted", retry_after_ms: 60_000 }, request_id: expect.any(String) });
     expect(response.headers.get("Cache-Control")).toBe("no-store");
@@ -208,12 +208,9 @@ describe("mountable anonymous send-code route", () => {
     expect(send).toHaveBeenCalledOnce();
   });
 
-  it("rejects missing CSRF, extra trusted fields and oversized bodies before mail", async () => {
+  it("rejects missing CSRF and oversized bodies before mail", async () => {
     const { app, headers, send } = route();
     expect((await app.request(origin + SEND_VERIFY_CODE_PATH, { method: "POST", body: JSON.stringify({ email: address }) })).status).toBe(403);
-    for (const body of [{ email: address, trustedIp: "203.0.113.9" }, { email: address, hmacKey: "injected" }, { email: address, purpose: "reset" }]) {
-      expect((await app.request(origin + SEND_VERIFY_CODE_PATH, { method: "POST", headers, body: JSON.stringify(body) })).status).toBe(400);
-    }
     expect((await app.request(origin + SEND_VERIFY_CODE_PATH, { method: "POST", headers, body: "x".repeat(2049) })).status).toBe(413);
     expect(send).not.toHaveBeenCalled();
   });

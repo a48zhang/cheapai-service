@@ -7,7 +7,6 @@ import type { ProtocolRequest } from '@sub2api/apicompat/capabilities/check';
 import { authenticatePlatformKey } from '../auth/api-key-auth';
 import type { InternalPlatformKeyAuth } from '../auth/key-repository';
 import { API_ERRORS, ApiError } from '../http';
-import type { ChannelKeyring } from '../catalog/channel-secrets';
 import { prepare } from '../db';
 import { recordChannelCooldown, CooldownClientError } from '../limits/cooldown';
 import type { ChannelCooldownInput, CooldownBinding } from '../limits/cooldown';
@@ -30,7 +29,6 @@ import type { RequestSource } from './request-repository';
 export interface GatewayDispatchDependencies extends AdmissionBindings {
   readonly GATE: AdmissionBindings['GATE'] & CooldownBinding;
   /** Resolve secrets only after authentication and successful body parsing. */
-  readonly keyring: ChannelKeyring | (() => ChannelKeyring | Promise<ChannelKeyring>);
   readonly registry?: ProtocolRegistry;
   readonly fetch?: UpstreamFetch;
   readonly now?: () => number;
@@ -126,7 +124,7 @@ export async function dispatchTrustedGatewayRequest(dependencies: GatewayDispatc
   if (input.request.protocol === 'messages') {
     headers.set('anthropic-version', '2023-06-01');
     if (input.betas !== undefined) {
-      if (!Array.isArray(input.betas) || input.betas.length > 16 || input.betas.some(value => typeof value !== 'string')) throw new ApiError('invalid_request');
+      if (!Array.isArray(input.betas) || input.betas.some(value => typeof value !== 'string')) throw new ApiError('invalid_request');
       headers.set('anthropic-beta', [...new Set(input.betas)].join(','));
     }
   } else if (input.betas !== undefined && input.betas.length > 0) throw new ApiError('invalid_request');
@@ -160,18 +158,13 @@ export async function dispatchGatewayRequest(dependencies: GatewayDispatchDepend
     if (request.method !== 'POST') throw new ApiError('invalid_request');
     const subject = trusted?.subject ?? await authenticatePlatformKey(dependencies.DB, request, now());
     const parsed = downstream === 'chat' ? await parseChatInput(request) : downstream === 'responses' ? await parseResponsesInput(request) : await parseMessagesInput(request);
-    // Requested betas are not an allowlist. Only trusted deployment/channel policy grants them.
-    if (parsed.protocol === 'messages' && parsed.betas.some(beta => !dependencies.messagesPolicy?.allowedBetas?.includes(beta))) throw new ApiError('invalid_request');
-    const configuredKeyring = dependencies.keyring;
-    const keyring = typeof configuredKeyring === 'function' ? await configuredKeyring() : configuredKeyring;
-    if (!keyring || typeof keyring.get !== 'function') throw new ApiError('service_unavailable');
     const registry = dependencies.registry ?? defaultProtocolRegistry;
     const original: ProtocolRequest = { protocol: parsed.protocol, request: parsed.request } as ProtocolRequest;
     const showUsage = parsed.protocol === 'chat' && parsed.request.stream_options?.include_usage === true;
     const excluded: CandidateExclusion[] = [];
     for (let attempt = 0; attempt < MAX_UNREGISTERED_CANDIDATE_ATTEMPTS; attempt++) {
       try {
-        admission = await admitRequest(dependencies, subject, original, { now, signal: request.signal, excludeCandidates: excluded, userRateOperationId,
+        admission = await admitRequest(dependencies, subject, original, { now, features: parsed.features, signal: request.signal, excludeCandidates: excluded, userRateOperationId,
           requireChatStreamUsage: true, source: trusted?.source ?? 'api', adapterAvailable: direction => registry.available(direction) });
         break;
       } catch (error) {
@@ -199,9 +192,8 @@ export async function dispatchGatewayRequest(dependencies: GatewayDispatchDepend
     const resolved = registry.lookup({ from: downstream, to: upstream, streaming: parsed.stream }, {
       capabilities: admission.selected.candidate.mapping.capabilities, ...(admission.outputTokenLimit === undefined ? {} : { outputTokenLimit: admission.outputTokenLimit }) });
     if (!resolved.ok) throw new ApiError('service_unavailable');
-    if (parsed.protocol === 'messages' && parsed.betas.length > 0 && upstream !== 'messages') throw new ApiError('invalid_request');
     const transport = { ...dependencies.transport, downstreamHeaders: request.headers,
-      messages: dependencies.messagesPolicy ?? { allowedBetas: [] } };
+      ...(dependencies.messagesPolicy === undefined ? {} : { messages: dependencies.messagesPolicy }) };
     const onUpstreamResponse = (response: ChannelCooldownInput): Promise<void> => {
       const work = recordChannelCooldown(dependencies.GATE, response, { clock: now }).then(() => undefined, error => {
         // Timeout/transport failure cannot prove whether the write committed.
@@ -213,7 +205,7 @@ export async function dispatchGatewayRequest(dependencies: GatewayDispatchDepend
       own(work);
       return work;
     };
-    const executionDependencies = { database: dependencies.DB, keyring, now,
+    const executionDependencies = { database: dependencies.DB, now,
       ...(dependencies.fetch ? { fetch: dependencies.fetch } : {}), waitUntil: own };
     if (!parsed.stream) {
       transferred = true;

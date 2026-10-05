@@ -9,8 +9,6 @@ import { testEnv } from '../helpers/database';
 const now = 1_788_619_000_123;
 const groupId = 'desktop-sessions-group';
 const userId = 'desktop-sessions-owner';
-const encryptionKey = { keyVersion: 'desktop-session-test-v1', key: new Uint8Array(32).fill(41) };
-const keyring = new Map([[encryptionKey.keyVersion, encryptionKey.key]]);
 
 function bearer(token: string): Request {
   return new Request('https://example.invalid', { headers: { Authorization: `Bearer ${token}` } });
@@ -18,7 +16,7 @@ function bearer(token: string): Request {
 
 async function desktopKey(token: string, at = now) {
   const authenticated = await authenticateDesktopSession(testEnv.DB, bearer(token), at);
-  return getOrCreateCurrentKey(testEnv.DB, authenticated.session, at, encryptionKey, keyring);
+  return getOrCreateCurrentKey(testEnv.DB, authenticated.session, at);
 }
 
 beforeEach(async () => {
@@ -48,7 +46,7 @@ describe('desktop bearer sessions on native D1', () => {
       id: issued.session.id, user_id: userId, expires_at: issued.session.expires_at,
     });
     expect(authenticated.session).not.toHaveProperty('token_hash');
-    expect(authenticated.session).not.toHaveProperty('current_key_ciphertext');
+    expect(authenticated.session).not.toHaveProperty('current_key');
   });
 
   it('rejects the exact expiry boundary without extending the persisted session', async () => {
@@ -74,17 +72,17 @@ describe('desktop bearer sessions on native D1', () => {
     await logoutDesktopSession(testEnv.DB, bearer(firstSession.token), now + 1);
     await logoutDesktopSession(testEnv.DB, bearer(firstSession.token), now + 2);
 
-    const firstState = await testEnv.DB.prepare(`SELECT revoked_at,current_key_id,current_key_ciphertext
+    const firstState = await testEnv.DB.prepare(`SELECT revoked_at,current_key_id,current_key
       FROM desktop_sessions WHERE id=?`).bind(firstSession.session.id)
-      .first<{ revoked_at: number | null; current_key_id: string | null; current_key_ciphertext: string | null }>();
-    const otherState = await testEnv.DB.prepare(`SELECT revoked_at,current_key_id,current_key_ciphertext
+      .first<{ revoked_at: number | null; current_key_id: string | null; current_key: string | null }>();
+    const otherState = await testEnv.DB.prepare(`SELECT revoked_at,current_key_id,current_key
       FROM desktop_sessions WHERE id=?`).bind(otherSession.session.id)
-      .first<{ revoked_at: number | null; current_key_id: string | null; current_key_ciphertext: string | null }>();
+      .first<{ revoked_at: number | null; current_key_id: string | null; current_key: string | null }>();
 
-    expect(firstState).toMatchObject({ revoked_at: now + 1, current_key_id: firstKey.keyId, current_key_ciphertext: null });
+    expect(firstState).toMatchObject({ revoked_at: now + 1, current_key_id: firstKey.keyId, current_key: null });
     expect(otherState?.revoked_at).toBeNull();
     expect(otherState?.current_key_id).toBe(otherKey.keyId);
-    expect(otherState?.current_key_ciphertext).toBeTruthy();
+    expect(otherState?.current_key).toBeTruthy();
     expect(await testEnv.DB.prepare('SELECT status FROM api_keys WHERE id=?').bind(firstKey.keyId)
       .first<{ status: string }>()).toEqual({ status: 'revoked' });
     expect(await testEnv.DB.prepare('SELECT status FROM api_keys WHERE id=?').bind(otherKey.keyId)

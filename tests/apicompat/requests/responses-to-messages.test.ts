@@ -61,7 +61,7 @@ describe('P-RM-Q1 text and roles', () => {
     expect(adapter().convert(request as ResponsesRequest, context)).toMatchObject({ ok: false, error: { kind: 'unsupported_feature' } });
   });
   it.each([
-    { tool_choice: 'none' }, { parallel_tool_calls: false }, { store: false }, { background: false },
+    { store: false }, { background: false },
     { previous_response_id: null }, { previous_response_id: 'stateful' }, { metadata: {} }, { vendor: true },
   ])('rejects later-node controls/extensions %#', extra => {
     expect(adapter().convert({ ...basic(), ...extra } as ResponsesRequest, context)).toMatchObject({ ok: false, error: { kind: 'unsupported_feature' } });
@@ -70,7 +70,6 @@ describe('P-RM-Q1 text and roles', () => {
     { type: 'function_call', call_id: 'a', name: 'f', arguments: '{}' },
     { type: 'function_call_output', call_id: 'a', output: 'x' }, { type: 'item_reference', id: 'item' },
     { type: 'reasoning', id: 'r', summary: [] },
-    { role: 'user', content: [{ type: 'input_image', image_url: 'https://image.example/x' }] },
     { role: 'assistant', content: [{ type: 'refusal', refusal: 'no' }] },
     { role: 'assistant', content: [{ type: 'output_text', text: 'x', annotations: [{ type: 'citation' }] }] },
   ])('rejects unimplemented item/content semantics %#', item => {
@@ -108,10 +107,10 @@ describe('P-RM-Q6 known cache scope and completed items',()=>{
     expect(output.messages[0]?.content).toMatchObject([{cache_control:{type:'ephemeral'}}]);
     expect(parseMessagesRequest(output).ok).toBe(true);
   });
-  it('retains image cache markers and requires explicit TTL capability',()=>{
+  it('retains image cache markers without TTL capability declarations',()=>{
     const input:ResponsesRequest={model:'m',input:[{role:'user',content:[{type:'input_image',image_url:'https://image.example/x',cache_control:{type:'ephemeral',ttl:'1h'}}]}]};
     expect(configured().convert(input,context)).toMatchObject({ok:true,value:{messages:[{content:[{type:'image',cache_control:{type:'ephemeral',ttl:'1h'}}]}]}});
-    expect(adapter().convert(input,context).ok).toBe(false);
+    expect(adapter().convert(input,context).ok).toBe(true);
   });
   it('uses call_id rather than native item IDs while accepting completed full-content items',()=>{
     const output=value(configured().convert({model:'m',input:[
@@ -139,9 +138,9 @@ describe('P-RM-Q5 native qualitative effort',()=>{
     expect(output.output_config).toEqual({effort});expect(output.max_tokens).toBe(256);expect(output).not.toHaveProperty('thinking');
     expect(parseMessagesRequest(output).ok).toBe(true);
   });
-  it('does not guess unsupported levels or skip required capabilities',()=>{
+  it('maps representable effort without guessing unsupported levels',()=>{
     for(const effort of ['none','minimal','xhigh','max'])expect(configured().convert({...basic(),reasoning:{effort}},context).ok).toBe(false);
-    expect(adapter().convert({...basic(),reasoning:{effort:'high'}},context).ok).toBe(false);
+    expect(adapter().convert({...basic(),reasoning:{effort:'high'}},context).ok).toBe(true);
     expect(value(adapter().convert({...basic(),reasoning:{effort:null}},context))).not.toHaveProperty('output_config');
   });
   it('rejects summary/private history without turning it into ordinary content',()=>{
@@ -165,10 +164,10 @@ describe('P-RM-Q4-O strict output schema', () => {
   it.each([false,null,undefined])('refuses advisory/default strict=%s',strict=>{
     expect(configured().convert({...basic(),text:{format:{type:'json_schema',name:'out',schema:schema(),...(strict===undefined?{}:{strict})}}},context).ok).toBe(false);
   });
-  it('rejects JSON-only mode, complex schema/description conflicts and missing capability',()=>{
+  it('accepts undeclared schema support but rejects unrepresentable formats and conflicts',()=>{
     expect(configured().convert({...basic(),text:{format:{type:'json_object'}}},context).ok).toBe(false);
     expect(configured().convert({...basic(),text:{format:{type:'json_schema',name:'out',strict:true,schema:{...schema(),description:'different'},description:'Output'}}},context).ok).toBe(false);
-    expect(adapter().convert({...basic(),text:{format:{type:'json_schema',name:'out',strict:true,schema:schema()}}},context).ok).toBe(false);
+    expect(adapter().convert({...basic(),text:{format:{type:'json_schema',name:'out',strict:true,schema:schema()}}},context).ok).toBe(true);
   });
 });
 
@@ -185,9 +184,9 @@ describe('P-RM-Q4 generation controls', () => {
     const output=value(configured().convert({ ...basic(), max_output_tokens:null,temperature:null,top_p:null,stream:false },context));
     expect(output.max_tokens).toBe(128);expect(output.stream).toBe(false);expect(output).not.toHaveProperty('temperature');
   });
-  it('rejects incompatible sampling, missing capability and nonnative stop controls', () => {
+  it('accepts undeclared sampling but rejects incompatible values and nonnative stop controls', () => {
     expect(configured().convert({ ...basic(), temperature:1.5 },context).ok).toBe(false);
-    expect(adapter().convert({ ...basic(), top_p:0.5 },context).ok).toBe(false);
+    expect(adapter().convert({ ...basic(), top_p:0.5 },context).ok).toBe(true);
     expect(configured().convert({ ...basic(), stop:['END'] },context).ok).toBe(false);
   });
 });
@@ -213,12 +212,16 @@ describe('P-RM-Q3 image sources', () => {
       {type:'function_call_output',call_id:'a',output:[{type:'input_text',text:'result'},{type:'input_image',image_url:'https://image.example/x'}]}] },context);
     expect(result).toMatchObject({ok:true,value:{messages:[{role:'assistant'},{role:'user',content:[{type:'tool_result',content:[{text:'result'},{type:'image'}]}]}]}});
   });
-  it('rejects missing image policy, fixed detail and unresolved file IDs', () => {
-    expect(adapter().convert(input('https://image.example/x'),context).ok).toBe(false);
+  it('preserves HTTP image URLs with query and fragment', () => {
+    const url = 'http://images.local/photo?format=original#part';
+    expect(adapter().convert(input(url),context)).toMatchObject({ok:true,value:{messages:[{content:[{text:'before'},{source:{type:'url',url}},{text:'after'}]}]}});
+  });
+  it('accepts undeclared images but rejects fixed detail and unresolved file IDs', () => {
+    expect(adapter().convert(input('https://image.example/x'),context).ok).toBe(true);
     for(const detail of ['low','high','original'] as const) expect(configured().convert(input('https://image.example/x',detail),context).ok).toBe(false);
     expect(configured().convert({model:'m',input:[{role:'user',content:[{type:'input_image',file_id:'file'}]}]},context).ok).toBe(false);
   });
-  it.each(['data:image/svg+xml;base64,AQID','data:image/png;base64,AR==','http://image.example/x','https://u:p@image.example/x'])('rejects invalid source %#', url => {
+  it.each(['data:image/svg+xml;base64,AQID','data:image/png;base64,AR==','https://u:p@image.example/x'])('rejects invalid source %#', url => {
     expect(configured().convert(input(url),context).ok).toBe(false);
   });
 });
@@ -249,10 +252,10 @@ describe('P-RM-Q2 complete function history', () => {
     expect(configured().convert({ ...source(), tools: [{ ...tool(), parameters, strict: false }], tool_choice: { type: 'function', name: 'lookup' }, parallel_tool_calls: false }, context))
       .toMatchObject({ ok: true, value: { tools: [{ strict: false, input_schema: parameters }], tool_choice: { type: 'tool', name: 'lookup', disable_parallel_tool_use: true } } });
   });
-  it('requires actual target strict capability after default normalization', () => {
+  it('preserves normalized strict tools without target capability declarations', () => {
     const noStrict = value(createResponsesToMessagesRequestAdapter({ maxTokens: 256, channelCapabilities: { protocol: 'messages', features: ['tools', 'parallel_tools'] } }));
-    expect(noStrict.convert(source(), context).ok).toBe(false);
-    expect(adapter().convert(source(), context).ok).toBe(false);
+    expect(noStrict.convert(source(), context).ok).toBe(true);
+    expect(adapter().convert(source(), context).ok).toBe(true);
   });
   it.each(['orphan', 'duplicate', 'missing', 'interrupt'])('rejects incorrect associations %s', kind => {
     const input = kind === 'orphan' ? [{ type: 'function_call_output', call_id: 'x', output: 'x' }]

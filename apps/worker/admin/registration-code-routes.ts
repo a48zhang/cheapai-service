@@ -71,8 +71,7 @@ async function readCreationBody(request: Request): Promise<{ quantity: number; e
   const parsed = await readCodeJsonBody(request);
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new ApiError('invalid_request');
   const fields = parsed as Record<string, unknown>;
-  if (Object.keys(fields).length !== 2 || !Object.hasOwn(fields, 'quantity') || !Object.hasOwn(fields, 'expiresAt')
-      || typeof fields.quantity !== 'number' || !Number.isSafeInteger(fields.quantity) || fields.quantity < 1 || fields.quantity > REGISTRATION_CODE_LIMITS.quantity
+  if (typeof fields.quantity !== 'number' || !Number.isSafeInteger(fields.quantity) || fields.quantity < 1 || fields.quantity > REGISTRATION_CODE_LIMITS.quantity
       || typeof fields.expiresAt !== 'number' || !Number.isSafeInteger(fields.expiresAt) || fields.expiresAt < 0) throw new ApiError('invalid_request');
   return { quantity: fields.quantity, expiresAt: fields.expiresAt };
 }
@@ -106,9 +105,6 @@ export function createRegistrationCodeRoutes(
     requireAdmin,
     async (context) => {
       const query = new URL(context.req.url).searchParams;
-      for (const key of query.keys()) {
-        if (!['limit', 'cursor', 'creatorFilter'].includes(key)) throw new ApiError('invalid_request');
-      }
       if (query.getAll('creatorFilter').length > 1) throw new ApiError('invalid_request');
       const creatorFilter = query.get('creatorFilter');
       if (creatorFilter !== null && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(creatorFilter)) throw new ApiError('invalid_request');
@@ -130,7 +126,6 @@ export function createRegistrationCodeRoutes(
       const trustedOrigin = await writeOrigin(context.get('codeDependencies'));
       if (typeof trustedOrigin !== 'string') throw new ApiError('service_unavailable');
       validateCsrfRequest(context.req.raw, trustedOrigin);
-      if (new URL(context.req.url).search !== '') throw new ApiError('invalid_request');
       const operationId = context.req.header('Idempotency-Key');
       if (!operationId || operationId.length > 128 || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(operationId)) throw new ApiError('invalid_request');
       const body = await readCreationBody(context.req.raw);
@@ -150,13 +145,11 @@ export function createRegistrationCodeRoutes(
       if (typeof trustedOrigin !== 'string') throw new ApiError('service_unavailable');
       validateCsrfRequest(context.req.raw, trustedOrigin);
       const id = context.req.param('id');
-      if (typeof id !== 'string' || id.trim() !== id || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id)
-          || new URL(context.req.url).search !== '') throw new ApiError('invalid_request');
-      // No mutation options exist. Accept no body or an explicit empty JSON
-      // object; actor/time/operation ID can never be supplied by the client.
+      if (typeof id !== 'string' || id.trim() !== id || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id)) throw new ApiError('invalid_request');
+      // No client mutation options are used; actor/time/operation ID come from the server.
       if (context.req.raw.body !== null) {
         const body = await readCodeJsonBody(context.req.raw);
-        if (body === null || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length !== 0) throw new ApiError('invalid_request');
+        if (body === null || typeof body !== 'object' || Array.isArray(body)) throw new ApiError('invalid_request');
       }
       const result = await revokeRegistrationCode(context.env.DB, {
         actorId: context.get('user').id, codeId: id, operationId: crypto.randomUUID(), now: context.get('requestTime')!,

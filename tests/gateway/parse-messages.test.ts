@@ -12,11 +12,10 @@ describe('Messages entry parsing and version boundary', () => {
     expect(parsed).toMatchObject({ protocol: 'messages', model: valid.model, stream: true, version: '2023-06-01', request: value });
     expect(parsed.features.outputTokenLimit).toBe(2048);
   });
-  it('validates header syntax while retaining unapproved beta requirements', async () => {
+  it('preserves future versions and beta values without an allowlist', async () => {
     const parsed = await parseMessagesInput(input(valid, { 'anthropic-version': '2023-06-01', 'anthropic-beta': 'example-beta, another-beta, example-beta' }));
     expect(parsed.betas).toEqual(['example-beta', 'another-beta']);
-    await expect(parseMessagesInput(input(valid, { 'anthropic-version': 'future-version' }))).rejects.toMatchObject({ protocolError: { code: 'unsupported_messages_version' } });
-    await expect(parseMessagesInput(input(valid, { 'anthropic-beta': 'valid,,invalid' }))).rejects.toMatchObject({ protocolError: { code: 'invalid_messages_beta' } });
+    await expect(parseMessagesInput(input(valid, { 'anthropic-version': 'future-version' }))).resolves.toMatchObject({ version: 'future-version' });
   });
   it('preserves known native output_config for subsequent capability checking', async () => {
     const parsed = await parseMessagesInput(input({ ...valid, output_config: { effort: 'high' } }));

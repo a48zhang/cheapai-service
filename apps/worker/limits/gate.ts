@@ -68,7 +68,7 @@ export class Gate extends DurableObject<Env> {
         throw new RateWindowError('invalid_state');
       }
       state = parsed as RateWindowState;
-      // L04 validates exact schema, sizes and every accepted ID. An empty window
+      // L04 validates schema version, sizes and every accepted ID. An empty window
       // uses a throwaway probe; no probe result or ID is written to storage.
       consumeRateWindow(state, {
         now: state.lastSeenMs, windowMs: state.windowMs, limit: state.limit,

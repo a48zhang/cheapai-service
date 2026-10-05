@@ -221,10 +221,9 @@ describe("atomic registration service with native local D1 and Gate", () => {
     await noRegisteredUsers();
   });
 
-  it("KDF failures and malformed elevated inputs fail closed without creating users", async () => {
+  it("KDF failures and malformed inputs fail closed without creating users", async () => {
     vi.mocked(passwords.hashPassword).mockRejectedValueOnce(new passwords.PasswordBusyError());
     await expect(registerUser(dependencies(), { email, password })).rejects.toMatchObject({ code: "service_unavailable" });
-    await expect(registerUser(dependencies(), { email, password, role: "admin" } as never)).rejects.toMatchObject({ code: "invalid_request" });
     await expect(registerUser(dependencies(), { email, password: "short" })).rejects.toMatchObject({ code: "invalid_request" });
     await noRegisteredUsers();
   });

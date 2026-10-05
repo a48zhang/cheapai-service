@@ -5,11 +5,11 @@ export const DESKTOP_SECRET_CLEANUP_DEFAULT_LIMIT = 50;
 export const DESKTOP_SECRET_CLEANUP_MAX_LIMIT = 100;
 
 export interface DesktopSecretCleanupResult {
-  ciphertextsCleared: number;
+  keysCleared: number;
   more: boolean;
 }
 
-/** Clear only returnable Key ciphertext for a bounded page of expired or
+/** Clear only returnable Key for a bounded page of expired or
  * revoked desktop sessions. Session, Key and billing history stay in place.
  */
 export async function cleanupExpiredDesktopSessionSecrets(
@@ -23,10 +23,10 @@ export async function cleanupExpiredDesktopSessionSecrets(
     throw new ApiError('invalid_request');
   }
 
-  const eligible = "current_key_ciphertext IS NOT NULL AND (revoked_at IS NOT NULL OR expires_at <= ?)";
+  const eligible = "current_key IS NOT NULL AND (revoked_at IS NOT NULL OR expires_at <= ?)";
   const results = await batch(database, [
     prepare<{ id: string }>(database,
-      `UPDATE desktop_sessions SET current_key_ciphertext = NULL, updated_at = MAX(updated_at, ?)
+      `UPDATE desktop_sessions SET current_key = NULL, updated_at = MAX(updated_at, ?)
         WHERE id IN (
           SELECT id FROM desktop_sessions WHERE ${eligible}
           ORDER BY CASE WHEN revoked_at IS NOT NULL THEN revoked_at ELSE expires_at END, id
@@ -37,5 +37,5 @@ export async function cleanupExpiredDesktopSessionSecrets(
     prepare<{ pending: number }>(database,
       `SELECT EXISTS(SELECT 1 FROM desktop_sessions WHERE ${eligible}) AS pending`, [now]),
   ] as const);
-  return { ciphertextsCleared: results[0].rows.length, more: results[1].rows[0]?.pending === 1 };
+  return { keysCleared: results[0].rows.length, more: results[1].rows[0]?.pending === 1 };
 }

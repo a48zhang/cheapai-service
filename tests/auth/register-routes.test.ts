@@ -102,16 +102,21 @@ describe("registration HTTP route with native local D1/DO", () => {
     expect(await response.json()).toEqual({ error: { code: "unauthorized", message: "Authentication required." }, request_id: expect.any(String) });
   });
 
-  it("rejects malformed inputs and injected privilege/connection fields with 400 before resolving dependencies", async () => {
-    const { app, headers, resolve } = route();
-    for (const extra of ["role", "group", "group_id", "balance", "balance_units", "source", "created_via", "trustedIp", "hmacKey"]) {
-      expect((await app.request(origin + REGISTER_PATH, { method: "POST", headers,
-        body: JSON.stringify({ email, password, [extra]: "attacker-controlled" }) })).status).toBe(400);
-    }
+  it("ignores unknown fields without granting client-selected privileges", async () => {
+    const { app, headers } = route();
+    const response = await app.request(origin + REGISTER_PATH, { method: "POST", headers,
+      body: JSON.stringify({ email, password, role: "admin", group_id: "injected", balance_units: 999,
+        trustedIp: "203.0.113.5", hmacKey: "injected", extension: true }) });
+    expect(response.status).toBe(201);
+    expect(await testEnv.DB.prepare("SELECT role,group_id,balance_units FROM users WHERE email_normalized=?").bind(email).first())
+      .toEqual({ role: "user", group_id: "default", balance_units: 0 });
+  });
+
+  it("rejects malformed registration inputs", async () => {
+    const { app, headers } = route();
     for (const body of ["{", "null", "[]", '{}', JSON.stringify({ email, password, emailCode: 654321 })]) {
       expect((await app.request(origin + REGISTER_PATH, { method: "POST", headers, body })).status).toBe(400);
     }
-    expect(resolve).not.toHaveBeenCalled();
   });
 
   it("accepts exactly 8KiB of valid JSON whitespace and rejects one extra actual byte", async () => {

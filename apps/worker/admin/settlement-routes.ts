@@ -34,7 +34,7 @@ async function emptyBody(request: Request): Promise<void> {
     const bytes = new Uint8Array(size); let offset = 0;
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
     const value: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes));
-    if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length) throw new ApiError('invalid_request');
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ApiError('invalid_request');
   } catch (error) { if (error instanceof ApiError) throw error; throw new ApiError('invalid_request'); }
   finally { reader.releaseLock(); }
 }
@@ -56,7 +56,7 @@ export function createSettlementRoutes(dependencies: SettlementRouteDependencies
     if (typeof origin !== 'string') throw new ApiError('service_unavailable');
     validateCsrfRequest(context.req.raw, origin);
     const id = context.req.param('id');
-    if (id.trim() !== id || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id) || new URL(context.req.url).search !== '') throw new ApiError('invalid_request');
+    if (id.trim() !== id || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id)) throw new ApiError('invalid_request');
     await emptyBody(context.req.raw);
     const db = context.env.DB; const actor = context.get('user').id; const now = context.get('retryNow')!;
     const evidence = await prepare<Evidence>(db, 'SELECT user_id,billing_status,usage_quality,usage_json,cost_units,fingerprint FROM requests WHERE id=?', [id]).first();

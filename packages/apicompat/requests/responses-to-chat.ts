@@ -42,21 +42,9 @@ export function convertResponsesToChatRequest(input: ResponsesRequest, context: 
   const parsed = parseResponsesRequest(input, { unknownFields: 'preserve' });
   if (!parsed.ok) return parsed;
   const request = parsed.value;
-  const hasImages = typeof request.input !== 'string' && request.input?.some(item => {
-    if (item.type === 'function_call_output') return typeof item.output !== 'string' && item.output.some(part => part.type === 'input_image');
-    if (item.type === undefined || item.type === 'message') return typeof item.content !== 'string' && item.content.some(part => part.type === 'input_image');
-    return false;
-  });
-  const hasRefusal = typeof request.input !== 'string' && request.input?.some(item => (item.type === undefined || item.type === 'message')
-    && typeof item.content !== 'string' && item.content.some(part => part.type === 'refusal'));
   const format = request.text?.format;
-  if (hasImages || request.max_output_tokens != null || request.temperature != null || request.top_p != null || request.stream === true
-    || hasRefusal || request.reasoning?.effort != null || (format !== undefined && (!schemaObject(format) || format.type !== 'text'))) {
-    if (!options.channelCapabilities || options.channelCapabilities.protocol !== 'chat') return unsupported('channelCapabilities');
-    const checked = checkRequestCapabilities({ protocol: 'responses', request }, options.channelCapabilities);
-    if (!checked.supported) return unsupported(checked.reasons[0]?.path ?? 'input');
-  }
-  if (request.stream === true && !options.channelCapabilities?.features.includes('stream_usage')) return unsupported('stream');
+  const checked = checkRequestCapabilities({ protocol: 'responses', request }, options.channelCapabilities ?? { protocol: 'chat', features: [] });
+  if (!checked.supported) return unsupported(checked.reasons[0]?.path ?? '$');
   for (const key of Object.keys(request)) if (!['model', 'instructions', 'input', 'tools', 'tool_choice', 'parallel_tool_calls', 'max_output_tokens', 'temperature', 'top_p', 'stream', 'text', 'reasoning'].includes(key)) return unsupported(key);
   let reasoningEffort: string | undefined;
   if (request.reasoning != null) {
@@ -281,11 +269,11 @@ export function createResponsesToChatRequestAdapter(channelCapabilities: Channel
 function validImageUrl(value: string): boolean {
   if (value.startsWith('data:')) {
     if (value.length > 8_388_608) return false;
-    const match = /^data:image\/(?:png|jpeg|gif|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
+    const match = /^data:image\/[A-Za-z0-9!#$&^_.+-]+;base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
     if (!match?.[1] || match[1].length % 4) return false;
     try { return btoa(atob(match[1])) === match[1]; } catch { return false; }
   }
   if (value.length > 8192 || /[\s\u0000-\u001f\u007f]/u.test(value)) return false;
-  try { const url = new URL(value); return url.protocol === 'https:' && Boolean(url.hostname) && !url.username && !url.password && !url.hash; }
+  try { const url = new URL(value); return (url.protocol === 'https:' || url.protocol === 'http:') && Boolean(url.hostname) && !url.username && !url.password; }
   catch { return false; }
 }

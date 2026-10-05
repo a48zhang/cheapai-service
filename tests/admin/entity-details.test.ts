@@ -23,8 +23,8 @@ beforeEach(async () => {
   }
   adminCookie = (await createCookieSession(testEnv.DB, 'details-admin', now)).setCookie.split(';')[0]!;
   userCookie = (await createCookieSession(testEnv.DB, 'details-user', now)).setCookie.split(';')[0]!;
-  const ciphertext = JSON.stringify({ algorithm: 'A256GCM', format_version: 1, key_version: 'PRIVATE KEY VERSION', nonce: 'PRIVATE NONCE', ciphertext: 'PRIVATE CIPHERTEXT' });
-  await testEnv.DB.prepare("INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at) VALUES('details-channel','Details','https://provider.example.invalid',?,'PRIVATE KEY VERSION','active',1,2,60,1,?,?)").bind(ciphertext, now, now).run();
+  const credential = 'PRIVATE-UPSTREAM-KEY';
+  await testEnv.DB.prepare("INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at) VALUES('details-channel','Details','https://provider.example.invalid',?,'active',1,2,60,1,?,?)").bind(credential, now, now).run();
   await testEnv.DB.prepare("INSERT INTO channel_groups(channel_id,group_id) VALUES('details-channel','details-group')").run();
   await testEnv.DB.prepare("INSERT INTO models(public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES('details/vendor:model','active','{\"input\":\"1\",\"output\":\"2\"}',1,0,4096,?,?)").bind(now, now).run();
 });
@@ -42,8 +42,8 @@ describe.each(entities)('administrator $kind detail', entity => {
     expect(text).not.toMatch(/PRIVATE|password_hash|secret_ciphertext|secret_key_version|token_hash|upstreamKey/u);
     expect(JSON.parse(text).data).toMatchObject(entity.expected);
   });
-  it('returns 404 for a missing entity and rejects unsupported query fields', async () => {
+  it('returns 404 for a missing entity and ignores unsupported query fields', async () => {
     expect((await request(entity.kind, 'details-missing')).status).toBe(404);
-    expect((await request(entity.kind, entity.id, adminCookie, '?limit=20')).status).toBe(400);
+    expect((await request(entity.kind, entity.id, adminCookie, '?limit=20')).status).toBe(200);
   });
 });

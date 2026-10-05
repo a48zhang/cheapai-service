@@ -65,7 +65,7 @@ function validateState(value: unknown): RateWindowState {
   if (typeof value !== "object" || value === null || Array.isArray(value)) throw new RateWindowError("invalid_state");
   const record = value as Record<string, unknown>;
   const fields = ["version", "windowStartMs", "windowMs", "limit", "lastSeenMs", "operationIds"];
-  if (Object.keys(record).length !== fields.length || fields.some((field) => !Object.hasOwn(record, field))) {
+  if (fields.some((field) => !Object.hasOwn(record, field))) {
     throw new RateWindowError("invalid_state");
   }
   if (record.version !== 1 || !validSettings(record.windowMs, record.limit) ||

@@ -131,7 +131,7 @@ export function readPlatformKeyMetadata(value: unknown): PlatformKeyMetadata {
   else {
     if (typeof row.allowed_models_json !== 'string' || row.allowed_models_json.length > 32_768) throw new PlatformKeyStorageError();
     try { models = JSON.parse(row.allowed_models_json) as unknown; } catch { throw new PlatformKeyStorageError(); }
-    if (!Array.isArray(models) || models.length > 100 || !models.every(model => validText(model, 128))
+    if (!Array.isArray(models) || !models.every(model => validText(model, 128))
       || new Set(models).size !== models.length) throw new PlatformKeyStorageError();
   }
   return { id: row.id, userId: row.user_id, kind, groupId: row.group_id as string | null, groupName: row.group_name as string | null, name: row.name, displayPrefix: row.display_prefix as string | null,
@@ -182,8 +182,6 @@ function cursorEncode(value: readonly unknown[]): string {
  */
 export async function listPlatformKeys(database: D1Database, trustedOwnerId: string, options: PlatformKeyListOptions, now: number): Promise<PlatformKeyPage> {
   requireReadScope(trustedOwnerId, now);
-  if (options === null || typeof options !== 'object' || Array.isArray(options)
-    || Object.keys(options).some(key => !['limit', 'cursor', 'state'].includes(key))) throw new TypeError('Invalid Key list options.');
   const limit = options.limit ?? 20;
   const state = options.state ?? 'all';
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100 || !['all', 'active', 'expired', 'revoked'].includes(state)) throw new TypeError('Invalid Key list options.');
@@ -248,7 +246,7 @@ export async function findInternalPlatformKeyByHash(database: D1Database, keyHas
         WHERE desktop_session.id=k.desktop_session_id AND desktop_session.user_id=k.user_id
           AND desktop_session.revoked_at IS NULL AND desktop_session.expires_at>?
           AND desktop_session.created_at<=? AND desktop_session.current_key_id=k.id
-          AND desktop_session.current_key_ciphertext IS NOT NULL AND length(desktop_session.current_key_ciphertext)>0
+          AND desktop_session.current_key IS NOT NULL AND length(desktop_session.current_key)>0
       ))`,
     [keyHash, now, now, now, now, now, now]).first();
   if (row === null) return null;
@@ -295,14 +293,14 @@ const returningKeyColumns = keyColumns.replaceAll('k.', '');
 export async function updatePlatformKey(database: D1Database, trustedOwnerId: string, keyId: string,
   expectedVersion: number, patch: PlatformKeyPatch, now: number): Promise<PlatformKeyUpdateResult> {
   mutationScope(trustedOwnerId, keyId, expectedVersion, now);
-  if (patch === null || typeof patch !== 'object' || Array.isArray(patch)
-    || !Object.keys(patch).length || Object.keys(patch).some(field => !['name', 'expiresAt', 'allowedModels', 'groupId'].includes(field))) throw new TypeError('Invalid Key patch.');
+  if (patch === null || typeof patch !== 'object' || Array.isArray(patch)) throw new TypeError('Invalid Key patch.');
   const changeGroup = Object.hasOwn(patch, 'groupId');
   const selectedGroup = changeGroup ? patch.groupId : null;
   if (changeGroup && !validText(selectedGroup,128)) throw new TypeError('Invalid Key group.');
   const changeName = Object.hasOwn(patch, 'name');
   const changeExpiry = Object.hasOwn(patch, 'expiresAt');
   const changeModels = Object.hasOwn(patch, 'allowedModels');
+  if (!changeGroup && !changeName && !changeExpiry && !changeModels) throw new TypeError('Empty Key patch.');
   let name: string | null = null;
   if (changeName) {
     if (typeof patch.name !== 'string' || patch.name.length > 256 || /[\u0000-\u001f\u007f]/u.test(patch.name)) throw new TypeError('Invalid Key name.');
@@ -317,7 +315,7 @@ export async function updatePlatformKey(database: D1Database, trustedOwnerId: st
   let modelsJson: string | null = null;
   if (changeModels) {
     const models = patch.allowedModels;
-    if (models !== null && (!Array.isArray(models) || models.length > 100
+    if (models !== null && (!Array.isArray(models)
       || !Array.from(models).every(model => validText(model, 128)) || new Set(models).size !== models.length)) throw new TypeError('Invalid Key model selection.');
     modelsJson = models === null ? null : JSON.stringify([...models].sort());
   }

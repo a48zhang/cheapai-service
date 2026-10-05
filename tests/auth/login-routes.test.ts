@@ -72,9 +72,9 @@ describe('standalone login HTTP routes using native D1/DO', () => {
     expect(response.headers.get('Cache-Control')).toBe('no-store');
   });
 
-  it('rejects invalid JSON, non-JSON types and extra identity/IP fields with 400', async () => {
+  it('rejects invalid JSON and missing credentials with 400', async () => {
     const app = createLoginRoutes(deps);
-    for (const body of ['{broken', '', 'null', '[]', JSON.stringify({ ...input, role: 'admin' }), JSON.stringify({ ...input, trustedIp: '1.2.3.4' }), JSON.stringify({ email: input.email })]) {
+    for (const body of ['{broken', '', 'null', '[]', JSON.stringify({ email: input.email })]) {
       const response = await app.request(origin + LOGIN_PATH, { method: 'POST', headers, body });
       expect(response.status).toBe(400);
       expect(response.headers.get('Set-Cookie')).toBeNull();
@@ -82,6 +82,14 @@ describe('standalone login HTTP routes using native D1/DO', () => {
     const response = await app.request(origin + LOGIN_PATH, { method: 'POST', headers: { ...headers, 'Content-Type': 'text/plain' }, body: JSON.stringify(input) });
     expect(response.status).toBe(400);
     expect(verify).not.toHaveBeenCalled();
+  });
+
+  it('ignores injected identity and connection fields when logging in', async () => {
+    const response = await createLoginRoutes(deps).request(origin + LOGIN_PATH, {
+      method: 'POST', headers, body: JSON.stringify({ ...input, role: 'admin', trustedIp: '1.2.3.4', extension: true }),
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ data: { role: 'user' } });
   });
 
   it('accepts exactly 8 KiB and rejects streamed excess despite a false Content-Length', async () => {

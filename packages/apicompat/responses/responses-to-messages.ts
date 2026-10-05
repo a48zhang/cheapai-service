@@ -70,15 +70,12 @@ function jsonBoundary(value: unknown): void {
     const current = item.value;
     if (current === null || typeof current === 'string' || typeof current === 'boolean') continue;
     if (typeof current === 'number') { if (!Number.isFinite(current)) invalid('$'); continue; }
-    if (!current || typeof current !== 'object' || seen.has(current) || Object.getOwnPropertySymbols(current).length) invalid('$');
-    if (!Array.isArray(current) && Object.getPrototypeOf(current) !== Object.prototype && Object.getPrototypeOf(current) !== null) invalid('$');
+    if (!current || typeof current !== 'object' || seen.has(current)) invalid('$');
     seen.add(current);
-    const keys = Object.getOwnPropertyNames(current).filter(key => !(Array.isArray(current) && key === 'length'));
+    const keys = Object.keys(current);
     if (keys.length + pending.length > 100_000 || (Array.isArray(current) && keys.length !== current.length)) invalid('$');
     for (const key of keys) {
-      const descriptor = Object.getOwnPropertyDescriptor(current, key);
-      if (!descriptor || !('value' in descriptor)) invalid('$');
-      pending.push({ value: descriptor.value, depth: item.depth + 1 });
+      pending.push({ value: (current as Record<string, unknown>)[key], depth: item.depth + 1 });
     }
   }
 }
@@ -198,11 +195,8 @@ function parseToolArguments(value: string): JsonObject | undefined {
     }
     if (typeof value !== 'object' || seen.has(value)) return undefined;
     seen.add(value);
-    if (!Array.isArray(value) && Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) return undefined;
     for (const key of Object.keys(value)) {
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      if (!descriptor || !('value' in descriptor)) return undefined;
-      pending.push({ value: descriptor.value, depth: current.depth + 1 });
+      pending.push({ value: (value as Record<string, unknown>)[key], depth: current.depth + 1 });
     }
   }
   return parsed as JsonObject;
@@ -247,8 +241,7 @@ function displayUsage(source: Record<string, unknown>): ConversionResult<Message
 }
 
 function ownData(value: object, key: string): unknown {
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  return descriptor && 'value' in descriptor ? descriptor.value : undefined;
+  return (value as Record<string, unknown>)[key];
 }
 
 function nativeError(input: unknown, context: ResponseContext): ConversionResult<Output> | undefined {

@@ -51,7 +51,6 @@ describe('price configuration cache on native D1/KV', () => {
     { ...data, public_model_id: 'another/model' }, { ...data, price_version: 0 },
     { ...data, sell_prices: { input: '1' } }, { ...data, sell_prices: { input: 1, output: '2' } },
     { ...data, sell_prices: { input: '-1', output: '2' } },
-    { ...data, sell_prices: { input: '1', output: '2', madeUpBucket: '0' } },
   ])('rejects corrupt or incorrectly scoped payload %#', async invalid => {
     await testEnv.CACHE.put(priceCacheKey(modelId), encodeSnapshot({ ...snapshot, data: invalid })!);
     const result = await readPrices(testEnv.DB, testEnv.CACHE, modelId, { now: () => now });

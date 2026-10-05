@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { updateUser } from '../../apps/worker/admin/update-user';
 import type { UpdateUserPatch } from '../../apps/worker/admin/update-user';
 import { prepare } from '../../apps/worker/db';
@@ -43,16 +43,30 @@ describe('administrator user updates in native D1', () => {
     expect(await prepare(testEnv.DB, 'SELECT password_hash,balance_units,role FROM users WHERE id=?', [target]).first())
       .toEqual({ password_hash: 'a23-test-only-hash', balance_units: 0, role: 'user' });
   });
-  it('rejects empty/unknown/sensitive fields, unsafe limits/version and accessors', async () => {
+  it('rejects empty patches and invalid business values', async () => {
     for (const patch of [{}, { role: 'admin' }, { password: 'secret' }, { balance_units: 1 }, { concurrencyLimit: -1 },
       { rpmLimit: 1.5 }, { rpmLimit: Number.MAX_SAFE_INTEGER + 1 }, { status: 'revoked' }, { groupId: '' }]) {
       await expect(update(patch as UpdateUserPatch)).rejects.toMatchObject({ code: 'invalid_request' });
     }
-    const getter = vi.fn(() => 'disabled');
-    await expect(update(Object.defineProperty({}, 'status', { get: getter }))).rejects.toMatchObject({ code: 'invalid_request' });
-    expect(getter).not.toHaveBeenCalled();
     for (const version of [0, 1.5, Number.MAX_SAFE_INTEGER]) await expect(update({ rpmLimit: 2 }, target, version)).rejects.toMatchObject({ code: 'invalid_request' });
     expect((await audits()).rows).toEqual([]);
+  });
+  it('ignores unsupported fields while preserving server-owned role and balance', async () => {
+    const result = await update({ rpmLimit: 30, role: 'admin', balance_units: 100, extension: true } as UpdateUserPatch);
+    expect(result).toMatchObject({ role: 'user', balance_units: '0', rpm_limit: 30 });
+  });
+  it('commits more than 100 group grants and full before/after audit atomically', async () => {
+    const grants = ['a23-group', ...Array.from({ length: 150 }, (_, i) => `extra-group-${i}`)];
+    await prepare(testEnv.DB, `INSERT INTO groups(id,name,status,version,created_at,updated_at)
+      SELECT value,value,'active',1,?,? FROM json_each(?)`, [now,now,JSON.stringify(grants.slice(1))]).run();
+    await update({ allowedGroupIds: grants });
+    expect((await prepare(testEnv.DB, 'SELECT group_id FROM user_group_access WHERE user_id=?', [target]).all()).rows).toHaveLength(151);
+    const first = JSON.parse((await audits()).rows[0]!.redacted_change_json as string);
+    expect(first.after.allowed_group_ids).toEqual(grants);
+    await update({ allowedGroupIds: ['a23-group'] }, target, 2);
+    const second = (await audits()).rows.map(row => JSON.parse(row.redacted_change_json as string)).find(change => change.after.version === 3);
+    expect(second.before.allowed_group_ids).toHaveLength(151);
+    expect(second.after.allowed_group_ids).toEqual(['a23-group']);
   });
   it('rejects missing users, inactive destinations, and non-administrator actors', async () => {
     await expect(update({ rpmLimit: 20 }, 'a23-missing')).rejects.toMatchObject({ code: 'not_found' });

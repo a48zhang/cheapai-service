@@ -5,10 +5,9 @@ import { prepare } from '../db';
 
 export const MODELS_PATH = '/v1/models';
 export interface PublicModelEntry { id: string; object: 'model'; created: number; owned_by: 'sub2api' }
-class InvalidModelListRequest extends Error {}
 
 /** Native OpenAI-compatible catalog. A valid Key with no visible models gets an
- * empty list; no group/owner/limit can be supplied by query or body parameters.
+ * empty list; query parameters cannot change the authenticated group or owner.
  * No hidden LIMIT: a DB/runtime size failure is an error, never a partial "all".
  */
 export function createModelsRoute(dependencies: { now?: () => number } = {}): Hono<{ Bindings: { DB: D1Database } }> {
@@ -18,7 +17,6 @@ export function createModelsRoute(dependencies: { now?: () => number } = {}): Ho
     try {
       const now = (dependencies.now ?? Date.now)();
       const auth = await authenticatePlatformKey(context.env.DB, context.req.raw, now);
-      if (new URL(context.req.url).search !== '') throw new InvalidModelListRequest();
       const result = await prepare<{ public_model_id: string; created_at: number }>(context.env.DB, `
         SELECT m.public_model_id,m.created_at FROM models m
         WHERE m.status='active' AND m.created_at<=? AND EXISTS (
@@ -44,14 +42,13 @@ export function createModelsRoute(dependencies: { now?: () => number } = {}): Ho
     } catch (error) {
       const invalidKey = error instanceof PlatformKeyAuthError && error.reason === 'invalid_api_key';
       const conflict = error instanceof PlatformKeyAuthError && error.reason === 'conflicting_api_key_headers';
-      const invalidRequest = error instanceof InvalidModelListRequest;
-      const status = invalidKey ? 401 : conflict || invalidRequest ? 400 : 503;
+      const status = invalidKey ? 401 : conflict ? 400 : 503;
       if (status >= 500) logError('Gateway model list failed', error, { path: MODELS_PATH });
       else console.warn('Gateway model list rejected', { status }, error);
       response = Response.json({ error: {
-        message: invalidKey ? 'Invalid API key.' : conflict ? 'Conflicting API key headers.' : invalidRequest ? 'Invalid model list request.' : 'Service temporarily unavailable.',
-        type: invalidKey ? 'authentication_error' : conflict || invalidRequest ? 'invalid_request_error' : 'server_error',
-        code: invalidKey ? 'invalid_api_key' : conflict ? 'conflicting_api_key_headers' : invalidRequest ? 'invalid_request' : 'service_unavailable', param: null,
+        message: invalidKey ? 'Invalid API key.' : conflict ? 'Conflicting API key headers.' : 'Service temporarily unavailable.',
+        type: invalidKey ? 'authentication_error' : conflict ? 'invalid_request_error' : 'server_error',
+        code: invalidKey ? 'invalid_api_key' : conflict ? 'conflicting_api_key_headers' : 'service_unavailable', param: null,
       } }, { status });
     }
     response.headers.set('Cache-Control', 'no-store');

@@ -3,14 +3,12 @@ import type { GroupPatch, GroupView } from '@cheapai/api-client/groups';
 import { groupInputSchema } from '@cheapai/contracts/groups';
 
 /** UI-shaped values pipe through the public field schemas for validation and normalization. */
-export const groupDraftSchema = z
-  .object({
-    name: z.string().pipe(groupInputSchema.shape.name),
-    status: z.string().pipe(groupInputSchema.shape.status.unwrap()),
-    billingMultiplier: z.string().pipe(groupInputSchema.shape.billingMultiplier.unwrap()),
-    channelIds: z.array(z.string()).pipe(groupInputSchema.shape.channelIds.unwrap()),
-  })
-  .strict();
+export const groupDraftSchema = z.object({
+  name: z.string().pipe(groupInputSchema.shape.name),
+  status: z.string().pipe(groupInputSchema.shape.status.unwrap()),
+  billingMultiplier: z.string().pipe(groupInputSchema.shape.billingMultiplier.unwrap()),
+  channelIds: z.array(z.string()).pipe(groupInputSchema.shape.channelIds.unwrap()),
+});
 
 export type GroupFormValues = z.input<typeof groupDraftSchema>;
 export type GroupFormOutput = z.output<typeof groupDraftSchema>;

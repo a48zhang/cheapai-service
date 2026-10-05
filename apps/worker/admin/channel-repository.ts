@@ -4,11 +4,10 @@ import type { DbValue } from '../db';
 import { ApiError, DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '../http';
 import { validateUpstreamBaseUrl } from '../gateway/upstream-url';
 import { buildAuditStatement } from './audit';
-import { encryptChannelSecret } from '../catalog/channel-secrets';
 import { getChannelById, channelProjection as projection, decodeChannelRow as view, channelText as text, channelId as idValue } from '../catalog/channels';
-import type { ChannelView, ChannelRow, ChannelEncryptionKey } from '../catalog/channels';
+import type { ChannelView, ChannelRow } from '../catalog/channels';
 export { getChannelById, readChannelForForwarding } from '../catalog/channels';
-export type { ChannelView, ChannelEncryptionKey } from '../catalog/channels';
+export type { ChannelView } from '../catalog/channels';
 
 export interface CreateChannelInput {
   name: string; baseUrl: string; upstreamKey: string;
@@ -22,26 +21,23 @@ export interface ChannelPage { items: ChannelView[]; nextCursor: string | null }
 const fields = ['name', 'baseUrl', 'upstreamKey', 'concurrencyLimit', 'rpmLimit', 'priority', 'status'] as const;
 
 function inputObject(value: unknown, keys: readonly string[]): Record<string, unknown> {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)
-      || (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null)) throw new ApiError('invalid_request');
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new ApiError('invalid_request');
+  const source = value as Record<string, unknown>;
   const result: Record<string, unknown> = {};
-  for (const key of Reflect.ownKeys(value)) {
-    if (typeof key !== 'string' || !keys.includes(key)) throw new ApiError('invalid_request');
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    if (!descriptor || !('value' in descriptor) || descriptor.value === undefined) throw new ApiError('invalid_request');
-    result[key] = descriptor.value;
+  for (const key of keys) {
+    if (Object.hasOwn(source, key)) result[key] = source[key];
   }
   return result;
 }
-function rpm(value: unknown): number { try { return parseRpmLimit(value); } catch { throw new ApiError('invalid_request'); } }
-function concurrency(value: unknown): number { try { return parseConcurrencyLimit(value); } catch { throw new ApiError('invalid_request'); } }
+function rpm(value: unknown): number { try { return parseRpmLimit(value); } catch (error) { throw new ApiError('invalid_request', { cause: error }); } }
+function concurrency(value: unknown): number { try { return parseConcurrencyLimit(value); } catch (error) { throw new ApiError('invalid_request', { cause: error }); } }
 function integer(value: unknown, min = 0): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < min) throw new ApiError('invalid_request');
   return value;
 }
 function url(value: unknown): string {
   try { return validateUpstreamBaseUrl(text(value, 2048)).toString(); }
-  catch { throw new ApiError('invalid_request'); }
+  catch (error) { throw new ApiError('invalid_request', { cause: error }); }
 }
 function status(value: unknown): 'active' | 'disabled' {
   if (value !== 'active' && value !== 'disabled') throw new ApiError('invalid_request');
@@ -49,12 +45,6 @@ function status(value: unknown): 'active' | 'disabled' {
 }
 function auditContext(context: ChannelAuditContext): ChannelAuditContext {
   return { actorId: idValue(context.actorId), operationId: idValue(context.operationId), now: integer(context.now) };
-}
-async function encrypt(key: unknown, id: string, encryption: ChannelEncryptionKey | undefined): Promise<string> {
-  const plaintext = text(key, 16384); // An omitted key is handled by update; empty never means deletion.
-  if (!encryption) throw new ApiError('service_unavailable');
-  try { return await encryptChannelSecret(plaintext, id, encryption.keyVersion, encryption.key); }
-  catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
 }
 function writeError(error: unknown): never {
   if (error instanceof ApiError) throw error;
@@ -70,19 +60,19 @@ function requireOneChange(database: D1Database) {
 }
 
 /** Caller must authorize administrator access; this module performs no HTTP I/O. */
-export async function createChannel(database: D1Database, input: CreateChannelInput, context: ChannelAuditContext, encryption: ChannelEncryptionKey): Promise<ChannelView> {
+export async function createChannel(database: D1Database, input: CreateChannelInput, context: ChannelAuditContext): Promise<ChannelView> {
   const values = inputObject(input, fields);
   const audit = auditContext(context);
   const id = crypto.randomUUID();
   const row = { id, name: text(values.name, 200), base_url: url(values.baseUrl),
     status: status(Object.hasOwn(values, 'status') ? values.status : 'active'), priority: integer(Object.hasOwn(values, 'priority') ? values.priority : 0),
     concurrency_limit: concurrency(values.concurrencyLimit), rpm_limit: rpm(values.rpmLimit) };
-  const ciphertext = await encrypt(values.upstreamKey, id, encryption);
+  const upstreamKey = text(values.upstreamKey, 16384);
   try {
     const results = await batch(database, [
-      prepare<ChannelRow>(database, `INSERT INTO channels (id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?,1,?,?) RETURNING ${projection}`,
-      [id, row.name, row.base_url, ciphertext, encryption.keyVersion, row.status, row.priority, row.concurrency_limit, row.rpm_limit, audit.now, audit.now]),
+      prepare<ChannelRow>(database, `INSERT INTO channels (id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,1,?,?) RETURNING ${projection}`,
+      [id, row.name, row.base_url, upstreamKey, row.status, row.priority, row.concurrency_limit, row.rpm_limit, audit.now, audit.now]),
       requireOneChange(database),
       buildAuditStatement(database, { actor_id: audit.actorId, operation_id: audit.operationId, created_at: audit.now,
         action: 'channel.create', target_type: 'channel', target_id: id,
@@ -95,7 +85,7 @@ export async function createChannel(database: D1Database, input: CreateChannelIn
   } catch (error) { return writeError(error); }
 }
 
-export async function updateChannel(database: D1Database, id: string, expectedVersion: number, patch: ChannelPatch, context: ChannelAuditContext, encryption?: ChannelEncryptionKey): Promise<ChannelView> {
+export async function updateChannel(database: D1Database, id: string, expectedVersion: number, patch: ChannelPatch, context: ChannelAuditContext): Promise<ChannelView> {
   idValue(id); integer(expectedVersion, 1);
   if (expectedVersion === Number.MAX_SAFE_INTEGER) throw new ApiError('conflict');
   const values = inputObject(patch, fields);
@@ -113,10 +103,10 @@ export async function updateChannel(database: D1Database, id: string, expectedVe
   if (Object.hasOwn(values, 'concurrencyLimit')) updated.concurrencyLimit = concurrency(values.concurrencyLimit);
   if (Object.hasOwn(values, 'rpmLimit')) updated.rpmLimit = rpm(values.rpmLimit);
   const changesCredential = Object.hasOwn(values, 'upstreamKey');
-  const ciphertext = changesCredential ? await encrypt(values.upstreamKey, id, encryption) : null;
+  const upstreamKey = changesCredential ? text(values.upstreamKey, 16384) : null;
   const assignments = ['name=?', 'base_url=?', 'status=?', 'priority=?', 'concurrency_limit=?', 'rpm_limit=?', 'config_version=config_version+1', 'updated_at=max(updated_at,?)'];
   const params: DbValue[] = [updated.name, updated.baseUrl, updated.status, updated.priority, updated.concurrencyLimit, updated.rpmLimit, audit.now];
-  if (changesCredential) { assignments.push('secret_ciphertext=?', 'secret_key_version=?'); params.push(ciphertext, encryption!.keyVersion); }
+  if (changesCredential) { assignments.push('upstream_key=?', 'secret_ciphertext=NULL', 'secret_key_version=NULL'); params.push(upstreamKey); }
   params.push(id, expectedVersion);
   try {
     const results = await batch(database, [

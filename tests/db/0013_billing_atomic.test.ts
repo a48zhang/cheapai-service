@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { encryptChannelSecret } from '../../apps/worker/admin/channel-secrets';
+import { legacyChannelSecret } from '../helpers/legacy-channel-secret';
 import { calculatePrice } from '../../apps/worker/billing/pricing';
 import type { UsageSnapshot } from '../../packages/apicompat/types/shared';
 import { testEnv } from '../helpers/database';
@@ -41,7 +41,7 @@ describe('0013 atomic billing in native D1', () => {
     for (const [id, owner, hash] of [['d13-key', 'd13-user', 'a'], ['d13-other-key', 'd13-other', 'b']]) {
       await testEnv.DB.prepare("INSERT INTO api_keys (id,user_id,key_hash,display_prefix,name,status,created_at,updated_at) VALUES (?,?,?,'s2a_key_ABCDEFGH','D13 key','active',0,0)").bind(id, owner, hash!.repeat(64)).run();
     }
-    const encrypted = await encryptChannelSecret('test-only', 'd13-channel', 'test-v1', crypto.getRandomValues(new Uint8Array(32)));
+    const encrypted = legacyChannelSecret();
     await testEnv.DB.prepare(`INSERT INTO channels (id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
       VALUES ('d13-channel','D13 channel','https://example.invalid',?,'test-v1','active',0,2,60,1,0,0)`).bind(encrypted).run();
     await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,default_output_tokens,created_at,updated_at)

@@ -1,9 +1,4 @@
-import {
-  decodeModel,
-  decodeModelPage,
-  modelInputSchema,
-  modelPatchSchema,
-} from '@cheapai/contracts/models';
+import { decodeModel, decodeModelPage } from '@cheapai/contracts/models';
 import type {
   ModelInput,
   ModelPage,
@@ -50,22 +45,17 @@ export function createModelsApi(api: ApiClient) {
       ).data;
     },
     async create(input: ModelInput): Promise<ModelView> {
-      const body = modelInputSchema.parse(input);
-      return (await api.post(collectionPath, body, { decode: decodeModel })).data;
+      return (await api.post(collectionPath, input, { decode: decodeModel })).data;
     },
     async update(
       publicModelId: string,
       priceVersion: number,
       input: ModelPatch,
     ): Promise<ModelView> {
-      const patch = modelPatchSchema.parse(input);
-      if (!Number.isSafeInteger(priceVersion) || priceVersion < 1) {
-        throw new TypeError('Invalid administrator model price version.');
-      }
       return (
         await api.patch(
           modelPath(publicModelId),
-          { version: priceVersion, ...patch },
+          { version: priceVersion, ...input },
           { decode: decodeModel },
         )
       ).data;

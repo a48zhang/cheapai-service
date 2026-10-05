@@ -54,19 +54,15 @@ function parseToolArguments(value: string): JsonObject | undefined {
     }
     if (typeof current !== 'object' || seen.has(current)) return undefined;
     seen.add(current);
-    if (!Array.isArray(current) && Object.getPrototypeOf(current) !== Object.prototype && Object.getPrototypeOf(current) !== null) return undefined;
     for (const key of Object.keys(current)) {
-      const descriptor = Object.getOwnPropertyDescriptor(current, key);
-      if (!descriptor || !('value' in descriptor)) return undefined;
-      pending.push({ value: descriptor.value, depth: item.depth + 1 });
+      pending.push({ value: (current as Record<string, unknown>)[key], depth: item.depth + 1 });
     }
   }
   return parsed as JsonObject;
 }
 
 function ownData(value: object, key: string): unknown {
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  return descriptor && 'value' in descriptor ? descriptor.value : undefined;
+  return (value as Record<string, unknown>)[key];
 }
 
 function nativeError(input: unknown, context: ResponseContext): ConversionResult<Output> | undefined {

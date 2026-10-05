@@ -26,8 +26,8 @@ beforeEach(async () => {
       .bind(`${user}-key`, user, String(index + 1).repeat(64)).run();
     cookies.set(user, (await createCookieSession(testEnv.DB, user, 1000)).setCookie.split(';')[0]!);
   }
-  await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-    VALUES('b12-channel','channel','https://example.invalid',?,'test','active',1,2,60,1,0,0)`).bind(JSON.stringify({ algorithm: 'A256GCM', format_version: 1, key_version: 'test', nonce: 'synthetic', ciphertext: 'PRIVATE CHANNEL SECRET' })).run();
+  await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+    VALUES('b12-channel','channel','https://example.invalid',?,'active',1,2,60,1,0,0)`).bind('test-upstream-key').run();
   await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('b12-model','active','{"input":"1","output":"2"}',1,0,4096,0,0)`).run();
   price = createPriceSnapshot({ publicModelId: 'b12-model', upstreamModel: 'upstream', upstreamProtocol: 'chat', priceVersion: 1, sellPrices: { input: '1', output: '2' } }).json;
   await insert('b12-a'); await insert('b12-b'); await insert('b12-c'); await insert('b12-foreign', other);
@@ -42,13 +42,16 @@ describe('request query HTTP on native D1', () => {
     const api = await request(`${PERSONAL_REQUESTS_PATH}/b12-b`);
     expect(await api.json()).toMatchObject({ data: { source: 'api', group_id: null } });
   });
-  it('isolates personal list/detail and ignores no client-selected admin scope', async () => {
+  it('isolates personal list/detail despite client-selected identity or scope', async () => {
     const response = await request(); expect(response.status).toBe(200); expect(response.headers.get('Cache-Control')).toBe('no-store');
     const body = await response.json<{ data: { items: { user_id: string }[] } }>(); expect(body.data.items).toHaveLength(3);
     expect(body.data.items.every(row => row.user_id === owner)).toBe(true);
     expect((await request(`${PERSONAL_REQUESTS_PATH}/b12-foreign`)).status).toBe(404);
-    expect((await request(PERSONAL_REQUESTS_PATH + '?userId=' + other)).status).toBe(400);
-    expect((await request(PERSONAL_REQUESTS_PATH + '?scope=admin')).status).toBe(400);
+    for (const query of ['?userId=' + other, '?scope=admin']) {
+      const scoped = await request(PERSONAL_REQUESTS_PATH + query);
+      expect(scoped.status).toBe(200);
+      expect((await scoped.json<{ data: { items: { user_id: string }[] } }>()).data.items).toEqual(body.data.items);
+    }
     expect((await request(ADMIN_REQUESTS_PATH)).status).toBe(403);
     expect((await request(PERSONAL_REQUESTS_PATH, 'missing')).status).toBe(401);
     expect((await request(`${ADMIN_REQUESTS_PATH}/b12-foreign`, admin)).status).toBe(200);
@@ -75,7 +78,7 @@ describe('request query HTTP on native D1', () => {
     await testEnv.DB.prepare("UPDATE requests SET execution_status='failed',billing_status='usage_unknown' WHERE id='b12-a'").run();
     const path = `${ADMIN_REQUESTS_PATH}?userId=${owner}&from=5000&to=5000&status=failed&billingStatus=usage_unknown&model=b12-model`;
     expect(await (await request(path, admin)).json()).toMatchObject({ data: { items: [{ id: 'b12-a' }] } });
-    for (const query of ['from=-1', 'to=1.5', 'from=01', 'from=1%0A', 'from=10&to=9', 'to=9007199254740992', 'status=wrong', 'billingStatus=wrong', 'limit=101', 'limit=2&limit=3', 'cursor=', "model='%20OR%201=1", 'actorId=other']) {
+    for (const query of ['from=-1', 'to=1.5', 'from=01', 'from=1%0A', 'from=10&to=9', 'to=9007199254740992', 'status=wrong', 'billingStatus=wrong', 'limit=101', 'limit=2&limit=3', 'cursor=', "model='%20OR%201=1"]) {
       expect((await request(`${ADMIN_REQUESTS_PATH}?${query}`, admin)).status, query).toBe(400);
     }
   });

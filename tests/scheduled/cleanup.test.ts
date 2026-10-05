@@ -19,7 +19,7 @@ describe('bounded native D1 identity cleanup', () => {
   it('deletes expiration==cutoff but preserves future expiries including revoked sessions', async () => {
     await session(1, 999); await session(2, 1000); await session(3, 1001); await session(4, 2000, 500);
     await challenge(1, 1000); await challenge(2, 1001);
-    expect(await cleanupExpiredIdentityData(testEnv.DB, 1000)).toEqual({ cutoff: 1000, sessionsDeleted: 2, challengesDeleted: 1, moreSessions: false, moreChallenges: false, desktopSessionCiphertextsCleared: 0, moreDesktopSessionCiphertexts: false });
+    expect(await cleanupExpiredIdentityData(testEnv.DB, 1000)).toEqual({ cutoff: 1000, sessionsDeleted: 2, challengesDeleted: 1, moreSessions: false, moreChallenges: false, desktopSessionKeysCleared: 0, moreDesktopSessionKeys: false });
     expect((await testEnv.DB.prepare('SELECT id FROM sessions ORDER BY id').all()).results).toEqual([{ id: 'cleanup-session-3' }, { id: 'cleanup-session-4' }]);
     expect((await testEnv.DB.prepare('SELECT id FROM email_challenges').all()).results).toEqual([{ id: 'cleanup-challenge-2' }]);
   });
@@ -50,8 +50,8 @@ describe('bounded native D1 identity cleanup', () => {
       VALUES('cleanup-code',?,'s2a_invite_ABCDEFGH',500,'cleanup-admin',100,'cleanup-admin',0,'cleanup-batch',0)`).bind('c'.repeat(64)).run();
     await testEnv.DB.prepare(`INSERT INTO api_keys(id,user_id,key_hash,display_prefix,name,status,expires_at,created_at,updated_at,creation_operation_id,creation_fingerprint)
       VALUES('cleanup-key','cleanup-admin',?,'s2a_key_ABCDEFGH','cleanup','revoked',500,0,0,'cleanup-key-op',?)`).bind('d'.repeat(64), 'e'.repeat(64)).run();
-    await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-      VALUES('cleanup-channel','cleanup','https://example.invalid',?,'test','active',1,2,60,1,0,0)`).bind(JSON.stringify({ algorithm: 'A256GCM', format_version: 1, key_version: 'test', nonce: 'fixture', ciphertext: 'fixture' })).run();
+    await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+      VALUES('cleanup-channel','cleanup','https://example.invalid',?,'active',1,2,60,1,0,0)`).bind('test-upstream-key').run();
     await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('cleanup-model','active','{"input":"1","output":"2"}',1,0,4096,0,0)`).run();
     await testEnv.DB.prepare(`INSERT INTO requests(id,user_id,api_key_id,channel_id,public_model_id,upstream_model,downstream_protocol,upstream_protocol,price_snapshot,created_at,updated_at)
       VALUES('cleanup-request','cleanup-admin','cleanup-key','cleanup-channel','cleanup-model','upstream','chat','chat','{}',0,0)`).run();

@@ -66,7 +66,7 @@ describe('production billing entry integration with native D1', () => {
 
   it('authenticates before write config, keeps reads independent, and never reads unrelated Secrets', async () => {
     const env = bindings(); delete env.PUBLIC_BASE_URL;
-    Object.defineProperty(env, 'CHANNEL_KEYRING_JSON', { enumerable: true, get() { throw new Error('Secret must remain unread'); } });
+    Object.defineProperty(env, 'EMAIL_HMAC_KEY', { enumerable: true, get() { throw new Error('Secret must remain unread'); } });
     for (const path of ['/api/v1/account/balance', '/api/v1/billing/entries', '/api/v1/admin/billing/entries']) {
       expect((await invoke(path, {}, env)).status).toBe(401);
     }

@@ -22,14 +22,13 @@ function invalid(code: string, param: string): never {
   throw new ChatInputError({ kind: 'invalid_request', code, param, message: 'Invalid Chat Completions request.' });
 }
 
-/** Parse before selecting a channel. Preserved JSON extensions are requirements,
- * not forwarding permission: C16/P22 must still approve capability and adapter. */
+/** Parse once at ingress; channel selection reuses the identified features. */
 export async function parseChatInput(input: Request, options: { maxBodyBytes?: number; maxOutputTokens?: number } = {}): Promise<ParsedChatInput> {
   if (options.maxOutputTokens !== undefined && (!Number.isSafeInteger(options.maxOutputTokens) || options.maxOutputTokens < 1)) {
     throw new ApiError('service_unavailable');
   }
   const raw = await readGatewayJson(input, options.maxBodyBytes);
-  const parsed = parseChatRequest(raw, { unknownFields: 'preserve' });
+  const parsed = parseChatRequest(raw, { unknownFields: 'preserve', native: true });
   if (!parsed.ok) throw new ChatInputError(parsed.error);
   const request = parsed.value;
   if (request.model.length > 128 || request.model.trim() !== request.model || !/^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/.test(request.model)) {

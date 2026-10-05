@@ -5,7 +5,6 @@ import { createPriceSnapshot } from '../../apps/worker/billing/fingerprint';
 import { prepareRequestRegistration, commitRequestRegistration } from '../../apps/worker/gateway/request-repository';
 import type { RequestRecord } from '../../apps/worker/gateway/request-repository';
 import { createPlatformKey } from '../../apps/worker/auth/key-repository';
-import { encryptChannelSecret } from '../../apps/worker/admin/channel-secrets';
 import type { UsageSnapshot } from '../../packages/apicompat/types/shared';
 import { testEnv } from '../helpers/database';
 
@@ -45,9 +44,9 @@ beforeEach(async () => {
     VALUES('b13-user','b13@example.invalid','synthetic','user','active','b13-group',100000,1,60,'admin',0,0)`).run();
   const key = await createPlatformKey(testEnv.DB, 'b13-user', { operationId: 'key-create', name: 'Fixture', allowedModels: null }, 1000);
   if (key.kind !== 'created') throw new Error('Expected synthetic key');
-  const encrypted = await encryptChannelSecret('synthetic', 'b13-channel', 'v1', crypto.getRandomValues(new Uint8Array(32)));
-  await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-    VALUES('b13-channel','Fixture','https://example.invalid',?,'v1','active',0,1,60,1,0,0)`).bind(encrypted).run();
+  const credential = 'synthetic';
+  await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+    VALUES('b13-channel','Fixture','https://example.invalid',?,'active',0,1,60,1,0,0)`).bind(credential).run();
   await testEnv.DB.prepare("INSERT INTO channel_groups(channel_id,group_id) VALUES('b13-channel','b13-group')").run();
   await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('b13-model','active','{"input":"1","output":"2"}',1,0,4096,0,0)`).run();
   await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,upstream_model,protocol,capabilities_json,config_version)

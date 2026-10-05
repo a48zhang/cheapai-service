@@ -66,15 +66,12 @@ function jsonBoundary(value: unknown): void {
     const value = item.value;
     if (value === null || typeof value === 'string' || typeof value === 'boolean') continue;
     if (typeof value === 'number') { if (!Number.isFinite(value)) invalid('$'); continue; }
-    if (!value || typeof value !== 'object' || seen.has(value) || Object.getOwnPropertySymbols(value).length) invalid('$');
-    if (!Array.isArray(value) && Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) invalid('$');
+    if (!value || typeof value !== 'object' || seen.has(value)) invalid('$');
     seen.add(value);
-    const names = Object.getOwnPropertyNames(value).filter((key) => !(Array.isArray(value) && key === 'length'));
+    const names = Object.keys(value);
     if (names.length + pending.length > 100_000 || (Array.isArray(value) && names.length !== value.length)) invalid('$');
     for (const key of names) {
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      if (!descriptor || !('value' in descriptor)) invalid('$');
-      pending.push({ value: descriptor.value, depth: item.depth + 1 });
+      pending.push({ value: (value as Record<string, unknown>)[key], depth: item.depth + 1 });
     }
   }
 }

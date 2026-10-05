@@ -87,9 +87,7 @@ describe('Responses→Chat text request milestone', () => {
     { type: 'function_call_output', call_id: 'call', output: 'result' },
     { type: 'item_reference', id: 'provider-item' },
     { type: 'reasoning', id: 'reasoning-id', summary: [] },
-    { role: 'user', content: [{ type: 'input_image', image_url: 'https://example.test/p.png' }] },
     { role: 'user', content: [{ type: 'input_file', file_id: 'file-id' }] },
-    { role: 'assistant', content: [{ type: 'refusal', refusal: 'declined' }] },
     { role: 'assistant', content: [{ type: 'output_text', text: 'x', annotations: [{ type: 'url_citation', url: 'https://example.test' }] }] },
     { role: 'assistant', content: [{ type: 'output_text', text: 'x', annotations: [], logprobs: [] }] },
     { role: 'user', content: [{ type: 'input_text', text: 'x', vendor: true }] },
@@ -126,9 +124,9 @@ describe('P-RC-Q5 effort without private-history invention', () => {
     const output = value(convertResponsesToChatRequest({ ...basic(), reasoning: { effort } }, context, options));
     expect(output.reasoning_effort).toBe(effort); expect(output).not.toHaveProperty('thinking');
   });
-  it('requires capability and preserves unspecified effort as unspecified', () => {
-    expect(convertResponsesToChatRequest({ ...basic(), reasoning: { effort: 'high' } }, context).ok).toBe(false);
-    expect(convertResponsesToChatRequest({ ...basic(), reasoning: { effort: 'unknown' } }, context, options).ok).toBe(false);
+  it('preserves effort values without capability declarations or invented defaults', () => {
+    expect(convertResponsesToChatRequest({ ...basic(), reasoning: { effort: 'high' } }, context).ok).toBe(true);
+    expect(convertResponsesToChatRequest({ ...basic(), reasoning: { effort: 'unknown' } }, context, options).ok).toBe(true);
     expect(value(convertResponsesToChatRequest({ ...basic(), reasoning: { effort: null } }, context))).not.toHaveProperty('reasoning_effort');
   });
   it.each([{ effort: 'high', summary: 'auto' }, { encrypted_content: 'PRIVATE' }, { budget_tokens: 1234 }, { effort: false }])('rejects unrepresentable reasoning config %#', reasoning => {
@@ -153,8 +151,8 @@ describe('P-RC-Q4-O output format', () => {
     expect(result.response_format).toEqual({ type: 'json_schema', json_schema: { name: 'result', schema, description: 'A result', ...(strict === undefined ? {} : { strict }) } });
     expect(parseChatRequest(result).ok).toBe(true);
   });
-  it('rejects missing capability and unknown format/text constraints', () => {
-    expect(convertResponsesToChatRequest({ ...basic(), text: { format: { type: 'json_object' } } }, context).ok).toBe(false);
+  it('accepts undeclared output formats but rejects unknown format constraints', () => {
+    expect(convertResponsesToChatRequest({ ...basic(), text: { format: { type: 'json_object' } } }, context).ok).toBe(true);
     for (const text of [{ verbosity: 'low' }, { format: { type: 'json_object', vendor: true } }, { format: { type: 'json_schema', name: 'x' } }]) {
       expect(convertResponsesToChatRequest({ ...basic(), text }, context, options).ok).toBe(false);
     }
@@ -172,9 +170,9 @@ describe('P-RC-Q4 output controls', () => {
     const result = value(convertResponsesToChatRequest({ ...basic(), stream: false, max_output_tokens: null, temperature: null, top_p: null }, context));
     expect(result.stream).toBe(false); expect(result).not.toHaveProperty('temperature'); expect(result).not.toHaveProperty('max_completion_tokens');
   });
-  it('requires sampler capabilities and rejects malformed controls or stop extensions', () => {
-    expect(convertResponsesToChatRequest({ ...basic(), top_p: 0.5 }, context).ok).toBe(false);
-    expect(convertResponsesToChatRequest({ ...basic(), top_p: 0.5 }, context, { channelCapabilities: { protocol: 'chat', features: [] } }).ok).toBe(false);
+  it('accepts undeclared sampling but rejects malformed controls or stop extensions', () => {
+    expect(convertResponsesToChatRequest({ ...basic(), top_p: 0.5 }, context).ok).toBe(true);
+    expect(convertResponsesToChatRequest({ ...basic(), top_p: 0.5 }, context, { channelCapabilities: { protocol: 'chat', features: [] } }).ok).toBe(true);
     for (const patch of [{ max_output_tokens: 0 }, { temperature: 3 }, { top_p: -1 }, { stop: ['END'] }, { max_tokens: 10 }]) expect(convertResponsesToChatRequest({ ...basic(), ...patch }, context, options).ok).toBe(false);
   });
 });
@@ -183,7 +181,7 @@ describe('P-RC-Q6 completed history and known options', () => {
   const options = { channelCapabilities: { protocol: 'chat' as const, features: ['streaming', 'stream_usage', 'tools', 'strict_tools', 'refusal_history'] as const } };
   it('requests Chat usage explicitly for Responses streams', () => {
     expect(convertResponsesToChatRequest({ ...basic(), stream: true }, context, options)).toMatchObject({ ok: true, value: { stream: true, stream_options: { include_usage: true } } });
-    expect(convertResponsesToChatRequest({ ...basic(), stream: true }, context, { channelCapabilities: { protocol: 'chat', features: ['streaming'] } }).ok).toBe(false);
+    expect(convertResponsesToChatRequest({ ...basic(), stream: true }, context, { channelCapabilities: { protocol: 'chat', features: ['streaming'] } }).ok).toBe(true);
   });
   it('keeps call_id rather than source item IDs and accepts complete native items', () => {
     const result = value(convertResponsesToChatRequest({ model: 'm', input: [
@@ -204,9 +202,9 @@ describe('P-RC-Q6 completed history and known options', () => {
       expect(convertResponsesToChatRequest({ ...basic(), ...patch }, context, options).ok).toBe(false);
     expect(convertResponsesToChatRequest({ model: 'm', input: [{ type: 'item_reference', id: 'source' }] }, context, options).ok).toBe(false);
   });
-  it('checks generated target strict-tool capability as well as source features', () => {
+  it('preserves generated strict-tool semantics without capability declarations', () => {
     const request: ResponsesRequest = { ...basic(), tools: [{ type: 'function', name: 'f', parameters: { type: 'object', properties: {} } }] };
-    expect(convertResponsesToChatRequest(request, context, { channelCapabilities: { protocol: 'chat', features: ['tools'] } }).ok).toBe(false);
+    expect(convertResponsesToChatRequest(request, context, { channelCapabilities: { protocol: 'chat', features: ['tools'] } }).ok).toBe(true);
     expect(convertResponsesToChatRequest(request, context, options).ok).toBe(true);
   });
 });
@@ -224,16 +222,20 @@ describe('P-RC-Q3 images', () => {
       expect(parseChatRequest(result).ok).toBe(true); expect(spy).not.toHaveBeenCalled();
     } finally { spy.mockRestore(); }
   });
-  it.each(['png', 'jpeg', 'gif', 'webp'])('preserves data URI type %s', subtype => {
+  it.each(['png', 'jpeg', 'gif', 'webp', 'svg+xml'])('preserves data URI type %s', subtype => {
     const url = `data:image/${subtype};base64,AQID`;
     expect(convertResponsesToChatRequest(request(url), context, options)).toMatchObject({ ok: true, value: { messages: [{ content: [{ text: 'before' }, { image_url: { url } }, { text: 'after' }] }] } });
   });
-  it('requires transport capabilities and rejects file IDs/original detail', () => {
-    expect(convertResponsesToChatRequest(request('https://image.example/x'), context).ok).toBe(false);
+  it('preserves HTTP image URLs with query and fragment', () => {
+    const url = 'http://images.local/photo?format=original#part';
+    expect(convertResponsesToChatRequest(request(url), context)).toMatchObject({ ok: true, value: { messages: [{ content: [{ text: 'before' }, { image_url: { url } }, { text: 'after' }] }] } });
+  });
+  it('accepts undeclared image transport but rejects unrepresentable file IDs and detail', () => {
+    expect(convertResponsesToChatRequest(request('https://image.example/x'), context).ok).toBe(true);
     expect(convertResponsesToChatRequest(request('https://image.example/x', 'original'), context, options).ok).toBe(false);
     expect(convertResponsesToChatRequest({ model: 'm', input: [{ role: 'user', content: [{ type: 'input_image', file_id: 'file' }] }] }, context, options).ok).toBe(false);
   });
-  it.each(['file:///x', 'data:image/svg+xml;base64,AQID', 'data:image/png;base64,AR==', 'https://u:p@image.example/x'])('rejects unsupported image envelope %#', url => {
+  it.each(['file:///x', 'data:image/png;base64,AR==', 'https://u:p@image.example/x'])('rejects unsupported image envelope %#', url => {
     expect(convertResponsesToChatRequest(request(url), context, options).ok).toBe(false);
   });
 });

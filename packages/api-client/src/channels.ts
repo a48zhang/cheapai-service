@@ -1,12 +1,7 @@
 import {
-  channelInputSchema,
-  channelListQuerySchema,
   channelPageSchema,
-  channelPatchSchema,
-  channelProbeInputSchema,
   channelSchema,
   channelProbeResultSchema,
-  channelVersionSchema,
 } from '@cheapai/contracts/channels';
 import type {
   ChannelInput,
@@ -39,10 +34,9 @@ export function createChannelsApi(api: ApiClient) {
     options: ChannelListQuery = {},
     readOptions?: ApiReadOptions,
   ): Promise<ChannelPage> {
-    const query = channelListQuerySchema.parse(options);
     return (
       await api.get('/api/v1/admin/channels', {
-        query: { ...query, limit: 20 },
+        query: { ...options, limit: 20 },
         decode: (value) => channelPageSchema.parse(value),
         ...(readOptions?.signal === undefined ? {} : { signal: readOptions.signal }),
       })
@@ -59,21 +53,18 @@ export function createChannelsApi(api: ApiClient) {
   }
 
   async function create(input: ChannelInput): Promise<ChannelView> {
-    const body = channelInputSchema.parse(input);
     return (
-      await api.post('/api/v1/admin/channels', body, {
+      await api.post('/api/v1/admin/channels', input, {
         decode: (value) => channelSchema.parse(value),
       })
     ).data;
   }
 
   async function update(id: string, version: number, patch: ChannelPatch): Promise<ChannelView> {
-    const body = channelPatchSchema.parse(patch);
-    const expectedVersion = channelVersionSchema.parse(version);
     return (
       await api.patch(
         pathFor(id),
-        { version: expectedVersion, ...body },
+        { version, ...patch },
         {
           decode: (value) => channelSchema.parse(value),
         },
@@ -82,9 +73,8 @@ export function createChannelsApi(api: ApiClient) {
   }
 
   async function probe(id: string, input: ChannelProbeInput): Promise<ChannelProbeResult> {
-    const body = channelProbeInputSchema.parse(input);
     return (
-      await api.post(`${pathFor(id)}/test`, body, {
+      await api.post(`${pathFor(id)}/test`, input, {
         decode: (value) => channelProbeResultSchema.parse(value),
       })
     ).data;

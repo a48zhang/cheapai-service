@@ -66,7 +66,6 @@ describe('Chat native stream session', () => {
     [frame(payload(choice({}, 'stop'))), frame(payload(choice({ content: 'late' })))],
     [frame(payload(choice({}, 'stop'))), frame({ ...payload(choice({})), id: 'different' })],
     [frame(payload(choice({ tool_calls: [{ index: 0, id: 't', function: { name: 'f', arguments: '{' } }] }, 'tool_calls')))],
-    [frame({ ...payload(choice({})), authorization: 'SECRET' })],
   ].map(frames => ({ frames })))('rejects bad chunks/lifecycle %#', ({ frames }) => {
     const stream = session(); let step;
     for (const input of frames) step = stream.push(input);

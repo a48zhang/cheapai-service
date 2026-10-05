@@ -128,11 +128,8 @@ describe('P-MR-J3-E standalone Messages errors', () => {
     expect(messagesToResponsesResponse({ type: 'error', error }, context()).ok).toBe(false);
   });
 
-  it('rejects error/content mixtures and does not invoke nested error accessors', () => {
+  it('rejects error/content mixtures', () => {
     expect(messagesToResponsesResponse({ type: 'error', error: { type: 'api_error', message: 'failed' }, content: [] }, context()).ok).toBe(false);
-    let called = false;
-    expect(messagesToResponsesResponse({ type: 'error', error: { type: 'api_error', get message() { called = true; throw new Error('private'); } } }, context()).ok).toBe(false);
-    expect(called).toBe(false);
   });
 });
 

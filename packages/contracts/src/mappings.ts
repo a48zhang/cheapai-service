@@ -59,129 +59,15 @@ export const CAPABILITY_FEATURES = [
   'system_developer_priority',
 ] as const;
 
-export const EXTENSION_SCOPES = [
-  'request',
-  'message',
-  'content',
-  'image_source',
-  'tool',
-  'tool_function',
-  'tool_call',
-  'tool_choice',
-  'response_format',
-  'reasoning',
-  'text',
-  'thinking',
-  'cache_control',
-  'stream_options',
-  'metadata',
-  'output_config',
-] as const;
+export const capabilityFeatureSchema = z.string().min(1);
 
-export const capabilityFeatureSchema = z.enum(CAPABILITY_FEATURES);
-export const extensionScopeSchema = z.enum(EXTENSION_SCOPES);
-
-const uniqueArray = <T extends z.ZodTypeAny>(schema: T, max: number) =>
-  z
-    .array(schema)
-    .max(max)
-    .refine((values) => new Set(values).size === values.length);
-
-const extensionNameSchema = z
-  .string()
-  .regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/u)
-  .refine(
-    (value) =>
-      ![
-        'authorization',
-        'headers',
-        'api_key',
-        'base_url',
-        'url',
-        'host',
-        'constructor',
-        'prototype',
-      ].includes(value.toLowerCase()),
-  );
-
-const nativeExtensionSchema = z.object({
-  scope: extensionScopeSchema,
-  name: extensionNameSchema,
+export const channelCapabilitiesSchema = z.object({
+  protocol: protocolSchema,
+  features: z.array(capabilityFeatureSchema),
+  maxOutputTokens: positiveCountSchema.optional(),
+  reasoningEfforts: z.array(z.string().min(1)).optional(),
+  cacheTtls: z.array(z.string().min(1)).optional(),
 });
-const nativeExtensionsSchema = z
-  .array(nativeExtensionSchema)
-  .max(32)
-  .refine(
-    (values) =>
-      new Set(values.map((value) => `${value.scope}:${value.name}`)).size === values.length,
-  );
-
-export const channelCapabilitiesSchema = z
-  .object({
-    protocol: protocolSchema,
-    features: uniqueArray(capabilityFeatureSchema, CAPABILITY_FEATURES.length),
-    maxOutputTokens: positiveCountSchema.optional(),
-    reasoningEfforts: uniqueArray(
-      z
-        .string()
-        .min(1)
-        .max(64)
-        .regex(/^[a-z][a-z0-9_-]*$/u)
-        .refine((value) => value.trim() === value),
-      16,
-    ).optional(),
-    cacheTtls: uniqueArray(z.enum(['5m', '1h']), 2).optional(),
-    nativeExtensions: nativeExtensionsSchema.optional(),
-  })
-  .superRefine((value, context) => {
-    const enabled = new Set(value.features);
-    const requires: readonly [string, string][] = [
-      ['stream_usage', 'streaming'],
-      ['tool_choice', 'tools'],
-      ['parallel_tools', 'tools'],
-      ['parallel_tool_control', 'tools'],
-      ['strict_tools', 'tools'],
-      ['tool_result_images', 'tools'],
-      ['tool_result_error', 'tools'],
-    ];
-    for (const [child, parent] of requires) {
-      if (
-        enabled.has(child as (typeof value.features)[number]) &&
-        !enabled.has(parent as (typeof value.features)[number])
-      ) {
-        context.addIssue({
-          code: 'custom',
-          path: ['features'],
-          message: `${child} requires ${parent}.`,
-        });
-      }
-    }
-    if (value.reasoningEfforts !== undefined && !enabled.has('reasoning_effort')) {
-      context.addIssue({
-        code: 'custom',
-        path: ['reasoningEfforts'],
-        message: 'reasoningEfforts requires reasoning_effort.',
-      });
-    }
-    if (value.cacheTtls !== undefined && !enabled.has('cache_control')) {
-      context.addIssue({
-        code: 'custom',
-        path: ['cacheTtls'],
-        message: 'cacheTtls requires cache_control.',
-      });
-    }
-    if (
-      value.nativeExtensions?.some(
-        (extension) => extension.scope === 'output_config' && value.protocol !== 'messages',
-      )
-    ) {
-      context.addIssue({
-        code: 'custom',
-        path: ['nativeExtensions'],
-        message: 'output_config is supported by messages only.',
-      });
-    }
-  });
 
 export const modelMappingViewSchema = z
   .object({
@@ -207,7 +93,7 @@ export const modelMappingInputSchema = z
     upstreamModel: identifierSchema,
     capabilities: channelCapabilitiesSchema,
   })
-  .strict()
+
   .refine((value) => value.capabilities.protocol === value.protocol, {
     path: ['capabilities', 'protocol'],
   });
@@ -217,12 +103,11 @@ export const modelMappingPatchSchema = z
     upstreamModel: identifierSchema.optional(),
     capabilities: channelCapabilitiesSchema.optional(),
   })
-  .strict()
+
   .refine((value) => Object.keys(value).length > 0);
 
 export type Protocol = z.infer<typeof protocolSchema>;
 export type CapabilityFeature = z.infer<typeof capabilityFeatureSchema>;
-export type ExtensionScope = z.infer<typeof extensionScopeSchema>;
 export type ChannelCapabilities = z.infer<typeof channelCapabilitiesSchema>;
 export type ModelMappingView = z.infer<typeof modelMappingViewSchema>;
 export type ModelMappingList = z.infer<typeof modelMappingListSchema>;

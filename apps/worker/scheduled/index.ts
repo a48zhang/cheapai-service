@@ -33,11 +33,7 @@ export async function runScheduledMaintenance(database: D1Database, context: Pic
   options: ScheduledMaintenanceOptions = {}): Promise<ScheduledMaintenanceReport> {
   const budget = options.budgetMs ?? 25_000;
   if (!Number.isInteger(budget) || budget < 1 || budget > 30_000) throw new ApiError('invalid_request');
-  const now = (): number => {
-    const time = options.now ? options.now() : Date.now();
-    if (!Number.isSafeInteger(time) || time < 0) throw new ApiError('service_unavailable');
-    return time;
-  };
+  const now = options.now ?? Date.now;
   const processedAt = now();
   const start = performance.now();
   const run = async <T>(task: string, operation: () => Promise<T>): Promise<MaintenanceTaskResult<T>> => {

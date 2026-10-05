@@ -62,14 +62,12 @@ config.d1_databases = [{ binding: 'DB', database_name: 'sub2api-local-e2e', data
 config.kv_namespaces = [{ binding: 'CACHE', id: '00000000000000000000000000000099', remote: false }];
 const token = randomBytes(32).toString('hex');
 config.vars = { ENVIRONMENT: 'local', PUBLIC_BASE_URL: baseURL, EMAIL_VERIFICATION_READY: 'true', EMAIL_FROM: 'e2e-sender@example.invalid',
-  EMAIL_HMAC_KEY: randomBytes(32).toString('base64'), CHANNEL_ACTIVE_KEY_VERSION: 'e2e',
-  CHANNEL_KEYRING_JSON: JSON.stringify({ e2e: randomBytes(32).toString('base64') }), E2E_CONTROL_TOKEN: token };
+  EMAIL_HMAC_KEY: randomBytes(32).toString('base64'), E2E_CONTROL_TOKEN: token };
 const configPath = join(work, 'wrangler.json');
 await writeFile(configPath, JSON.stringify(config, null, 2), { mode: 0o600 });
 // A local file next to this generated config prevents inheriting an unrelated
 // developer secret file and keeps fixture credentials hidden in dev summaries.
-// dotenv does not JSON-unescape inner quotes. Single quoting preserves the
-// keyring JSON exactly; all generated fixture values are single-line strings.
+// Quote the generated fixture strings literally for dotenv.
 if (Object.values(config.vars).some(value => typeof value !== 'string' || /['\r\n]/.test(value))) throw new Error('Unexpected local fixture variable.');
 await writeFile(join(work, '.dev.vars'), Object.entries(config.vars).map(([key, value]) => `${key}='${value}'`).join('\n'), { mode: 0o600 });
 const wrangler = join(root, 'apps/worker/node_modules/wrangler/bin/wrangler.js');

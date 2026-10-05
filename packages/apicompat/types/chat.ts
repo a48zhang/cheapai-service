@@ -129,6 +129,8 @@ export interface ChatErrorBody {
   readonly error: { readonly message: string; readonly type: string; readonly param?: string | null; readonly code?: string | number | null };
 }
 export interface ChatValidationOptions {
+  /** Native passthrough retains provider-specific discriminators. */
+  readonly native?: boolean;
   /** Preserve validated JSON in place; converters must still select fields explicitly. */
   readonly unknownFields?: 'reject' | 'preserve';
   /** Explicit caller-owned top-level allowlist; default rejects every unknown key. */
@@ -137,8 +139,7 @@ export interface ChatValidationOptions {
 
 type ObjectValue = Record<string, unknown>;
 type Check = (value: unknown, path: string, options?: ChatValidationOptions) => string | undefined;
-const object = (value: unknown): value is ObjectValue => value !== null && typeof value === 'object' && !Array.isArray(value)
-  && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
+const object = (value: unknown): value is ObjectValue => value !== null && typeof value === 'object' && !Array.isArray(value);
 const string: Check = (v, p) => typeof v === 'string' ? undefined : p;
 const nonempty: Check = (v, p) => typeof v === 'string' && v.trim().length > 0 ? undefined : p;
 const bool: Check = (v, p) => typeof v === 'boolean' ? undefined : p;
@@ -176,11 +177,9 @@ function jsonBoundary(value: unknown): boolean {
     if (seen.has(v)) return false;
     seen.add(v);
     const keys = Object.keys(v);
-    if (keys.length + pending.length > 100_000 || Object.getOwnPropertySymbols(v).length) return false;
+    if (keys.length + pending.length > 100_000) return false;
     for (const key of keys) {
-      const descriptor = Object.getOwnPropertyDescriptor(v, key);
-      if (!descriptor || !('value' in descriptor)) return false;
-      pending.push({ value: descriptor.value, depth: item.depth + 1 });
+      pending.push({ value: (v as Record<string, unknown>)[key], depth: item.depth + 1 });
     }
     if (Array.isArray(v) && keys.length !== v.length) return false;
   }
@@ -197,11 +196,12 @@ const content = (role: string): Check => (v, p, options) => {
     if (part.type === 'text') return textPart(part, path, options);
     if (role === 'user' && part.type === 'image_url') return imagePart(part, path, options);
     if (role === 'assistant' && part.type === 'refusal') return refusalPart(part, path, options);
-    return `${path}.type`;
+    return options?.native && typeof part.type === 'string' ? undefined : `${path}.type`;
   }, 1)(v, p, options);
 };
 const toolCall = shape({ id: nonempty, type: oneOf('function'), function: shape({ name: nonempty, arguments: string }) });
-const tool = shape({ type: oneOf('function'), function: shape({ name: nonempty }, { description: string, parameters: jsonObject, strict: nullable(bool) }) });
+const functionTool = shape({ type: oneOf('function'), function: shape({ name: nonempty }, { description: string, parameters: jsonObject, strict: nullable(bool) }) });
+const tool: Check = (v, p, options) => options?.native && object(v) && typeof v.type === 'string' && v.type !== 'function' ? undefined : functionTool(v, p, options);
 const message: Check = (v, p, options) => {
   if (!object(v)) return p;
   switch (v.role) {

@@ -59,8 +59,7 @@ function validContext(context: ResponseContext, upstreamId?: string): boolean {
 }
 
 function ownData(value: object, key: string): unknown {
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  return descriptor && 'value' in descriptor ? descriptor.value : undefined;
+  return (value as Record<string, unknown>)[key];
 }
 
 function nativeError(input: unknown, context: ResponseContext): ConversionResult<Output> | undefined {

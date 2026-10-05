@@ -18,20 +18,18 @@ const day = 24 * 60 * 60 * 1000;
 const groupId = 'desktop-keys-group';
 const alternateGroupId = 'desktop-keys-alternate-group';
 const userId = 'desktop-keys-owner';
-const encryptionKey = { keyVersion: 'desktop-test-v1', key: new Uint8Array(32).fill(23) };
-const keyring = new Map([[encryptionKey.keyVersion, encryptionKey.key]]);
 
 async function desktopKey(token: string, at = now) {
   const authenticated = await authenticateDesktopSession(testEnv.DB,
     new Request('https://example.invalid', { headers: { Authorization: `Bearer ${token}` } }), at);
-  return getOrCreateCurrentKey(testEnv.DB, authenticated.session, at, encryptionKey, keyring);
+  return getOrCreateCurrentKey(testEnv.DB, authenticated.session, at);
 }
 
 async function sessionState(sessionId: string) {
-  return testEnv.DB.prepare(`SELECT current_key_id,current_key_ciphertext,key_generation,expires_at
+  return testEnv.DB.prepare(`SELECT current_key_id,current_key,key_generation,expires_at
     FROM desktop_sessions WHERE id=?`).bind(sessionId).first<{
       current_key_id: string | null;
-      current_key_ciphertext: string | null;
+      current_key: string | null;
       key_generation: number;
       expires_at: number;
     }>();
@@ -58,8 +56,7 @@ describe('desktop session API Keys on native D1', () => {
     const storedKey = await testEnv.DB.prepare('SELECT key_hash,status,desktop_session_id FROM api_keys WHERE id=?')
       .bind(first.keyId).first<{ key_hash: string; status: string; desktop_session_id: string | null }>();
     expect(state).toMatchObject({ current_key_id: first.keyId, key_generation: 1, expires_at: issued.session.expires_at });
-    expect(state?.current_key_ciphertext).toBeTruthy();
-    expect(state?.current_key_ciphertext).not.toContain(first.key);
+    expect(state?.current_key).toBe(first.key);
     expect(storedKey).toMatchObject({ key_hash: await hashToken('apiKey', first.key), status: 'active', desktop_session_id: issued.session.id });
     expect(await verifyToken('apiKey', retry.key, storedKey?.key_hash)).toBe(true);
     expect((await testEnv.DB.prepare('SELECT COUNT(*) AS count FROM api_keys WHERE desktop_session_id=?')
@@ -168,14 +165,14 @@ describe('desktop session API Keys on native D1', () => {
       .bind(issued.session.id).first<{ count: number }>())?.count).toBe(1);
   });
 
-  it('fails closed on damaged ciphertext without issuing a replacement', async () => {
+  it('fails closed on damaged stored Key without issuing a replacement', async () => {
     const issued = await createDesktopSession(testEnv.DB, userId, now);
     const key = await desktopKey(issued.token);
-    await testEnv.DB.prepare('UPDATE desktop_sessions SET current_key_ciphertext=? WHERE id=?')
-      .bind('damaged-envelope', issued.session.id).run();
+    await testEnv.DB.prepare('UPDATE desktop_sessions SET current_key=? WHERE id=?')
+      .bind('damaged-key', issued.session.id).run();
 
     await expect(desktopKey(issued.token, now + 1)).rejects.toMatchObject({ reason: 'binding_unavailable' });
-    expect(await sessionState(issued.session.id)).toMatchObject({ current_key_id: key.keyId, current_key_ciphertext: 'damaged-envelope', key_generation: 1 });
+    expect(await sessionState(issued.session.id)).toMatchObject({ current_key_id: key.keyId, current_key: 'damaged-key', key_generation: 1 });
     expect((await testEnv.DB.prepare('SELECT COUNT(*) AS count FROM api_keys WHERE desktop_session_id=?')
       .bind(issued.session.id).first<{ count: number }>())?.count).toBe(1);
   });

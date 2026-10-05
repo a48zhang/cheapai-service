@@ -26,7 +26,7 @@ function bearerToken(request: Request): string {
 
 /** Revoke the session identified by the presented Bearer token, including an
  * expired/already-revoked token so retries remain idempotent. One D1 batch
- * revokes all Keys owned by only this session and clears its returnable cipher.
+ * revokes all Keys owned by only this session and clears its returnable credential.
  */
 export async function logoutDesktopSession(
   database: D1Database,
@@ -62,10 +62,10 @@ export async function logoutDesktopSession(
         `UPDATE desktop_sessions
             SET revoked_at = COALESCE(revoked_at, ?),
                 updated_at = CASE
-                  WHEN revoked_at IS NULL OR current_key_ciphertext IS NOT NULL THEN MAX(updated_at, ?)
+                  WHEN revoked_at IS NULL OR current_key IS NOT NULL THEN MAX(updated_at, ?)
                   ELSE updated_at
                 END,
-                current_key_ciphertext = NULL
+                current_key = NULL
           WHERE id = ? AND user_id = ?`,
         [now, now, session.id, session.user_id]),
     ]);

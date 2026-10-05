@@ -56,10 +56,7 @@ export interface ChatServiceOptions {
   readonly authenticate?: (database: D1Database, userId: string, groupId: string, now: number) => Promise<unknown>;
 }
 
-export interface ChatGatewayDependencies extends Omit<GatewayDispatchDependencies, 'DB' | 'keyring'> {
-  readonly DB: D1Database;
-  readonly keyring: GatewayDispatchDependencies['keyring'];
-}
+export type ChatGatewayDependencies = GatewayDispatchDependencies;
 
 export type ChatStartResult =
   | { readonly kind: 'replayed'; readonly view: ChatConversationView }
@@ -77,11 +74,6 @@ function text(value: unknown, max = 1_000_000): string {
 }
 function maxOutput(value: unknown): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) invalid();
-  return value;
-}
-function nowOf(clock: () => number): number {
-  const value = clock();
-  if (!Number.isSafeInteger(value) || value < 0) throw new ApiError('service_unavailable');
   return value;
 }
 
@@ -200,7 +192,7 @@ export class ChatService {
   }
 
   async models(userId: string): Promise<{ items: ChatGroup[] }> {
-    return listAuthorizedChatModels(this.database, id(userId), nowOf(this.clock));
+    return listAuthorizedChatModels(this.database, id(userId), this.clock());
   }
 
   async conversations(userId: string, cursor: string | null, limit: number): Promise<ChatConversationPage> {
@@ -222,9 +214,9 @@ export class ChatService {
     if (input.modelId !== undefined && input.modelId !== null) id(input.modelId);
     if ((input.groupId === null) !== (input.modelId === null) && (input.groupId === null || input.modelId === null)) invalid();
     if (input.groupId !== undefined && input.groupId !== null && input.modelId !== undefined && input.modelId !== null) {
-      await authorizeChatSelection(this.database, owner, input.groupId, input.modelId, undefined, nowOf(this.clock));
+      await authorizeChatSelection(this.database, owner, input.groupId, input.modelId, undefined, this.clock());
     }
-    return this.storage.createConversation(owner, { ...input, now: nowOf(this.clock) });
+    return this.storage.createConversation(owner, { ...input, now: this.clock() });
   }
 
   async updateConversation(userId: string, conversationId: string, expectedVersion: number,
@@ -236,19 +228,19 @@ export class ChatService {
     if (Object.hasOwn(patch, 'groupId') !== Object.hasOwn(patch, 'modelId')) invalid();
     if (Object.hasOwn(patch, 'groupId') && ((patch.groupId === null) !== (patch.modelId === null))) invalid();
     if (patch.groupId !== undefined && patch.groupId !== null && patch.modelId !== undefined && patch.modelId !== null) {
-      await authorizeChatSelection(this.database, owner, patch.groupId, patch.modelId, undefined, nowOf(this.clock));
+      await authorizeChatSelection(this.database, owner, patch.groupId, patch.modelId, undefined, this.clock());
     }
-    return this.storage.updateConversation(owner, conversation, expected, patch, nowOf(this.clock));
+    return this.storage.updateConversation(owner, conversation, expected, patch, this.clock());
   }
 
   async deleteConversation(userId: string, conversationId: string, expectedVersion: number): Promise<{ deleted: true }> {
-    const deleted = await this.storage.deleteConversation(id(userId), id(conversationId), version(expectedVersion), nowOf(this.clock));
+    const deleted = await this.storage.deleteConversation(id(userId), id(conversationId), version(expectedVersion), this.clock());
     if (!deleted) throw new ApiError('conflict');
     return { deleted: true };
   }
 
   async selectVersion(userId: string, conversationId: string, messageId: string, expectedConversationVersion: number): Promise<ChatConversationView> {
-    return this.storage.selectVersion(id(userId), id(conversationId), id(messageId), version(expectedConversationVersion), nowOf(this.clock));
+    return this.storage.selectVersion(id(userId), id(conversationId), id(messageId), version(expectedConversationVersion), this.clock());
   }
 
   private async start(owner: string, conversationId: string, input: ChatStartInput, regeneration: boolean): Promise<ChatStartResult> {
@@ -267,13 +259,13 @@ export class ChatService {
     // different multiplier or channel set.
     if ((current.conversation.groupId !== null && current.conversation.groupId !== groupId)
       || (current.conversation.modelId !== null && current.conversation.modelId !== modelId)) throw new ApiError('forbidden');
-    const selection: AuthorizedChatSelection = await authorizeChatSelection(this.database, userId, groupId, modelId, maxTokens, nowOf(this.clock));
+    const selection: AuthorizedChatSelection = await authorizeChatSelection(this.database, userId, groupId, modelId, maxTokens, this.clock());
     // Internal virtual-key authentication is scoped to this request's selected
     // group. The browser never supplies a key ID or credential.
-    const auth = await this.authenticateKey(this.database, userId, selection.group.id, nowOf(this.clock));
+    const auth = await this.authenticateKey(this.database, userId, selection.group.id, this.clock());
     const started = await this.storage.startMessage(userId, idOfConversation, {
       operationId: input.operationId, conversationVersion: input.conversationVersion, groupId: selection.group.id,
-      modelId: selection.model.publicModelId, ...(input.content === undefined ? {} : { content: input.content }), now: nowOf(this.clock), regenerate: regeneration,
+      modelId: selection.model.publicModelId, ...(input.content === undefined ? {} : { content: input.content }), now: this.clock(), regenerate: regeneration,
     });
     if (started.kind === 'replayed') return { kind: 'replayed', view: await replayView(this.storage, userId, idOfConversation) };
     let answer = '';
@@ -287,7 +279,7 @@ export class ChatService {
       }
       if (typeof requestId !== 'string' || !identifier.test(requestId)) throw new ApiError('service_unavailable');
       const saved = await boundedChatWork(this.storage.associateRequest(userId, idOfConversation,
-        started.assistantMessage.id, input.operationId, requestId, nowOf(this.clock)), 5000, input.signal);
+        started.assistantMessage.id, input.operationId, requestId, this.clock()), 5000, input.signal);
       if (!saved) throw new ApiError('service_unavailable');
       registered = true;
       registeredRequestId = requestId;
@@ -301,11 +293,11 @@ export class ChatService {
       const body = createChatSseStream(meta, execution, {
         onDelta: async delta => {
           answer += delta;
-          await this.storage.saveAssistantProgress(userId, idOfConversation, started.assistantMessage.id, answer, nowOf(this.clock));
+          await this.storage.saveAssistantProgress(userId, idOfConversation, started.assistantMessage.id, answer, this.clock());
         },
-        onDone: billingStatus => this.storage.finishAssistant(userId, idOfConversation, started.assistantMessage.id, 'completed', answer, nowOf(this.clock)),
-        onFailed: (_code, _message) => this.storage.finishAssistant(userId, idOfConversation, started.assistantMessage.id, 'failed', answer, nowOf(this.clock)),
-        onCancelled: () => this.storage.finishAssistant(userId, idOfConversation, started.assistantMessage.id, 'stopped', answer, nowOf(this.clock)),
+        onDone: billingStatus => this.storage.finishAssistant(userId, idOfConversation, started.assistantMessage.id, 'completed', answer, this.clock()),
+        onFailed: (_code, _message) => this.storage.finishAssistant(userId, idOfConversation, started.assistantMessage.id, 'failed', answer, this.clock()),
+        onCancelled: () => this.storage.finishAssistant(userId, idOfConversation, started.assistantMessage.id, 'stopped', answer, this.clock()),
       }, { ...(input.signal === undefined ? {} : { signal: input.signal }), ...(input.executionContext === undefined ? {} : {
         waitUntil: (work: Promise<unknown>) => input.executionContext!.waitUntil(work),
       }) });
@@ -316,7 +308,7 @@ export class ChatService {
       try { await boundedChatWork(Promise.resolve().then(() => execution?.cancel?.()), 1000); } catch (error) { logError('Chat cancellation failed', error, { conversation_id: idOfConversation }); }
       try {
         await boundedChatWork(Promise.resolve().then(() => this.storage.finishAssistant(userId, idOfConversation,
-          started.assistantMessage.id, input.signal?.aborted ? 'stopped' : 'failed', answer, nowOf(this.clock))));
+          started.assistantMessage.id, input.signal?.aborted ? 'stopped' : 'failed', answer, this.clock())));
       } catch (error) { logError('Chat failure persistence failed', error, { conversation_id: idOfConversation, message_id: started.assistantMessage.id }); }
       throw error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error });
     }

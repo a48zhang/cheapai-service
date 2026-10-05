@@ -5,7 +5,6 @@ import { requireAdmin } from '../auth/roles';
 import { ApiError, apiError, apiSuccess, createRequestId, parsePagination } from '../http';
 import { prepare } from '../db';
 import type { DbValue } from '../db';
-import { AUDIT_LIMITS, redactAuditChanges } from './audit';
 
 export const ADMIN_AUDIT_PATH = '/api/v1/admin/audit';
 interface RouteEnv extends AuthEnv { Variables: AuthEnv['Variables'] & { auditQueryNow?: number } }
@@ -20,11 +19,10 @@ function encode(value: unknown): string { return btoa(String.fromCharCode(...new
 function output(row: AuditRow) {
   const { redacted_change_json, ...metadata } = row;
   try {
-    if (redacted_change_json.length > AUDIT_LIMITS.bytes || new TextEncoder().encode(redacted_change_json).byteLength > AUDIT_LIMITS.bytes) throw new Error();
     const value: unknown = JSON.parse(redacted_change_json);
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error();
-    // Defense for legacy/manual rows: never serialize arbitrary stored JSON.
-    return { ...metadata, changes: redactAuditChanges(value), redaction_valid: true };
+    // Keep the response field for existing clients; it now indicates valid stored JSON.
+    return { ...metadata, changes: value, redaction_valid: true };
   } catch { return { ...metadata, changes: null, redaction_valid: false }; }
 }
 function noStore(response: Response): Response { response.headers.set('Cache-Control', 'no-store'); return response; }
@@ -42,7 +40,9 @@ export function createAuditRoutes(dependencies: { now(): number } = { now: Date.
     context.set('auditQueryNow', now); await next(); context.res.headers.set('Cache-Control', 'no-store');
   }, (context, next) => requireSession(() => context.get('auditQueryNow')!)(context, next), requireAdmin, async context => {
     const query = new URL(context.req.url).searchParams;
-    for (const key of query.keys()) if (!['limit', 'cursor', 'from', 'to', 'actorId', 'action', 'targetType', 'targetId', 'operationId'].includes(key) || query.getAll(key).length !== 1) throw new ApiError('invalid_request');
+    for (const key of ['from', 'to', 'actorId', 'action', 'targetType', 'targetId', 'operationId']) {
+      if (query.getAll(key).length > 1) throw new ApiError('invalid_request');
+    }
     const page = parsePagination(query);
     const filter = { from: time(query.get('from')), to: time(query.get('to')), actorId: query.get('actorId'), action: query.get('action'),
       targetType: query.get('targetType'), targetId: query.get('targetId'), operationId: query.get('operationId') };
@@ -71,7 +71,7 @@ export function createAuditRoutes(dependencies: { now(): number } = { now: Date.
     values.push(page.limit + 1);
     const rows = (await prepare<AuditRow>(context.env.DB,
       `SELECT id,actor_id,action,target_type,target_id,operation_id,created_at,
-       CASE WHEN length(CAST(redacted_change_json AS BLOB))<=${AUDIT_LIMITS.bytes} THEN redacted_change_json ELSE 'null' END AS redacted_change_json FROM admin_audit
+       redacted_change_json FROM admin_audit
        WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC,id DESC LIMIT ?`, values).all()).rows;
     const selected = rows.slice(0, page.limit); const last = selected.at(-1);
     return noStore(apiSuccess({ items: selected.map(output), snapshotAt: ceiling,

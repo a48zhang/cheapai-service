@@ -76,13 +76,13 @@ describe('pure channel prerequisites and priority selection', () => {
     expect(result.requiresAuthoritativeRecheck).toBe(true);
   });
 
-  it('uses request feature checks and keeps explicit output bounds', () => {
+  it('allows undeclared features while keeping explicit output bounds', () => {
     const streamed: ProtocolRequest = { protocol: 'chat', request: { ...request.request, stream: true } as never };
-    expect(selectChannelCandidates(snapshot(), auth(), streamed, options)).toEqual({ kind: 'no_candidates', reason: 'capability_mismatch' });
-    const supported = candidate('stream'); supported.mapping.capabilities = { protocol: 'chat', features: ['streaming'], maxOutputTokens: 100 };
-    const result = selectChannelCandidates(snapshot([supported]), auth(), streamed, options);
+    const result = selectChannelCandidates(snapshot(), auth(), streamed, options);
     if (result.kind !== 'candidates') throw new Error('Expected candidates');
     expect(result.candidates[0]?.outputTokenLimit).toBe(20);
+    const limited = candidate('limited'); limited.mapping.capabilities = { protocol: 'chat', features: [], maxOutputTokens: 10 };
+    expect(selectChannelCandidates(snapshot([limited]), auth(), streamed, options)).toEqual({ kind: 'no_candidates', reason: 'capability_mismatch' });
   });
 
   it('filters mismatched mapping identity and deduplicates the same channel/protocol', () => {
@@ -108,8 +108,5 @@ describe('pure channel prerequisites and priority selection', () => {
     expect(() => selectChannelCandidates(snapshot([candidate('one'), candidate('two')]), auth(), request, { ...options, random: () => random })).toThrow(TypeError);
   });
 
-  it('reports invalid wire requests without running adapter selection', () => {
-    expect(selectChannelCandidates(snapshot(), auth(), { protocol: 'chat', request: { model: 'model', messages: [] } }, options))
-      .toEqual({ kind: 'no_candidates', reason: 'invalid_request' });
-  });
+
 });

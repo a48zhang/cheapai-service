@@ -3,7 +3,7 @@ export const DESKTOP_SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 export const DESKTOP_KEY_MAX_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 /** Private D1 projection. Never serialize this row as an HTTP response; the
- * token hash and encrypted current Key are server-side persistence details.
+ * token hash and current Key are server-side persistence details.
  */
 export interface StoredDesktopSession {
   id: string;
@@ -12,7 +12,7 @@ export interface StoredDesktopSession {
   expires_at: number;
   revoked_at: number | null;
   current_key_id: string | null;
-  current_key_ciphertext: string | null;
+  current_key: string | null;
   key_generation: number;
   created_at: number;
 }

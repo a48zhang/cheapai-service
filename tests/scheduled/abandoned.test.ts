@@ -3,7 +3,6 @@ import { markAbandonedRequests } from '../../apps/worker/scheduled/abandoned';
 import { finishRequest, markRequestStarted } from '../../apps/worker/gateway/request-repository';
 import { settleConsumption } from '../../apps/worker/billing/settlement-repository';
 import { createPriceSnapshot } from '../../apps/worker/billing/fingerprint';
-import { encryptChannelSecret } from '../../apps/worker/admin/channel-secrets';
 import type { UsageSnapshot } from '../../packages/apicompat/types/shared';
 import { testEnv } from '../helpers/database';
 
@@ -23,9 +22,9 @@ beforeEach(async () => {
   await testEnv.DB.prepare(`INSERT INTO users(id,email_normalized,password_hash,role,status,group_id,concurrency_limit,rpm_limit,created_via,created_at,updated_at)
     VALUES('b16-user','b16@example.invalid','synthetic','user','active','b16-group',1,60,'admin',0,0)`).run();
   await testEnv.DB.prepare("INSERT INTO api_keys(id,user_id,key_hash,display_prefix,name,status,created_at,updated_at) VALUES('b16-key','b16-user',?,'s2a_key_ABCDEFGH','Fixture','active',0,0)").bind('6'.repeat(64)).run();
-  const encrypted = await encryptChannelSecret('synthetic', 'b16-channel', 'v1', crypto.getRandomValues(new Uint8Array(32)));
-  await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-    VALUES('b16-channel','Fixture','https://example.invalid',?,'v1','active',0,1,60,1,0,0)`).bind(encrypted).run();
+  const credential = 'synthetic';
+  await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+    VALUES('b16-channel','Fixture','https://example.invalid',?,'active',0,1,60,1,0,0)`).bind(credential).run();
   await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('b16-model','active','{"input":"1","output":"2"}',1,0,10,0,0)`).run();
   price = createPriceSnapshot({ publicModelId: 'b16-model', upstreamModel: 'provider', upstreamProtocol: 'chat', priceVersion: 1, sellPrices: { input: '1', output: '2' } }).json;
   await add('b16-request');

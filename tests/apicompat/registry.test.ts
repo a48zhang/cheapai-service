@@ -87,11 +87,11 @@ describe('P22 default production registry: all direct combinations', () => {
     expect(stream.value.finish({ kind: 'eof' }).events).toEqual([]);
   });
 
-  it.each(protocols)('does not broaden %s native extension boundaries with a generic permission', protocol => {
+  it.each(protocols)('preserves %s native extensions independently of legacy permissions', protocol => {
     const request = { ...requests[protocol], vendor_hint: 'allowed-value' };
     const strict = defaultProtocolRegistry.lookup({ from: protocol, to: protocol, streaming: false }, context(protocol));
     if (!strict.ok) throw new Error();
-    expect(strict.value.request.convert(request, { targetModel: 'provider' }).ok).toBe(false);
+    expect(strict.value.request.convert(request, { targetModel: 'provider' }).ok).toBe(true);
     const allowed = defaultProtocolRegistry.lookup({ from: protocol, to: protocol, streaming: false }, {
       ...context(protocol), capabilities: { ...context(protocol).capabilities, nativeExtensions: [{ scope: 'request', name: 'vendor_hint' }, { scope: 'content', name: 'vendor_hint' }] },
     });
@@ -100,7 +100,7 @@ describe('P22 default production registry: all direct combinations', () => {
     const nested = protocol === 'responses'
       ? { ...requests.responses, input: [{ role: 'user' as const, content: [{ type: 'input_text' as const, text: 'Hi', vendor_hint: 1 }] }] }
       : { ...requests[protocol], messages: [{ role: 'user' as const, content: [{ type: 'text' as const, text: 'Hi', vendor_hint: 1 }] }] };
-    expect(allowed.value.request.convert(nested as RequestWire[Protocol], { targetModel: 'provider' }).ok).toBe(false);
+    expect(allowed.value.request.convert(nested as RequestWire[Protocol], { targetModel: 'provider' }).ok).toBe(true);
     const stream = allowed.value.stream.create(responseContext, { unknownEventPolicy: 'reject', maxBufferedBytes: 32768 });
     if (!stream.ok) throw new Error();
     expect(stream.value.push(frame({ type: 'unregistered_event' }, 'unregistered_event')).terminal?.status).toBe('failed');

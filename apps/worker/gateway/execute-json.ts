@@ -6,7 +6,6 @@ import { extractChatUsage } from '@sub2api/apicompat/usage/chat';
 import { extractResponsesUsage } from '@sub2api/apicompat/usage/responses';
 import { extractMessagesUsage } from '@sub2api/apicompat/usage/messages';
 import { readChannelForForwarding } from '../catalog/channels';
-import type { ChannelKeyring } from '../catalog/channel-secrets';
 import { settleRequest } from '../billing/settlement';
 import type { SettlementOptions } from '../billing/settlement';
 import { saveSettlementRecovery } from '../billing/recovery';
@@ -48,7 +47,7 @@ async function observeUpstreamResponse(
 }
 
 export interface JsonExecutionDependencies {
-  database: D1Database; keyring: ChannelKeyring; fetch?: UpstreamFetch; now?: () => number;
+  database: D1Database; fetch?: UpstreamFetch; now?: () => number;
   waitUntil?(work: Promise<unknown>): void;
 }
 export interface JsonExecutionAdapters<Input, Wire, Upstream, Output> {
@@ -150,13 +149,13 @@ export async function executeJson<Input, Wire, Upstream, Output>(dependencies: J
         || adapters.response.from !== request.upstream_protocol || adapters.response.to !== request.downstream_protocol) { failure = 'service_failure'; throw new Error(); }
     failure = 'service_failure';
     const converted = adapters.request.convert(JSON.parse(JSON.stringify(admission.requestForAdapter.request)) as Input, { targetModel: request.upstream_model });
-    if (!converted.ok) { failure = 'conversion_failed'; throw new Error(); }
+    if (!converted.ok) { failure = 'conversion_failed'; throw new Error(converted.error.message, { cause: converted.error }); }
     if (converted.value === null || typeof converted.value !== 'object' || Array.isArray(converted.value)) throw new Error();
     const wire = { ...converted.value, model: request.upstream_model, stream: false } as Record<string, unknown>;
     if (request.upstream_protocol === 'chat') delete wire.stream_options;
     const body = JSON.stringify(wire);
     failure = 'service_failure';
-    const upstream = await lifecycle.active(readChannelForForwarding(dependencies.database, request.channel_id, dependencies.keyring));
+    const upstream = await lifecycle.active(readChannelForForwarding(dependencies.database, request.channel_id));
     if (!upstream || upstream.configVersion !== selected.channel.configVersion || upstream.status !== 'active') throw new Error();
     const maxBytes = options.maxResponseBytes ?? DEFAULT_CONFIG.gatewayBodyMaxBytes;
     if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) throw new Error();
@@ -202,7 +201,8 @@ export async function executeJson<Input, Wire, Upstream, Output>(dependencies: J
     if (!ids.ok) throw new Error();
     const output = adapters.response.convert(raw as Upstream, { identity: ids.value.identity, idFor: ids.value.idFor,
       targetModel: request.public_model_id, createdAt: Math.floor(request.created_at / 1000) });
-    if (!output.ok || output.value.identity.responseId !== ids.value.identity.responseId || output.value.body === undefined) throw new Error();
+    if (!output.ok) throw new Error(output.error.message, { cause: output.error });
+    if (output.value.identity.responseId !== ids.value.identity.responseId || output.value.body === undefined) throw new Error();
     if (output.value.terminal.status === 'failed' || output.value.terminal.status === 'cancelled') throw new Error();
     resultBody = output.value.body;
     if (!await lifecycle.persist(() => finishRequest(dependencies.database, requestId, request!.user_id, { status: 'succeeded',

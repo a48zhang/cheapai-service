@@ -50,7 +50,6 @@ function capabilityErrors(value: unknown): CapabilityFieldErrors {
     maxOutputTokens: issueText(fields.maxOutputTokens),
     reasoningEfforts: issueText(fields.reasoningEfforts),
     cacheTtls: issueText(fields.cacheTtls),
-    nativeExtensions: issueText(fields.nativeExtensions),
   };
 }
 

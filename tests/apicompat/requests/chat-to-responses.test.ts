@@ -106,15 +106,19 @@ describe('P-CR-Q3 images', () => {
       expect(spy).not.toHaveBeenCalled();
     } finally { spy.mockRestore(); }
   });
-  it.each(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])('preserves %s declared data URL', mime => {
+  it.each(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml'])('preserves %s declared data URL', mime => {
     const url = `data:${mime};base64,AQID`;
     expect(chatToResponsesRequest(request(url), context, policy)).toMatchObject({ ok: true, value: { input: [{ content: [{ text: 'before' }, { image_url: url }, { text: 'after' }] }] } });
   });
-  it('requires P10 transport/detail capabilities', () => {
-    expect(chatToResponsesRequest(request('https://image.example/x'), context).ok).toBe(false);
-    expect(chatToResponsesRequest(request('https://image.example/x', 'high'), context, { channelCapabilities: { protocol: 'responses', features: ['image_url'] } }).ok).toBe(false);
+  it('preserves HTTP image URLs with query and fragment', () => {
+    const url = 'http://images.local/photo?format=original#part';
+    expect(chatToResponsesRequest(request(url), context)).toMatchObject({ ok: true, value: { input: [{ content: [{ text: 'before' }, { image_url: url }, { text: 'after' }] }] } });
   });
-  it.each(['data:image/svg+xml;base64,AQID', 'data:image/png;base64,AR==', 'data:image/png;base64,', 'file:///x', 'https://u:p@image.example/x'])('rejects malformed/unrepresentable envelope %#', url => {
+  it('preserves image transport and detail without capability declarations', () => {
+    expect(chatToResponsesRequest(request('https://image.example/x'), context).ok).toBe(true);
+    expect(chatToResponsesRequest(request('https://image.example/x', 'high'), context, { channelCapabilities: { protocol: 'responses', features: ['image_url'] } }).ok).toBe(true);
+  });
+  it.each(['data:image/png;base64,AR==', 'data:image/png;base64,', 'file:///x', 'https://u:p@image.example/x'])('rejects malformed/unrepresentable envelope %#', url => {
     expect(chatToResponsesRequest(request(url), context, policy).ok).toBe(false);
   });
 });
@@ -131,7 +135,6 @@ describe("Chat -> Responses Q1 rejects later-node scope", () => {
   });
 
   it.each([
-    { role: "assistant", content: [{ type: "refusal", refusal: "declined" }] },
     { role: "user", content: "Hi", name: "named-speaker" },
     { role: "user", content: "Hi", vendor_hint: "SENSITIVE" },
   ])("rejects unimplemented history feature %# rather than erasing it", message => {
@@ -162,9 +165,9 @@ describe('P-CR-Q6 portable options and explicit cache boundaries', () => {
     if (result.ok) expect(result.value).not.toHaveProperty('stream_options');
     expect(input.stream_options.include_usage).toBe(include_usage);
   });
-  it('rejects include_usage without streaming/capability and unknown stream options', () => {
+  it('requires streaming for include_usage and rejects unknown stream options', () => {
     expect(chatToResponsesRequest({ ...basic(), stream_options: { include_usage: true } }, context, policy).ok).toBe(false);
-    expect(chatToResponsesRequest({ ...basic(), stream: true, stream_options: { include_usage: true } }, context).ok).toBe(false);
+    expect(chatToResponsesRequest({ ...basic(), stream: true, stream_options: { include_usage: true } }, context).ok).toBe(true);
     expect(chatToResponsesRequest({ ...basic(), stream: true, stream_options: { vendor: true } }, context, policy).ok).toBe(false);
   });
   it('preserves refusal history as native refusal content, not visible text', () => {
@@ -200,10 +203,10 @@ describe('P-CR-Q5 reasoning semantics', () => {
       expect(result.value.reasoning).not.toHaveProperty('budget_tokens');
     }
   });
-  it('rejects missing/undeclared reasoning capabilities instead of weakening the effort', () => {
-    expect(chatToResponsesRequest({ ...basic(), reasoning_effort: 'high' }, context).ok).toBe(false);
-    expect(chatToResponsesRequest({ ...basic(), reasoning_effort: 'vendor_unknown' }, context, options).ok).toBe(false);
-    expect(chatToResponsesRequest({ ...basic(), reasoning_effort: 'high', temperature: 1 }, context, options).ok).toBe(false);
+  it('preserves effort and sampling without capability declarations', () => {
+    expect(chatToResponsesRequest({ ...basic(), reasoning_effort: 'high' }, context).ok).toBe(true);
+    expect(chatToResponsesRequest({ ...basic(), reasoning_effort: 'vendor_unknown' }, context, options).ok).toBe(true);
+    expect(chatToResponsesRequest({ ...basic(), reasoning_effort: 'high', temperature: 1 }, context, options).ok).toBe(true);
   });
   it('treats null effort as unspecified without imposing a target default', () => {
     const result = chatToResponsesRequest({ ...basic(), reasoning_effort: null }, context);
@@ -237,10 +240,10 @@ describe('P-CR-Q4-O structured output constraints', () => {
       expect((result.value.text?.format as { schema: unknown }).schema).not.toBe(schema);
     }
   });
-  it('rejects unsupported capability or extensions instead of deleting schema constraints', () => {
+  it('accepts undeclared output formats but rejects unrepresentable extensions', () => {
     const response_format = { type: 'json_schema', json_schema: { name: 'out', schema: { type: 'object' }, strict: true } };
-    expect(chatToResponsesRequest({ ...basic(), response_format }, context).ok).toBe(false);
-    expect(chatToResponsesRequest({ ...basic(), response_format }, context, { channelCapabilities: { protocol: 'responses', features: ['json_object'] } }).ok).toBe(false);
+    expect(chatToResponsesRequest({ ...basic(), response_format }, context).ok).toBe(true);
+    expect(chatToResponsesRequest({ ...basic(), response_format }, context, { channelCapabilities: { protocol: 'responses', features: ['json_object'] } }).ok).toBe(true);
     expect(chatToResponsesRequest({ ...basic(), response_format: { ...response_format, vendor: 'must-not-drop' } }, context, options).ok).toBe(false);
     expect(chatToResponsesRequest({ ...basic(), response_format: { type: 'json_schema', json_schema: { ...response_format.json_schema, vendor: true } } }, context, options).ok).toBe(false);
   });
@@ -261,9 +264,9 @@ describe('P-CR-Q4 output controls', () => {
     expect(chatToResponsesRequest({ ...basic(), temperature: 0, top_p: 1 }, context, options)).toMatchObject({ ok: true, value: { temperature: 0, top_p: 1 } });
     expect(chatToResponsesRequest({ ...basic(), temperature: 2, top_p: 0 }, context, options)).toMatchObject({ ok: true, value: { temperature: 2, top_p: 0 } });
   });
-  it('rejects missing sampler capability and conflicting limits even if equal', () => {
-    expect(chatToResponsesRequest({ ...basic(), temperature: 0.5 }, context).ok).toBe(false);
-    expect(chatToResponsesRequest({ ...basic(), temperature: 0.5 }, context, { channelCapabilities: { protocol: 'responses', features: [] } }).ok).toBe(false);
+  it('accepts undeclared sampling but rejects conflicting output limits', () => {
+    expect(chatToResponsesRequest({ ...basic(), temperature: 0.5 }, context).ok).toBe(true);
+    expect(chatToResponsesRequest({ ...basic(), temperature: 0.5 }, context, { channelCapabilities: { protocol: 'responses', features: [] } }).ok).toBe(true);
     expect(chatToResponsesRequest({ ...basic(), max_tokens: 5, max_completion_tokens: 5 }, context, options)).toMatchObject({ ok: false, error: { code: 'conflicting_output_limits' } });
   });
   it('allows null controls as absent and n=1, without synthesizing target defaults', () => {

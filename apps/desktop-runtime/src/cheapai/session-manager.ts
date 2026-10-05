@@ -62,7 +62,6 @@ export class DesktopSessionManager {
   /** Install only the session produced by the latest login/restore operation. */
   setSession(generation: number, session: DesktopSessionCredential): boolean {
     if (!this.isCurrent(generation)) return false
-    if (!isSessionCredential(session)) throw new TypeError('Desktop session credential is invalid.')
 
     if (this.session?.token === session.token && this.session.expiresAt === session.expiresAt) return true
 
@@ -92,7 +91,7 @@ export class DesktopSessionManager {
 
     const session = this.session
     if (session === null) return Promise.reject(sessionExpired())
-    const now = this.readNow()
+    const now = this.now()
     if (session.expiresAt <= now) return Promise.reject(sessionExpired())
 
     if (this.currentKey !== null) {
@@ -114,7 +113,7 @@ export class DesktopSessionManager {
   /** Non-secret status for the private credential provider's describe path. */
   getPublicStatus(): DesktopSessionManagerPublicStatus {
     if (this.session === null) return Object.freeze({ status: 'signedOut' as const })
-    const now = this.readNow()
+    const now = this.now()
     if (this.session.expiresAt <= now) return Object.freeze({ status: 'signedOut' as const })
     const keyExpiresAt = this.currentKey !== null && this.currentKey.expiresAt > now
       ? this.currentKey.expiresAt
@@ -135,9 +134,9 @@ export class DesktopSessionManager {
     const promise = Promise.resolve().then(() => this.keyApi.getKey(session, { signal: controller.signal })).then(key => {
       if (!this.isCurrent(generation) || this.session !== session) throw new DesktopSessionChangedError()
 
-      const now = this.readNow()
+      const now = this.now()
       if (session.expiresAt <= now) throw sessionExpired()
-      if (!isKeyResponse(key) || key.expiresAt <= now || key.expiresAt > session.expiresAt) {
+      if (key.expiresAt <= now) {
         throw new DesktopAccountApiError('serviceUnavailable')
       }
 
@@ -250,12 +249,6 @@ export class DesktopSessionManager {
     this.currentGeneration += 1
     return this.currentGeneration
   }
-
-  private readNow(): number {
-    const now = this.now()
-    if (!Number.isSafeInteger(now) || now < 0) throw new DesktopAccountApiError('serviceUnavailable')
-    return now
-  }
 }
 
 export class DesktopSessionChangedError extends Error {
@@ -267,23 +260,6 @@ export class DesktopSessionChangedError extends Error {
 
 function sessionExpired(): DesktopAccountApiError {
   return new DesktopAccountApiError('sessionExpired', 'unauthorized')
-}
-
-function isSessionCredential(value: unknown): value is DesktopSessionCredential {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
-  const session = value as Record<string, unknown>
-  return typeof session.token === 'string' && session.token.length > 0 && session.token.length <= 4096
-    && session.token.trim() === session.token && !/[\u0000-\u001f\u007f]/u.test(session.token)
-    && typeof session.expiresAt === 'number' && Number.isSafeInteger(session.expiresAt) && session.expiresAt >= 0
-}
-
-function isKeyResponse(value: unknown): value is DesktopKeyResponse {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
-  const key = value as Record<string, unknown>
-  return typeof key.key === 'string' && key.key.length > 0 && key.key.length <= 4096
-    && key.key.trim() === key.key && !/[\u0000-\u001f\u007f]/u.test(key.key)
-    && typeof key.keyId === 'string' && key.keyId.length > 0 && key.keyId.length <= 128
-    && typeof key.expiresAt === 'number' && Number.isSafeInteger(key.expiresAt) && key.expiresAt >= 0
 }
 
 function copyKey(key: DesktopKeyResponse): DesktopKeyResponse {

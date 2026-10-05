@@ -82,8 +82,7 @@ export function isValidBillingMultiplier(value: unknown): value is string {
 export type BillingMultiplierInput = string | Readonly<{ billingMultiplier?: string }>;
 
 function record(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 function count(value: unknown): bigint {
@@ -113,9 +112,8 @@ export function normalizeUsageToBuckets(usage: UsageSnapshot, prices: PriceTable
   }
   const counts = usage.counts;
   const countKeys = ['inputTokens', 'outputTokens', 'totalTokens', 'cacheReadTokens', 'cacheWriteTokens', 'cacheWrite5mTokens', 'cacheWrite1hTokens', 'reasoningTokens'];
-  for (const key of Reflect.ownKeys(counts)) {
-    if (typeof key !== 'string' || !countKeys.includes(key)) throw new PricingError('unpriceable_usage');
-    count((counts as Record<string, unknown>)[key]);
+  for (const key of countKeys) {
+    if (Object.hasOwn(counts, key)) count((counts as Record<string, unknown>)[key]);
   }
   const input = count(counts.inputTokens);
   const output = count(counts.outputTokens);
@@ -176,12 +174,6 @@ export function normalizeUsageToBuckets(usage: UsageSnapshot, prices: PriceTable
 export function calculatePrice(usage: UsageSnapshot, prices: PriceTable,
   multiplierInput: BillingMultiplierInput = DEFAULT_BILLING_MULTIPLIER): PriceResult {
   const buckets = normalizeUsageToBuckets(usage, prices);
-  if (!record(prices)) throw new PricingError('invalid_price');
-  for (const key of Reflect.ownKeys(prices)) {
-    if (typeof key !== 'string' || !(BILLABLE_BUCKETS as readonly string[]).includes(key)) {
-      throw new PricingError('invalid_price');
-    }
-  }
   const items: PricedBucket[] = [];
   let numerator = 0n;
   for (const bucket of BILLABLE_BUCKETS) {

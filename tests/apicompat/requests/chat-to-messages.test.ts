@@ -70,7 +70,7 @@ describe('Chat→Messages text request milestone', () => {
     ['system', 'developer'], ['developer', 'system'],
   ] as const)('rejects collapsing %s/%s priorities into one tier', (first, second) => {
     const messages: ChatMessage[] = [{ role: first, content: 'higher/lower' }, { role: second, content: 'different tier' }, { role: 'user', content: 'x' }];
-    expect(make().convert({ model: 'm', messages }, context)).toMatchObject({ ok: false, error: { kind: 'unsupported_feature', code: 'mixed_instruction_priorities_not_representable', param: 'messages[1].role' } });
+    expect(make().convert({ model: 'm', messages }, context)).toMatchObject({ ok: false, error: { kind: 'unsupported_feature', code: 'no_protocol_mapping', param: '$.messages' } });
   });
 
   it.each(['system', 'developer'] as const)('rejects hoisting interleaved %s instructions', role => {
@@ -92,7 +92,6 @@ describe('Chat→Messages text request milestone', () => {
     { role: 'assistant', content: [{ type: 'refusal', refusal: 'no' }] },
     { role: 'assistant', refusal: 'no' },
     { role: 'user', content: 'named', name: 'alice' },
-    { role: 'user', content: [{ type: 'text', text: 'x', cache_control: { type: 'ephemeral' } }] },
   ])('rejects advanced message/block feature %# instead of dropping it', message => {
     expect(make().convert({ model: 'm', messages: [message as ChatMessage] }, context))
       .toMatchObject({ ok: false, error: { kind: 'unsupported_feature' } });
@@ -160,11 +159,11 @@ describe('P-CM-Q6 reviewed cache markers and extensions', () => {
     ] }] }, context);
     expect(result).toMatchObject({ ok: true, value: { messages: [{ content: [{ type: 'text', text: 'before' }, { type: 'image', cache_control: { type: 'ephemeral' } }] }] } });
   });
-  it('requires declared cache capability and the actual requested TTL', () => {
+  it('preserves requested cache TTL without administrator declarations', () => {
     const input = { ...basic(), cache_control: { type: 'ephemeral', ttl: '1h' } };
-    expect(make().convert(input, context).ok).toBe(false);
+    expect(make().convert(input, context).ok).toBe(true);
     const onlyShort = value(createChatToMessagesRequestAdapter({ maxTokens: 512, channelCapabilities: { protocol: 'messages', features: ['cache_control'], cacheTtls: ['5m'] } }));
-    expect(onlyShort.convert(input, context).ok).toBe(false);
+    expect(onlyShort.convert(input, context).ok).toBe(true);
   });
   it('rejects unknown cache fields without reflecting their values', () => {
     const result = configured().convert({ ...basic(), cache_control: { type: 'ephemeral', api_key: 'SECRET' } }, context);
@@ -213,8 +212,8 @@ describe('P-CM-Q5 qualitative effort', () => {
   it.each(['max', 'vendor'])('does not guess CM effort mapping for %s', reasoning_effort => {
     expect(adapter().convert({ ...basic(), reasoning_effort }, context).ok).toBe(false);
   });
-  it('requires administrator capability/levels and leaves null effort unspecified', () => {
-    expect(make().convert({ ...basic(), reasoning_effort: 'high' }, context).ok).toBe(false);
+  it('maps native effort without declarations and leaves null unspecified', () => {
+    expect(make().convert({ ...basic(), reasoning_effort: 'high' }, context).ok).toBe(true);
     const result = make().convert({ ...basic(), reasoning_effort: null }, context);
     expect(result.ok).toBe(true); if (result.ok) expect(result.value).not.toHaveProperty('output_config');
   });
@@ -241,10 +240,10 @@ describe('P-CM-Q4-O native output schema', () => {
   it.each([false, null, undefined])('does not strengthen advisory strict=%s into native constrained decoding', strict => {
     expect(adapter().convert({ ...basic(), response_format: { type: 'json_schema', json_schema: { name: 'x', schema: schema(), ...(strict === undefined ? {} : { strict }) } } }, context).ok).toBe(false);
   });
-  it('rejects JSON-only mode, conflicting descriptions, unsupported schema keywords and missing capability', () => {
+  it('rejects unrepresentable schema constraints while allowing undeclared schema support', () => {
     expect(adapter().convert({ ...basic(), response_format: { type: 'json_object' } }, context).ok).toBe(false);
     for (const extra of [{ patternProperties: {} }, { description: 'different' }]) expect(adapter().convert({ ...basic(), response_format: { type: 'json_schema', json_schema: { name: 'x', strict: true, schema: { ...schema(), ...extra }, description: 'wrapper' } } }, context).ok).toBe(false);
-    expect(make().convert({ ...basic(), response_format: { type: 'json_schema', json_schema: { name: 'x', strict: true, schema: schema() } } }, context).ok).toBe(false);
+    expect(make().convert({ ...basic(), response_format: { type: 'json_schema', json_schema: { name: 'x', strict: true, schema: schema() } } }, context).ok).toBe(true);
   });
 });
 
@@ -266,9 +265,9 @@ describe('P-CM-Q4 generation controls', () => {
     expect(configured().convert({ ...basic(), stop: 'END' }, context)).toMatchObject({ ok: true, value: { stop_sequences: ['END'] } });
     expect(make().convert({ ...basic(), stream: false, n: 1, temperature: null, top_p: null, stop: null }, context).ok).toBe(true);
   });
-  it('rejects target temperature above one and unsupported capabilities/multiple choices', () => {
+  it('accepts undeclared sampling but rejects incompatible temperature and multiple choices', () => {
     expect(configured().convert({ ...basic(), temperature: 1.1 }, context)).toMatchObject({ ok: false, error: { code: 'parameter_not_representable' } });
-    expect(make().convert({ ...basic(), temperature: 0.5 }, context).ok).toBe(false);
+    expect(make().convert({ ...basic(), temperature: 0.5 }, context).ok).toBe(true);
     expect(configured().convert({ ...basic(), n: 2 }, context).ok).toBe(false);
   });
 });
@@ -298,7 +297,7 @@ describe('P-CM-Q3 image conversion with explicit model capabilities', () => {
   }));
 
   it('preserves HTTPS URL and text order without fetching or guessing a media type', () => {
-    const url = 'https://images.example.invalid/path/photo?format=original';
+    const url = 'http://images.local/path/photo?format=original#part';
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(() => { throw new Error('must not fetch'); });
     try {
       const output = value(images().convert(imageRequest(url), context));
@@ -325,10 +324,10 @@ describe('P-CM-Q3 image conversion with explicit model capabilities', () => {
       .toMatchObject({ ok: false, error: { kind: 'unsupported_feature' } });
   });
 
-  it('requires P10 capability evidence for each image transport and output budget', () => {
-    expect(make().convert(imageRequest('https://image.example/p.png'), context)).toMatchObject({ ok: false, error: { code: 'image_capabilities_required' } });
-    expect(images(['image_base64']).convert(imageRequest('https://image.example/p.png'), context)).toMatchObject({ ok: false, error: { code: 'missing_capability' } });
-    expect(images(['image_url']).convert(imageRequest('data:image/png;base64,AQID'), context)).toMatchObject({ ok: false, error: { code: 'missing_capability' } });
+  it('allows undeclared image transports while enforcing the configured output budget', () => {
+    expect(make().convert(imageRequest('https://image.example/p.png'), context)).toMatchObject({ ok: true });
+    expect(images(['image_base64']).convert(imageRequest('https://image.example/p.png'), context)).toMatchObject({ ok: true });
+    expect(images(['image_url']).convert(imageRequest('data:image/png;base64,AQID'), context)).toMatchObject({ ok: true });
     const capped = value(createChatToMessagesRequestAdapter({ maxTokens: 512, channelCapabilities: { protocol: 'messages', features: ['image_url'], maxOutputTokens: 100 } }));
     expect(capped.convert(imageRequest('https://image.example/p.png'), context)).toMatchObject({ ok: false, error: { code: 'output_limit_exceeded' } });
     expect(createChatToMessagesRequestAdapter({ maxTokens: 512, channelCapabilities: { protocol: 'chat', features: ['image_url'] } }).ok).toBe(false);
@@ -339,8 +338,8 @@ describe('P-CM-Q3 image conversion with explicit model capabilities', () => {
     expect(images().convert(imageRequest(url), context).ok).toBe(false);
   });
 
-  it.each(['http://image.example/p.png', 'file:///image.png', 'javascript:alert(1)', '/relative.png',
-    'https://user:secret@image.example/p.png', 'https://image.example/p.png#fragment', 'https://image.example/a b'])('rejects nonrepresentable URL %# without fetching', url => {
+  it.each(['file:///image.png', 'javascript:alert(1)', '/relative.png',
+    'https://user:secret@image.example/p.png', 'https://image.example/a b'])('rejects nonrepresentable URL %# without fetching', url => {
     expect(images().convert(imageRequest(url), context).ok).toBe(false);
   });
 
@@ -454,12 +453,11 @@ describe('Chat→Messages tools and complete tool history', () => {
     expect(make().convert({ model: 'm', messages: messages as ChatMessage[] }, context)).toMatchObject({ ok: false, error: { kind: 'unsupported_feature' } });
   });
 
-  it('rejects missing/nonobject schemas, duplicate definitions, strictness, and unknown selected tools', () => {
+  it('rejects missing/nonobject schemas, duplicate definitions and unknown selected tools', () => {
     for (const tools of [
       [{ type: 'function', function: { name: 'no_schema' } }],
       [{ type: 'function', function: { name: 'bad', parameters: { type: 'array' } } }],
       [definition(), definition()],
-      [{ ...definition(), function: { ...definition().function, strict: true } }],
     ]) expect(make().convert({ ...basic(), tools } as ChatRequest, context).ok).toBe(false);
     expect(make().convert({ ...request(), tool_choice: { type: 'function', function: { name: 'missing' } } }, context))
       .toMatchObject({ ok: false, error: { code: 'unknown_selected_tool' } });

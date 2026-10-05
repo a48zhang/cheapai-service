@@ -13,9 +13,8 @@ export interface ParsedMessagesInput {
   readonly model: string;
   readonly stream: boolean;
   readonly features: RequestFeatures;
-  readonly version: typeof MESSAGES_INPUT_VERSION;
-  /** Requested header extensions, not permission to forward them. G01 still
-   * requires a trusted upstream allowlist and strips them across protocols. */
+  readonly version: string;
+  /** Native provider extensions, forwarded when the selected upstream is Messages. */
   readonly betas: readonly string[];
 }
 export class MessagesInputError extends ApiError {
@@ -34,13 +33,10 @@ export async function parseMessagesInput(input: Request, options: { maxBodyBytes
     throw new ApiError('service_unavailable');
   }
   const version = input.headers.get('anthropic-version') ?? MESSAGES_INPUT_VERSION;
-  if (version !== MESSAGES_INPUT_VERSION) invalid('unsupported_messages_version', 'anthropic-version');
   const rawBetas = input.headers.get('anthropic-beta');
   const betas = rawBetas === null ? [] : rawBetas.split(',').map(value => value.trim());
-  if (rawBetas !== null && (rawBetas.length > 2048 || /[\u0000-\u001f\u007f]/.test(rawBetas)
-    || betas.length > 16 || betas.some(value => !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(value)))) invalid('invalid_messages_beta', 'anthropic-beta');
   const raw = await readGatewayJson(input, options.maxBodyBytes);
-  const parsed = parseMessagesRequest(raw, { unknownFields: 'preserve' });
+  const parsed = parseMessagesRequest(raw, { unknownFields: 'preserve', native: true });
   if (!parsed.ok) throw new MessagesInputError(parsed.error);
   const request = parsed.value;
   if (request.model.length > 128 || request.model.trim() !== request.model || !/^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/.test(request.model)) {
@@ -50,5 +46,5 @@ export async function parseMessagesInput(input: Request, options: { maxBodyBytes
   if (!features.ok) throw new MessagesInputError(features.error);
   if (options.maxOutputTokens !== undefined && request.max_tokens > options.maxOutputTokens) invalid('output_limit_exceeded', '$.max_tokens');
   return { protocol: 'messages', request, model: request.model, stream: request.stream === true,
-    features: features.value, version: MESSAGES_INPUT_VERSION, betas: [...new Set(betas)] };
+    features: features.value, version, betas: [...new Set(betas)] };
 }

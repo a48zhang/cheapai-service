@@ -1,10 +1,10 @@
 import { DEFAULT_CONFIG } from '../config';
 import { buildUpstreamHeaders } from './headers';
 import type { UpstreamHeaderOptions } from './headers';
-import { buildUpstreamUrl } from './upstream-url';
+import { buildUpstreamUrl, validateUpstreamBaseUrl } from './upstream-url';
 import { logError } from '../logging';
 
-export type TransportFailure = 'invalid_configuration' | 'cancelled' | 'headers_timeout' | 'request_timeout' | 'idle_timeout' | 'network_error' | 'stream_error' | 'redirect_rejected';
+export type TransportFailure = 'invalid_configuration' | 'cancelled' | 'headers_timeout' | 'request_timeout' | 'idle_timeout' | 'network_error' | 'stream_error';
 export class UpstreamTransportError extends Error {
   constructor(readonly reason: TransportFailure, readonly execution: 'not_started' | 'uncertain', readonly upstreamStatus?: number) {
     super(`Upstream transport failed: ${reason}`); this.name = 'UpstreamTransportError';
@@ -33,7 +33,7 @@ function timeout(value: number, maximum: number): number {
   return value;
 }
 
-/** Exactly one POST, with manual redirects and no generated-request retries.
+/** One upstream operation, following HTTP redirects without generated-request retries.
  * A network rejection after dispatch is uncertain execution, not proof of zero
  * upstream work. G12 may use additional provider evidence; this module cannot.
  * Total deadline persists until body EOF/cancel; idle timeout runs only while
@@ -44,7 +44,6 @@ export async function sendUpstream(options: UpstreamRequestOptions, dependencies
   try {
     url = buildUpstreamUrl(options.baseUrl, options.upstreamProtocol);
     headers = buildUpstreamHeaders(options);
-    if (typeof options.body !== 'string') throw new Error();
     totalMs = timeout(options.maxDurationMs ?? DEFAULT_CONFIG.requestMaxDurationMs, 2_147_483_647);
     headerMs = timeout(options.headersTimeoutMs ?? Math.min(DEFAULT_CONFIG.upstreamHeadersTimeoutMs, totalMs), totalMs);
     idleMs = timeout(options.idleTimeoutMs ?? Math.min(DEFAULT_CONFIG.upstreamIdleTimeoutMs, totalMs), totalMs);
@@ -94,10 +93,34 @@ export async function sendUpstream(options: UpstreamRequestOptions, dependencies
   const fetcher = dependencies.fetch ?? ((target: string, init: RequestInit) => fetch(target, init));
   let upstream: Response;
   try {
-    const pending = Promise.resolve().then(() => {
-      if (terminal) throw failure;
-      dispatched = true;
-      return fetcher(url.toString(), { method: 'POST', headers, body: options.body, redirect: 'manual', signal: controller.signal });
+    const pending = Promise.resolve().then(async () => {
+      let target = url;
+      let method = 'POST';
+      let body: string | undefined = options.body;
+      let requestHeaders = headers;
+      for (let redirects = 0; ; redirects++) {
+        if (terminal) throw failure;
+        dispatched = true;
+        const response = await fetcher(target.toString(), { method, headers: requestHeaders, ...(body === undefined ? {} : { body }), redirect: 'manual', signal: controller.signal });
+        if (terminal) { void response.body?.cancel().catch(() => undefined); throw failure; }
+        const location = response.headers.get('location');
+        if (![301, 302, 303, 307, 308].includes(response.status) || location === null) return response;
+        void response.body?.cancel().catch(() => undefined);
+        if (redirects === 20) throw new Error('Too many upstream redirects');
+        const next = validateUpstreamBaseUrl(new URL(location, target).href);
+        requestHeaders = new Headers(requestHeaders);
+        // Workers redirect:follow retains x-api-key and Cookie across origins.
+        // Strip provider credentials explicitly, including Anthropic authentication.
+        if (next.origin !== target.origin) {
+          for (const name of ['authorization', 'x-api-key', 'cookie', 'proxy-authorization']) requestHeaders.delete(name);
+        }
+        if ((response.status === 301 || response.status === 302) && method === 'POST'
+            || response.status === 303 && method !== 'GET' && method !== 'HEAD') {
+          method = 'GET'; body = undefined;
+          for (const name of ['content-type', 'content-length', 'content-encoding', 'content-language', 'content-location']) requestHeaders.delete(name);
+        }
+        target = next;
+      }
     });
     // If an injected fetch ignores abort and resolves late, discard its body too.
     void pending.then((response) => { if (terminal) void response.body?.cancel().catch(() => undefined); }, () => undefined);
@@ -108,11 +131,6 @@ export async function sendUpstream(options: UpstreamRequestOptions, dependencies
   } catch (cause) {
     logError('Upstream fetch failed', cause, { protocol: options.upstreamProtocol });
     const error = failure ?? new UpstreamTransportError('network_error', 'uncertain');
-    finish(error); throw error;
-  }
-  if (upstream.redirected || (upstream.status >= 300 && upstream.status < 400)) {
-    void upstream.body?.cancel().catch(() => undefined);
-    const error = new UpstreamTransportError('redirect_rejected', 'uncertain', upstream.status);
     finish(error); throw error;
   }
   if (!upstream.ok) console.error('Upstream returned an HTTP error', { status: upstream.status, protocol: options.upstreamProtocol });

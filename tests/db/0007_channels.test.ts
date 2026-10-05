@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { decryptChannelSecret, encryptChannelSecret } from '../../apps/worker/admin/channel-secrets';
+import { legacyChannelSecret } from '../helpers/legacy-channel-secret';
 import { testEnv } from '../helpers/database';
 
 const columns = ['id', 'name', 'base_url', 'secret_ciphertext', 'secret_key_version', 'status', 'priority', 'concurrency_limit', 'rpm_limit', 'config_version', 'created_at', 'updated_at'] as const;
 type ChannelRow = Record<typeof columns[number], string | number | null>;
 let valid: ChannelRow;
-let key: Uint8Array;
 
 function insert(changes: Partial<ChannelRow> = {}) {
   const row = { ...valid, ...changes };
@@ -20,21 +19,19 @@ async function group(id: string) {
 
 describe('0007 channels and group membership in native D1', () => {
   beforeEach(async () => {
-    key = crypto.getRandomValues(new Uint8Array(32));
     valid = {
       id: 'd07-channel', name: 'D07 test channel', base_url: 'https://upstream.example.invalid/v1',
-      secret_ciphertext: await encryptChannelSecret('test-upstream-key', 'd07-channel', 'test-v1', key),
+      secret_ciphertext: legacyChannelSecret(),
       secret_key_version: 'test-v1', status: 'active', priority: 0, concurrency_limit: 2,
       rpm_limit: 60, config_version: 1, created_at: 1000, updated_at: 1000,
     };
   });
 
-  it('stores the real C01 envelope and preserves decryptability without plaintext', async () => {
+  it('preserves legacy envelope bytes while updating channel metadata', async () => {
     await insert();
     const row = await testEnv.DB.prepare('SELECT * FROM channels WHERE id = ?').bind(valid.id).first<ChannelRow>();
     expect(row).toEqual(valid);
     expect(row?.secret_ciphertext).not.toContain('test-upstream-key');
-    expect(await decryptChannelSecret(String(row?.secret_ciphertext), 'd07-channel', new Map([['test-v1', key]]))).toBe('test-upstream-key');
     await testEnv.DB.prepare('UPDATE channels SET status = ?, config_version = 2, updated_at = 2000 WHERE id = ?').bind('disabled', valid.id).run();
     expect(await testEnv.DB.prepare('SELECT status FROM channels WHERE id = ?').bind(valid.id).first('status')).toBe('disabled');
   });
@@ -79,7 +76,7 @@ describe('0007 channels and group membership in native D1', () => {
 
   it('allows many-to-many membership, forbids duplicates/orphans and restricts referenced deletion', async () => {
     await insert();
-    await insert({ id: 'd07-channel-2', secret_ciphertext: await encryptChannelSecret('test-key-2', 'd07-channel-2', 'test-v1', key) });
+    await insert({ id: 'd07-channel-2', secret_ciphertext: legacyChannelSecret() });
     await group('d07-group-1');
     await group('d07-group-2');
     const link = (channelId: string, groupId: string) => testEnv.DB.prepare('INSERT INTO channel_groups (channel_id,group_id) VALUES (?,?)').bind(channelId, groupId).run();

@@ -93,20 +93,6 @@ describe('Chat request wire boundary', () => {
       .toMatchObject({ ok: false, error: { param: '$.messages[0].tool_calls[1].id' } });
   });
 
-  it('preserves explicit extensions in place, never relaxing known fields', () => {
-    const input = { ...basic(), provider_option: { enabled: true, values: [null, 3] } };
-    expect(parseChatRequest(input).ok).toBe(false);
-    const result = parseChatRequest(input, { allowedExtensions: ['provider_option'] });
-    expect(result).toMatchObject({ ok: true, value: input });
-    if (result.ok) expect(result.value).toBe(input);
-    expect(parseChatRequest({ ...basic(), temperature: 'hot' }, { allowedExtensions: ['temperature'] }).ok).toBe(false);
-    expect(parseChatRequest({ ...basic(), messages: [{ role: 'user', content: 'hi', extra: true }] }, { allowedExtensions: ['extra'] }).ok).toBe(false);
-    const nested = { ...input, messages: [{ role: 'user', content: [{ type: 'text', text: 'hi', cache_hint: { mode: 'provider' } }], extra: true }] };
-    expect(parseChatRequest(nested, { unknownFields: 'preserve' })).toEqual({ ok: true, value: nested });
-    expect(parseChatRequest({ ...input, stream: 1 }, { unknownFields: 'preserve' }).ok).toBe(false);
-    expect(input.provider_option.enabled).toBe(true);
-  });
-
   it('accepts nullable controls, refusal and reasoning-only history without synthesizing content', () => {
     const input = { ...basic(), max_tokens: null, temperature: null, stop: null, service_tier: 'provider-tier', reasoning_effort: 'provider-effort',
       messages: [{ role: 'assistant', refusal: 'declined' }, { role: 'assistant', reasoning: 'private' }] };
@@ -116,16 +102,6 @@ describe('Chat request wire boundary', () => {
   it('leaves model capabilities and cross-turn pairing to later checks', () => {
     expect(parseChatRequest({ ...basic(), max_tokens: 5, max_completion_tokens: 6,
       messages: [{ role: 'tool', tool_call_id: 'external-history-id', content: 'result' }] }).ok).toBe(true);
-  });
-
-  it('rejects non-JSON, excessive depth and cycles without executing getters', () => {
-    const cycle: Record<string, unknown> = {}; cycle.self = cycle;
-    let deep: unknown = {}; for (let i = 0; i < 66; i++) deep = { child: deep };
-    const getter = Object.defineProperty({}, 'value', { enumerable: true, get() { throw new Error('getter ran'); } });
-    for (const provider_option of [undefined, NaN, Infinity, 1n, () => 0, new Date(), cycle, deep, getter, new Array(2)]) {
-      expect(parseChatRequest({ ...basic(), provider_option }, { allowedExtensions: ['provider_option'] }).ok).toBe(false);
-    }
-    expect(parseChatRequest(JSON.parse('{"model":"x","messages":[{"role":"user","content":"x"}],"__proto__":{}}')).ok).toBe(false);
   });
 });
 

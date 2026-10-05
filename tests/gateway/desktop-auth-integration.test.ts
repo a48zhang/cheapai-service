@@ -3,7 +3,6 @@ import { createExecutionContext, waitOnExecutionContext } from 'cloudflare:test'
 import { app } from '../../apps/worker/app';
 import type { Env } from '../../apps/worker/env';
 import * as passwords from '../../apps/worker/auth/password';
-import { encryptChannelSecret } from '../../apps/worker/admin/channel-secrets';
 import { DESKTOP_ACCOUNT_PATH, DESKTOP_KEY_PATH, DESKTOP_LOGIN_PATH, DESKTOP_LOGOUT_PATH } from '../../apps/worker/auth/desktop/routes';
 import { testEnv } from '../helpers/database';
 
@@ -12,7 +11,6 @@ const email = 'a43-desktop@example.invalid';
 const password = 'fixture-only-password';
 const model = 'a43-chat-model';
 let env: Env;
-let channelKey: Uint8Array;
 
 interface Envelope<T> { data: T; request_id: string }
 interface DesktopCredential { token: string; expiresAt: number; user: { id: string } }
@@ -63,12 +61,10 @@ beforeEach(async () => {
   await testEnv.DB.prepare(`INSERT INTO models
     (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at)
     VALUES (?,'active','{"input":"1","output":"2"}',1,0,64,0,0)`).bind(model).run();
-  channelKey = crypto.getRandomValues(new Uint8Array(32));
-  const encrypted = await encryptChannelSecret('A43-UPSTREAM', 'a43-channel', 'v1', channelKey);
   await testEnv.DB.prepare(`INSERT INTO channels
-    (id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-    VALUES ('a43-channel','A43','https://provider-a43.example',?,'v1','active',1,2,60,1,0,0)`)
-    .bind(encrypted).run();
+    (id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+    VALUES ('a43-channel','A43','https://provider-a43.example',?,'active',1,2,60,1,0,0)`)
+    .bind('A43-UPSTREAM').run();
   await testEnv.DB.prepare("INSERT INTO channel_groups(channel_id,group_id) VALUES('a43-channel','a43-group')").run();
   await testEnv.DB.prepare(`INSERT INTO channel_models
     (channel_id,public_model_id,upstream_model,protocol,capabilities_json,config_version)
@@ -78,8 +74,6 @@ beforeEach(async () => {
     ...testEnv,
     ENVIRONMENT: 'local',
     PUBLIC_BASE_URL: origin,
-    CHANNEL_KEYRING_JSON: JSON.stringify({ v1: btoa(String.fromCharCode(...channelKey)) }),
-    CHANNEL_ACTIVE_KEY_VERSION: 'v1',
   } as Env;
   vi.spyOn(passwords, 'verifyPassword').mockResolvedValue(true);
 });
@@ -132,9 +126,9 @@ describe('desktop route to gateway accounting integration', () => {
     expect(logout.response.status).toBe(200);
     expect(JSON.parse(logout.text)).toMatchObject({ data: { loggedOut: true } });
     expect(await testEnv.DB.prepare('SELECT status FROM api_keys WHERE id=?').bind(firstKey.keyId).first('status')).toBe('revoked');
-    expect(await testEnv.DB.prepare('SELECT revoked_at,current_key_ciphertext FROM desktop_sessions WHERE id=?')
+    expect(await testEnv.DB.prepare('SELECT revoked_at,current_key FROM desktop_sessions WHERE id=?')
       .bind(bindings.results.find(row => row.id === firstKey.keyId)!.desktop_session_id).first())
-      .toMatchObject({ revoked_at: expect.any(Number), current_key_ciphertext: null });
+      .toMatchObject({ revoked_at: expect.any(Number), current_key: null });
 
     const revokedRequest = await modelRequest(firstKey.key);
     expect(revokedRequest.response.status).toBe(401);

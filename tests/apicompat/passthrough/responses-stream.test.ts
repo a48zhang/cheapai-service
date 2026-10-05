@@ -117,13 +117,13 @@ describe('Responses same-protocol streaming lifecycle', () => {
     expect(stream.push(frame({ ...completed, response: { ...completed.response, output: [{ ...finalMessage, status: 'incomplete' }] } }, 99)).terminal?.status).toBe('failed');
   });
 
-  it('rejects regressed sequence numbers, terminal mismatches and unknown sensitive fields', () => {
+  it('rejects regressed sequence numbers, terminal mismatches and preserves extension fields', () => {
     const repeated = session(); repeated.push(frame(created, 2)); expect(repeated.push(frame(textEvents[1]!, 2)).terminal?.status).toBe('failed');
     const mismatched = session(); mismatched.push(frame(created, 0));
     expect(mismatched.push(frame({ ...completed, response: { ...completed.response, id: 'other' } }, 1)).terminal?.status).toBe('failed');
-    expect(session().push(frame({ ...created, headers: { authorization: 'SECRET' } }, 0)).terminal?.status).toBe('failed');
+    expect(session().push(frame({ ...created, headers: { authorization: 'SECRET' } }, 0)).terminal).toBeUndefined();
     expect(session({ ...options, unknownEventPolicy: 'ignore' }).push(frame({ type: 'vendor.event' }, 0))).toEqual({ events: [], usageUpdates: [] });
-    expect(session({ ...options, unknownEventPolicy: 'preserve' }).push(frame({ type: 'vendor.event' }, 0)).terminal?.status).toBe('failed');
+    expect(session({ ...options, unknownEventPolicy: 'preserve' }).push(frame({ type: 'vendor.event' }, 0)).terminal).toBeUndefined();
   });
 
   it('bounds retained item state and never treats DONE or EOF as native completion', () => {

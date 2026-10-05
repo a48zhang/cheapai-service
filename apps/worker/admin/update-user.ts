@@ -21,14 +21,11 @@ export async function updateUser(database: D1Database, userId: string, expectedV
   if (!validId(userId) || !validId(context.actorId) || !validId(context.operationId)
     || !positive(expectedVersion) || expectedVersion >= Number.MAX_SAFE_INTEGER
     || !Number.isSafeInteger(context.now) || context.now < 0) throw new ApiError('invalid_request');
-  if (!patch || typeof patch !== 'object' || Array.isArray(patch)
-    || ![Object.prototype, null].includes(Object.getPrototypeOf(patch))) throw new ApiError('invalid_request');
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new ApiError('invalid_request');
   const fields: Record<string, unknown> = {};
-  for (const key of Reflect.ownKeys(patch)) {
-    const descriptor = Object.getOwnPropertyDescriptor(patch, key);
-    if (typeof key !== 'string' || !['status', 'groupId', 'concurrencyLimit', 'rpmLimit', 'allowedGroupIds'].includes(key)
-      || !descriptor || !('value' in descriptor)) throw new ApiError('invalid_request');
-    const value: unknown = descriptor.value;
+  for (const key of ['status', 'groupId', 'concurrencyLimit', 'rpmLimit', 'allowedGroupIds'] as const) {
+    if (!Object.hasOwn(patch, key)) continue;
+    const value = patch[key];
     if (key === 'concurrencyLimit') { try { fields[key] = parseConcurrencyLimit(value); } catch { throw new ApiError('invalid_request'); } continue; }
     if (key === 'rpmLimit') { try { fields[key] = parseRpmLimit(value); } catch { throw new ApiError('invalid_request'); } continue; }
     if (key === 'allowedGroupIds') { fields[key] = validateGroupSelection(value); continue; }

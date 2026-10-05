@@ -29,7 +29,7 @@ export async function parseResponsesInput(input: Request, options: { maxBodyByte
     throw new ApiError('service_unavailable');
   }
   const raw = await readGatewayJson(input, options.maxBodyBytes);
-  const parsed = validateResponsesRequest(raw, { unknownFields: 'preserve' });
+  const parsed = validateResponsesRequest(raw, { unknownFields: 'preserve', native: true });
   if (!parsed.ok) throw new ResponsesInputError(parsed.error);
   const request = parsed.value;
   if (request.model.length > 128 || request.model.trim() !== request.model || !/^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/.test(request.model)) {

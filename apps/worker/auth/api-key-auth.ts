@@ -2,7 +2,7 @@ import type { MiddlewareHandler } from 'hono';
 import { ApiError } from '../http';
 import { findInternalPlatformKeyByHash } from './key-repository';
 import type { InternalPlatformKeyAuth } from './key-repository';
-import { getTokenDisplayPrefix, hashToken } from './tokens';
+import { getTokenDisplayPrefix, hashToken, TokenFormatError } from './tokens';
 
 // Chat callers use the session-derived user ID and selected group directly;
 // this re-export keeps the authentication entry points discoverable without
@@ -34,12 +34,12 @@ function credential(request: Request): string {
     if (!match?.[1]) throw new PlatformKeyAuthError('invalid_api_key');
     bearer = match[1];
   }
-  // Validate every supplied credential: a valid alternative never hides a bad one.
-  try {
-    if (bearer !== null) getTokenDisplayPrefix('apiKey', bearer);
-    if (apiKey !== null) getTokenDisplayPrefix('apiKey', apiKey);
-  } catch { throw new PlatformKeyAuthError('invalid_api_key'); }
-  if (bearer !== null && apiKey !== null && bearer !== apiKey) throw new PlatformKeyAuthError('conflicting_api_key_headers');
+  if (bearer !== null && apiKey !== null && bearer !== apiKey) {
+    // Distinguish conflicting valid credentials from a malformed alternate header.
+    try { getTokenDisplayPrefix('apiKey', bearer); getTokenDisplayPrefix('apiKey', apiKey); }
+    catch { throw new PlatformKeyAuthError('invalid_api_key'); }
+    throw new PlatformKeyAuthError('conflicting_api_key_headers');
+  }
   return (bearer ?? apiKey)!;
 }
 
@@ -55,9 +55,17 @@ export async function authenticatePlatformKey(database: D1Database, request: Req
   const token = credential(request);
   let stored: InternalPlatformKeyAuth | null;
   try {
-    const digest = await hashToken('apiKey', token);
+    let digest: string;
+    try { digest = await hashToken('apiKey', token); }
+    catch (error) {
+      if (error instanceof TokenFormatError) throw new PlatformKeyAuthError('invalid_api_key');
+      throw error;
+    }
     stored = await findInternalPlatformKeyByHash(database, digest, now);
-  } catch (error) { throw new PlatformKeyAuthError('authentication_unavailable', { cause: error }); }
+  } catch (error) {
+    if (error instanceof PlatformKeyAuthError) throw error;
+    throw new PlatformKeyAuthError('authentication_unavailable', { cause: error });
+  }
   if (stored === null) throw new PlatformKeyAuthError('invalid_api_key');
   // No token or digest enters the request context; freeze the authoritative projection.
   return Object.freeze({

@@ -116,7 +116,7 @@ describe('A27 platform-Key authentication on native D1', () => {
   });
 
   it('classifies crypto or invalid clock failures as unavailable, with no secret-bearing cause', async () => {
-    const spy = vi.spyOn(crypto.subtle, 'digest').mockRejectedValueOnce(new Error(`private backend ${token}`));
+    const spy = vi.spyOn(crypto.subtle, 'digest').mockRejectedValueOnce(new TypeError(`private backend ${token}`));
     try { await expect(auth({ 'x-api-key': token })).rejects.toMatchObject({ status: 503 }); } finally { spy.mockRestore(); }
     await expect(auth({ 'x-api-key': token }, NaN)).rejects.toMatchObject({ status: 503 });
   });

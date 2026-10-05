@@ -1,5 +1,5 @@
 import { checkRequestCapabilities, identifyRequestFeatures } from '@sub2api/apicompat/capabilities/check';
-import type { ProtocolRequest, RequiredCapabilityCheck } from '@sub2api/apicompat/capabilities/check';
+import type { ProtocolRequest, RequestFeatures, RequiredCapabilityCheck } from '@sub2api/apicompat/capabilities/check';
 import type { Protocol } from '@sub2api/apicompat/types/shared';
 import type { InternalPlatformKeyAuth } from '../auth/key-repository';
 import type { RouteCandidate, RouteData } from '../cache/routes';
@@ -13,6 +13,7 @@ export interface EligibleCandidate {
 }
 export interface SelectionOptions {
   now: number;
+  features?: RequestFeatures;
   maxSnapshotAgeMs?: number;
   random?: () => number;
   /** P22 supplies implementation availability for this full request/response mode. */
@@ -67,7 +68,7 @@ export function selectChannelCandidates(
   if (!Number.isSafeInteger(now) || now < 0 || !Number.isSafeInteger(maxAgeMs) || maxAgeMs <= 0) return none('invalid_request');
   if (!auth || auth.key.status !== 'active' || auth.user.status !== 'active' || auth.group.status !== 'active' ||
       auth.key.userId !== auth.user.id || auth.key.createdAt > now || (auth.key.expiresAt !== null && auth.key.expiresAt <= now)) return none('unauthorized');
-  const features = identifyRequestFeatures(request);
+  const features = options.features ? { ok: true as const, value: options.features } : identifyRequestFeatures(request);
   if (!features.ok) return none('invalid_request');
   const modelId = request.request.model;
   if (auth.key.allowedModels !== null && !auth.key.allowedModels.includes(modelId)) return none('model_not_allowed');
@@ -87,7 +88,7 @@ export function selectChannelCandidates(
     if (seen.has(identity)) continue;
     seen.add(identity);
     hasMapping = true;
-    const checked = checkRequestCapabilities(request, mapping.capabilities);
+    const checked = checkRequestCapabilities(request, mapping.capabilities, features.value);
     if (!checked.supported) continue;
     capable.push({ candidate, requiredChecks: [...checked.requiredChecks],
       ...(checked.outputTokenLimit === undefined ? {} : { outputTokenLimit: checked.outputTokenLimit }) });

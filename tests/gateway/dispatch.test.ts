@@ -3,7 +3,6 @@ import { createExecutionContext, waitOnExecutionContext, runInDurableObject } fr
 import { dispatchGatewayRequest } from '../../apps/worker/gateway/dispatch';
 import type { GatewayDispatchDependencies } from '../../apps/worker/gateway/dispatch';
 import { generateToken, hashToken } from '../../apps/worker/auth/tokens';
-import { encryptChannelSecret } from '../../apps/worker/admin/channel-secrets';
 import { LeaseStorage } from '../../apps/worker/limits/storage';
 import { routesCacheKey } from '../../apps/worker/cache/routes';
 import type { Protocol } from '../../packages/apicompat/types/shared';
@@ -13,8 +12,6 @@ import type { ProtocolRegistry } from '../../packages/apicompat';
 
 const protocols: Protocol[] = ['chat', 'responses', 'messages'];
 let token: string;
-let key: Uint8Array;
-let keyring: Map<string, Uint8Array>;
 const active = (subject: string) => runInDurableObject(testEnv.GATE.get(testEnv.GATE.idFromName(subject)), (_instance, context) => new LeaseStorage(context.storage).read(Date.now()).leases.length);
 function input(protocol: Protocol, stream = false): Record<string, unknown> {
   return protocol === 'responses' ? { model: `model-${protocol}`, input: 'Synthetic text', max_output_tokens: 16, stream }
@@ -57,9 +54,9 @@ function sse(protocol: Protocol): Response {
   return new Response(events.map(item => `${item.event ? `event: ${item.event}\n` : ''}data: ${typeof item.data === 'string' ? item.data : JSON.stringify(item.data)}\n\n`).join(''), { headers: { 'Content-Type': 'text/event-stream' } });
 }
 async function addChannel(protocol: Protocol, channelId = `channel-${protocol}`, priority = 10) {
-  const encrypted = await encryptChannelSecret('PRIVATE_UPSTREAM_KEY', channelId, 'v1', key);
-  await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-    VALUES(?,'Fixture',?,?,'v1','active',?,1,60,1,0,0)`).bind(channelId, `https://${channelId}.example`, encrypted, priority).run();
+  const credential = 'PRIVATE_UPSTREAM_KEY';
+  await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+    VALUES(?,'Fixture',?,?,'active',?,1,60,1,0,0)`).bind(channelId, `https://${channelId}.example`, credential, priority).run();
   await testEnv.DB.prepare("INSERT INTO channel_groups(channel_id,group_id) VALUES(?,'g14-group')").bind(channelId).run();
   const features = ['streaming', ...(protocol === 'chat' ? ['stream_usage'] : []), ...(protocol === 'responses' ? ['response_history'] : [])];
   await testEnv.DB.prepare('INSERT INTO channel_models(channel_id,public_model_id,upstream_model,protocol,capabilities_json,config_version) VALUES(?,?,?, ?,?,1)')
@@ -67,7 +64,7 @@ async function addChannel(protocol: Protocol, channelId = `channel-${protocol}`,
 }
 async function call(protocol: Protocol, payload: unknown, fetcher: GatewayDispatchDependencies['fetch'], extra: Partial<GatewayDispatchDependencies> = {}, headers: HeadersInit = {}) {
   const context = createExecutionContext();
-  const response = await dispatchGatewayRequest({ DB: testEnv.DB, CACHE: testEnv.CACHE, GATE: testEnv.GATE, keyring, fetch: fetcher!, ...extra },
+  const response = await dispatchGatewayRequest({ DB: testEnv.DB, CACHE: testEnv.CACHE, GATE: testEnv.GATE, fetch: fetcher!, ...extra },
     new Request(`https://gateway.example/v1/${protocol}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...headers }, body: JSON.stringify(payload) }), protocol, context);
   const text = await response.text(); await waitOnExecutionContext(context);
   return { response, text };
@@ -78,7 +75,7 @@ beforeEach(async () => {
     VALUES(?,?,'synthetic','user','active','g14-group',1000,1,60,'admin',0,0)`).bind(id, `${id}@example.invalid`).run();
   token = generateToken('apiKey');
   await testEnv.DB.prepare("INSERT INTO api_keys(id,user_id,key_hash,display_prefix,name,status,created_at,updated_at) VALUES('g14-key','g14-user',?,'s2a_key_ABCDEFGH','Fixture','active',0,0)").bind(await hashToken('apiKey', token)).run();
-  key = crypto.getRandomValues(new Uint8Array(32)); keyring = new Map([['v1', key]]);
+
   for (const protocol of protocols) {
     await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES (?,'active','{"input":"1","output":"2"}',1,0,64,0,0)`).bind(`model-${protocol}`).run();
     await addChannel(protocol);
@@ -132,22 +129,22 @@ describe('G14-BASE real native assembly, mock providers only', () => {
     expect(await testEnv.DB.prepare('SELECT cost_units FROM requests').first('cost_units')).toBe(1300);
   });
 
-  it('rejects a Chat stream channel lacking mandatory upstream usage support', async () => {
+  it('bills actual Chat stream usage even when stream_usage was not declared', async () => {
     await testEnv.DB.prepare("UPDATE channel_models SET capabilities_json=? WHERE public_model_id='model-chat'").bind(JSON.stringify({ protocol: 'chat', features: ['streaming'], maxOutputTokens: 64 })).run();
     const provider = vi.fn(async () => sse('chat'));
     const result = await call('chat', { ...input('chat', true), stream_options: { include_usage: false } }, provider);
-    expect(result.response.status).toBe(400); expect(provider).not.toHaveBeenCalled();
-    expect(await testEnv.DB.prepare('SELECT COUNT(*) AS n FROM requests').first('n')).toBe(0);
+    expect(result.response.status).toBe(200); expect(provider).toHaveBeenCalledOnce();
+    expect(await testEnv.DB.prepare('SELECT billing_status,cost_units FROM requests').first()).toEqual({ billing_status: 'settled', cost_units: 1300 });
+    expect(await testEnv.DB.prepare('SELECT COUNT(*) AS n FROM billing_entries').first('n')).toBe(1);
   });
 
-  it('does not resolve secret configuration before authentication and valid parsing', async () => {
-    const resolver = vi.fn(() => { throw new Error('PRIVATE_CONFIG'); });
+  it('rejects unauthenticated and malformed requests before dispatch', async () => {
     const provider = vi.fn(async () => Response.json(output('chat')));
-    const anonymous = await call('chat', {}, provider, { keyring: resolver }, { Authorization: 'Bearer invalid' }); expect(anonymous.response.status).toBe(401);
-    const malformed = await call('chat', {}, provider, { keyring: resolver }); expect(malformed.response.status).toBe(400);
-    expect(resolver).not.toHaveBeenCalled();
-    const configured = await call('chat', input('chat'), provider, { keyring: resolver }); expect(configured.response.status).toBe(503);
-    expect(configured.text).not.toContain('PRIVATE_CONFIG'); expect(provider).not.toHaveBeenCalled();
+    const anonymous = await call('chat', {}, provider, {}, { Authorization: 'Bearer invalid' });
+    expect(anonymous.response.status).toBe(401);
+    const malformed = await call('chat', {}, provider);
+    expect(malformed.response.status).toBe(400);
+    expect(provider).not.toHaveBeenCalled();
     expect(await testEnv.DB.prepare('SELECT COUNT(*) AS n FROM requests').first('n')).toBe(0);
   });
 
@@ -247,7 +244,7 @@ describe('G14-BASE real native assembly, mock providers only', () => {
   it('associates cancellation completion with waitUntil rather than returning an unowned billing task', async () => {
     const context = createExecutionContext();
     const provider = vi.fn(async () => sse('chat'));
-    const response = await dispatchGatewayRequest({ DB: testEnv.DB, CACHE: testEnv.CACHE, GATE: testEnv.GATE, keyring, fetch: provider },
+    const response = await dispatchGatewayRequest({ DB: testEnv.DB, CACHE: testEnv.CACHE, GATE: testEnv.GATE, fetch: provider },
       new Request('https://gateway.example/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(input('chat', true)) }), 'chat', context);
     const reader = response.body!.getReader(); await reader.read(); await reader.cancel();
     await waitOnExecutionContext(context);
@@ -256,12 +253,17 @@ describe('G14-BASE real native assembly, mock providers only', () => {
     expect(await testEnv.DB.prepare('SELECT COUNT(*) AS n FROM billing_entries').first('n')).toBe(1);
   });
 
-  it('forwards requested Messages betas only through trusted G01 allowlists', async () => {
-    const provider = vi.fn(async (_url: string, init: RequestInit) => { expect(new Headers(init.headers).get('anthropic-beta')).toBe('test-beta-2026'); return Response.json(output('messages')); });
-    const denied = await call('messages', input('messages'), provider, {}, { 'anthropic-beta': 'test-beta-2026' });
-    expect(denied.response.status).toBe(400); expect(provider).not.toHaveBeenCalled();
-    const allowed = await call('messages', input('messages'), provider, { messagesPolicy: { allowedBetas: ['test-beta-2026'] } }, { 'anthropic-beta': 'test-beta-2026' });
-    expect(allowed.response.status).toBe(200); expect(provider).toHaveBeenCalledTimes(1);
+  it('forwards requested Messages beta and version headers without policy configuration', async () => {
+    const provider = vi.fn(async (_url: string, init: RequestInit) => {
+      const headers = new Headers(init.headers);
+      expect(headers.get('anthropic-beta')).toBe('test-beta-2026');
+      expect(headers.get('anthropic-version')).toBe('future-version');
+      return Response.json(output('messages'));
+    });
+    const result = await call('messages', input('messages'), provider, {}, {
+      'anthropic-beta': 'test-beta-2026', 'anthropic-version': 'future-version',
+    });
+    expect(result.response.status).toBe(200); expect(provider).toHaveBeenCalledOnce();
   });
 });
 

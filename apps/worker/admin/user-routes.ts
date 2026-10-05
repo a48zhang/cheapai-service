@@ -109,7 +109,6 @@ export function createAdminUserRoutes(
     requireAdmin,
     async (context) => {
       const query = new URL(context.req.url).searchParams;
-      for (const key of query.keys()) if (!['status', 'groupId', 'limit', 'cursor'].includes(key)) throw new ApiError('invalid_request');
       if (query.getAll('status').length > 1 || query.getAll('groupId').length > 1) throw new ApiError('invalid_request');
       const status = query.get('status');
       const groupId = query.get('groupId');
@@ -139,7 +138,7 @@ export function createAdminUserRoutes(
     (context, next) => requireSession(() => context.get('requestTime')!)(context, next), requireAdmin,
     async context => {
       const id = context.req.param('id');
-      if (!validId(id) || id.includes('/') || new URL(context.req.url).search !== '') throw new ApiError('invalid_request');
+      if (!validId(id) || id.includes('/')) throw new ApiError('invalid_request');
       const user = await getAdminUserDetail(context.env.DB, id);
       if (!user) throw new ApiError('not_found');
       return noStore(apiSuccess(user, context.get('requestId')));
@@ -152,9 +151,8 @@ export function createAdminUserRoutes(
       const origin = await writeOrigin(context.get('userDependencies'));
       if (typeof origin !== 'string') throw new ApiError('service_unavailable');
       validateCsrfRequest(context.req.raw, origin);
-      if (new URL(context.req.url).searchParams.size !== 0) throw new ApiError('invalid_request');
       const input = await readJsonBody(context.req.raw);
-      // A21 validates the complete allowlist and all field types before any KDF.
+      // The use case validates input and only writes its supported business fields.
       const user = await createUser(context.env.DB, input as CreateUserInput, { actorId: context.get('user').id,
         operationId: context.get('requestId'), now: context.get('requestTime')! });
       return noStore(apiSuccess(user, context.get('requestId'), 201));
@@ -168,12 +166,10 @@ export function createAdminUserRoutes(
       const origin = await writeOrigin(context.get('userDependencies'));
       if (typeof origin !== 'string') throw new ApiError('service_unavailable');
       validateCsrfRequest(context.req.raw, origin);
-      if (new URL(context.req.url).searchParams.size !== 0) throw new ApiError('invalid_request');
       const input = await readJsonBody(context.req.raw);
       if (input === null || typeof input !== 'object' || Array.isArray(input)) throw new ApiError('invalid_request');
       const body = input as Record<string, unknown>;
-      if (Object.keys(body).some((key) => !['version', 'status', 'groupId', 'concurrencyLimit', 'rpmLimit', 'allowedGroupIds'].includes(key))
-        || typeof body.version !== 'number' || !Number.isSafeInteger(body.version) || body.version < 1) throw new ApiError('invalid_request');
+      if (typeof body.version !== 'number' || !Number.isSafeInteger(body.version) || body.version < 1) throw new ApiError('invalid_request');
       const { version, ...patch } = body;
       const user = await updateUser(context.env.DB, context.req.param('id'), version, patch as UpdateUserPatch,
         { actorId: context.get('user').id, operationId: context.get('requestId'), now: context.get('requestTime')! });

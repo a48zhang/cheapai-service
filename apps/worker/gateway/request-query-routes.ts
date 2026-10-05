@@ -89,7 +89,7 @@ export function createRequestQueryRoutes(dependencies: { now(): number } = { now
     };
     app.get(path, initialize, (context, next) => requireSession(() => context.get('queryNow')!)(context, next), authorize, async context => {
       const query = new URL(context.req.url).searchParams;
-      for (const key of query.keys()) if (!['limit', 'cursor', 'from', 'to', 'status', 'billingStatus', 'model', ...(admin ? ['userId'] : [])].includes(key) || query.getAll(key).length !== 1) throw new ApiError('invalid_request');
+      for (const key of ['limit', 'cursor', 'from', 'to', 'status', 'billingStatus', 'model', ...(admin ? ['userId'] : [])]) if (query.getAll(key).length > 1) throw new ApiError('invalid_request');
       const page = parsePagination(query);
       const filter = { userId: admin ? query.get('userId') : context.get('user').id, from: timestamp(query.get('from')), to: timestamp(query.get('to')),
         status: query.get('status'), billingStatus: query.get('billingStatus'), model: query.get('model') };
@@ -122,7 +122,7 @@ export function createRequestQueryRoutes(dependencies: { now(): number } = { now
     });
     app.get(`${path}/:id`, initialize, (context, next) => requireSession(() => context.get('queryNow')!)(context, next), authorize, async context => {
       const id = context.req.param('id');
-      if (!validId(id) || new URL(context.req.url).search !== '') throw new ApiError('invalid_request');
+      if (!validId(id)) throw new ApiError('invalid_request');
       const row = await prepare<QueryRow>(context.env.DB, `SELECT ${projection} FROM requests WHERE id=?${admin ? '' : ' AND user_id=?'}`,
         admin ? [id] : [id, context.get('user').id]).first();
       if (!row) throw new ApiError('not_found');

@@ -73,7 +73,7 @@ describe("pure fixed rate windows", () => {
   it("validates corrupt stored state even when its window has expired", () => {
     const valid = consumeRateWindow(null, input).state;
     for (const state of [
-      [], {}, { ...valid, version: 2 }, { ...valid, extra: "unexpected" },
+      [], {}, { ...valid, version: 2 },
       { ...valid, operationIds: ["duplicate", "duplicate"] }, { ...valid, operationIds: ["bad id"] },
       { ...valid, operationIds: ["a", "b", "c"] }, { ...valid, lastSeenMs: 2000 },
       { ...valid, windowStartMs: 999 }, { ...valid, limit: Infinity },

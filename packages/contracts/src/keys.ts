@@ -36,7 +36,7 @@ export const keyMetadataSchema = z
     name: textSchema(),
     displayPrefix: z.string().regex(/^s2a_key_[A-Za-z0-9_-]{8}$/u),
     status: z.enum(['active', 'revoked']),
-    allowedModels: z.array(textSchema()).max(100).nullable(),
+    allowedModels: z.array(textSchema()).nullable(),
     expiresAt: timestampSchema.nullable(),
     createdAt: timestampSchema,
     updatedAt: timestampSchema,

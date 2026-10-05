@@ -56,18 +56,7 @@ const projection = 'id,operation_id,kind,user_id,request_id,currency,delta_units
 /** Pure preparation is available to B13/B14 for stable pending/retry evidence. */
 export async function prepareConsumptionSettlement(value: ConsumptionSettlementInput): Promise<PreparedConsumptionSettlement> {
   try {
-    if (!value || typeof value !== 'object' || Array.isArray(value)
-      || (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null)) throw new Error();
-    const allowed = ['operationId', 'userId', 'requestId', 'priceSnapshotJson', 'usage', 'costUnits'];
-    const copied: Record<string, unknown> = Object.create(null);
-    for (const key of Reflect.ownKeys(value)) {
-      if (typeof key !== 'string' || !allowed.includes(key)) throw new Error();
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      if (!descriptor || !('value' in descriptor) || !descriptor.enumerable || descriptor.value === undefined) throw new Error();
-      copied[key] = descriptor.value;
-    }
-    if (allowed.some(key => !Object.hasOwn(copied, key))) throw new Error();
-    const input = copied as unknown as ConsumptionSettlementInput;
+    const input = value;
     const cost = parseUnits(typeof input.costUnits === 'bigint' ? input.costUnits.toString() : input.costUnits);
     if (cost < 0n) throw new Error();
     const price = readPriceSnapshot(input.priceSnapshotJson);
@@ -123,7 +112,6 @@ export async function findConsumptionSettlement(database: D1Database, input: Con
  * operation/facts, reconcile or retry them, never generate a new debit identity.
  */
 export async function settleConsumption(database: D1Database, input: ConsumptionSettlementInput, now: number): Promise<ConsumptionSettlementResult> {
-  if (!Number.isSafeInteger(now) || now < 0) throw new ApiError('invalid_request');
   const expected = await prepareConsumptionSettlement(input);
   const existing = await lookup(database, expected);
   if (existing) return { entry: existing, outcome: 'existing' };

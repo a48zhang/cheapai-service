@@ -52,7 +52,7 @@ export function apiError(error: unknown, requestId: string): Response {
   const definition = API_ERRORS[code];
   const details = { request_id: requestId, code, status: definition.status };
   if (definition.status >= 500) logError('API request failed', error, details);
-  else console.warn('API request rejected', details, error);
+  else logError('API request rejected', error, details, 'warn');
   // Never serialize exception messages, causes, stacks, or upstream response bodies.
   const body: ErrorEnvelope = {
     error: { code, message: definition.message },

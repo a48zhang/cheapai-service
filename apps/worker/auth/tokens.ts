@@ -25,9 +25,11 @@ function isValidToken(prefix: string, token: unknown): token is string {
     && SECRET_ENCODING.test(token.slice(prefix.length));
 }
 
+export class TokenFormatError extends TypeError {}
+
 function requireToken(kind: TokenKind, token: unknown): string {
   const prefix = prefixFor(kind);
-  if (!isValidToken(prefix, token)) throw new TypeError('Invalid token format');
+  if (!isValidToken(prefix, token)) throw new TokenFormatError('Invalid token format');
   return token;
 }
 

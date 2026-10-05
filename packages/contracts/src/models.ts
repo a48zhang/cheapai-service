@@ -26,17 +26,15 @@ const priceStringSchema = z
   .max(18)
   .regex(/^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,8})?$/u);
 
-export const sellPricesSchema = z
-  .object({
-    input: priceStringSchema,
-    output: priceStringSchema,
-    cacheRead: priceStringSchema.optional(),
-    cacheWrite: priceStringSchema.optional(),
-    cacheWrite5m: priceStringSchema.optional(),
-    cacheWrite1h: priceStringSchema.optional(),
-    reasoning: priceStringSchema.optional(),
-  })
-  .strict();
+export const sellPricesSchema = z.object({
+  input: priceStringSchema,
+  output: priceStringSchema,
+  cacheRead: priceStringSchema.optional(),
+  cacheWrite: priceStringSchema.optional(),
+  cacheWrite5m: priceStringSchema.optional(),
+  cacheWrite1h: priceStringSchema.optional(),
+  reasoning: priceStringSchema.optional(),
+});
 
 /** Integer USD smallest units are represented as decimal strings, never floats. */
 const admissionUnitsSchema = z
@@ -67,15 +65,13 @@ export const modelPageSchema = z.object({
   nextCursor: text(2048).nullable(),
 });
 
-export const modelInputSchema = z
-  .object({
-    publicModelId: modelIdSchema,
-    status: modelStatusSchema.optional(),
-    sellPrices: sellPricesSchema,
-    admissionMinBalanceUnits: admissionUnitsSchema,
-    maxOutputTokens: positiveCountSchema,
-  })
-  .strict();
+export const modelInputSchema = z.object({
+  publicModelId: modelIdSchema,
+  status: modelStatusSchema.optional(),
+  sellPrices: sellPricesSchema,
+  admissionMinBalanceUnits: admissionUnitsSchema,
+  maxOutputTokens: positiveCountSchema,
+});
 
 export const modelPatchSchema = z
   .object({
@@ -84,7 +80,7 @@ export const modelPatchSchema = z
     admissionMinBalanceUnits: admissionUnitsSchema.optional(),
     maxOutputTokens: positiveCountSchema.optional(),
   })
-  .strict()
+
   .refine((value) => Object.keys(value).length > 0);
 
 export type ModelStatus = z.infer<typeof modelStatusSchema>;

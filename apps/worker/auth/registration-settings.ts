@@ -13,19 +13,14 @@ export interface RegistrationSettingsSnapshot extends RegistrationSettings {
 type Readiness = { emailAvailable?: boolean };
 interface SettingsRow { value_json: string; version: number; updated_at: number }
 const closed: RegistrationSettings = { registrationMode: 'closed', emailVerificationEnabled: true };
-const keys = ['registrationMode', 'emailVerificationEnabled'];
-
-function fields(input: unknown, complete: boolean): Record<string, unknown> {
-  if (input === null || typeof input !== 'object' || Array.isArray(input)
-    || ![Object.prototype, null].includes(Object.getPrototypeOf(input))) throw new ApiError('invalid_request');
-  const names = Reflect.ownKeys(input);
-  if (names.length === 0 || names.length > 2 || (complete && names.length !== 2)) throw new ApiError('invalid_request');
-  const output: Record<string, unknown> = {};
-  for (const name of names) {
-    if (typeof name !== 'string' || !keys.includes(name)) throw new ApiError('invalid_request');
-    const descriptor = Object.getOwnPropertyDescriptor(input, name);
-    if (!descriptor || !('value' in descriptor)) throw new ApiError('invalid_request');
-    output[name] = descriptor.value;
+function fields(input: unknown, complete: boolean): Partial<RegistrationSettings> {
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) throw new ApiError('invalid_request');
+  const value = input as Partial<RegistrationSettings>;
+  const output: Partial<RegistrationSettings> = {};
+  if (value.registrationMode !== undefined) output.registrationMode = value.registrationMode;
+  if (value.emailVerificationEnabled !== undefined) output.emailVerificationEnabled = value.emailVerificationEnabled;
+  if (!Object.keys(output).length || (complete && (output.registrationMode === undefined || output.emailVerificationEnabled === undefined))) {
+    throw new ApiError('invalid_request');
   }
   return output;
 }
@@ -87,7 +82,7 @@ export async function updateRegistrationSettings(
 ): Promise<RegistrationSettingsSnapshot> {
   if (!safeVersion(input.expectedVersion) || input.expectedVersion >= Number.MAX_SAFE_INTEGER
     || !Number.isSafeInteger(input.now) || input.now < 0) throw new ApiError('invalid_request');
-  let patch: Record<string, unknown>;
+  let patch: Partial<RegistrationSettings>;
   try { patch = fields(input.patch, false); }
   catch { throw new ApiError('invalid_request'); }
   const row = await fetchRow(database);

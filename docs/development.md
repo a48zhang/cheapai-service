@@ -70,7 +70,7 @@ node scripts/start-react-dev.mjs
 
 浏览器应使用 `https://127.0.0.1:<CHEAPAI_WEB_PORT>` 访问。证书必须被浏览器信任；`localhost` 与 `127.0.0.1`、HTTP 与 HTTPS 都是不同 origin。修改 Web 端口后，启动脚本会同步更新 Worker 的可信 `PUBLIC_BASE_URL`。
 
-如需连接本地或模拟上游渠道，在被忽略的 `apps/worker/.dev.vars` 中配置 `CHANNEL_KEYRING_JSON` 与 `CHANNEL_ACTIVE_KEY_VERSION`。Keyring 是版本到 canonical Base64 32 字节 AES key 的 JSON 对象；邮件能力默认关闭。详细格式见[部署配置](deployment.md#4-环境值和-secrets)。不要把密钥、证书或 `.env.local` 提交到 Git。
+本地或模拟上游渠道直接在管理界面填写上游 Key，无需配置渠道加密环境变量。应用 `0025` 后，旧加密渠道需要重新填写 Key；`0026` 会撤销旧加密 Desktop 会话，需要重新登录。本地邮件能力默认关闭，相关配置见[部署配置](deployment.md#4-环境值和-secrets)。不要把密钥、证书或 `.env.local` 提交到 Git。
 
 ### 相对 API、HTTPS 与认证兼容
 
@@ -105,7 +105,7 @@ pnpm exec playwright test
 | 登录或注册写请求 403 | 浏览器 origin、HTTPS 证书、Worker 的 `PUBLIC_BASE_URL` 和 CSRF Cookie/header 是否一致 |
 | 页面没有可用模型或提示余额不足 | 配置渠道、映射、分组关联与用户授权，并由管理员授额；默认账户余额为零 |
 | 应用提示找不到资源或数据库表 | 在启动前检查 `DB` 迁移是否应用到 `.wrangler/cheapai-react-dev/state` |
-| 本地渠道无法解密 | 检查 `.dev.vars` 中活动 keyring 版本和对应 32 字节 AES key，不使用占位值 |
+| 旧渠道提示缺少上游 Key | 应用迁移后，在渠道设置重新填写 Key；不再配置渠道主密钥 |
 | Worker 正常但邮件未送达 | 本地邮件 binding 不提供真实投递；邮件服务就绪状态与本地连通性需分别处理 |
 
 开发任务按完整功能模块集中执行测试。完整验收需分别记录 React/Worker 测试、类型检查、构建、浏览器与真实云端结果；局部结果不能替代其他项目。

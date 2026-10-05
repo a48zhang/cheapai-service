@@ -11,7 +11,6 @@ import type { AuthVariables } from '../auth/middleware';
 import { requireAdmin } from '../auth/roles';
 import { validateCsrfRequest } from '../auth/csrf';
 import { getChannelById, readChannelForForwarding } from '../catalog/channels';
-import type { ChannelKeyring } from '../catalog/channel-secrets';
 import { getModelById } from '../catalog/models';
 import { getModelMapping } from '../catalog/model-mappings';
 import { buildAuditStatement } from '../admin/audit';
@@ -30,7 +29,6 @@ type Resolver<B, T> = T | ((env: B, request: Request) => T | Promise<T>);
 export interface TestChannelDependencies<B extends Bindings = Bindings> {
   now?: () => number;
   trustedOrigin?: Resolver<B, string>;
-  keyring?: Resolver<B, ChannelKeyring>;
   fetch?: UpstreamFetch;
   /** Trusted server test policy; cannot exceed ten seconds. */
   timeoutMs?: number;
@@ -102,8 +100,7 @@ export function createTestChannelRoutes<B extends Bindings = Bindings>(dependenc
     if (!channel || !model || !mapping) throw new ApiError('not_found');
     if (channel.status !== 'active' || model.status !== 'active' || channel.configVersion !== body.channelVersion ||
         model.priceVersion !== body.priceVersion || mapping.configVersion !== body.mappingVersion) throw new ApiError('conflict');
-    const keyring = await resolve(dependencies.keyring, context.env, context.req.raw);
-    const forwarding = await readChannelForForwarding(context.env.DB, channelId, keyring);
+    const forwarding = await readChannelForForwarding(context.env.DB, channelId);
     if (!forwarding || forwarding.status !== 'active' || forwarding.configVersion !== channel.configVersion) throw new ApiError('conflict');
     const timeoutMs = dependencies.timeoutMs ?? 10_000;
     if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 10_000) throw new ApiError('service_unavailable');

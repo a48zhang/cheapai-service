@@ -90,7 +90,7 @@ async function readVersion(request: Request): Promise<number> {
     const parsed: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes));
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new ApiError('invalid_request');
     const body = parsed as Record<string, unknown>;
-    if (Object.keys(body).length !== 1 || typeof body.version !== 'number' || !Number.isSafeInteger(body.version) || body.version < 1) throw new ApiError('invalid_request');
+    if (typeof body.version !== 'number' || !Number.isSafeInteger(body.version) || body.version < 1) throw new ApiError('invalid_request');
     return body.version;
   } catch (error) {
     if (error instanceof ApiError) throw error;
@@ -123,8 +123,7 @@ export function createAdminKeyRoutes<B extends Bindings = Bindings>(dependencies
     const origin = typeof dependencies.trustedOrigin === 'function' ? await dependencies.trustedOrigin(context.env, context.req.raw) : dependencies.trustedOrigin;
     validateCsrfRequest(context.req.raw, origin);
     const id = context.req.param('id');
-    if (id.trim() !== id || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id) || /s2a_(?:key|session|invite|desktop)_/.test(id)
-        || new URL(context.req.url).search !== '') throw new ApiError('invalid_request');
+    if (id.trim() !== id || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id)) throw new ApiError('invalid_request');
     const version = await readVersion(context.req.raw);
     return apiSuccess(await revokeAsAdmin(context.env.DB, context.get('user').id, id, version, context.get('adminKeyNow')), context.get('requestId'));
   });

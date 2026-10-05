@@ -10,10 +10,10 @@ async function entry(id: string, userId: string, time: number, kind = 'adjustmen
 async function consumptionEntry() {
   await testEnv.DB.prepare(`INSERT INTO api_keys(id,user_id,key_hash,display_prefix,name,status,created_at,updated_at)
     VALUES('b09-key','b09-owner',?,'s2a_key_ABCDEFGH','Fixture Key','active',0,0)`).bind('a'.repeat(64)).run();
-  const secret = JSON.stringify({ algorithm: 'A256GCM', format_version: 1, key_version: 'test', nonce: 'nonce', ciphertext: 'ciphertext' });
+  const secret = 'test-upstream-key';
   await testEnv.DB.prepare(`INSERT INTO channels
-    (id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-    VALUES('b09-channel','Fixture','https://example.invalid',?,'test','active',0,1,60,1,0,0)`).bind(secret).run();
+    (id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+    VALUES('b09-channel','Fixture','https://example.invalid',?,'active',0,1,60,1,0,0)`).bind(secret).run();
   await testEnv.DB.prepare(`INSERT INTO models
     (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at)
     VALUES('b09-model','active','{}',1,0,1024,0,0)`).run();
@@ -130,7 +130,7 @@ describe('B09 scoped append-only ledger pagination', () => {
 
   it('rejects owner overrides, malformed filters and invalid pagination', async () => {
     for (const options of [{ userId: 'b09-other' }, { limit: 0 }, { limit: 101 }, { limit: 1.5 }, { limit: null },
-      { kind: 'unknown' }, { cursor: 'not-json' }, { cursor: '!' }, { cursor: null }, { requestId: "x' OR 1=1--" }, { unknown: true }]) {
+      { kind: 'unknown' }, { cursor: 'not-json' }, { cursor: '!' }, { cursor: null }, { requestId: "x' OR 1=1--" }]) {
       await expect(queryBillingEntries(testEnv.DB, { kind: 'owner', userId: 'b09-owner' }, options as unknown as EntryQueryOptions)).rejects.toMatchObject({ code: 'invalid_request' });
     }
   });

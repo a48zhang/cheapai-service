@@ -28,7 +28,7 @@ export interface DesktopSessionKeyState {
   expires_at: number;
   revoked_at: number | null;
   current_key_id: string | null;
-  current_key_ciphertext: string | null;
+  current_key: string | null;
   key_generation: number;
   created_at: number;
   user_status: string | null;
@@ -58,7 +58,7 @@ export async function findDesktopSessionKeyState(
   sessionId: string,
 ): Promise<DesktopSessionKeyState | null> {
   return prepare<DesktopSessionKeyState>(database, `
-    SELECT s.id,s.user_id,s.expires_at,s.revoked_at,s.current_key_id,s.current_key_ciphertext,
+    SELECT s.id,s.user_id,s.expires_at,s.revoked_at,s.current_key_id,s.current_key,
       s.key_generation,s.created_at,u.status AS user_status,u.group_id AS default_group_id,
       u.created_at AS user_created_at,default_group.status AS default_group_status,
       default_group.created_at AS default_group_created_at,default_access.group_id AS authorized_default_group_id,
@@ -98,10 +98,10 @@ function sessionStateGuard(state: DesktopSessionKeyState, now: number): Platform
       JOIN user_group_access default_access ON default_access.user_id=owner.id AND default_access.group_id=owner.group_id
       WHERE s.id=? AND s.user_id=? AND s.created_at=? AND s.expires_at=? AND s.expires_at>?
         AND s.revoked_at IS NULL AND s.key_generation=?
-        AND s.current_key_id IS ? AND s.current_key_ciphertext IS ?${priorKeyCondition}
+        AND s.current_key_id IS ? AND s.current_key IS ?${priorKeyCondition}
     )`,
     values: [state.id, state.user_id, state.created_at, state.expires_at, now, state.key_generation,
-      state.current_key_id, state.current_key_ciphertext, ...priorValues],
+      state.current_key_id, state.current_key, ...priorValues],
   };
 }
 
@@ -126,7 +126,7 @@ export async function prepareDesktopSessionKeyCreation(
 export type DesktopKeyCommitResult = { readonly kind: 'committed' } | { readonly kind: 'not_committed' };
 
 /**
- * Insert the candidate, CAS the session pointer/ciphertext, and revoke the old
+ * Insert the candidate, CAS the session pointer/credential, and revoke the old
  * naturally expired Key in one D1 batch. The final guarded cleanup revokes an
  * inserted candidate if an unexpected zero-row CAS leaves it unbound; D1 does
  * not roll a batch back for a zero-row update.
@@ -136,13 +136,12 @@ export async function commitDesktopSessionKeyCreation(
   state: DesktopSessionKeyState,
   now: number,
   creation: PreparedPlatformKeyCreation,
-  ciphertext: string,
 ): Promise<DesktopKeyCommitResult> {
   const guard = sessionStateGuard(state, now);
   const candidate = creation.candidate;
   const bind = prepare(database, `
-    UPDATE desktop_sessions SET current_key_id=?,current_key_ciphertext=?,key_generation=key_generation+1,updated_at=?
-    WHERE id=? AND user_id=? AND key_generation=? AND current_key_id IS ? AND current_key_ciphertext IS ?
+    UPDATE desktop_sessions SET current_key_id=?,current_key=?,key_generation=key_generation+1,updated_at=?
+    WHERE id=? AND user_id=? AND key_generation=? AND current_key_id IS ? AND current_key IS ?
       AND ${guard.sql}
       AND EXISTS (
         SELECT 1 FROM api_keys candidate
@@ -152,8 +151,8 @@ export async function commitDesktopSessionKeyCreation(
         WHERE candidate.id=? AND candidate.user_id=desktop_sessions.user_id
           AND candidate.desktop_session_id=desktop_sessions.id AND candidate.kind='api'
           AND candidate.status='active' AND candidate.expires_at=?
-      )`, [candidate.id, ciphertext, now, state.id, state.user_id, state.key_generation,
-    state.current_key_id, state.current_key_ciphertext, ...(guard.values ?? []), candidate.id, candidate.expiresAt]);
+      )`, [candidate.id, candidate.token, now, state.id, state.user_id, state.key_generation,
+    state.current_key_id, state.current_key, ...(guard.values ?? []), candidate.id, candidate.expiresAt]);
   const statements: DbStatement<unknown>[] = [creation.statement, bind];
   if (state.current_key_id !== null) {
     statements.push(prepare(database, `
@@ -163,9 +162,9 @@ export async function commitDesktopSessionKeyCreation(
         AND EXISTS (
           SELECT 1 FROM desktop_sessions current_session
           WHERE current_session.id=? AND current_session.current_key_id=?
-            AND current_session.current_key_ciphertext=?
+            AND current_session.current_key=?
         )`, [now, state.current_key_id, state.user_id, state.id, state.key_expires_at, now,
-      state.id, candidate.id, ciphertext]));
+      state.id, candidate.id, candidate.token]));
   }
   const cleanup = prepare(database, `
     UPDATE api_keys SET status='revoked',updated_at=?,version=version+1
@@ -173,8 +172,8 @@ export async function commitDesktopSessionKeyCreation(
       AND NOT EXISTS (
         SELECT 1 FROM desktop_sessions current_session
         WHERE current_session.id=? AND current_session.current_key_id=?
-          AND current_session.current_key_ciphertext=?
-      )`, [now, candidate.id, state.user_id, state.id, state.id, candidate.id, ciphertext]);
+          AND current_session.current_key=?
+      )`, [now, candidate.id, state.user_id, state.id, state.id, candidate.id, candidate.token]);
   statements.push(cleanup);
 
   const results = await batch(database, statements);

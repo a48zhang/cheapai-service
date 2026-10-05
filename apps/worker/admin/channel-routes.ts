@@ -8,7 +8,7 @@ import { validateCsrfRequest } from '../auth/csrf';
 import { DEFAULT_CONFIG } from '../config';
 import { ApiError, apiError, apiSuccess, createRequestId, parsePagination } from '../http';
 import { createChannel, listChannels, updateChannel } from './channel-repository';
-import type { ChannelEncryptionKey, ChannelPatch, CreateChannelInput } from './channel-repository';
+import type { ChannelPatch, CreateChannelInput } from './channel-repository';
 
 export const ADMIN_CHANNELS_PATH = '/api/v1/admin/channels';
 export const CHANNEL_BODY_MAX_BYTES = DEFAULT_CONFIG.adminBodyMaxBytes;
@@ -18,7 +18,6 @@ export interface ChannelRouteDependencies<B extends Bindings = Bindings> {
   now(): number;
   /** Writes resolve these only after session/admin authorization; GET never does. */
   trustedOrigin?: string | ((env: B, request: Request) => string | Promise<string>);
-  encryptionKey?: ChannelEncryptionKey | ((env: B, request: Request) => ChannelEncryptionKey | Promise<ChannelEncryptionKey>);
 }
 
 async function protectWrite<B extends Bindings>(dependencies: ChannelRouteDependencies<B>, env: B, request: Request): Promise<void> {
@@ -26,12 +25,6 @@ async function protectWrite<B extends Bindings>(dependencies: ChannelRouteDepend
   const origin = typeof configured === 'function' ? await configured(env, request) : configured;
   if (typeof origin !== 'string') throw new ApiError('service_unavailable');
   validateCsrfRequest(request, origin);
-}
-async function encryptionKey<B extends Bindings>(dependencies: ChannelRouteDependencies<B>, env: B, request: Request): Promise<ChannelEncryptionKey> {
-  const configured = dependencies.encryptionKey;
-  const key = typeof configured === 'function' ? await configured(env, request) : configured;
-  if (!key) throw new ApiError('service_unavailable');
-  return key;
 }
 async function readBody(request: Request): Promise<Record<string, unknown>> {
   if (request.headers.get('Content-Type')?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json' || !request.body) throw new ApiError('invalid_request');
@@ -56,7 +49,7 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
     return value as Record<string, unknown>;
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    throw new ApiError('invalid_request');
+    throw new ApiError('invalid_request', { cause: error });
   } finally { reader.releaseLock(); }
 }
 
@@ -83,7 +76,7 @@ export function createChannelRoutes<B extends Bindings = Bindings>(dependencies:
   app.use('*', requireAdmin);
   app.get(ADMIN_CHANNELS_PATH, async (context) => {
     const query = new URL(context.req.url).searchParams;
-    for (const field of query.keys()) if (!['limit', 'cursor', 'status'].includes(field) || query.getAll(field).length !== 1) throw new ApiError('invalid_request');
+    if (query.getAll('status').length > 1) throw new ApiError('invalid_request');
     const status = query.get('status');
     if (status !== null && status !== 'active' && status !== 'disabled') throw new ApiError('invalid_request');
     const page = parsePagination(query);
@@ -93,38 +86,29 @@ export function createChannelRoutes<B extends Bindings = Bindings>(dependencies:
   });
   app.get(`${ADMIN_CHANNELS_PATH}/:id`, async (context) => {
     const id = context.req.param('id');
-    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id) || new URL(context.req.url).search !== '') throw new ApiError('invalid_request');
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id)) throw new ApiError('invalid_request');
     const channel = await getChannelById(context.env.DB, id);
     if (!channel) throw new ApiError('not_found');
     return apiSuccess(channel, context.get('requestId'));
   });
   app.post(ADMIN_CHANNELS_PATH, async (context) => {
     await protectWrite(dependencies, context.env, context.req.raw);
-    if (new URL(context.req.url).search !== '') throw new ApiError('invalid_request');
     const body = await readBody(context.req.raw);
-    if (Object.keys(body).some((field) => !['name', 'baseUrl', 'upstreamKey', 'concurrencyLimit', 'rpmLimit', 'priority', 'status'].includes(field))) throw new ApiError('invalid_request');
-    const key = await encryptionKey(dependencies, context.env, context.req.raw);
     const result = await createChannel(context.env.DB, body as unknown as CreateChannelInput, {
       actorId: context.get('user').id, operationId: crypto.randomUUID(), now: context.get('channelNow'),
-    }, key);
+    });
     return apiSuccess(result, context.get('requestId'), 201);
   });
   app.patch(`${ADMIN_CHANNELS_PATH}/:id`, async (context) => {
     await protectWrite(dependencies, context.env, context.req.raw);
     const id = context.req.param('id');
-    if (id.trim() !== id || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id) || new URL(context.req.url).search !== '') throw new ApiError('invalid_request');
+    if (id.trim() !== id || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id)) throw new ApiError('invalid_request');
     const body = await readBody(context.req.raw);
-    if (Object.keys(body).some((field) => !['version', 'name', 'baseUrl', 'upstreamKey', 'concurrencyLimit', 'rpmLimit', 'priority', 'status'].includes(field))
-        || typeof body.version !== 'number' || !Number.isSafeInteger(body.version) || body.version < 1) throw new ApiError('invalid_request');
+    if (typeof body.version !== 'number' || !Number.isSafeInteger(body.version) || body.version < 1) throw new ApiError('invalid_request');
     const { version, ...patch } = body;
-    // Omission means preserve. Empty/null never requests credential deletion;
-    // ordinary configuration edits must work without loading encryption secrets.
-    const replacingKey = Object.hasOwn(patch, 'upstreamKey');
-    if (replacingKey && (typeof patch.upstreamKey !== 'string' || patch.upstreamKey.trim() === '')) throw new ApiError('invalid_request');
-    const key = replacingKey ? await encryptionKey(dependencies, context.env, context.req.raw) : undefined;
     const result = await updateChannel(context.env.DB, id, version, patch as ChannelPatch, {
       actorId: context.get('user').id, operationId: crypto.randomUUID(), now: context.get('channelNow'),
-    }, key);
+    });
     return apiSuccess(result, context.get('requestId'));
   });
   app.notFound((context) => apiError(new ApiError('not_found'), context.get('requestId') ?? createRequestId()));

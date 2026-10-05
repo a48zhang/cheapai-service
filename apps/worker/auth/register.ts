@@ -41,16 +41,15 @@ export class RegistrationRateError extends ApiError {
 // D12's current guard and consumption contract is fixed at five attempts.
 const MAX_CHALLENGE_ATTEMPTS = 5;
 
-function time(dependencies: RegisterDependencies): number {
-  const now = dependencies.now();
-  if (!Number.isSafeInteger(now) || now < 0) throw new ApiError("service_unavailable");
-  return now;
-}
-
-function validateInput(input: RegisterInput): void {
-  if (!input || typeof input !== "object" || Array.isArray(input) ||
-    Object.keys(input).some((key) => !["email", "password", "registrationCode", "emailCode"].includes(key)) ||
-    !validatePasswordInput(input.password).valid) throw new ApiError("invalid_request");
+function parseInput(input: unknown): RegisterInput {
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new ApiError("invalid_request");
+  const body = input as Record<string, unknown>;
+  if (typeof body.email !== "string" || !validatePasswordInput(body.password).valid
+    || (body.registrationCode !== undefined && typeof body.registrationCode !== "string")
+    || (body.emailCode !== undefined && typeof body.emailCode !== "string")) throw new ApiError("invalid_request");
+  return { email: body.email, password: body.password as string,
+    ...(typeof body.registrationCode === "string" ? { registrationCode: body.registrationCode } : {}),
+    ...(typeof body.emailCode === "string" ? { emailCode: body.emailCode } : {}) };
 }
 
 function isRegistrationConflict(error: unknown): boolean {
@@ -67,20 +66,18 @@ function isRegistrationConflict(error: unknown): boolean {
  * proofs atomically. Wrong-code attempts are separately committed before KDF.
  * No credential is refunded and no user is removed if session creation fails.
  */
-export async function registerUser(dependencies: RegisterDependencies, input: RegisterInput): Promise<RegisterResult> {
+export async function registerUser(dependencies: RegisterDependencies, rawInput: unknown): Promise<RegisterResult> {
   try {
-    if (!dependencies?.database || !dependencies.gates || typeof dependencies.now !== "function" ||
-      typeof dependencies.emailAvailable !== "boolean") throw new ApiError("service_unavailable");
     const rate = await checkRegistrationRate(dependencies.gates, { trustedIp: dependencies.trustedIp }, dependencies.rateConfig);
     if (!rate.allowed) throw new RegistrationRateError(rate.retryAfterMs);
     const policy = await readRegistrationSettings(dependencies.database, { emailAvailable: dependencies.emailAvailable });
     if (!policy.valid || policy.registrationMode === "closed" || policy.version === null) throw new ApiError("forbidden");
     const groupId = await readDefaultGroupId(dependencies.database);
     if (!groupId) throw new ApiError("service_unavailable");
-    validateInput(input);
+    const input = parseInput(rawInput);
     let email: string;
     try { email = normalizeEmail(input.email); } catch { throw new ApiError("invalid_request"); }
-    const preflightNow = time(dependencies);
+    const preflightNow = dependencies.now();
 
     let invitation: { id: string; hash: string } | undefined;
     if (policy.registrationMode === "invite") {
@@ -107,13 +104,13 @@ export async function registerUser(dependencies: RegisterDependencies, input: Re
         email, purpose: "registration", generation: challenge.generation, code: input.emailCode as string,
       }, challenge.code_mac);
       if (!matches) {
-        await recordWrongChallengeAttempt(dependencies.database, context, time(dependencies));
+        await recordWrongChallengeAttempt(dependencies.database, context, dependencies.now());
         throw new ApiError("invalid_request");
       }
     }
 
     const passwordHash = await hashPassword(input.password);
-    const now = time(dependencies); // Expiry and trigger timestamps must not use pre-KDF time.
+    const now = dependencies.now(); // Expiry and trigger timestamps must not use pre-KDF time.
     if (now < preflightNow) throw new ApiError("service_unavailable");
     const userId = crypto.randomUUID();
     const values: DbValue[] = [userId, email, passwordHash, challenge ? now : null, groupId,
@@ -154,7 +151,7 @@ export async function registerUser(dependencies: RegisterDependencies, input: Re
     }
 
     try {
-      const session = await createCookieSession(dependencies.database, user.id, time(dependencies));
+      const session = await createCookieSession(dependencies.database, user.id, dependencies.now());
       return { status: "created", user, session: "created", setCookie: session.setCookie };
     } catch {
       // User + proof consumption already committed. Let the caller offer login.

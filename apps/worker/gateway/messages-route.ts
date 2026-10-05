@@ -2,7 +2,6 @@ import { logError } from '../logging';
 import { Hono } from 'hono';
 import { encodeMessagesError } from '@sub2api/apicompat/errors';
 import type { Env } from '../env';
-import { readChannelKeyring } from '../channel-keyring';
 import { dispatchGatewayRequest } from './dispatch';
 import type { GatewayDispatchDependencies } from './dispatch';
 
@@ -14,6 +13,6 @@ export function createMessagesRoute(options: MessagesRouteOptions = {}): Hono<{ 
   app.onError((error, context) => { logError('Gateway route failed', error, { path: context.req.path }); return Response.json(encodeMessagesError({ kind: 'upstream_error', code: 'unavailable', message: 'Unavailable' }), { status: 503, headers: { 'Cache-Control': 'no-store' } }); });
   app.notFound(() => Response.json(encodeMessagesError({ kind: 'invalid_request', code: 'not_found', message: 'Not found' }), { status: 404, headers: { 'Cache-Control': 'no-store' } }));
   app.post(MESSAGES_PATH, context => dispatchGatewayRequest({ DB: context.env.DB, CACHE: context.env.CACHE, GATE: context.env.GATE,
-    keyring: () => readChannelKeyring(context.env).keyring, ...options }, context.req.raw, 'messages', context.executionCtx));
+    ...options }, context.req.raw, 'messages', context.executionCtx));
   return app;
 }

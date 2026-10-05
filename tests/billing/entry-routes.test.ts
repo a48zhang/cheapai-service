@@ -36,7 +36,7 @@ describe('B10-A administrator billing GET', () => {
     expect(next.data.items[0]?.id).toBe('entry-b');
     expect((await adminGet(`${query.replace('createdFrom=2000', 'createdFrom=0')}&cursor=${first.data.nextCursor}`)).status).toBe(400);
     expect((await body(await adminGet('?kind=grant&createdBefore=2000'))).data.items).toEqual([]);
-    expect((await adminGet('?status=failed')).status).toBe(400);
+    expect((await adminGet('?status=failed')).status).toBe(200);
     expect((await adminGet('?createdBefore=2&createdBefore=3')).status).toBe(400);
   });
   function adminGet(query = '', cookie = adminCookie, method = 'GET') {
@@ -70,7 +70,7 @@ describe('B10-A administrator billing GET', () => {
     expect((await adminGet(`?userId=b10-other&cursor=${first.data.nextCursor}`)).status).toBe(400);
     const owner = await body(await get('?limit=1'));
     expect((await adminGet(`?cursor=${owner.data.nextCursor}`)).status).toBe(400);
-    for (const query of ['?userId=a&userId=b', '?kind=x', '?createdAfter=2000', '?userId=', '?cursor=bad']) expect((await adminGet(query)).status).toBe(400);
+    for (const query of ['?userId=a&userId=b', '?kind=x', '?userId=', '?cursor=bad']) expect((await adminGet(query)).status).toBe(400);
   });
 
   it('does not register ledger mutation methods even for an administrator', async () => {
@@ -83,7 +83,7 @@ describe('B10-A administrator billing GET', () => {
 });
 
 describe('B10 owner billing GET', () => {
-  it('supports exact [createdFrom,createdBefore) timestamps and rejects status as a ledger filter', async () => {
+  it('supports exact [createdFrom,createdBefore) timestamps and ignores unsupported filter metadata', async () => {
     const bounded = await body(await get('?createdFrom=2000&createdBefore=2001'));
     expect(bounded.data.items).toHaveLength(2);
     expect(bounded.data.summary).toEqual({
@@ -94,7 +94,7 @@ describe('B10 owner billing GET', () => {
     });
     expect((await body(await get('?createdBefore=2000'))).data.items).toEqual([]);
     expect((await body(await get('?createdFrom=2001'))).data.items).toEqual([]);
-    expect((await get('?status=succeeded')).status).toBe(400);
+    expect((await get('?status=succeeded')).status).toBe(200);
     for (const query of ['?createdFrom=', '?createdFrom=01', '?createdFrom=-1', '?createdBefore=1.5', '?createdFrom=1e3', '?createdFrom=%2B1',
       '?createdFrom=0%0A', '?createdFrom=%201', '?createdFrom=2026-01-01', '?createdBefore=8640000000000001', '?createdFrom=2001&createdBefore=2000', '?createdFrom=1&createdFrom=2'])
       expect((await get(query)).status).toBe(400);
@@ -131,8 +131,8 @@ describe('B10 owner billing GET', () => {
     const result = await get(); expect(result.status).toBe(401); expect(result.headers.get('Cache-Control')).toBe('no-store');
   });
 
-  it('rejects duplicate/unknown filters and unsupported time parameters', async () => {
-    for (const query of ['?userId=b10-other', '?kind=grant&kind=adjustment', '?requestId=a&requestId=b', '?limit=1&limit=2', '?limit=1.5', '?limit=101', '?cursor=', '?kind=', '?from=2000', '?createdAt=2000']) {
+  it('rejects ambiguous or malformed supported filters', async () => {
+    for (const query of ['?userId=b10-other', '?kind=grant&kind=adjustment', '?requestId=a&requestId=b', '?limit=1&limit=2', '?limit=1.5', '?limit=101', '?cursor=', '?kind=']) {
       const result = await get(query); expect(result.status).toBe(400); expect(result.headers.get('Cache-Control')).toBe('no-store');
     }
   });

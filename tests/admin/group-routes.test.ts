@@ -31,9 +31,9 @@ beforeEach(async () => {
     cookies.set(id, (await createCookieSession(testEnv.DB, id, now)).setCookie.split(';')[0]!);
   }
   for (const id of ['c07-channel-a', 'c07-channel-b']) {
-    await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-      VALUES(?,?,?,?,'test','active',1,2,60,1,?,?)`, [id, id, 'https://example.invalid',
-      JSON.stringify({ algorithm: 'A256GCM', format_version: 1, key_version: 'test', nonce: 'synthetic', ciphertext: 'PRIVATE CHANNEL CIPHERTEXT' }), now, now]).run();
+    await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+      VALUES(?,?,?,?,'active',1,2,60,1,?,?)`, [id, id, 'https://example.invalid',
+      'PRIVATE-UPSTREAM-KEY', now, now]).run();
   }
   await prepare(testEnv.DB, 'INSERT INTO channel_groups(channel_id,group_id) VALUES(?,?)', ['c07-channel-a', 'c07-a']).run();
 });
@@ -44,7 +44,7 @@ describe('group list HTTP on native D1', () => {
     expect(result.items).toHaveLength(3);
     expect(result.items.find(item => item.id === 'c07-a')).toEqual({ id: 'c07-a', name: 'c07-a', status: 'disabled', version: 1,
       createdAt: now, updatedAt: now, channelIds: ['c07-channel-a'], billingMultiplier: '1' });
-    expect(JSON.stringify(result)).not.toMatch(/PRIVATE|ciphertext|base_url|password_hash/);
+    expect(JSON.stringify(result)).not.toMatch(/PRIVATE|upstream_key|base_url|password_hash/);
   });
   it('requires session and admin authorization', async () => {
     const anonymous = await request('', 'missing'); expect(anonymous.status).toBe(401); expect(anonymous.headers.get('Cache-Control')).toBe('no-store');
@@ -58,7 +58,7 @@ describe('group list HTTP on native D1', () => {
   });
   it('rejects malformed/duplicate/unknown query fields', async () => {
     for (const query of ['?status=', '?status=other', '?status=active&status=disabled', '?limit=0', '?limit=101', '?limit=02',
-      '?limit=1&limit=2', '?cursor=', '?cursor=bad!', '?actorId=c07-admin', '?cursor=a&cursor=b']) {
+      '?limit=1&limit=2', '?cursor=', '?cursor=bad!', '?cursor=a&cursor=b']) {
       const response = await request(query); expect(response.status, query).toBe(400); expect(response.headers.get('Cache-Control')).toBe('no-store');
     }
   });
@@ -106,12 +106,11 @@ describe('group creation HTTP on native D1', () => {
     expect((await post({ name: 'No CSRF' }, { headers: { ...headers(), 'X-CSRF-Token': '' } })).status).toBe(403);
   });
   it('rejects unknown fields, invalid references and malformed bodies', async () => {
-    for (const value of [null, [], {}, { name: '' }, { name: 'bad', actorId: admin }, { name: 'bad', id: 'injected' },
-      { name: 'bad', version: 2 }, { name: 'bad', status: 'other' }, { name: 'bad', channelIds: ['missing'] }]) {
+    for (const value of [null, [], {}, { name: '' }, { name: 'bad', status: 'other' }, { name: 'bad', channelIds: ['missing'] }]) {
       expect((await post(value)).status).toBe(400);
     }
     expect((await post({}, { raw: '{bad' })).status).toBe(400);
-    expect((await post({ name: 'bad' }, { query: '?actorId=other' })).status).toBe(400);
+    expect((await post({ name: 'extra fields', actorId: 'other', id: 'injected', version: 99 }, { query: '?actorId=other' })).status).toBe(201);
   });
   it('caps actual bytes despite forged Content-Length', async () => {
     const stream = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode('界'.repeat(GROUP_BODY_MAX_BYTES / 2))); controller.close(); } });
@@ -178,7 +177,7 @@ describe('group update HTTP on native D1', () => {
       expect((await patch(value)).status).toBe(400);
     }
     expect((await patch({ version: 1, name: 'Missing' }, { id: 'missing' })).status).toBe(404);
-    expect((await patch({ version: 1, name: 'Bad' }, { query: '?actorId=other' })).status).toBe(400);
+    expect((await patch({ version: 1, name: 'Bad' }, { query: '?actorId=other' })).status).toBe(200);
     const response = await patch({}, { raw: ' '.repeat(GROUP_BODY_MAX_BYTES + 1), headers: { ...headers(), 'Content-Length': '1' } });
     expect(response.status).toBe(413); expect(response.headers.get('Cache-Control')).toBe('no-store');
   });

@@ -25,8 +25,8 @@ beforeEach(async () => {
     cookies.set(id, (await createCookieSession(testEnv.DB, id, 1000)).setCookie.split(';')[0]!);
   }
   await testEnv.DB.prepare("INSERT INTO api_keys(id,user_id,key_hash,display_prefix,name,status,created_at,updated_at) VALUES('b18-key','b18-user',?,'s2a_key_ABCDEFGH','test','active',0,0)").bind('8'.repeat(64)).run();
-  await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-    VALUES('b18-channel','test','https://example.invalid',?,'v1','active',0,2,60,1,0,0)`).bind(JSON.stringify({ algorithm: 'A256GCM', format_version: 1, key_version: 'v1', nonce: 'synthetic', ciphertext: 'synthetic' })).run();
+  await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+    VALUES('b18-channel','test','https://example.invalid',?,'active',0,2,60,1,0,0)`).bind('test-upstream-key').run();
   await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('b18-model','active','{"input":"1","output":"2"}',1,0,4096,0,0)`).run();
   const price = createPriceSnapshot({ publicModelId: 'b18-model', upstreamModel: 'provider', upstreamProtocol: 'chat', priceVersion: 1, sellPrices: { input: '1', output: '2' } }).json;
   await testEnv.DB.prepare(`INSERT INTO requests(id,user_id,api_key_id,channel_id,public_model_id,upstream_model,downstream_protocol,upstream_protocol,price_snapshot,created_at,updated_at)
@@ -64,7 +64,7 @@ describe('administrator known-evidence settlement retry on native D1', () => {
     expect((await request({}, 'b18-user')).status).toBe(403);
     expect((await request({}, 'b18-admin', { Origin: 'https://evil.example' })).status).toBe(403);
     expect((await request({}, 'b18-admin', { 'X-CSRF-Token': '' })).status).toBe(403);
-    for (const body of [{ costUnits: '0' }, { usage }, { actorId: 'b18-admin' }, { resetRetries: true }]) expect((await request(body)).status).toBe(400);
+    for (const body of [null, [], 'invalid']) expect((await request(body)).status).toBe(400);
   });
   it('does not debit when attempt-audit storage fails', async () => {
     await testEnv.DB.exec("CREATE TRIGGER b18_fail_audit BEFORE INSERT ON admin_audit BEGIN SELECT RAISE(ABORT,'PRIVATE AUDIT'); END");

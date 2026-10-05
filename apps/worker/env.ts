@@ -18,13 +18,4 @@ export interface Env {
   /** Standard canonical base64, at least 32 random bytes; provision as a Secret. */
   EMAIL_HMAC_KEY?: string;
   EMAIL_FROM?: string;
-  /** Secret binding: JSON object mapping retained key-version names to canonical
-   * standard base64 strings, each decoding to exactly 32 AES-256 key bytes.
-   * Keep old versions until all channel ciphertext using them has been rotated.
-   */
-  CHANNEL_KEYRING_JSON?: string;
-  /** Secret binding: the version used for new/rotated ciphertext; must exist in
-   * CHANNEL_KEYRING_JSON. Neither value belongs in checked-in vars/defaults.
-   */
-  CHANNEL_ACTIVE_KEY_VERSION?: string;
 }

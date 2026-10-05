@@ -4,7 +4,6 @@ import { app } from '../../apps/worker/app';
 import type { Env } from '../../apps/worker/env';
 import { createCookieSession } from '../../apps/worker/auth/sessions';
 import { issueCsrfToken } from '../../apps/worker/auth/csrf';
-import { encryptChannelSecret } from '../../apps/worker/admin/channel-secrets';
 import { generateToken, hashToken } from '../../apps/worker/auth/tokens';
 import { LeaseStorage } from '../../apps/worker/limits/storage';
 import { testEnv } from '../helpers/database';
@@ -19,7 +18,6 @@ let env: Env;
 let ownerCookie: string;
 let adminCookie: string;
 let apiKey: string;
-let upstreamKey: Uint8Array;
 
 function csrfHeaders(cookie: string, operation?: string): Record<string, string> {
   const csrf = issueCsrfToken();
@@ -59,12 +57,12 @@ beforeEach(async () => {
   apiKey = generateToken('apiKey');
   await testEnv.DB.prepare(`INSERT INTO api_keys(id,user_id,key_hash,display_prefix,name,status,created_at,updated_at)
     VALUES('q04-key',?,?, 's2a_key_ABCDEFGH','Q04','active',0,0)`).bind(owner, await hashToken('apiKey', apiKey)).run();
-  upstreamKey = crypto.getRandomValues(new Uint8Array(32));
-  const encrypted = await encryptChannelSecret('q04-upstream-secret', channel, 'v1', upstreamKey);
+
+  const credential = 'q04-upstream-secret';
   env = { ...testEnv, ENVIRONMENT: 'local', PUBLIC_BASE_URL: origin,
-    CHANNEL_KEYRING_JSON: JSON.stringify({ v1: btoa(String.fromCharCode(...upstreamKey)) }), CHANNEL_ACTIVE_KEY_VERSION: 'v1' } as Env;
-  await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-    VALUES(?,?,?,?,'v1','active',1,1,60,1,0,0)`).bind(channel, 'Q04', 'https://provider-q04.example.invalid', encrypted).run();
+     } as Env;
+  await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+    VALUES(?,?,?,?,'active',1,1,60,1,0,0)`).bind(channel, 'Q04', 'https://provider-q04.example.invalid', credential).run();
   await testEnv.DB.prepare('INSERT INTO channel_groups(channel_id,group_id) VALUES(?,?)').bind(channel, group).run();
   await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES (?,'active','{"input":"1","output":"2"}', 1, 0, 4096, 0, 0)`).bind(model).run();
   await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,upstream_model,protocol,capabilities_json,config_version)

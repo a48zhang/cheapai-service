@@ -43,10 +43,10 @@ async function body(request: Request): Promise<Omit<BalanceAdjustmentInput, 'ope
   } finally { reader.releaseLock(); }
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ApiError('invalid_request');
   const input = value as Record<string, unknown>;
-  if (Object.keys(input).some(key => !['kind', 'deltaUnits', 'reason', 'requestId'].includes(key))
-    || (input.kind !== 'grant' && input.kind !== 'adjustment') || typeof input.deltaUnits !== 'string'
+  if ((input.kind !== 'grant' && input.kind !== 'adjustment') || typeof input.deltaUnits !== 'string'
     || typeof input.reason !== 'string' || (Object.hasOwn(input, 'requestId') && input.requestId !== null && typeof input.requestId !== 'string')) throw new ApiError('invalid_request');
-  return input as unknown as Omit<BalanceAdjustmentInput, 'operationId' | 'userId'>;
+  return { kind: input.kind, deltaUnits: input.deltaUnits, reason: input.reason,
+    ...(Object.hasOwn(input, 'requestId') ? { requestId: input.requestId as string | null } : {}) };
 }
 
 /** Unmounted full-path router. Origin is resolved lazily, after session/admin auth. */

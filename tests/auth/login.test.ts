@@ -111,9 +111,9 @@ describe('login service with real D1/DO admission and session persistence', () =
     expect(await activeSessions()).toBe(0);
   });
 
-  it('rejects extra/client-IP inputs and malformed email before touching identity or KDF', async () => {
+  it('rejects malformed credentials before touching identity or KDF', async () => {
     const lookup = vi.spyOn(users, 'findInternalAuthUserByEmail');
-    for (const invalid of [null, [], {}, { ...input, trustedIp: '1.2.3.4' }, { ...input, role: 'admin' }, { ...input, email: 'not-email' }, { ...input, password: null }, { ...input, password: 'x'.repeat(257) }]) {
+    for (const invalid of [null, [], {}, { ...input, email: 'not-email' }, { ...input, password: null }, { ...input, password: 'x'.repeat(257) }]) {
       await expect(login(dependencies, invalid, ip)).rejects.toMatchObject({ code: 'invalid_request' });
     }
     expect(lookup).not.toHaveBeenCalled();

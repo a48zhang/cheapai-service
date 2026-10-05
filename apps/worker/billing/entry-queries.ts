@@ -42,17 +42,6 @@ type Cursor = [2, 'owner' | 'admin', string, string | null, BillingEntryKind | n
 export const MAX_LEDGER_TIME_MS = 8_640_000_000_000_000;
 const validId = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$/.test(value) && value.length <= 128;
 const integer = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
-function exact(value: unknown, keys: readonly string[]): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value) || (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null)) throw new ApiError('invalid_request');
-  const result: Record<string, unknown> = Object.create(null);
-  for (const key of Reflect.ownKeys(value)) {
-    if (typeof key !== 'string' || !keys.includes(key)) throw new ApiError('invalid_request');
-    const field = Object.getOwnPropertyDescriptor(value, key);
-    if (!field || !('value' in field) || field.value === undefined || !field.enumerable) throw new ApiError('invalid_request');
-    result[key] = field.value;
-  }
-  return result;
-}
 function encode(cursor: Cursor): string { return btoa(JSON.stringify(cursor)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, ''); }
 function decode(raw: unknown, binding: Cursor): Cursor {
   try {
@@ -61,7 +50,6 @@ function decode(raw: unknown, binding: Cursor): Cursor {
     if (!Array.isArray(value) || value.length !== 11 || value.slice(0, 8).some((entry, index) => entry !== binding[index])
       || !integer(value[8]) || !integer(value[9]) || !validId(value[10])) throw new Error();
     const cursor = value as Cursor;
-    if (encode(cursor) !== raw) throw new Error();
     return cursor;
   } catch { throw new ApiError('invalid_request'); }
 }
@@ -75,11 +63,11 @@ function decode(raw: unknown, binding: Cursor): Cursor {
  * This is not a signed cursor or a substitute for scope authorization.
  */
 export async function queryBillingEntries(database: D1Database, scope: EntryQueryScope, options: EntryQueryOptions = {}): Promise<BillingEntryPage> {
-  const trusted = exact(scope, ['kind', 'userId', 'actorId']);
-  if ((trusted.kind !== 'owner' && trusted.kind !== 'admin') || Object.keys(trusted).length !== 2) throw new ApiError('invalid_request');
+  const trusted = scope;
+  if (trusted.kind !== 'owner' && trusted.kind !== 'admin') throw new ApiError('invalid_request');
   const actor = trusted.kind === 'owner' ? trusted.userId : trusted.actorId;
   if (!validId(actor)) throw new ApiError('invalid_request');
-  const input = exact(options, ['limit', 'cursor', 'userId', 'kind', 'requestId', 'createdFrom', 'createdBefore']);
+  const input = options;
   if (trusted.kind === 'owner' && Object.hasOwn(input, 'userId')) throw new ApiError('invalid_request');
   const owner = trusted.kind === 'owner' ? actor : input.userId ?? null;
   const kind = input.kind ?? null;
@@ -92,7 +80,7 @@ export async function queryBillingEntries(database: D1Database, scope: EntryQuer
   if ((owner !== null && !validId(owner)) || (kind !== null && !['consumption', 'adjustment', 'grant'].includes(kind as string))
     || (requestId !== null && !validId(requestId)) || !integer(limit) || limit < 1 || limit > MAX_PAGE_LIMIT) throw new ApiError('invalid_request');
   // Explicit null option values are invalid, unlike absent optional filters.
-  if (Object.values(input).some(value => value === null)) throw new ApiError('invalid_request');
+  if ([input.limit, input.cursor, input.userId, input.kind, input.requestId, input.createdFrom, input.createdBefore].some(value => value === null)) throw new ApiError('invalid_request');
   const binding: Cursor = [2, trusted.kind, actor, owner as string | null, kind as BillingEntryKind | null, requestId as string | null, createdFrom as number | null, createdBefore as number | null, 0, 0, 'initial'];
   const cursor = Object.hasOwn(input, 'cursor') ? decode(input.cursor, binding) : undefined;
   const clauses: string[] = [];

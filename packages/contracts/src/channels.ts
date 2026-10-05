@@ -40,15 +40,13 @@ const rpmLimitInputSchema = z
   .nullable()
   .optional();
 
-export const channelModelSchema = z
-  .object({
-    publicModelId: modelIdSchema,
-    upstreamModel: cleanText(128),
-    protocol: channelProtocolSchema,
-    mappingVersion: positiveVersion,
-    priceVersion: positiveVersion,
-  })
-  .strict();
+export const channelModelSchema = z.object({
+  publicModelId: modelIdSchema,
+  upstreamModel: cleanText(128),
+  protocol: channelProtocolSchema,
+  mappingVersion: positiveVersion,
+  priceVersion: positiveVersion,
+});
 
 export const channelSchema = z
   .object({
@@ -65,83 +63,71 @@ export const channelSchema = z
     hasCredential: z.boolean(),
     models: z.array(channelModelSchema),
   })
-  .strict()
+
   .refine((value) => value.updatedAt >= value.createdAt, { path: ['updatedAt'] });
 
-const channelFieldsSchema = z
-  .object({
-    name: cleanText(200),
-    baseUrl: cleanText(2048),
-    concurrencyLimit: concurrencyLimitInputSchema,
-    rpmLimit: rpmLimitInputSchema,
-    priority: safeInteger.optional(),
-    status: channelStatusSchema.optional(),
-  })
-  .strict();
+const channelFieldsSchema = z.object({
+  name: cleanText(200),
+  baseUrl: cleanText(2048),
+  concurrencyLimit: concurrencyLimitInputSchema,
+  rpmLimit: rpmLimitInputSchema,
+  priority: safeInteger.optional(),
+  status: channelStatusSchema.optional(),
+});
 
-export const channelInputSchema = channelFieldsSchema
-  .extend({
-    upstreamKey: cleanText(16_384),
-  })
-  .strict();
+export const channelInputSchema = channelFieldsSchema.extend({
+  upstreamKey: cleanText(16_384),
+});
 
 export const channelPatchSchema = channelFieldsSchema
   .partial()
   .extend({
     upstreamKey: cleanText(16_384).optional(),
   })
-  .strict()
+
   .refine((value) => Object.values(value).some((field) => field !== undefined), {
     message: 'At least one channel field is required.',
   });
 
-export const channelPageSchema = z
-  .object({
-    items: z.array(channelSchema),
-    nextCursor: z.string().min(1).max(2048).nullable(),
-  })
-  .strict();
+export const channelPageSchema = z.object({
+  items: z.array(channelSchema),
+  nextCursor: z.string().min(1).max(2048).nullable(),
+});
 
-export const channelListQuerySchema = z
-  .object({
-    cursor: z.string().max(2048).nullable().optional(),
-    status: channelStatusSchema.optional(),
-  })
-  .strict();
+export const channelListQuerySchema = z.object({
+  cursor: z.string().max(2048).nullable().optional(),
+  status: channelStatusSchema.optional(),
+});
 
-export const channelProbeInputSchema = z
-  .object({
-    publicModelId: modelIdSchema,
-    protocol: channelProtocolSchema,
-    channelVersion: channelVersionSchema,
-    mappingVersion: positiveVersion,
-    priceVersion: positiveVersion,
-  })
-  .strict();
+export const channelProbeInputSchema = z.object({
+  publicModelId: modelIdSchema,
+  protocol: channelProtocolSchema,
+  channelVersion: channelVersionSchema,
+  mappingVersion: positiveVersion,
+  priceVersion: positiveVersion,
+});
 
-export const channelProbeResultSchema = z
-  .object({
-    diagnosticId: cleanText(128),
-    channelId: channelIdSchema,
-    publicModelId: modelIdSchema,
-    protocol: channelProtocolSchema,
-    outcome: z.enum([
-      'responded',
-      'http_error',
-      'invalid_response',
-      'timeout',
-      'cancelled',
-      'transport_error',
-    ]),
-    upstreamStatus: z.number().int().min(100).max(599).nullable(),
-    channelVersion: positiveVersion,
-    mappingVersion: positiveVersion,
-    priceVersion: positiveVersion,
-    maxOutputTokens: positiveVersion,
-    mayIncurUpstreamCost: z.literal(true),
-    userBalanceCharged: z.literal(false),
-  })
-  .strict();
+export const channelProbeResultSchema = z.object({
+  diagnosticId: cleanText(128),
+  channelId: channelIdSchema,
+  publicModelId: modelIdSchema,
+  protocol: channelProtocolSchema,
+  outcome: z.enum([
+    'responded',
+    'http_error',
+    'invalid_response',
+    'timeout',
+    'cancelled',
+    'transport_error',
+  ]),
+  upstreamStatus: z.number().int().min(100).max(599).nullable(),
+  channelVersion: positiveVersion,
+  mappingVersion: positiveVersion,
+  priceVersion: positiveVersion,
+  maxOutputTokens: positiveVersion,
+  mayIncurUpstreamCost: z.literal(true),
+  userBalanceCharged: z.literal(false),
+});
 
 export type ChannelStatus = z.infer<typeof channelStatusSchema>;
 export type ChannelProtocol = z.infer<typeof channelProtocolSchema>;

@@ -30,56 +30,46 @@ export const billingStatusSchema = z.enum([
 ]);
 export const usageQualitySchema = z.enum(['complete', 'partial', 'missing', 'invalid']);
 
-const tokenCountsSchema = z
-  .object({
-    inputTokens: count.optional(),
-    outputTokens: count.optional(),
-    totalTokens: count.optional(),
-    cacheReadTokens: count.optional(),
-    cacheWriteTokens: count.optional(),
-    cacheWrite5mTokens: count.optional(),
-    cacheWrite1hTokens: count.optional(),
-    reasoningTokens: count.optional(),
-  })
-  .strict();
+const tokenCountsSchema = z.object({
+  inputTokens: count.optional(),
+  outputTokens: count.optional(),
+  totalTokens: count.optional(),
+  cacheReadTokens: count.optional(),
+  cacheWriteTokens: count.optional(),
+  cacheWrite5mTokens: count.optional(),
+  cacheWrite1hTokens: count.optional(),
+  reasoningTokens: count.optional(),
+});
 
-const usageSemanticsSchema = z
-  .object({
-    cacheRead: z.enum(['included_in_input', 'excluded_from_input', 'unknown']),
-    cacheWrite: z.enum(['included_in_input', 'excluded_from_input', 'unknown']),
-    reasoning: z.enum(['included_in_output', 'excluded_from_output', 'unknown']),
-    cacheWriteTtl: z.enum(['subsets_of_cache_write', 'unknown']),
-  })
-  .strict();
+const usageSemanticsSchema = z.object({
+  cacheRead: z.enum(['included_in_input', 'excluded_from_input', 'unknown']),
+  cacheWrite: z.enum(['included_in_input', 'excluded_from_input', 'unknown']),
+  reasoning: z.enum(['included_in_output', 'excluded_from_output', 'unknown']),
+  cacheWriteTtl: z.enum(['subsets_of_cache_write', 'unknown']),
+});
 
-const missingUsageSchema = z
-  .object({ protocol: protocolSchema, quality: z.literal('missing') })
-  .strict();
-const completeUsageSchema = z
-  .object({
-    protocol: protocolSchema,
-    quality: z.enum(['complete', 'partial', 'invalid']),
-    counts: tokenCountsSchema,
-    semantics: usageSemanticsSchema,
-  })
-  .strict();
+const missingUsageSchema = z.object({ protocol: protocolSchema, quality: z.literal('missing') });
+const completeUsageSchema = z.object({
+  protocol: protocolSchema,
+  quality: z.enum(['complete', 'partial', 'invalid']),
+  counts: tokenCountsSchema,
+  semantics: usageSemanticsSchema,
+});
 const publicUsageSchema = z.union([missingUsageSchema, completeUsageSchema]);
 
 const priceString = z
   .string()
   .max(18)
   .regex(/^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,8})?$/u);
-const sellPricesSchema = z
-  .object({
-    input: priceString,
-    output: priceString,
-    cacheRead: priceString.optional(),
-    cacheWrite: priceString.optional(),
-    cacheWrite5m: priceString.optional(),
-    cacheWrite1h: priceString.optional(),
-    reasoning: priceString.optional(),
-  })
-  .strict();
+const sellPricesSchema = z.object({
+  input: priceString,
+  output: priceString,
+  cacheRead: priceString.optional(),
+  cacheWrite: priceString.optional(),
+  cacheWrite5m: priceString.optional(),
+  cacheWrite1h: priceString.optional(),
+  reasoning: priceString.optional(),
+});
 
 const multiplierSchema = z
   .string()
@@ -88,27 +78,25 @@ const multiplierSchema = z
   .refine((value) => value.trim() === value)
   .regex(/^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,18})?$/u);
 
-export const priceSnapshotSchema = z
-  .object({
-    schema_version: z.literal(1),
-    canonical_json_version: z.literal(1),
-    calculation_version: z.literal(1),
-    currency: z.literal('USD'),
-    decimals: z.literal(8),
-    tokens_per_price_unit: z.literal(1_000_000),
-    rounding: z.literal('half_up_after_sum'),
-    public_model_id: text(),
-    upstream_model: text(),
-    upstream_protocol: protocolSchema,
-    price_version: count.min(1),
-    sell_prices: sellPricesSchema,
-    group_id: text().optional(),
-    group_version: count.min(1).optional(),
-    billing_multiplier: multiplierSchema.optional(),
-  })
-  .strict();
+export const priceSnapshotSchema = z.object({
+  schema_version: z.literal(1),
+  canonical_json_version: z.literal(1),
+  calculation_version: z.literal(1),
+  currency: z.literal('USD'),
+  decimals: z.literal(8),
+  tokens_per_price_unit: z.literal(1_000_000),
+  rounding: z.literal('half_up_after_sum'),
+  public_model_id: text(),
+  upstream_model: text(),
+  upstream_protocol: protocolSchema,
+  price_version: count.min(1),
+  sell_prices: sellPricesSchema,
+  group_id: text().optional(),
+  group_version: count.min(1).optional(),
+  billing_multiplier: multiplierSchema.optional(),
+});
 
-const requestErrorSchema = z.object({ code: text(128), message: text(512) }).strict();
+const requestErrorSchema = z.object({ code: text(128), message: text(512) });
 
 /** Public request data intentionally excludes private upstream payloads and headers. */
 export const requestSchema = z

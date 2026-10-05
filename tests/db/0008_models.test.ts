@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { encryptChannelSecret } from '../../apps/worker/admin/channel-secrets';
+import { legacyChannelSecret } from '../helpers/legacy-channel-secret';
 import { testEnv } from '../helpers/database';
 
 const modelColumns = ['public_model_id', 'status', 'sell_prices_json', 'price_version', 'admission_min_balance_units', 'max_output_tokens', 'default_output_tokens', 'created_at', 'updated_at'] as const;
@@ -27,7 +27,7 @@ function mapping(changes: Partial<MappingRow> = {}) {
     .bind(...mappingColumns.map((column) => row[column])).run();
 }
 async function channel(id = 'd08-channel') {
-  const encrypted = await encryptChannelSecret('test-only-key', id, 'test-v1', crypto.getRandomValues(new Uint8Array(32)));
+  const encrypted = legacyChannelSecret();
   await testEnv.DB.prepare(`INSERT INTO channels
     (id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
     VALUES (?, ?, ?, ?, 'test-v1', 'active', 0, 2, 60, 1, 0, 0)`)

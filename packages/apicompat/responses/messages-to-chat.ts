@@ -50,8 +50,7 @@ function validContext(context: ResponseContext, upstreamId?: string): boolean {
 
 function nativeError(input: unknown, context: ResponseContext): ConversionResult<Output> | undefined {
   if (!input || typeof input !== 'object') return undefined;
-  const descriptor = Object.getOwnPropertyDescriptor(input, 'type');
-  if (!descriptor || !('value' in descriptor) || descriptor.value !== 'error') return undefined;
+  if ((input as Record<string, unknown>).type !== 'error') return undefined;
   // The error variant shares its native shape with Messages SSE errors; only
   // validation is reused here, not a streaming/pivot conversion.
   const parsed = parseMessagesStreamEvent(input, { unknownFields: 'preserve' });

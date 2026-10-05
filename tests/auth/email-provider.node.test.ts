@@ -82,11 +82,12 @@ describe('Resend transport diagnostics (mock HTTP only)', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('rejects unsupported builder fields before HTTP', async () => {
-    const fetcher = vi.spyOn(globalThis, 'fetch');
-    expect(await sendEmail(sender(), { ...message, html: '<p>unsupported</p>' })).toMatchObject({
-      status: 'failed', code: 'E_VALIDATION_ERROR',
-    });
-    expect(fetcher).not.toHaveBeenCalled();
+  it('ignores additional builder fields and sends only the plain-text contract', async () => {
+    const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({ id: 'accepted-id' }));
+    expect(await sendEmail(sender(), { ...message, html: '<p>ignored</p>' }))
+      .toEqual({ status: 'accepted', messageId: 'accepted-id' });
+    expect(fetcher).toHaveBeenCalledExactlyOnceWith('https://api.resend.com/emails', expect.objectContaining({
+      body: JSON.stringify({ from: message.from, to: [message.to], subject: message.subject, text: message.text }),
+    }));
   });
 });

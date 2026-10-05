@@ -24,7 +24,6 @@ import { createChannelRoutes, ADMIN_CHANNELS_PATH } from './admin/channel-routes
 import { createGroupRoutes, ADMIN_GROUPS_PATH } from './admin/group-routes';
 import { createModelRoutes, ADMIN_MODELS_PATH } from './admin/model-routes';
 import { createMappingRoutes, ADMIN_MAPPINGS_PATH, ADMIN_MAPPING_UPDATE_PATH } from './admin/mapping-routes';
-import { readChannelKeyring } from './channel-keyring';
 import { createRequestQueryRoutes, PERSONAL_REQUESTS_PATH, ADMIN_REQUESTS_PATH } from './gateway/request-query-routes';
 import { createSettlementRoutes, RETRY_SETTLEMENT_PATH } from './admin/settlement-routes';
 import { createAuditRoutes, ADMIN_AUDIT_PATH } from './admin/audit-routes';
@@ -115,7 +114,6 @@ const desktop = createDesktopRoutes<Env>(env => ({
   gates: env.GATE,
   now: Date.now,
   trustedIp: request => trustedClientIp(env, request),
-  keyring: () => readChannelKeyring(env),
 }));
 
 // Explicit method/path dispatch keeps factory wildcard middleware local and
@@ -133,9 +131,8 @@ routes.post(`${PLATFORM_KEYS_PATH}/:id/revoke`, c => personalKeys.fetch(c.req.ra
 routes.post(ADMIN_KEY_REVOKE_PATH, c => adminKeys.fetch(c.req.raw, c.env));
 
 // Configuration CRUD shares the factories' authorization and lazy write-only
-// origin/key resolution. GET and anonymous requests never read encryption keys.
-const channels = createChannelRoutes<Env>({ now: Date.now, trustedOrigin: env => trustedOriginFromConfig(env),
-  encryptionKey: env => readChannelKeyring(env).active });
+// origin resolution. Authentication remains inside each route factory.
+const channels = createChannelRoutes<Env>({ now: Date.now, trustedOrigin: env => trustedOriginFromConfig(env) });
 const models = createModelRoutes<Env>({ now: Date.now, trustedOrigin: env => trustedOriginFromConfig(env) });
 const mappings = createMappingRoutes<Env>({ now: Date.now, trustedOrigin: env => trustedOriginFromConfig(env) });
 function groupManagement(env: Env) {
@@ -170,7 +167,7 @@ reconciliationQueries.onError((error, context) => {
 });
 reconciliationQueries.get(ADMIN_RECONCILIATION_PATH, requireSession(), requireAdmin, async context => {
   const query = new URL(context.req.url).searchParams;
-  for (const key of query.keys()) if (!['limit', 'cursor'].includes(key) || query.getAll(key).length !== 1) throw new ApiError('invalid_request');
+  for (const key of ['limit', 'cursor']) if (query.getAll(key).length > 1) throw new ApiError('invalid_request');
   const page = parsePagination(query);
   const result = await reconcileBalances(context.env.DB, context.get('user').id, {
     limit: page.limit, ...(page.cursor === null ? {} : { cursor: page.cursor }),
@@ -186,8 +183,7 @@ function settlementManagement(env: Env) {
   return createSettlementRoutes({ now: Date.now, trustedOrigin: () => trustedOriginFromConfig(env) });
 }
 function channelDiagnostics(env: Env) {
-  return createTestChannelRoutes<Env>({ now: Date.now, trustedOrigin: () => trustedOriginFromConfig(env),
-    keyring: () => readChannelKeyring(env).keyring });
+  return createTestChannelRoutes<Env>({ now: Date.now, trustedOrigin: () => trustedOriginFromConfig(env) });
 }
 const chatGateway = createChatRoute();
 const responsesGateway = createResponsesRoute();
@@ -226,7 +222,6 @@ routes.get(MODELS_PATH, c => modelsGateway.fetch(c.req.raw, { DB: c.env.DB }));
 for (const path of [CHAT_API_PATH, `${CHAT_API_PATH}/*`]) {
   routes.all(path, c => forwardMounted(createWebChatRoutes({
     trustedOrigin: () => trustedOriginFromConfig(c.env),
-    keyring: () => readChannelKeyring(c.env).keyring,
   }), c));
 }
 
@@ -238,8 +233,7 @@ routes.post('/api/v1/auth/logout', context => createSessionRoutes({
 }).fetch(context.req.raw, context.env));
 
 // Desktop routes use their own bearer credential and do not inherit browser
-// Cookie/Origin/CSRF behavior. Resolve bindings per request; the Secret keyring
-// is read only when an authenticated Key request asks for it.
+// Cookie/Origin/CSRF behavior. Resolve bindings per request.
 routes.post(DESKTOP_LOGIN_PATH, context => desktop.fetch(context.req.raw, context.env));
 routes.post(DESKTOP_KEY_PATH, context => desktop.fetch(context.req.raw, context.env));
 routes.get(DESKTOP_ACCOUNT_PATH, context => desktop.fetch(context.req.raw, context.env));

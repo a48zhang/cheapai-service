@@ -6,12 +6,10 @@ import { createPlatformKey, findPlatformKeyById, PlatformKeyCreationConflict, up
 import { listAvailableKeyGroups } from '../../apps/worker/auth/key-groups';
 import { updateUser } from '../../apps/worker/admin/update-user';
 import { createChannel } from '../../apps/worker/admin/channel-repository';
-import { encryptChannelSecret } from '../../apps/worker/admin/channel-secrets';
 import { testEnv } from '../helpers/database';
 
 const now = Date.now();
 let env: Env;
-let encryptionKey: Uint8Array;
 async function grant(groups: string[], version = 1) {
   return updateUser(testEnv.DB,'group-user',version,{allowedGroupIds:groups}, {actorId:'group-admin',operationId:crypto.randomUUID(),now:now+version});
 }
@@ -25,14 +23,14 @@ async function call(token: string, path='/v1/models', body?: unknown) {
   const data=await response.json() as Record<string, any>;await waitOnExecutionContext(context);return {status:response.status,data};
 }
 beforeEach(async()=>{
-  encryptionKey=crypto.getRandomValues(new Uint8Array(32));
-  env={...testEnv,ENVIRONMENT:'local',PUBLIC_BASE_URL:'https://group-console.example',CHANNEL_ACTIVE_KEY_VERSION:'groups',CHANNEL_KEYRING_JSON:JSON.stringify({groups:btoa(String.fromCharCode(...encryptionKey))})} as Env;
+
+  env={...testEnv,ENVIRONMENT:'local',PUBLIC_BASE_URL:'https://group-console.example',} as Env;
   for(const group of ['gpt','claude','private'])await testEnv.DB.prepare("INSERT INTO groups(id,name,status,version,created_at,updated_at) VALUES(?,?,'active',1,0,0)").bind(group,group).run();
   for(const [id,role] of [['group-user','user'],['group-admin','admin']])await testEnv.DB.prepare(`INSERT INTO users(id,email_normalized,password_hash,role,status,group_id,balance_units,concurrency_limit,rpm_limit,created_via,created_at,updated_at) VALUES(?,?,'test-hash',?,'active','gpt',1000000,2,60,'admin',0,0)`).bind(id,`${id}@example.invalid`,role).run();
   for(const group of ['gpt','claude']){
     const channel='channel-'+group;const model='model-'+group;
-    const encrypted=await encryptChannelSecret('synthetic-group-upstream',channel,'groups',encryptionKey);
-    await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at) VALUES(?,?,?,?,'groups','active',1,2,60,1,0,0)`).bind(channel,channel,'https://group-upstream.example.invalid',encrypted).run();
+    const credential='synthetic-group-upstream';
+    await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at) VALUES(?,?,?,?,'active',1,2,60,1,0,0)`).bind(channel,channel,'https://group-upstream.example.invalid',credential).run();
     await testEnv.DB.prepare('INSERT INTO channel_groups(channel_id,group_id) VALUES(?,?)').bind(channel,group).run();
     await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES (?,'active','{"input":"1","output":"2"}',1,0,64,0,0)`).bind(model).run();
     await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,capabilities_json,config_version) VALUES(?,?,'chat',?,'{"protocol":"chat","features":[],"maxOutputTokens":64}',1)`).bind(channel,model,'upstream-'+group).run();
@@ -86,7 +84,7 @@ describe('administrator-granted Key groups on real D1 and Worker routing',()=>{
   it('supports unlimited concurrency and reports channel model metadata',async()=>{
     const user=await updateUser(testEnv.DB,'group-user',1,{concurrencyLimit:0},{actorId:'group-admin',operationId:'unlimited-user',now:now+1});
     expect(user.concurrency_limit).toBe(Number.MAX_SAFE_INTEGER);
-    const created=await createChannel(testEnv.DB,{name:'Unlimited',baseUrl:'https://unlimited.example.invalid',upstreamKey:'test-key',concurrencyLimit:0,rpmLimit:60},{actorId:'group-admin',operationId:'unlimited-channel',now:now+1},{keyVersion:'groups',key:encryptionKey});
+    const created=await createChannel(testEnv.DB,{name:'Unlimited',baseUrl:'https://unlimited.example.invalid',upstreamKey:'test-key',concurrencyLimit:0,rpmLimit:60},{actorId:'group-admin',operationId:'unlimited-channel',now:now+1});
     expect(created).toMatchObject({concurrencyLimit:Number.MAX_SAFE_INTEGER,models:[]});
   });
 });

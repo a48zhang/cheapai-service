@@ -193,6 +193,8 @@ export type MessagesStreamEvent = MessagesFields & (
 );
 
 export interface MessagesValidationOptions {
+  /** Native passthrough retains provider-specific discriminators. */
+  readonly native?: boolean;
   readonly unknownFields?: "reject" | "preserve";
 }
 
@@ -219,14 +221,12 @@ function json(value: unknown): boolean {
     if (entry === null || typeof entry === "string" || typeof entry === "boolean") return true;
     if (typeof entry === "number") return Number.isFinite(entry);
     if (!object(entry) && !Array.isArray(entry)) return false;
-    if (seen.has(entry) || Object.getOwnPropertySymbols(entry).length) return false;
+    if (seen.has(entry)) return false;
     seen.add(entry);
-    if (!Array.isArray(entry) && Object.getPrototypeOf(entry) !== Object.prototype && Object.getPrototypeOf(entry) !== null) return false;
     const names = Object.keys(entry);
     if (names.length > 100_000 || (Array.isArray(entry) && (names.length !== entry.length || names.some((name, index) => name !== String(index))))) return false;
     return names.every(name => {
-      const field = Object.getOwnPropertyDescriptor(entry, name);
-      return field !== undefined && "value" in field && visit(field.value, depth + 1);
+      return visit((entry as Record<string, unknown>)[name], depth + 1);
     });
   };
   return visit(value, 0);
@@ -240,12 +240,14 @@ function checks(options: MessagesValidationOptions) {
     if (Object.keys(value).some(name => !names.includes(name))) { unsupported = true; return false; }
     return true;
   }
-  function unknownType(value: ObjectValue): false {
+  function unknownType(value: ObjectValue): boolean {
+    if (options.native && nonempty(value.type)) return true;
     if (nonempty(value.type)) unsupported = true;
     return false;
   }
 
   function cache(value: unknown): boolean {
+    if (options.native) return value === null || (object(value) && nonempty(value.type));
     return value === null || (object(value) && value.type === "ephemeral" && optional(value, "ttl", oneOf("5m", "1h")) && keys(value, ["type", "ttl"]));
   }
 
@@ -303,7 +305,7 @@ function checks(options: MessagesValidationOptions) {
   }
 
   function thinking(value: unknown): boolean {
-    return object(value) && oneOf("enabled", "disabled", "adaptive")(value.type)
+    return object(value) && (options.native ? nonempty(value.type) : oneOf("enabled", "disabled", "adaptive")(value.type))
       && (value.type !== "enabled" || positive(value.budget_tokens))
       && optional(value, "display", nullable(oneOf("summarized", "omitted")))
       && keys(value, value.type === "enabled" ? ["type", "budget_tokens", "display"] : value.type === "disabled" ? ["type"] : ["type", "display"]);
@@ -333,7 +335,7 @@ function checks(options: MessagesValidationOptions) {
       && optional(value, 'recommended_model', nullable(nonempty)) && keys(value, ['type', 'category', 'explanation', 'recommended_model']);
   }
 
-  const stopReason = nullable(oneOf("end_turn", "max_tokens", "stop_sequence", "tool_use", "pause_turn", "refusal", "model_context_window_exceeded"));
+  const stopReason = nullable(options.native ? string : oneOf("end_turn", "max_tokens", "stop_sequence", "tool_use", "pause_turn", "refusal", "model_context_window_exceeded"));
 
   function response(value: unknown): boolean {
     return object(value) && value.type === "message" && value.role === "assistant" && nonempty(value.id) && nonempty(value.model)
@@ -388,7 +390,7 @@ function checks(options: MessagesValidationOptions) {
       ["top_p", probability], ["top_k", count], ["stop_sequences", list(string)],
       ["metadata", entry => object(entry) && optional(entry, "user_id", nullable(string)) && keys(entry, ["user_id"])],
       ["output_config", entry => object(entry)
-        && optional(entry, "effort", nullable(oneOf("low", "medium", "high", "xhigh", "max")))
+        && optional(entry, "effort", nullable(options.native ? string : oneOf("low", "medium", "high", "xhigh", "max")))
         && optional(entry, "format", format => format === null || (object(format) && format.type === "json_schema"
           && object(format.schema) && keys(format, ["type", "schema"])))
         && keys(entry, ["effort", "format"])],

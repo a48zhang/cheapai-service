@@ -68,7 +68,6 @@ export function createGroupRoutes(source: GroupDependencySource = env => ({ data
     (context, next) => requireSession(() => context.get('requestTime')!)(context, next), requireAdmin,
     async context => {
       const query = new URL(context.req.url).searchParams;
-      for (const key of query.keys()) if (!['status', 'limit', 'cursor'].includes(key)) throw new ApiError('invalid_request');
       if (query.getAll('status').length > 1) throw new ApiError('invalid_request');
       const status = query.get('status');
       if (status !== null && status !== 'active' && status !== 'disabled') throw new ApiError('invalid_request');
@@ -80,7 +79,7 @@ export function createGroupRoutes(source: GroupDependencySource = env => ({ data
     (context, next) => requireSession(() => context.get('requestTime')!)(context, next), requireAdmin,
     async context => {
       const id = context.req.param('id');
-      if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id) || new URL(context.req.url).search !== '') throw new ApiError('invalid_request');
+      if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id)) throw new ApiError('invalid_request');
       const group = await getGroupById(context.env.DB, id);
       if (!group) throw new ApiError('not_found');
       return noStore(apiSuccess(group, context.get('requestId')));
@@ -89,9 +88,7 @@ export function createGroupRoutes(source: GroupDependencySource = env => ({ data
     (context, next) => requireSession(() => context.get('requestTime')!)(context, next), requireAdmin,
     async context => {
       validateCsrfRequest(context.req.raw, await writeOrigin(context.get('groupDependencies')));
-      if (new URL(context.req.url).search !== '') throw new ApiError('invalid_request');
       const body = await readBody(context.req.raw);
-      if (Object.keys(body).some(key => !['name', 'status', 'channelIds', 'billingMultiplier'].includes(key))) throw new ApiError('invalid_request');
       const group = await createGroup(context.env.DB, body as unknown as CreateGroupInput, {
         actorId: context.get('user').id, operationId: context.get('requestId'), now: context.get('requestTime')! });
       return noStore(apiSuccess(group, context.get('requestId'), 201));
@@ -100,10 +97,8 @@ export function createGroupRoutes(source: GroupDependencySource = env => ({ data
     (context, next) => requireSession(() => context.get('requestTime')!)(context, next), requireAdmin,
     async context => {
       validateCsrfRequest(context.req.raw, await writeOrigin(context.get('groupDependencies')));
-      if (new URL(context.req.url).search !== '') throw new ApiError('invalid_request');
       const body = await readBody(context.req.raw);
-      if (Object.keys(body).some(key => !['version', 'name', 'status', 'channelIds', 'billingMultiplier'].includes(key))
-        || typeof body.version !== 'number' || !Number.isSafeInteger(body.version) || body.version < 1) throw new ApiError('invalid_request');
+      if (typeof body.version !== 'number' || !Number.isSafeInteger(body.version) || body.version < 1) throw new ApiError('invalid_request');
       const { version, ...patch } = body;
       const group = await updateGroup(context.env.DB, context.req.param('id'), version, patch as GroupPatch, {
         actorId: context.get('user').id, operationId: context.get('requestId'), now: context.get('requestTime')! });

@@ -14,13 +14,6 @@ export function resolveEmailSender(
   if (typeof key !== 'string' || !key.trim() || /\s/.test(key)) return undefined;
   return {
     async send(message) {
-      // This adapter supports the existing plain-text transactional contract.
-      // Fail explicitly on other builder fields rather than silently dropping them.
-      if (typeof message.from !== 'string' || typeof message.to !== 'string'
-        || typeof message.subject !== 'string' || typeof message.text !== 'string'
-        || Object.keys(message).some(field => !['from', 'to', 'subject', 'text'].includes(field))) {
-        throw Object.assign(new Error('Unsupported email message'), { code: 'E_VALIDATION_ERROR' });
-      }
       const controller = new AbortController();
       const timer = setTimeout(() => {
         console.error('Resend request timed out', { timeoutMs: 10_000 });

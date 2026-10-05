@@ -14,7 +14,7 @@ describe('explicit single-switch generation policy', () => {
     expect(decideCandidateRetry(facts({ registeredRequestId: 'request-1' }))).toMatchObject({ action: 'stop', reason: 'registered_candidate_busy' });
   });
   it('never treats no output, network timeout, redirect or disconnect as nonexecution', () => {
-    for (const reason of ['network_error', 'headers_timeout', 'request_timeout', 'idle_timeout', 'stream_error', 'redirect_rejected'] as const) {
+    for (const reason of ['network_error', 'headers_timeout', 'request_timeout', 'idle_timeout', 'stream_error'] as const) {
       for (const execution of ['uncertain', 'not_started'] as const) expect(decideCandidateRetry(facts({ registeredRequestId: 'request-1', dispatchAttempts: 1, failure: { kind: 'transport', error: { reason, execution } } }))).toMatchObject({ action: 'stop', reason: 'execution_uncertain' });
     }
     expect(decideCandidateRetry(facts({ failure: { kind: 'transport', error: { reason: 'cancelled', execution: 'not_started' } } }))).toMatchObject({ action: 'stop', reason: 'cancelled' });

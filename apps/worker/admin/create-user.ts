@@ -18,19 +18,12 @@ function identifier(value: unknown): string {
 }
 
 /** A05 authorizes the route; this use case rechecks the actor inside its transaction.
- * Only email/password/group are accepted. Role, starting balance, status and source
+ * Only email/password/group are used. Role, starting balance, status and source
  * are fixed by server SQL, never selected by request properties.
  */
 export async function createUser(database: D1Database, input: CreateUserInput, context: CreateUserContext): Promise<PublicUser> {
-  if (input === null || typeof input !== 'object' || Array.isArray(input) ||
-      (Object.getPrototypeOf(input) !== Object.prototype && Object.getPrototypeOf(input) !== null)) throw new ApiError('invalid_request');
-  const fields: Record<string, unknown> = {};
-  for (const key of Reflect.ownKeys(input)) {
-    const descriptor = Object.getOwnPropertyDescriptor(input, key);
-    if (typeof key !== 'string' || !['email', 'password', 'groupId'].includes(key) ||
-        !descriptor || !('value' in descriptor) || descriptor.value === undefined) throw new ApiError('invalid_request');
-    fields[key] = descriptor.value;
-  }
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) throw new ApiError('invalid_request');
+  const fields = input;
   let email: string;
   try { email = normalizeEmail(fields.email as string); } catch { throw new ApiError('invalid_request'); }
   if (!validatePasswordInput(fields.password).valid) throw new ApiError('invalid_request');

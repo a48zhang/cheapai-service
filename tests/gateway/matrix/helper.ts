@@ -1,7 +1,6 @@
 import { createExecutionContext, runInDurableObject, waitOnExecutionContext } from 'cloudflare:test';
 import { app } from '../../../apps/worker/app';
 import type { Env } from '../../../apps/worker/env';
-import { encryptChannelSecret } from '../../../apps/worker/admin/channel-secrets';
 import { generateToken, hashToken } from '../../../apps/worker/auth/tokens';
 import { LeaseStorage } from '../../../apps/worker/limits/storage';
 import { prepare } from '../../../apps/worker/db';
@@ -41,7 +40,6 @@ export interface MatrixHarness {
   readonly channelId: string;
   readonly userId: string;
   readonly token: string;
-  readonly keyring: Map<string, Uint8Array>;
   /** Calls the real Worker app route. Tests inject only the upstream with vi.stubGlobal('fetch'). */
   readonly call: (payload: unknown, headers?: HeadersInit) => Promise<MatrixCall>;
   readonly activeLeases: (subject: string) => Promise<number>;
@@ -66,11 +64,10 @@ export async function setupMatrix(fixture: MatrixFixture, upstream: MatrixUpstre
   const keyId = `matrix_${suffix}_key`;
   const channelId = `matrix_${suffix}_${upstream}`;
   const token = generateToken('apiKey');
-  const encryptionKey = crypto.getRandomValues(new Uint8Array(32));
-  const keyring = new Map<string, Uint8Array>([['matrix', encryptionKey]]);
-  const encrypted = await encryptChannelSecret('PRIVATE_UPSTREAM_KEY', channelId, 'matrix', encryptionKey);
+
+  const credential = 'PRIVATE_UPSTREAM_KEY';
   const env = { ...testEnv, ENVIRONMENT: 'local', PUBLIC_BASE_URL: 'https://matrix-gateway.example',
-    CHANNEL_KEYRING_JSON: JSON.stringify({ matrix: btoa(String.fromCharCode(...encryptionKey)) }), CHANNEL_ACTIVE_KEY_VERSION: 'matrix' } as Env;
+     } as Env;
 
   await prepare(testEnv.DB, `INSERT INTO groups(id,name,status,version,created_at,updated_at)
     VALUES(?,?,'active',1,0,0)`, [groupId, `Matrix ${fixture.id}`]).run();
@@ -79,8 +76,8 @@ export async function setupMatrix(fixture: MatrixFixture, upstream: MatrixUpstre
   await prepare(testEnv.DB, `INSERT INTO api_keys(id,user_id,key_hash,display_prefix,name,status,created_at,updated_at)
     VALUES(?,?,?,'s2a_key_MATRIX01','Matrix Key','active',0,0)`, [keyId, userId, await hashToken('apiKey', token)]).run();
   const baseUrl = `https://${channelId.replace(/_/gu, '-')}.example.invalid`;
-  await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-    VALUES(?,?,?,?,'matrix','active',10,4,60,1,0,0)`, [channelId, `Matrix ${upstream}`, baseUrl, encrypted]).run();
+  await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+    VALUES(?,?,?,?,'active',10,4,60,1,0,0)`, [channelId, `Matrix ${upstream}`, baseUrl, credential]).run();
   await prepare(testEnv.DB, `INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES (?,'active','{"input":"1","output":"2"}',1,0,64,0,0)`, [fixture.publicModel]).run();
   await prepare(testEnv.DB, 'INSERT INTO channel_groups(channel_id,group_id) VALUES(?,?)', [channelId, groupId]).run();
   const features = ['streaming', 'tools', 'tool_choice', 'parallel_tools', 'parallel_tool_control', ...(upstream === 'chat' ? ['stream_usage'] : [])];
@@ -99,7 +96,7 @@ export async function setupMatrix(fixture: MatrixFixture, upstream: MatrixUpstre
     return { response, text, requestId: response.headers.get('X-Request-Id') };
   };
   const activeLeases = (subject: string) => runInDurableObject(testEnv.GATE.get(testEnv.GATE.idFromName(subject)), (_instance, context) => new LeaseStorage(context.storage).read(Date.now()).leases.length);
-  return { fixture, upstream, publicModel: fixture.publicModel, upstreamModel: fixture.upstreamModel, channelId, userId, token, keyring, call, activeLeases };
+  return { fixture, upstream, publicModel: fixture.publicModel, upstreamModel: fixture.upstreamModel, channelId, userId, token, call, activeLeases };
 }
 
 export function chatTextRequest(model: string, text = 'matrix text'): Record<string, unknown> {

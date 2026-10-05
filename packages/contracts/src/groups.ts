@@ -32,7 +32,6 @@ const groupChannelIdsViewSchema = z
   .refine((ids) => new Set(ids).size === ids.length);
 const groupChannelIdsInputSchema = z
   .array(channelIdSchema)
-  .max(100)
   .transform((ids) => [...new Set(ids)].sort());
 
 export const groupSchema = z
@@ -47,40 +46,34 @@ export const groupSchema = z
     /** Missing multipliers existed in early persisted group rows and mean 1. */
     billingMultiplier: billingMultiplierSchema.optional(),
   })
-  .strict()
+
   .refine((value) => value.updatedAt >= value.createdAt, { path: ['updatedAt'] })
   .transform((value) => ({ ...value, billingMultiplier: value.billingMultiplier ?? '1' }));
 
-const groupFieldsSchema = z
-  .object({
-    name: groupNameSchema,
-    status: groupStatusSchema.optional(),
-    channelIds: groupChannelIdsInputSchema.optional(),
-    billingMultiplier: billingMultiplierSchema.optional(),
-  })
-  .strict();
+const groupFieldsSchema = z.object({
+  name: groupNameSchema,
+  status: groupStatusSchema.optional(),
+  channelIds: groupChannelIdsInputSchema.optional(),
+  billingMultiplier: billingMultiplierSchema.optional(),
+});
 
 export const groupInputSchema = groupFieldsSchema;
 export const groupPatchSchema = groupFieldsSchema
   .partial()
-  .strict()
+
   .refine((value) => Object.values(value).some((field) => field !== undefined), {
     message: 'At least one group field is required.',
   });
 
-export const groupPageSchema = z
-  .object({
-    items: z.array(groupSchema),
-    nextCursor: z.string().min(1).max(1024).nullable(),
-  })
-  .strict();
+export const groupPageSchema = z.object({
+  items: z.array(groupSchema),
+  nextCursor: z.string().min(1).max(1024).nullable(),
+});
 
-export const groupListQuerySchema = z
-  .object({
-    cursor: z.string().max(1024).nullable().optional(),
-    status: groupStatusSchema.optional(),
-  })
-  .strict();
+export const groupListQuerySchema = z.object({
+  cursor: z.string().max(1024).nullable().optional(),
+  status: groupStatusSchema.optional(),
+});
 
 export type GroupStatus = z.infer<typeof groupStatusSchema>;
 export type BillingMultiplier = z.infer<typeof billingMultiplierSchema>;

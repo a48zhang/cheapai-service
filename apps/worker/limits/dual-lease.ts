@@ -1,6 +1,5 @@
 import { LeaseClient, LeaseClientError } from './client';
 import type { LeaseAcquireInput, LeaseAcquireOutcome, LeaseBinding, LeaseClientErrorCode, LeaseHandle, LeaseSubject } from './client';
-import { MAX_RATE_WINDOW_OPERATIONS } from './rate-window';
 
 export const DUAL_LEASE_CLEANUP_ATTEMPTS = 2;
 export interface DualLeaseInput {
@@ -50,27 +49,7 @@ interface CleanupTarget {
   rpcAttempts: number;
 }
 
-function fields(value: unknown, required: readonly string[], optional: readonly string[] = []): void {
-  if (!value || typeof value !== 'object' || Array.isArray(value)
-    || required.some((key) => !Object.hasOwn(value, key))
-    || Reflect.ownKeys(value).some((key) => typeof key !== 'string' || (!required.includes(key) && !optional.includes(key)))) {
-    throw new LeaseClientError('invalid_input');
-  }
-}
-
 function snapshot(requestId: string, limits: DualLeaseInput['user']): LeaseAcquireInput {
-  fields(limits, ['limit', 'ttlMs'], ['rate']);
-  if (!Number.isSafeInteger(limits.limit) || limits.limit < 0 || !Number.isSafeInteger(limits.ttlMs) || limits.ttlMs <= 0
-    || !Number.isSafeInteger(Date.now() + limits.ttlMs)) throw new LeaseClientError('invalid_input');
-  if (limits.rate !== undefined) {
-    fields(limits.rate, ['limit', 'windowMs'], ['operationId']);
-    if (limits.rate.operationId !== undefined && (typeof limits.rate.operationId !== 'string'
-      || limits.rate.operationId.length > 128 || !/^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(limits.rate.operationId))) {
-      throw new LeaseClientError('invalid_input');
-    }
-    if (!Number.isSafeInteger(limits.rate.limit) || limits.rate.limit < 0 || limits.rate.limit > MAX_RATE_WINDOW_OPERATIONS
-      || !Number.isSafeInteger(limits.rate.windowMs) || limits.rate.windowMs <= 0) throw new LeaseClientError('invalid_input');
-  }
   return Object.freeze({ requestId, limit: limits.limit, ttlMs: limits.ttlMs,
     ...(limits.rate === undefined ? {} : { rate: Object.freeze({ ...limits.rate, operationId: limits.rate.operationId ?? requestId }) }),
   });
@@ -143,12 +122,7 @@ export async function acquireDualLease(
   input: DualLeaseInput,
   options: { signal?: AbortSignal } = {},
 ): Promise<DualLeaseAcquireResult> {
-  fields(input, ['userId', 'channelId', 'requestId', 'user', 'channel']);
-  fields(options, [], ['signal']);
   const signal = options.signal;
-  if (signal !== undefined && !(signal instanceof AbortSignal)) throw new LeaseClientError('invalid_input');
-  if (typeof input.requestId !== 'string' || input.requestId.length < 1 || input.requestId.length > 128
-    || !/^[A-Za-z0-9]/.test(input.requestId) || /[^A-Za-z0-9._:-]/.test(input.requestId)) throw new LeaseClientError('invalid_input');
   const userInput = snapshot(input.requestId, input.user);
   const channelInput = snapshot(input.requestId, input.channel);
   const userClient = new LeaseClient(binding, { kind: 'user', id: input.userId });

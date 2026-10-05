@@ -53,14 +53,14 @@ export async function createDesktopSession(
   const result = await prepare<StoredDesktopSession>(database,
     `INSERT INTO desktop_sessions
        (id, token_hash, user_id, expires_at, revoked_at, current_key_id,
-        current_key_ciphertext, key_generation, created_at, updated_at)
+        current_key, key_generation, created_at, updated_at)
      SELECT ?, ?, u.id, ?, NULL, NULL, NULL, 0, ?, ?
        FROM users u
        JOIN groups g ON g.id = u.group_id AND g.status = 'active'
        JOIN user_group_access access ON access.user_id = u.id AND access.group_id = u.group_id
       WHERE u.id = ? AND u.status = 'active'
      RETURNING id, token_hash, user_id, expires_at, revoked_at, current_key_id,
-       current_key_ciphertext, key_generation, created_at`,
+       current_key, key_generation, created_at`,
     [id, tokenHash, expiresAt, now, now, userId]).run();
   const session = result.rows[0];
   if (result.changes !== 1 || !session) throw new DesktopSessionCreationError();
@@ -75,7 +75,7 @@ export async function findDesktopSessionByHash(
   requireHash(tokenHash);
   return prepare<StoredDesktopSession>(database,
     `SELECT id, token_hash, user_id, expires_at, revoked_at, current_key_id,
-       current_key_ciphertext, key_generation, created_at
+       current_key, key_generation, created_at
        FROM desktop_sessions WHERE token_hash = ?`, [tokenHash]).first();
 }
 

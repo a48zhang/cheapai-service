@@ -12,14 +12,25 @@ beforeEach(async () => {
     VALUES(?,?,?,'admin','active',?,2,60,'admin',?,?)`,
     [actor.actorId, 'c06@example.invalid', 'test-only-hash', 'c06-admin-group', now, now]).run();
   for (const channel of ['c06-channel-a', 'c06-channel-b']) {
-    const envelope = { algorithm: 'A256GCM', format_version: 1, key_version: 'test', nonce: 'synthetic', ciphertext: 'synthetic' };
-    await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-      VALUES(?,?,?,?,'test','active',1,2,60,1,?,?)`,
-      [channel, channel, 'https://example.invalid', JSON.stringify(envelope), now, now]).run();
+    const credential = 'test-upstream-key';
+    await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+      VALUES(?,?,?,?,'active',1,2,60,1,?,?)`,
+      [channel, channel, 'https://example.invalid', credential, now, now]).run();
   }
 });
 
 describe('group configuration and channel relationships on native D1', () => {
+  it('accepts more than 100 channel relationships and audits all additions', async () => {
+    const channelIds = Array.from({ length: 101 }, (_, i) => `many-channel-${i}`).sort();
+    await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+      SELECT value,value,'http://localhost:8080/v1','test-key','active',0,2,60,1,?,? FROM json_each(?)`,
+      [now,now,JSON.stringify(channelIds)]).run();
+    const group = await createGroup(testEnv.DB, { name: 'Many channels', channelIds }, actor);
+    expect((await getGroupById(testEnv.DB, group.id))!.channelIds).toEqual(channelIds);
+    expect(await testEnv.DB.prepare("SELECT count(*) FROM admin_audit WHERE target_id=? AND action='group.channel.attach'")
+      .bind(group.id).first('count(*)')).toBe(101);
+  });
+
   it('creates deduplicated relationships with same-transaction audit', async () => {
     const group = await createGroup(testEnv.DB, { name: 'Target', channelIds: ['c06-channel-b', 'c06-channel-a', 'c06-channel-a'] }, actor);
     expect(group.channelIds).toEqual(['c06-channel-a', 'c06-channel-b']);

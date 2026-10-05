@@ -34,14 +34,14 @@ export function priceCacheKey(publicModelId: string): string {
 function validPrice(value: unknown, modelId: string): value is PriceData {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
   const data = value as Record<string, unknown>;
-  if (Object.keys(data).length !== 3 || data.public_model_id !== modelId ||
+  if (data.public_model_id !== modelId ||
       typeof data.price_version !== 'number' || !Number.isSafeInteger(data.price_version) || data.price_version < 1 ||
       data.sell_prices === null || typeof data.sell_prices !== 'object' || Array.isArray(data.sell_prices)) return false;
   const prices = data.sell_prices as Record<string, unknown>;
   if (!Object.hasOwn(prices, 'input') || !Object.hasOwn(prices, 'output')) return false;
   try {
-    for (const [bucket, rate] of Object.entries(prices)) {
-      if (!(BILLABLE_BUCKETS as readonly string[]).includes(bucket) || parseUsdToUnits(rate) < 0n) return false;
+    for (const bucket of BILLABLE_BUCKETS) {
+      if (Object.hasOwn(prices, bucket) && parseUsdToUnits(prices[bucket]) < 0n) return false;
     }
     return true;
   } catch { return false; }
@@ -62,11 +62,7 @@ export async function readPrices(
   const expectedVersion = options.expectedPriceVersion;
   if (!Number.isSafeInteger(maxAgeMs) || maxAgeMs <= 0 ||
       (expectedVersion !== undefined && (!Number.isSafeInteger(expectedVersion) || expectedVersion < 1))) throw new ApiError('invalid_request');
-  const clock = (): number => {
-    const value = (options.now ?? Date.now)();
-    if (!Number.isSafeInteger(value) || value < 0) throw new ApiError('service_unavailable');
-    return value;
-  };
+  const clock = options.now ?? Date.now;
   const validate = (value: unknown): value is PriceData => validPrice(value, publicModelId);
   const cached = await readSnapshot(kv, key, { now: clock(), maxAgeMs }, validate);
   if (cached) {
@@ -81,7 +77,6 @@ export async function readPrices(
     const model = await getModelById(database, publicModelId);
     if (model === null || model.status !== 'active') return null;
     data = { public_model_id: model.publicModelId, price_version: model.priceVersion, sell_prices: model.sellPrices };
-    if (!validate(data)) throw new Error('Invalid D1 prices');
   } catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
   const snapshot: Snapshot<PriceData> = { schema_version: 1, observed_at: observedAt, data };
   // KV errors never undo/reject the authoritative configuration read.

@@ -29,7 +29,7 @@ export function balanceCacheKey(userId: string): string {
 function validData(value: unknown, userId: string): value is BalanceData {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
   const row = value as Record<string, unknown>;
-  if (Object.keys(row).length !== 3 || row.user_id !== userId ||
+  if (row.user_id !== userId ||
       typeof row.user_version !== 'number' || !Number.isSafeInteger(row.user_version) || row.user_version < 1) return false;
   try { parseUnits(row.balance_units); return true; } catch { return false; }
 }
@@ -52,11 +52,7 @@ export async function readBalance(
   if (threshold < 0n || typeof config.balanceCacheEnabled !== 'boolean' ||
       !Number.isSafeInteger(config.balanceCacheTtlMs) || config.balanceCacheTtlMs <= 0) throw new ApiError('invalid_request');
   const maxAgeMs = Math.min(config.balanceCacheTtlMs, MAX_BALANCE_SNAPSHOT_AGE_MS);
-  const clock = (): number => {
-    const time = now();
-    if (!Number.isSafeInteger(time) || time < 0) throw new ApiError('service_unavailable');
-    return time;
-  };
+  const clock = now;
   const validate = (value: unknown): value is BalanceData => validData(value, userId);
   if (config.balanceCacheEnabled) {
     const cached = await readSnapshot(kv, key, { now: clock(), maxAgeMs }, validate);

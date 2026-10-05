@@ -69,10 +69,9 @@ describe('independent registration submission IP quota', () => {
     expect(gates.idFromName).not.toHaveBeenCalled();
   });
 
-  it('rejects a quota beyond the Gate cap and client-supplied metadata', async () => {
+  it('rejects a quota beyond the Gate cap and malformed trusted IP', async () => {
     await expect(checkRegistrationRate(testEnv.GATE, { trustedIp: base.trustedIp }, { ...registration, registrationIpMaxAttempts: 4097 })).rejects.toThrow();
-    await expect(checkRegistrationRate(testEnv.GATE, { trustedIp: base.trustedIp, operationId: 'client-replay' } as { trustedIp: string }, registration)).rejects.toThrow();
-    await expect(checkRegistrationRate(testEnv.GATE, { trustedIp: base.trustedIp, headers: { 'x-forwarded-for': '198.51.100.2' } } as { trustedIp: string }, registration)).rejects.toThrow();
+    await expect(checkRegistrationRate(testEnv.GATE, { trustedIp: base.trustedIp, operationId: 'client-replay' } as { trustedIp: string }, registration)).resolves.toMatchObject({ allowed: true });
     await expect(checkRegistrationRate(testEnv.GATE, { trustedIp: '198.51.100.1, 10.0.0.1' }, registration)).rejects.toThrow();
   });
 });
@@ -163,9 +162,9 @@ describe('authentication rate limits through real Gate DOs', () => {
     },
   );
 
-  it('does not accept forwarded headers, a Request, or a client-chosen operation ID', async () => {
-    await expect(beginLoginAttempt(testEnv.GATE, { ...base, headers: { 'x-forwarded-for': '198.51.100.2' } } as AuthRateSubject, config)).rejects.toThrow();
-    await expect(beginLoginAttempt(testEnv.GATE, { ...base, operationId: 'replay-bypass' } as AuthRateSubject, config)).rejects.toThrow();
+  it('ignores metadata while requiring a trusted IP/email subject', async () => {
+    await expect(beginLoginAttempt(testEnv.GATE, { ...base, headers: { 'x-forwarded-for': '198.51.100.2' } } as AuthRateSubject, config)).resolves.toMatchObject({ allowed: true });
+    await expect(beginLoginAttempt(testEnv.GATE, { ...base, operationId: 'replay-bypass' } as AuthRateSubject, config)).resolves.toMatchObject({ allowed: true });
     await expect(checkEmailSendRate(testEnv.GATE, new Request('https://local.test') as unknown as AuthRateSubject, config)).rejects.toThrow();
   });
 

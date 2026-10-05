@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { dirname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -17,7 +17,6 @@ const defaultConfig = 'apps/worker/wrangler.jsonc';
 const defaultDatabase = 'DB';
 const defaultLocalState = '.wrangler/r05-restore-verify';
 const defaultLog = '.wrangler/verify-restored-database.log';
-const versionPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const databasePattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 const expectedTables = [
@@ -72,26 +71,12 @@ const readOnlyQueries = {
       SELECT actor_id,operation_id FROM registration_code_batches
       GROUP BY actor_id,operation_id HAVING COUNT(*) > 1
     );`,
-  channelEnvelopes: `SELECT COUNT(*) AS channels,
-      COALESCE(SUM(CASE WHEN secret_key_version IS NULL OR length(trim(secret_key_version))=0
-        OR length(secret_key_version)>64 OR secret_key_version GLOB '*[^A-Za-z0-9._-]*'
-        THEN 1 ELSE 0 END),0) AS invalid_versions,
-      COALESCE(SUM(CASE WHEN json_valid(secret_ciphertext)=1
-        AND json_type(secret_ciphertext)='object'
-        AND (SELECT COUNT(*) FROM json_each(channels.secret_ciphertext))=5
-        AND json_extract(secret_ciphertext,'$.algorithm')='A256GCM'
-        AND json_extract(secret_ciphertext,'$.format_version')=1
-        AND json_type(secret_ciphertext,'$.key_version')='text'
-        AND json_extract(secret_ciphertext,'$.key_version')=secret_key_version
-        AND json_type(secret_ciphertext,'$.nonce')='text'
-        AND length(json_extract(secret_ciphertext,'$.nonce'))=16
-        AND json_extract(secret_ciphertext,'$.nonce') NOT GLOB '*[^A-Za-z0-9_-]*'
-        AND json_type(secret_ciphertext,'$.ciphertext')='text'
-        AND length(json_extract(secret_ciphertext,'$.ciphertext'))>=23
-        AND json_extract(secret_ciphertext,'$.ciphertext') NOT GLOB '*[^A-Za-z0-9_-]*'
-        THEN 0 ELSE 1 END),0) AS invalid_envelopes
+  channelCredentials: `SELECT COUNT(*) AS channels,
+      COALESCE(SUM(CASE WHEN upstream_key IS NOT NULL AND length(trim(upstream_key))>0
+        THEN 1 ELSE 0 END),0) AS ready_channels,
+      COALESCE(SUM(CASE WHEN upstream_key IS NULL OR length(trim(upstream_key))=0
+        THEN 1 ELSE 0 END),0) AS needs_key_reentry
     FROM channels;`,
-  channelVersions: 'SELECT DISTINCT secret_key_version AS key_version FROM channels ORDER BY secret_key_version;',
 } as const;
 
 type Mode = 'local' | 'remote';
@@ -105,7 +90,6 @@ interface Options {
   config: string;
   environment?: string;
   persistTo?: string;
-  keyVersions: Set<string>;
   isolated: boolean;
 }
 
@@ -138,8 +122,6 @@ function usage(): string {
     `  --config <path>               Wrangler config path (default: ${defaultConfig})`,
     '  --env <name>                  Wrangler environment (remote only; never production)',
     `  --persist-to <path>           Local Wrangler state directory (default: ${defaultLocalState})`,
-    '  --key-version <version>       Retained key version label; may be repeated',
-    '  --key-versions-file <path>    Text file of retained labels, one per line; no key material',
     '  --json                        Kept for CLI compatibility; output is always JSON',
     '  --help                        Show this help',
     '',
@@ -166,8 +148,6 @@ function parseArgs(args: string[]): Options | null {
   let environment: string | undefined;
   let persistTo: string | undefined;
   let isolated = false;
-  const keyVersions = new Set<string>();
-  const keyVersionFiles: string[] = [];
 
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index]!;
@@ -194,16 +174,6 @@ function parseArgs(args: string[]): Options | null {
     if (argument === '--persist-to' || argument.startsWith('--persist-to=')) {
       const [value, next] = takeValue(args, index, argument, '--persist-to'); persistTo = value; index = next; continue;
     }
-    if (argument === '--key-version' || argument.startsWith('--key-version=')) {
-      const [value, next] = takeValue(args, index, argument, '--key-version');
-      if (!versionPattern.test(value)) throw new Error(`Invalid key version label: ${value}`);
-      keyVersions.add(value); index = next; continue;
-    }
-    if (argument === '--key-versions-file' || argument.startsWith('--key-versions-file=')) {
-      const [value, next] = takeValue(args, index, argument, '--key-versions-file');
-      keyVersionFiles.push(resolveFromRoot(value));
-      index = next; continue;
-    }
     throw new Error(`Unknown option: ${argument}`);
   }
 
@@ -224,26 +194,12 @@ function parseArgs(args: string[]): Options | null {
     }
   }
 
-  // Validate the target before opening any optional file. This keeps an
-  // accidental production invocation from reading a path that was meant for
-  // labels but could contain Secret material.
-  for (const path of keyVersionFiles) {
-    if (!existsSync(path)) throw new Error(`Key version label file does not exist: ${path}`);
-    for (const [lineNumber, raw] of readFileSync(path, 'utf8').split(/\r?\n/).entries()) {
-      const label = raw.replace(/^\uFEFF/, '').trim();
-      if (label === '' || label.startsWith('#')) continue;
-      if (!versionPattern.test(label)) throw new Error(`Invalid key version label at ${path}:${lineNumber + 1}`);
-      keyVersions.add(label);
-    }
-  }
-
   return {
     mode,
     database,
     config: resolveFromRoot(config),
     ...(environment === undefined ? {} : { environment }),
     ...(persistTo === undefined ? {} : { persistTo: resolveFromRoot(persistTo) }),
-    keyVersions,
     isolated,
   };
 }
@@ -400,36 +356,16 @@ async function verify(options: Options): Promise<Report> {
       : fail('registration-batch-idempotency', { duplicateOperations: duplicates });
   }));
 
-  const channelCheck = await runCheck(options, 'channel-secret-envelopes', readOnlyQueries.channelEnvelopes, rows => {
-    if (rows.length !== 1) return fail('channel-secret-envelopes', { reason: 'unexpected aggregate result' });
-    const row = rows[0]!;
-    const channels = numberValue(row, 'channels');
-    const invalidVersions = numberValue(row, 'invalid_versions');
-    const invalidEnvelopes = numberValue(row, 'invalid_envelopes');
-    return invalidVersions === 0 && invalidEnvelopes === 0
-      ? pass('channel-secret-envelopes', { channels, invalidVersions, invalidEnvelopes })
-      : fail('channel-secret-envelopes', { channels, invalidVersions, invalidEnvelopes });
-  });
-  checks.push(channelCheck);
-
-  if (channelCheck.status === 'pass') {
-    const channelCount = Number(channelCheck.details.channels);
-    if (channelCount > 0) {
-      const versionCheck = await runCheck(options, 'channel-key-version-labels', readOnlyQueries.channelVersions, rows => {
-        const databaseVersions = rows.map(row => textValue(row, 'key_version'));
-        if (options.keyVersions.size === 0) {
-          return fail('channel-key-version-labels', { reason: 'provide --key-versions-file or --key-version for a populated database', databaseVersions });
-        }
-        const missing = databaseVersions.filter(version => !options.keyVersions.has(version));
-        return missing.length === 0
-          ? pass('channel-key-version-labels', { databaseVersions, manifestLabels: options.keyVersions.size, keyMaterialRead: false })
-          : fail('channel-key-version-labels', { databaseVersions, missing, manifestLabels: options.keyVersions.size, keyMaterialRead: false });
-      });
-      checks.push(versionCheck);
-    } else {
-      checks.push(pass('channel-key-version-labels', { channels: 0, skipped: true, keyMaterialRead: false }));
-    }
-  }
+  checks.push(await runCheck(options, 'channel-credentials', readOnlyQueries.channelCredentials, rows => {
+    if (rows.length !== 1) return fail('channel-credentials', { reason: 'unexpected aggregate result' });
+    const channels = numberValue(rows[0]!, 'channels');
+    const readyChannels = numberValue(rows[0]!, 'ready_channels');
+    const needsKeyReentry = numberValue(rows[0]!, 'needs_key_reentry');
+    const details = { channels, readyChannels, needsKeyReentry };
+    return needsKeyReentry === 0
+      ? pass('channel-credentials', details)
+      : fail('channel-credentials', { ...details, reason: 're-enter upstream keys for legacy encrypted channels' });
+  }));
 
   return {
     version: 1,

@@ -27,14 +27,10 @@ interface ModelRow {
 const projection = 'public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at';
 function invalid(): never { throw new ApiError('invalid_request'); }
 function inputObject(value: unknown, allowed: readonly string[]): Record<string, unknown> {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)
-    || (Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null)) invalid();
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) invalid();
   const output: Record<string, unknown> = Object.create(null);
-  for (const key of Reflect.ownKeys(value)) {
-    if (typeof key !== 'string' || !allowed.includes(key)) invalid();
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    if (!descriptor || !('value' in descriptor) || descriptor.value === undefined) invalid();
-    output[key] = descriptor.value;
+  for (const key of allowed) {
+    if (Object.hasOwn(value, key)) output[key] = (value as Record<string, unknown>)[key];
   }
   return output;
 }

@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createExecutionContext, waitOnExecutionContext } from 'cloudflare:test';
 import { app } from '../../apps/worker/app';
 import type { Env } from '../../apps/worker/env';
-import { encryptChannelSecret } from '../../apps/worker/admin/channel-secrets';
 import { generateToken, hashToken } from '../../apps/worker/auth/tokens';
 import { routesCacheKey } from '../../apps/worker/cache/routes';
 import { testEnv } from '../helpers/database';
@@ -18,7 +17,6 @@ let env: Env;
 let ownerKey: string;
 let ownerSecondKey: string;
 let otherKey: string;
-let keyBytes: Uint8Array;
 
 const response = (id: string, modelName: string) => ({ id, object: 'response', created_at: 1, model: modelName, status: 'completed', output: [],
   usage: { input_tokens: 2, output_tokens: 3, total_tokens: 5 } });
@@ -43,9 +41,9 @@ async function addKey(id: string, userId: string): Promise<string> {
   return token;
 }
 async function addChannel(id: string, priority: number, secret: string): Promise<void> {
-  const encrypted = await encryptChannelSecret(secret, id, 'v1', keyBytes);
-  await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-    VALUES(?,?,?,?,'v1','active',?,2,60,1,0,0)`).bind(id, id, `https://provider-${id}.example.invalid`, encrypted, priority).run();
+  const credential = secret;
+  await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+    VALUES(?,?,?,?,'active',?,2,60,1,0,0)`).bind(id, id, `https://provider-${id}.example.invalid`, credential, priority).run();
   await testEnv.DB.prepare('INSERT INTO channel_groups(channel_id,group_id) VALUES(?,?)').bind(id, group).run();
   await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,upstream_model,protocol,capabilities_json,config_version)
     VALUES(?,?,?,?,?,1)`).bind(id, model, `upstream-${id}`, 'responses', JSON.stringify({ protocol: 'responses', features: ['streaming', 'response_history'], maxOutputTokens: 64 })).run();
@@ -61,8 +59,8 @@ beforeEach(async () => {
   ownerKey = await addKey('q08-owner-key', owner);
   ownerSecondKey = await addKey('q08-owner-second-key', owner);
   otherKey = await addKey('q08-other-key', other);
-  keyBytes = crypto.getRandomValues(new Uint8Array(32));
-  env = { ...testEnv, ENVIRONMENT: 'local', PUBLIC_BASE_URL: origin, CHANNEL_KEYRING_JSON: JSON.stringify({ v1: btoa(String.fromCharCode(...keyBytes)) }), CHANNEL_ACTIVE_KEY_VERSION: 'v1' } as Env;
+
+  env = { ...testEnv, ENVIRONMENT: 'local', PUBLIC_BASE_URL: origin,  } as Env;
   await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES (?,'active','{"input":"1","output":"2"}', 1, 0, 64, 0, 0)`).bind(model).run();
   await addChannel(channelA, 10, 'q08-upstream-a'); await addChannel(channelB, 1, 'q08-upstream-b');
 });

@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { adjustBalance, findBalanceAdjustment } from '../../apps/worker/billing/adjustments';
 import type { BalanceAdjustmentInput } from '../../apps/worker/billing/adjustments';
-import { encryptChannelSecret } from '../../apps/worker/admin/channel-secrets';
 import { testEnv } from '../helpers/database';
 
 const input = (patch: Partial<BalanceAdjustmentInput> = {}): BalanceAdjustmentInput => ({ kind: 'adjustment', operationId: 'b06-operation', userId: 'b06-user', deltaUnits: '-200', reason: "Synthetic correction's reason", ...patch });
@@ -63,7 +62,7 @@ describe('B06 administrator adjustments with native D1', () => {
   it('replays identical operation facts without another balance or audit effect', async () => {
     const first = await adjustBalance(testEnv.DB, input(), actor, 2000);
     const before = await state();
-    expect(await adjustBalance(testEnv.DB, input({ deltaUnits: -200n }), actor, 9999)).toEqual({ outcome: 'existing', entry: first.entry });
+    expect(await adjustBalance(testEnv.DB, { ...input({ deltaUnits: -200n }), fingerprint: 'ignored', createdBy: 'ignored' } as BalanceAdjustmentInput, actor, 9999)).toEqual({ outcome: 'existing', entry: first.entry });
     expect(await findBalanceAdjustment(testEnv.DB, input(), actor)).toEqual(first.entry);
     expect(await state()).toEqual(before);
   });
@@ -115,11 +114,10 @@ describe('B06 administrator adjustments with native D1', () => {
     expect(await state()).toEqual(before);
   });
 
-  it('requires a reason and safe explicit units, rejecting forged fields without writes', async () => {
+  it('requires a reason and safe explicit units without partial writes', async () => {
     for (const patch of [{ reason: '' }, { reason: ' \n ' }, { reason: 'x'.repeat(4097) }, { reason: undefined },
       { deltaUnits: 1 }, { deltaUnits: '1.5' }, { deltaUnits: '-0' }, { deltaUnits: '01' }, { deltaUnits: '9007199254740992' },
       { deltaUnits: 9007199254740992n }, { kind: 'consumption' }, { kind: 'grant', deltaUnits: '0' }, { kind: 'grant', deltaUnits: '-1' },
-      { fingerprint: 'forged' }, { createdBy: actor }, { requestId: undefined },
     ]) await expect(adjustBalance(testEnv.DB, { ...input(), ...patch } as unknown as BalanceAdjustmentInput, actor, 2000)).rejects.toMatchObject({ code: 'invalid_request' });
     expect((await state()).ledger).toHaveLength(0); expect((await state()).audit).toHaveLength(0);
   });
@@ -173,9 +171,9 @@ describe('B06 administrator adjustments with native D1', () => {
   it('requires an owned request reference and leaves the original request untouched', async () => {
     await testEnv.DB.prepare(`INSERT INTO api_keys(id,user_id,key_hash,display_prefix,name,status,created_at,updated_at)
       VALUES('b06-key','b06-user',?,'s2a_key_ABCDEFGH','Synthetic','active',0,0)`).bind('6'.repeat(64)).run();
-    const encrypted = await encryptChannelSecret('synthetic', 'b06-channel', 'v1', crypto.getRandomValues(new Uint8Array(32)));
-    await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-      VALUES('b06-channel','Synthetic','https://example.invalid',?,'v1','active',0,1,1,1,0,0)`).bind(encrypted).run();
+    const credential = 'synthetic';
+    await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+      VALUES('b06-channel','Synthetic','https://example.invalid',?,'active',0,1,1,1,0,0)`).bind(credential).run();
     await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('b06-model','active','{}',1,0,10,0,0)`).run();
     await testEnv.DB.prepare(`INSERT INTO requests(id,user_id,api_key_id,channel_id,public_model_id,upstream_model,downstream_protocol,upstream_protocol,price_snapshot,created_at,updated_at)
       VALUES('b06-request','b06-user','b06-key','b06-channel','b06-model','model','chat','chat','{}',0,0)`).run();

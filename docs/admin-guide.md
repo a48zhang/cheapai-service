@@ -1,5 +1,7 @@
 # 管理员上手指南
 
+上游 HTTP/私网/query/重定向及供应商扩展现已放开，分组关系不再限制 100 项；详细边界见[当前接入政策](policy-simplification.md)。
+
 目标：让一个用户完成第一次网页聊天或 API 调用，而不仅是能登录后台。此流程基于当前源码；远程环境准备与发布见[部署步骤](deployment.md)。本轮修复已覆盖聊天、限流和渠道选择器；浏览器与真实发布验收仍待完成，见[验证状态](known-issues.md)。
 
 ## 配置顺序
@@ -46,7 +48,7 @@
 
 ### 6. 最后开放注册
 
-在 `/admin/registration/settings` 设置关闭、开放或注册码注册。若开启邮箱验证，必须先配置真实发送能力，并完成实际投递检查。production 和独立 PR 配置默认均为 `EMAIL_VERIFICATION_READY: "false"`、`send_email: []`，不能直接视为邮件可用。
+在 `/admin/registration/settings` 设置关闭、开放或注册码注册。若开启邮箱验证，必须先配置真实发送能力，并完成实际投递检查。当前 Git production 使用 Resend，`EMAIL_VERIFICATION_READY: "true"`、`send_email: []`；独立 PR 仍为 `"false"`。配置开关不能证明生产运行时 Secrets 和实际邮件投递可用。
 
 仅在理解后果后调整邮箱验证开关；不要把 `EMAIL_VERIFICATION_READY` 改成 true 来绕过发送故障。注册码在 `/admin/registration/codes` 管理，明文只在生成时显示。
 

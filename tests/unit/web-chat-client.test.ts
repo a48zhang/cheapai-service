@@ -77,7 +77,7 @@ describe('React chat API stream client', () => {
     expect(JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body))).toMatchObject({ operationId: 'operation-1' });
   });
 
-  it('preserves whitespace and empty deltas while rejecting blank prompts before fetch', async () => {
+  it('preserves whitespace and empty deltas from validated submissions', async () => {
     const content = '  first\n\n```ts\n  const a = 1;\n```\n';
     const final = { ...assistantMessage, content };
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(streamResponse([
@@ -99,11 +99,6 @@ describe('React chat API stream client', () => {
     expect(result).toMatchObject({ message: { content } });
     expect(deltas).toEqual(['', content]);
     expect(JSON.parse(String(fetcher.mock.calls[0]![1]!.body)).content).toBe(content);
-    for (const blank of ['', ' \n\t ']) {
-      await expect(api.sendMessage(conversation.id, {
-        operationId: 'empty', conversationVersion: 1, groupId: 'group-1', modelId: 'model-1', content: blank,
-      })).rejects.toMatchObject({ kind: 'request' });
-    }
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 

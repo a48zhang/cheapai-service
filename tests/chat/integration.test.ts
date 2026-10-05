@@ -6,7 +6,6 @@ import type { Env } from '../../apps/worker/env';
 import { issueCsrfToken } from '../../apps/worker/auth/csrf';
 import { createCookieSession } from '../../apps/worker/auth/sessions';
 import { generateToken } from '../../apps/worker/auth/tokens';
-import { encryptChannelSecret } from '../../apps/worker/admin/channel-secrets';
 import { ChatService, createD1ChatStorage as legacyD1Storage } from '../../apps/worker/chat/service';
 import { createD1ChatStorage } from '../../apps/worker/chat/d1-storage';
 import type { ChatStorage } from '../../apps/worker/chat/storage';
@@ -21,13 +20,11 @@ import { testEnv } from '../helpers/database';
 const origin = 'https://chat-integration.example';
 const model = 'chat-integration-model';
 const answer = 'local chat fixture answer';
-const keyVersion = 'chat-test';
 
 type Identity = { id: string; cookie: string; csrf: string; headers: HeadersInit };
 type AppResult = { response: Response; text: string };
 
 let env: Env;
-let keyring: Uint8Array;
 let sequence = 0;
 
 function jsonHeaders(identity?: Identity, write = false): HeadersInit {
@@ -133,11 +130,11 @@ async function seedChatFixtures(): Promise<void> {
     ['chat-full', `chat-full-channel-${sequence}`, 'upstream-full'],
     ['chat-discount', `chat-discount-channel-${sequence}`, 'upstream-discount'],
   ] as const) {
-    const encrypted = await encryptChannelSecret('local-chat-upstream-key', channelId, keyVersion, keyring);
+    const credential = 'local-chat-upstream-key';
     await testEnv.DB.prepare(`INSERT INTO channels
-      (id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-      VALUES(?,?,?,?,'${keyVersion}','active',1,2,60,1,?,?)`)
-      .bind(channelId, channelId, 'https://e2e-upstream.example.invalid/v1', encrypted, now, now).run();
+      (id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+      VALUES(?,?,?,?,'active',1,2,60,1,?,?)`)
+      .bind(channelId, channelId, 'https://e2e-upstream.example.invalid/v1', credential, now, now).run();
     await testEnv.DB.prepare('INSERT INTO channel_groups(channel_id,group_id) VALUES(?,?)').bind(channelId, groupId).run();
     await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,capabilities_json,config_version)
       VALUES(?,?, 'chat',?,'{"protocol":"chat","features":["streaming","stream_usage"],"maxOutputTokens":64}',1)`)
@@ -146,13 +143,10 @@ async function seedChatFixtures(): Promise<void> {
 }
 
 beforeEach(async () => {
-  keyring = crypto.getRandomValues(new Uint8Array(32));
   env = {
     ...testEnv,
     ENVIRONMENT: 'local',
     PUBLIC_BASE_URL: origin,
-    CHANNEL_ACTIVE_KEY_VERSION: keyVersion,
-    CHANNEL_KEYRING_JSON: JSON.stringify({ [keyVersion]: btoa(String.fromCharCode(...keyring)) }),
   } as Env;
 });
 

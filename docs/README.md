@@ -16,7 +16,8 @@
 2. [初始管理员](admin-bootstrap.md)：首次初始化限制，不含密码重置
 3. [部署步骤](deployment.md)：环境、Secrets、迁移和发布后检查
 4. [备份与恢复](backup-restore.md)、[回滚](rollback.md)：版本与数据库兼容性判断
-5. [真实上游兼容测试](live-compatibility-testing.md)：涉及真实供应商调用和费用，应在明确环境与预算后执行
+5. [Worker 配置清单](worker-environment-inventory.md)：普通变量、Secrets、资源绑定和发布环境
+6. [真实上游兼容测试](live-compatibility-testing.md)：涉及真实供应商调用和费用，应在明确环境与预算后执行
 
 ### 开发者
 
@@ -30,6 +31,8 @@
 
 8. [Web 与 Desktop 外观主题](appearance.md)：共享主题、暗色设计、首屏初始化及验收范围
 
+9. [校验与密码学清单](validation-crypto-inventory.md)：变更前审计；[当前校验与接入政策](policy-simplification.md)：已实施的简化及必要保留项
+
 ## 当前状态怎么看
 
 不要把“有设计”“有实现”“本地通过”和“已在线上验证”混为一项状态。
@@ -42,7 +45,7 @@
 | 本轮 React 迁移是否完成？ | [开发计划](frontend-react-development-plan.md)、[集中验收](validation/cheapai-react-final.md)；旧实施记录保留历史边界 |
 | 线上到底是什么版本？ | 目标环境的 Worker version/deployment ID、D1 migration list 和同一环境的新鲜验收记录；仓库文件不能单独证明 |
 
-当前源码包含 0001–0023 共 23 个 D1 迁移。部署配置保留本地模拟与使用真实独立资源的 production（cheapai.dev）；分支验证使用独立的 PR Worker 与共享预览 D1/KV/Gate，详见[PR 预览](pr-previews.md)。旧共享 staging 已于 2026-10-03 完成永久退役，相关 Worker、D1、KV 和 Gate DO 已删除并回读确认，相关操作入口已移除。配置存在不等于已部署、可访问或已通过真实上游验收。
+当前源码包含 0001–0026 共 26 个 D1 迁移。部署配置保留本地模拟与使用真实独立资源的 production（cheapai.dev）；分支验证使用独立的 PR Worker 与共享预览 D1/KV/Gate，详见[PR 预览](pr-previews.md)。旧共享 staging 已于 2026-10-03 完成永久退役，相关 Worker、D1、KV 和 Gate DO 已删除并回读确认，相关操作入口已移除。配置存在不等于已部署、可访问或已通过真实上游验收。
 
 ## 设计、变更和历史证据
 

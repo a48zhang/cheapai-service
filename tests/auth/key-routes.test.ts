@@ -70,7 +70,7 @@ describe('A26-R Key revocation routes on native D1/Hono', () => {
     expect(response.status).toBe(403); expect(pull).not.toHaveBeenCalled();
     expect((await writeApp().request(`${origin}${path}/${created.key.id}/revoke`, { method: 'POST' }, bindings())).status).toBe(401);
   });
-  it.each([{}, { version: '1' }, { version: 0 }, { version: 1.5 }, { version: 1, userId: 'a26-other' }, { version: 1, status: 'active' }])('requires only an integer version %#', async body => {
+  it.each([{}, { version: '1' }, { version: 0 }, { version: 1.5 }])('requires only an integer version %#', async body => {
     const created = await key();
     expect((await writeApp().request(`${origin}${path}/${created.key.id}/revoke`, { method: 'POST', headers: writeHeaders(), body: JSON.stringify(body) }, bindings())).status).toBe(400);
     expect(await testEnv.DB.prepare('SELECT version FROM api_keys WHERE id=?').bind(created.key.id).first('version')).toBe(1);
@@ -187,10 +187,17 @@ describe('A26-C Key creation routes on native D1/Hono', () => {
     const response = await writeApp().request(origin + path, { method: 'POST', headers: writeHeaders(operationId), body: '{"name":"Key"}' }, bindings());
     expect(response.status).toBe(400);
   });
-  it.each([{ name: 'Key', userId: 'a26-other' }, { name: 'Key', operationId: 'body-operation' }, { name: 'Key', status: 'active' }, {}, { name: 'Key', allowedModels: ['inaccessible'] }])('rejects body ownership/unsupported fields or denied model grants %#', async value => {
+  it.each([{}, { name: 'Key', allowedModels: ['inaccessible'] }])('rejects missing fields or denied model grants %#', async value => {
     const response = await writeApp().request(origin + path, { method: 'POST', headers: writeHeaders(), body: JSON.stringify(value) }, bindings());
     expect(response.status).toBe('allowedModels' in value ? 403 : 400);
     expect(await testEnv.DB.prepare('SELECT COUNT(*) FROM api_keys').first('COUNT(*)')).toBe(0);
+  });
+  it('ignores injected ownership and creation metadata', async () => {
+    const response = await writeApp().request(origin + path, { method: 'POST', headers: writeHeaders('trusted-operation'),
+      body: JSON.stringify({ name: 'Key', userId: 'a26-other', operationId: 'body-operation', status: 'revoked', extension: true }) }, bindings());
+    expect(response.status).toBe(201);
+    expect(await testEnv.DB.prepare('SELECT user_id,status,creation_operation_id FROM api_keys').first())
+      .toEqual({ user_id: 'a26-owner', status: 'active', creation_operation_id: 'trusted-operation' });
   });
   it('resolves trustedOrigin only for authenticated writes and fails closed on invalid trusted config', async () => {
     const resolver = vi.fn(() => origin);
@@ -251,7 +258,7 @@ describe('A26 personal Key read routes on native D1/Hono', () => {
     expect(second.data.nextCursor).toBeNull();
     expect((await app().request(`${origin}${path}?state=revoked&cursor=${first.data.nextCursor}`, { headers: headers() }, bindings())).status).toBe(400);
   });
-  it.each(['?owner=a26-other', '?limit=0', '?limit=101', '?limit=1&limit=2', '?state=unknown', '?cursor=bad!', '?state=active&state=all'])('rejects invalid query %s', async query => {
+  it.each(['?limit=0', '?limit=101', '?state=unknown', '?cursor=bad!'])('rejects invalid query %s', async query => {
     expect((await app().request(origin + path + query, { headers: headers() }, bindings())).status).toBe(400);
   });
   it('does not resolve trustedOrigin for GET and maps storage failures to stable errors', async () => {

@@ -74,14 +74,12 @@ pub(crate) enum DesktopAccountProblem {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
 pub(crate) struct DesktopAccountData {
     user: DesktopPublicUser,
     balance: DesktopBalance,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
 pub(crate) struct DesktopPublicUser {
     id: String,
     email_normalized: String,
@@ -94,7 +92,6 @@ pub(crate) struct DesktopPublicUser {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
 pub(crate) struct DesktopBalance {
     currency: String,
     decimals: u8,
@@ -103,7 +100,6 @@ pub(crate) struct DesktopBalance {
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 struct DesktopLoginResponse {
     token: String,
     #[serde(rename = "expiresAt")]
@@ -112,7 +108,7 @@ struct DesktopLoginResponse {
 }
 
 #[derive(Deserialize, Serialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 struct ActiveAccountRecord {
     version: u8,
     account_id: String,

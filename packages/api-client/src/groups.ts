@@ -1,11 +1,4 @@
-import {
-  groupInputSchema,
-  groupListQuerySchema,
-  groupPageSchema,
-  groupPatchSchema,
-  groupSchema,
-  groupVersionSchema,
-} from '@cheapai/contracts/groups';
+import { groupPageSchema, groupSchema } from '@cheapai/contracts/groups';
 import type {
   GroupInput,
   GroupListQuery,
@@ -32,10 +25,9 @@ export function createGroupsApi(api: ApiClient) {
     options: GroupListQuery = {},
     readOptions?: ApiReadOptions,
   ): Promise<GroupPage> {
-    const query = groupListQuerySchema.parse(options);
     return (
       await api.get('/api/v1/admin/groups', {
-        query: { ...query, limit: 20 },
+        query: { ...options, limit: 20 },
         decode: (value) => groupPageSchema.parse(value),
         ...(readOptions?.signal === undefined ? {} : { signal: readOptions.signal }),
       })
@@ -52,21 +44,18 @@ export function createGroupsApi(api: ApiClient) {
   }
 
   async function create(input: GroupInput): Promise<GroupView> {
-    const body = groupInputSchema.parse(input);
     return (
-      await api.post('/api/v1/admin/groups', body, {
+      await api.post('/api/v1/admin/groups', input, {
         decode: (value) => groupSchema.parse(value),
       })
     ).data;
   }
 
   async function update(id: string, version: number, patch: GroupPatch): Promise<GroupView> {
-    const body = groupPatchSchema.parse(patch);
-    const expectedVersion = groupVersionSchema.parse(version);
     return (
       await api.patch(
         pathFor(id),
-        { version: expectedVersion, ...body },
+        { version, ...patch },
         {
           decode: (value) => groupSchema.parse(value),
         },

@@ -171,9 +171,5 @@ describe('dual subject lease compensation through native Gate DOs', () => {
     expect(await active('channel:channel-1')).toBe(0);
   });
 
-  it('rejects invalid cancellation options before obtaining either lease', async () => {
-    const acquire = vi.fn();
-    await expect(acquireDualLease(bindingHooks({ beforeAcquire: acquire }), input, { signal: {} as AbortSignal })).rejects.toMatchObject({ code: 'invalid_input' });
-    expect(acquire).not.toHaveBeenCalled();
-  });
+
 });

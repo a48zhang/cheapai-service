@@ -52,9 +52,9 @@ beforeEach(async () => {
   const token = generateToken('apiKey');
   await prepare(testEnv.DB, `INSERT INTO api_keys(id,user_id,key_hash,display_prefix,name,status,created_at,updated_at)
     VALUES('g03-key','g03-user',?,'s2a_key_ABCDEFGH','G03 Key','active',0,0)`, [await hashToken('apiKey', token)]).run();
-  const ciphertext = JSON.stringify({ algorithm: 'A256GCM', format_version: 1, key_version: 'test', nonce: 'synthetic', ciphertext: 'synthetic-only' });
-  await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-    VALUES('g03-channel','G03 Channel','https://provider.example.com',?,'test','active',1,2,60,1,0,0)`, [ciphertext]).run();
+  const credential = 'PRIVATE-UPSTREAM-KEY';
+  await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+    VALUES('g03-channel','G03 Channel','https://provider.example.com',?,'active',1,2,60,1,0,0)`, [credential]).run();
   await prepare(testEnv.DB, `INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('g03-model','active',?,1,10,4096,0,0)`, [JSON.stringify({ input: '1', output: '2' })]).run();
   await prepare(testEnv.DB, "INSERT INTO channel_groups(channel_id,group_id) VALUES('g03-channel','g03-group')").run();
   await prepare(testEnv.DB, `INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,capabilities_json,config_version)
@@ -89,7 +89,7 @@ describe('final gateway admission with native D1 and Gate leases', () => {
       expect(await active('user:g03-user')).toBe(1);
       expect(await active('channel:g03-channel')).toBe(1);
       expect(await count()).toBe(1);
-      expect(JSON.stringify(admitted.request)).not.toMatch(/synthetic prompt|key_hash|password|ciphertext/);
+      expect(JSON.stringify(admitted.request)).not.toMatch(/synthetic prompt|key_hash|password|upstream_key|PRIVATE-UPSTREAM-KEY/);
     } finally { expect((await admitted.lease.release()).complete).toBe(true); }
   });
 
@@ -154,11 +154,14 @@ describe('final gateway admission with native D1 and Gate leases', () => {
     } finally { await gate.release({ requestId: 'busy-fixture', leaseToken: occupied.lease.leaseToken }); }
   });
 
-  it('enforces trusted Chat stream usage policy before registering even if the client opts out', async () => {
+  it('admits Chat streaming without an upstream stream_usage declaration', async () => {
     const streaming: ProtocolRequest = { protocol: 'chat', request: { ...request.request, stream: true, stream_options: { include_usage: false } } };
     await testEnv.DB.prepare("UPDATE channel_models SET capabilities_json=? WHERE channel_id='g03-channel'").bind(JSON.stringify({ protocol: 'chat', features: ['streaming'], maxOutputTokens: 4096 })).run();
-    await expect(admitRequest(testEnv, subject, streaming, { ...options(), requireChatStreamUsage: true })).rejects.toBeInstanceOf(Error);
-    expect(await count()).toBe(0);
+    const admitted = await admitRequest(testEnv, subject, streaming, options());
+    try {
+      expect(admitted.request.execution_status).toBe('admitted');
+      expect(await count()).toBe(1);
+    } finally { expect((await admitted.lease.release()).complete).toBe(true); }
   });
 
   it('does not return send permission after a committed INSERT loses its acknowledgement', async () => {
@@ -193,8 +196,8 @@ describe('final gateway admission with native D1 and Gate leases', () => {
 });
 
 async function addAlternative(protocol: 'chat' | 'responses') {
-  await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,secret_ciphertext,secret_key_version,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
-    SELECT 'g03-alternative','G03 Alternative',base_url,secret_ciphertext,secret_key_version,status,100,concurrency_limit,rpm_limit,1,0,0
+  await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
+    SELECT 'g03-alternative','G03 Alternative',base_url,upstream_key,status,100,concurrency_limit,rpm_limit,1,0,0
     FROM channels WHERE id='g03-channel'`).run();
   await prepare(testEnv.DB, "INSERT INTO channel_groups(channel_id,group_id) VALUES('g03-alternative','g03-group')").run();
   await prepare(testEnv.DB, `INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,capabilities_json,config_version)

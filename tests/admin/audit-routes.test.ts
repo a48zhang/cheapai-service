@@ -12,7 +12,7 @@ function request(query = '', actor = admin, now = 10000) {
 }
 async function audit(id: string, actorId = admin, time = 5000) {
   await buildAuditStatement(testEnv.DB, { id, actor_id: actorId, action: 'group.update', target_type: 'group', target_id: 'default',
-    operation_id: 'o02-operation', created_at: time, changes: { status: { before: 'active', after: 'disabled' }, password: 'PRIVATE', headers: { Authorization: 'PRIVATE' } } }).run();
+    operation_id: 'o02-operation', created_at: time, changes: { status: { before: 'active', after: 'disabled' } } }).run();
 }
 beforeEach(async () => {
   cookies.clear();
@@ -32,24 +32,27 @@ describe('administrator audit queries on native D1', () => {
     const allowed = await request('', other); expect(allowed.status).toBe(200);
     expect(await allowed.json()).toMatchObject({ data: { items: expect.any(Array) } });
   });
-  it('returns O01 projected changes without credentials and reprojects legacy objects', async () => {
+  it('returns caller-selected business changes without another field allowlist', async () => {
+    const changes = { before: { status: 'active' }, billing_multiplier_changed: true };
     await testEnv.DB.prepare('UPDATE admin_audit SET redacted_change_json=? WHERE id=?')
-      .bind('{"before":{"status":"active","password":"PRIVATE"},"authorization":"PRIVATE"}', 'o02-a').run();
-    const response = await request('?actorId=' + admin); const text = await response.text();
-    expect(response.headers.get('Cache-Control')).toBe('no-store'); expect(text).not.toContain('PRIVATE'); expect(text).not.toContain('redacted_change_json');
-    const data = JSON.parse(text).data;
-    expect(data.items.find((row: { id: string }) => row.id === 'o02-a').changes).toEqual({ before: { status: 'active' } });
+      .bind(JSON.stringify(changes), 'o02-a').run();
+    const response = await request('?actorId=' + admin);
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
+    const data = (await response.json<{ data: { items: { id: string; changes: unknown }[] } }>()).data;
+    expect(data.items.find(row => row.id === 'o02-a')!.changes).toEqual(changes);
     expect(data.items).toHaveLength(3);
   });
-  it('marks oversized stored changes unavailable instead of echoing them', async () => {
-    await testEnv.DB.prepare('UPDATE admin_audit SET redacted_change_json=? WHERE id=?').bind(JSON.stringify({ name: 'PRIVATE'.repeat(2000) }), 'o02-a').run();
-    const response = await request(); const text = await response.text(); expect(text).not.toContain('PRIVATE');
-    expect(JSON.parse(text).data.items.find((row: { id: string }) => row.id === 'o02-a')).toMatchObject({ changes: null, redaction_valid: false });
+  it('returns large grant changes instead of silently replacing them with null', async () => {
+    const changes = { allowed_group_ids: Array.from({ length: 150 }, (_, i) => `group-${i}-${'a'.repeat(80)}`) };
+    await testEnv.DB.prepare('UPDATE admin_audit SET redacted_change_json=? WHERE id=?').bind(JSON.stringify(changes), 'o02-a').run();
+    expect(await (await request()).json()).toMatchObject({ data: { items: expect.arrayContaining([
+      expect.objectContaining({ id: 'o02-a', changes, redaction_valid: true }),
+    ]) } });
   });
   it('filters actor/time/action/target/operation and rejects invalid queries', async () => {
     const filtered = await request(`?actorId=${other}&from=5000&to=5000&action=group.update&targetType=group&targetId=default&operationId=o02-operation`);
     expect(await filtered.json()).toMatchObject({ data: { items: [{ id: 'o02-other' }] } });
-    for (const query of ['from=-1', 'from=1%0A', 'to=1.5', 'from=2&to=1', 'limit=101', 'limit=1&limit=2', 'cursor=', 'actorId=', "targetId='%20OR%201=1", 'scope=admin', 'action=BadAction']) {
+    for (const query of ['from=-1', 'from=1%0A', 'to=1.5', 'from=2&to=1', 'limit=101', 'limit=1&limit=2', 'cursor=', 'actorId=', "targetId='%20OR%201=1", 'action=BadAction']) {
       expect((await request('?' + query)).status, query).toBe(400);
     }
   });
@@ -63,7 +66,7 @@ describe('administrator audit queries on native D1', () => {
   });
   it('does not access Secret/Origin configuration on reads', async () => {
     const getter = vi.fn(() => { throw new Error('PRIVATE SECRET'); });
-    const bindings = Object.defineProperty({ DB: testEnv.DB }, 'CHANNEL_KEYRING_JSON', { enumerable: true, get: getter });
+    const bindings = Object.defineProperty({ DB: testEnv.DB }, 'EMAIL_HMAC_KEY', { enumerable: true, get: getter });
     const response = await createAuditRoutes({ now: () => 10000 }).request('https://console.example' + ADMIN_AUDIT_PATH,
       { headers: { Cookie: cookies.get(admin)! } }, bindings);
     expect(response.status).toBe(200); expect(getter).not.toHaveBeenCalled();

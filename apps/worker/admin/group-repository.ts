@@ -32,19 +32,18 @@ function multiplier(value: unknown): string {
 function input(value: unknown): GroupPatch {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) invalid();
   const result: GroupPatch = {};
-  for (const key of Reflect.ownKeys(value as object)) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, key);
-    if (!descriptor || !('value' in descriptor)) invalid();
-    const field: unknown = descriptor!.value;
+  const source = value as Record<string, unknown>;
+  for (const key of ['name', 'status', 'channelIds', 'billingMultiplier'] as const) {
+    if (!Object.hasOwn(source, key)) continue;
+    const field = source[key];
     if (key === 'name') {
       if (typeof field !== 'string' || !field.trim() || field.length > 128 || /[\u0000-\u001f\u007f]/.test(field)) invalid();
       result.name = (field as string).trim();
     } else if (key === 'status') result.status = status(field);
     else if (key === 'channelIds') {
-      if (!Array.isArray(field) || field.length > 100) invalid();
+      if (!Array.isArray(field)) invalid();
       result.channelIds = [...new Set((field as unknown[]).map(id))].sort();
     } else if (key === 'billingMultiplier') result.billingMultiplier = multiplier(field);
-    else invalid();
   }
   return result;
 }
@@ -77,9 +76,11 @@ function audit(database: D1Database, context: GroupAuditContext, groupId: string
     target_type: 'group', target_id: groupId, action, changes });
 }
 function relationAudits(database: D1Database, context: GroupAuditContext, groupId: string, before: string[], after: string[]) {
+  const previous = new Set(before);
+  const next = new Set(after);
   return [
-    ...before.filter(channel => !after.includes(channel)).map(channel => audit(database, context, groupId, 'group.channel.detach', { group_id: groupId, channel_id: channel })),
-    ...after.filter(channel => !before.includes(channel)).map(channel => audit(database, context, groupId, 'group.channel.attach', { group_id: groupId, channel_id: channel })),
+    ...before.filter(channel => !next.has(channel)).map(channel => audit(database, context, groupId, 'group.channel.detach', { group_id: groupId, channel_id: channel })),
+    ...after.filter(channel => !previous.has(channel)).map(channel => audit(database, context, groupId, 'group.channel.attach', { group_id: groupId, channel_id: channel })),
   ];
 }
 
@@ -112,7 +113,7 @@ export async function createGroup(database: D1Database, values: CreateGroupInput
   } catch (error) { return writeError(error); }
 }
 
-/** Replaces channelIds as a set. users.group_id is the only membership source.
+/** Replaces channelIds as a set.
  * Disabling the configured default group is rejected; move that setting first.
  * A disable must also leave an active admin in another active group.
  */

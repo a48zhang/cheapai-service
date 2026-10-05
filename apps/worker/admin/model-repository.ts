@@ -37,8 +37,8 @@ function writeError(error: unknown): never {
   throw new ApiError('service_unavailable', { cause: error });
 }
 function auditFields(value: { status: 'active' | 'disabled'; priceVersion: number; admissionMinBalanceUnits: string; maxOutputTokens: number }) {
-  // O01 permits these structured fields, not arbitrary price JSON. Version and
-  // limits remain visible; existing request price snapshots are never rewritten.
+  // Record the model configuration metadata; existing request price snapshots
+  // are never rewritten.
   return { status: value.status, price_version: value.priceVersion, admission_min_balance_units: admissionUnits(value.admissionMinBalanceUnits), max_output_tokens: value.maxOutputTokens };
 }
 

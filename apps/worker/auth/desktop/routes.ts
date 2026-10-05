@@ -8,7 +8,6 @@ import { getOrCreateCurrentKey, DesktopKeyError } from './keys';
 import type { DesktopKeyFailureReason } from './keys';
 import { getDesktopAccount } from './account';
 import { logoutDesktopSession } from './logout';
-import type { ResolvedChannelKeyring } from '../../channel-keyring';
 
 export const DESKTOP_LOGIN_PATH = '/api/v1/desktop/login';
 export const DESKTOP_KEY_PATH = '/api/v1/desktop/key';
@@ -21,8 +20,6 @@ export interface DesktopRouteDependencies {
   readonly gates: AuthGateNamespace;
   readonly now: () => number;
   readonly trustedIp: (request: Request) => string | Promise<string>;
-  /** Resolve only inside the authorized Key endpoint; other routes need no Secret. */
-  readonly keyring: () => ResolvedChannelKeyring;
   readonly rateConfig?: AuthRateConfig;
 }
 
@@ -93,7 +90,7 @@ async function errorResponse(error: unknown, id: string): Promise<Response> {
   }, { status: response.status, headers: response.headers });
 }
 
-/** Build the four bearer-only desktop endpoints. Secrets and environment
+/** Build the four bearer-only desktop endpoints. Environment
  * bindings are supplied by a per-request resolver, never read at import time.
  */
 export function createDesktopRoutes<Bindings extends object = Env>(source: DesktopRouteDependencySource<Bindings>) {
@@ -131,11 +128,9 @@ export function createDesktopRoutes<Bindings extends object = Env>(source: Deskt
     const id = requestId(context);
     try {
       const dependencies = typeof source === 'function' ? await source(context.env, context.req.raw) : source;
-      if (!dependencies || typeof dependencies.keyring !== 'function') throw new ApiError('service_unavailable');
       const now = dependencies.now();
       const authenticated = await authenticateDesktopSession(dependencies.database, context.req.raw, now);
-      const resolved = dependencies.keyring();
-      const result = await getOrCreateCurrentKey(dependencies.database, authenticated.session, now, resolved.active, resolved.keyring);
+      const result = await getOrCreateCurrentKey(dependencies.database, authenticated.session, now);
       return apiSuccess(result, id);
     } catch (error) {
       return await errorResponse(error, id);
