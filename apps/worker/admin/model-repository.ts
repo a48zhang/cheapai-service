@@ -34,7 +34,7 @@ function requireOneChange(database: D1Database) {
 function writeError(error: unknown): never {
   if (error instanceof ApiError) throw error;
   if (error instanceof Error && error.message.includes('model_write_conflict')) throw new ApiError('conflict');
-  throw new ApiError('service_unavailable');
+  throw new ApiError('service_unavailable', { cause: error });
 }
 function auditFields(value: { status: 'active' | 'disabled'; priceVersion: number; admissionMinBalanceUnits: string; maxOutputTokens: number }) {
   // O01 permits these structured fields, not arbitrary price JSON. Version and

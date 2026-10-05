@@ -9,8 +9,8 @@ interface SecretEnvelope {
 }
 
 export class SecretEnvelopeError extends Error {
-  constructor() {
-    super('Secret envelope operation failed.');
+  constructor(options?: ErrorOptions) {
+    super('Secret envelope operation failed.', options);
     this.name = 'SecretEnvelopeError';
   }
 }
@@ -64,8 +64,8 @@ export async function encryptSecretEnvelope(
       nonce: encode(nonce), ciphertext: encode(new Uint8Array(encrypted)),
     };
     return JSON.stringify(envelope);
-  } catch {
-    throw new SecretEnvelopeError();
+  } catch (error) {
+    throw new SecretEnvelopeError({ cause: error });
   }
 }
 
@@ -90,7 +90,7 @@ export async function decryptSecretEnvelope(
       { name: 'AES-GCM', iv: nonce, additionalData: aad, tagLength: 128 }, cryptoKey, ciphertext,
     );
     return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(plaintext);
-  } catch {
-    throw new SecretEnvelopeError();
+  } catch (error) {
+    throw new SecretEnvelopeError({ cause: error });
   }
 }

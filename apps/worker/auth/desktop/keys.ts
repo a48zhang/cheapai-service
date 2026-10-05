@@ -120,6 +120,6 @@ export async function getOrCreateCurrentKey(
     throw new DesktopKeyError('key_creation_unavailable');
   } catch (error) {
     if (error instanceof DesktopKeyError) throw error;
-    throw new ApiError('service_unavailable');
+    throw new ApiError('service_unavailable', { cause: error });
   }
 }

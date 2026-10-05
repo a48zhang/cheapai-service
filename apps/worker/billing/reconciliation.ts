@@ -47,7 +47,7 @@ async function read(database: D1Database, actorId: string, limit: number, after:
     }
     // SQLite integer SUM overflow fails the page, never falls back to floating
     // TOTAL() or reports a rounded/partial sum as a successful reconciliation.
-    throw new ApiError('service_unavailable');
+    throw new ApiError('service_unavailable', { cause: error });
   }
 }
 

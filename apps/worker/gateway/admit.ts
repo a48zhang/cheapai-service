@@ -138,7 +138,7 @@ export async function admitRequest(bindings: AdmissionBindings, subject: Interna
     throw new ApiError(code);
   }
   let model: Awaited<ReturnType<typeof getModelById>>;
-  try { model = await getModelById(bindings.DB, modelId); } catch { throw new ApiError('service_unavailable'); }
+  try { model = await getModelById(bindings.DB, modelId); } catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
   if (!model || model.status !== 'active' || model.priceVersion !== eligibility.priceVersion) throw new ApiError('conflict');
   const selected = selection.candidates.find(item => item.outputTokenLimit === undefined || item.outputTokenLimit <= model!.maxOutputTokens);
   if (!selected) throw new ApiError('invalid_request');
@@ -161,7 +161,7 @@ export async function admitRequest(bindings: AdmissionBindings, subject: Interna
       user: { limit: subject.user.concurrencyLimit, ttlMs, ...(subject.user.rpmLimit === UNLIMITED_RPM ? {} : { rate: { limit: subject.user.rpmLimit, windowMs: 60_000, operationId: options.userRateOperationId ?? registration.requestId } }) },
       channel: { limit: selected.candidate.channel.concurrencyLimit, ttlMs, ...(selected.candidate.channel.rpmLimit === UNLIMITED_RPM ? {} : { rate: { limit: selected.candidate.channel.rpmLimit, windowMs: 60_000 } }) },
     }, options.signal === undefined ? {} : { signal: options.signal });
-  } catch { throw new ApiError('service_unavailable'); }
+  } catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
   if (!acquired.granted) {
     const code = !acquired.cleanup.complete ? 'service_unavailable' : acquired.reason === 'denied' ? 'rate_limited'
       : acquired.reason === 'cancelled' ? 'conflict' : 'service_unavailable';

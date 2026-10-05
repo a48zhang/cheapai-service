@@ -89,7 +89,7 @@ export function createAdminUserRoutes(
   source: AdminUserDependencySource = (env) => ({ database: env.DB, now: Date.now }),
 ): Hono<RouteEnv> {
   const app = new Hono<RouteEnv>();
-  app.onError((error, context) => noStore(apiError(error instanceof ApiError ? error : new ApiError('service_unavailable'),
+  app.onError((error, context) => noStore(apiError(error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }),
     context.get('requestId') ?? createRequestId())));
   app.notFound((context) => noStore(apiError(new ApiError('not_found'), context.get('requestId') ?? createRequestId())));
   const initialize: MiddlewareHandler<RouteEnv> = async (context, next) => {

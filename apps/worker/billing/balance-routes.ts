@@ -21,7 +21,7 @@ export function createBalanceRoutes(options: { now?: () => number } = {}) {
     await next(); context.res.headers.set('Cache-Control', 'no-store');
   });
   app.onError((error, context) => {
-    const response = apiError(error instanceof ApiError ? error : new ApiError('service_unavailable'), context.get('requestId') ?? createRequestId());
+    const response = apiError(error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }), context.get('requestId') ?? createRequestId());
     response.headers.set('Cache-Control', 'no-store'); return response;
   });
   app.get(ACCOUNT_BALANCE_PATH, requireSession(options.now), async context => {

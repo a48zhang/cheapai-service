@@ -50,7 +50,7 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
 export function createMappingRoutes<B extends Bindings = Bindings>(dependencies: MappingRouteDependencies<B>): Hono<RouteEnv<B>> {
   const app = new Hono<RouteEnv<B>>();
   app.onError((error, context) => {
-    const response = apiError(error instanceof ApiError ? error : new ApiError('service_unavailable'), context.get('requestId') ?? createRequestId());
+    const response = apiError(error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }), context.get('requestId') ?? createRequestId());
     response.headers.set('Cache-Control', 'no-store'); return response;
   });
   app.use('*', async (context, next) => {

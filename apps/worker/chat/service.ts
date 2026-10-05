@@ -1,3 +1,4 @@
+import { logError } from '../logging';
 import { API_ERRORS, ApiError } from '../http';
 import { authenticateWebChat } from '../auth/web-chat-auth';
 import { authorizeChatSelection, listAuthorizedChatModels } from './models';
@@ -312,12 +313,12 @@ export class ChatService {
     } catch (error) {
       // If execution escaped before a response could be installed, stop it
       // first. Gateway cleanup still owns all leases and settlement.
-      try { await boundedChatWork(Promise.resolve().then(() => execution?.cancel?.()), 1000); } catch { /* cancellation is best effort */ }
+      try { await boundedChatWork(Promise.resolve().then(() => execution?.cancel?.()), 1000); } catch (error) { logError('Chat cancellation failed', error, { conversation_id: idOfConversation }); }
       try {
         await boundedChatWork(Promise.resolve().then(() => this.storage.finishAssistant(userId, idOfConversation,
           started.assistantMessage.id, input.signal?.aborted ? 'stopped' : 'failed', answer, nowOf(this.clock))));
-      } catch { /* preserve original error; a late D1 result cannot block the response */ }
-      throw error instanceof ApiError ? error : new ApiError('service_unavailable');
+      } catch (error) { logError('Chat failure persistence failed', error, { conversation_id: idOfConversation, message_id: started.assistantMessage.id }); }
+      throw error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error });
     }
   }
 

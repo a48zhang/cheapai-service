@@ -80,7 +80,7 @@ export async function checkBalanceAdmission(database: D1Database, subject: Inter
       LEFT JOIN models m ON m.public_model_id=? WHERE k.id=? AND u.id=? AND g.id=?
         AND ((?='api' AND k.kind='api' AND k.group_id=?) OR (?='web_chat' AND k.kind='web_chat' AND k.group_id IS NULL))`,
       [groupId, publicModelId, keyId, userId, groupId, source, groupId, source]).first();
-  } catch { throw new ApiError('service_unavailable'); }
+  } catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
   if (!row || row.key_user_id !== userId || row.group_id !== groupId || row.key_status !== 'active'
     || row.user_status !== 'active' || row.group_status !== 'active' || row.key_created_at > now
     || (row.expires_at !== null && row.expires_at <= now)) throw new ApiError('unauthorized');
@@ -91,7 +91,7 @@ export async function checkBalanceAdmission(database: D1Database, subject: Inter
       models = JSON.parse(row.allowed_models_json);
       if (!Array.isArray(models) || !models.every(identifier)) throw new Error();
     }
-  } catch { throw new ApiError('service_unavailable'); }
+  } catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
   if (Array.isArray(models) && !models.includes(publicModelId)) throw new ApiError('forbidden');
   let balance: bigint;
   let minimum: bigint;
@@ -99,7 +99,7 @@ export async function checkBalanceAdmission(database: D1Database, subject: Inter
     balance = parseUnits(row.balance_units);
     minimum = parseUnits(row.admission_min_balance_units);
     if (minimum < 0n || ![row.price_version, row.user_version, row.key_version, row.group_version].every(value => typeof value === 'number' && Number.isSafeInteger(value) && value >= 1)) throw new Error();
-  } catch { throw new ApiError('service_unavailable'); }
+  } catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
   if (balance <= 0n || balance < minimum) throw new ApiError('insufficient_balance');
   let billingMultiplier = '1';
   try {
@@ -111,7 +111,7 @@ export async function checkBalanceAdmission(database: D1Database, subject: Inter
     // The fallback is only for pre-0020 local schemas. Once the multiplier
     // column exists, malformed or unavailable data fails closed; it is never
     // interpreted as a free group.
-    if (!missingMultiplierColumn(error)) throw new ApiError('service_unavailable');
+    if (!missingMultiplierColumn(error)) throw new ApiError('service_unavailable', { cause: error });
   }
   return Object.freeze({ userId, keyId, groupId, publicModelId, balanceUnits: balance.toString(), admissionMinBalanceUnits: minimum.toString(),
     priceVersion: row.price_version as number, userVersion: row.user_version, keyVersion: row.key_version, groupVersion: row.group_version,

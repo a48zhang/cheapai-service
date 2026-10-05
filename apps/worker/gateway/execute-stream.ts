@@ -1,3 +1,4 @@
+import { logError } from '../logging';
 import { createResponseIds } from '@sub2api/apicompat/ids';
 import { SseByteParser } from '@sub2api/apicompat/streams/parser';
 import { BoundedByteBuffer, ByteBudget, readBoundedBytes } from '@sub2api/apicompat/streams/buffers';
@@ -163,7 +164,7 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
         WHERE id=? AND user_id=? AND execution_status='admitted' AND billing_status='awaiting_usage'
           AND NOT EXISTS(SELECT 1 FROM billing_entries WHERE request_id=requests.id AND kind='consumption')`, [now(), record!.id, record!.user_id]).run();
       return result.changes === 1;
-    } catch { return false; }
+    } catch (error) { logError('Stream accounting update failed', error, { request_id: record?.id }); return false; }
   }
   function stop(reason: RequestStopReason): void {
     if (finalizing || stopReason !== undefined) return;
@@ -190,7 +191,7 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
       for (const queued of queue) queued.cancel();
       queue.length = 0;
       let usage: UsageSnapshot;
-      try { usage = usageSession.finish(state); } catch { usage = { quality: 'missing', protocol: record!.upstream_protocol }; }
+      try { usage = usageSession.finish(state); } catch (error) { logError('Stream usage finalization failed', error, { request_id: record?.id }); usage = { quality: 'missing', protocol: record!.upstream_protocol }; }
       // A normal terminal keeps renewal until bounded final persistence/accounting
       // finishes. Cancellation or lease loss may already have closed L10 safely.
       if (!upstreamDispatched) {
@@ -326,7 +327,8 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
           }
           if (queue.length) target.enqueue(queue.shift()!.drain());
           if (terminal && queue.length === 0) { target.close(); await finish(terminal); }
-        } catch {
+        } catch (error) {
+          logError('Stream processing failed', error, { request_id: record?.id });
           const state: TerminalState = { status: 'failed', error: problem('stream_processing_failed') };
           try { session?.finish({ kind: 'error', error: state.error }); } catch { /* Finalize anyway. */ }
           try { target.error(new Error('Stream processing failed.')); } catch { /* Already cancelled. */ }
@@ -340,7 +342,8 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
       },
     }, { highWaterMark: 0 });
     return { response: new Response(body, { headers: { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', 'X-Request-ID': record.id } }), completion };
-  } catch {
+  } catch (error) {
+    logError('Stream startup failed', error, { request_id: record?.id });
     const result = await finish(stopReason === 'cancelled' ? { status: 'cancelled' } : { status: 'failed', error: problem(stopReason ?? 'stream_start_failed') });
     if (!preDispatchAccounting) startupFailure = 'service_unavailable';
     throw new StreamExecutionError(upstreamDispatched ? 'stream_start_failed' : startupFailure === 'invalid_request' ? 'invalid_request' : 'stream_start_failed',

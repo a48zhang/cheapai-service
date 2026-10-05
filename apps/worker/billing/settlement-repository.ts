@@ -106,7 +106,7 @@ async function lookup(database: D1Database, expected: PreparedConsumptionSettlem
     return matchingEntry(result.rows[0], expected);
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    throw new ApiError('service_unavailable');
+    throw new ApiError('service_unavailable', { cause: error });
   }
 }
 
@@ -154,6 +154,6 @@ export async function settleConsumption(database: D1Database, input: Consumption
     if (error instanceof ApiError) throw error;
     if (error instanceof Error && (error.message.includes('consumption_request_conflict')
       || error.message.includes('billing_request_mismatch_or_settled'))) throw new ApiError('conflict');
-    throw new ApiError('service_unavailable');
+    throw new ApiError('service_unavailable', { cause: error });
   }
 }

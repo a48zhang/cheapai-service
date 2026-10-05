@@ -72,6 +72,6 @@ export async function saveSettlementRecovery(database: D1Database, input: Recove
     return { saved: result.changes === 1, billingStatus: after.billing_status, fingerprint: after.fingerprint };
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    throw new ApiError('service_unavailable');
+    throw new ApiError('service_unavailable', { cause: error });
   }
 }

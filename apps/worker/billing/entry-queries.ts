@@ -147,6 +147,6 @@ export async function queryBillingEntries(database: D1Database, scope: EntryQuer
     return { items, nextCursor, ...(summary === undefined ? {} : { summary }) };
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    throw new ApiError('service_unavailable');
+    throw new ApiError('service_unavailable', { cause: error });
   }
 }

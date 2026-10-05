@@ -1,3 +1,4 @@
+import { logError } from '../logging';
 import type { UsageSnapshot, UsageQuality } from '@sub2api/apicompat/types/shared';
 import { canonicalJson } from '../billing/fingerprint';
 import { settleRequest } from '../billing/settlement';
@@ -106,6 +107,7 @@ export function createRequestFinalizer(dependencies: FinalizerDependencies): Req
             if (outcome?.status === 'settled') { billingStatus = 'settled'; accounting = 'settled'; recover = false; }
             else if (outcome?.status === 'pending' && outcome.inFlight) track(outcome.inFlight);
           } catch (error) {
+            logError('Stream settlement failed', error, { request_id: request.id });
             if (error instanceof ApiError && error.code === 'conflict') { errors.push('conflict'); recover = false; }
             else errors.push(error instanceof ApiError ? error.code : 'service_unavailable');
           }
@@ -114,11 +116,11 @@ export function createRequestFinalizer(dependencies: FinalizerDependencies): Req
           const recovery = await bounded(() => saveSettlementRecovery(dependencies.database, { requestId: request.id, userId: request.user_id, usage }, now()), remaining(), signal);
           if (recovery) { billingStatus = recovery.billingStatus; accounting = billingStatus === 'settled' ? 'settled' : 'recovered'; }
         }
-      } catch (error) { errors.push(error instanceof ApiError ? error.code : 'service_unavailable'); }
+      } catch (error) { logError('Request finalization failed', error, { request_id: request.id }); errors.push(error instanceof ApiError ? error.code : 'service_unavailable'); }
       finally {
         if (dependencies.cleanup) {
           try { cleanup = await bounded(dependencies.cleanup, cleanupBudget) ?? { complete: false, outcomes: [] }; }
-          catch { cleanup = { complete: false, outcomes: [] }; errors.push('cleanup_failed'); }
+          catch (error) { logError('Request cleanup failed', error, { request_id: request.id }); cleanup = { complete: false, outcomes: [] }; errors.push('cleanup_failed'); }
         }
       }
       return { requestId: request.id, usageQuality: usage.quality, billingStatus, accounting, cleanup,

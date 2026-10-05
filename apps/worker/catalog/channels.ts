@@ -46,7 +46,7 @@ export async function readChannelForForwarding(database: D1Database, id: string,
     'SELECT id,base_url,secret_ciphertext,config_version,status FROM channels WHERE id=?', [idValue(id)]).first();
   if (!row) return null;
   try { return { id: row.id, baseUrl: row.base_url, upstreamKey: await decryptChannelSecret(row.secret_ciphertext, row.id, keyring), configVersion: row.config_version, status: row.status }; }
-  catch { throw new ApiError('service_unavailable'); }
+  catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
 }
 
 export type { ChannelRow };

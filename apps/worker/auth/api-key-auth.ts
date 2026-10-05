@@ -12,11 +12,11 @@ export type { WebChatAuthFailure } from './web-chat-auth';
 
 export type PlatformKeyAuthFailure = 'invalid_api_key' | 'conflicting_api_key_headers' | 'authentication_unavailable';
 
-/** Stable public classification only; never stores raw tokens, hashes or causes. */
+/** Stable public classification; retain backend causes for Workers Logs. */
 export class PlatformKeyAuthError extends ApiError {
   readonly status: 400 | 401 | 503;
-  constructor(readonly reason: PlatformKeyAuthFailure) {
-    super(reason === 'invalid_api_key' ? 'unauthorized' : reason === 'conflicting_api_key_headers' ? 'invalid_request' : 'service_unavailable');
+  constructor(readonly reason: PlatformKeyAuthFailure, options?: ErrorOptions) {
+    super(reason === 'invalid_api_key' ? 'unauthorized' : reason === 'conflicting_api_key_headers' ? 'invalid_request' : 'service_unavailable', options);
     this.name = 'PlatformKeyAuthError';
     this.status = reason === 'invalid_api_key' ? 401 : reason === 'conflicting_api_key_headers' ? 400 : 503;
   }
@@ -57,7 +57,7 @@ export async function authenticatePlatformKey(database: D1Database, request: Req
   try {
     const digest = await hashToken('apiKey', token);
     stored = await findInternalPlatformKeyByHash(database, digest, now);
-  } catch { throw new PlatformKeyAuthError('authentication_unavailable'); }
+  } catch (error) { throw new PlatformKeyAuthError('authentication_unavailable', { cause: error }); }
   if (stored === null) throw new PlatformKeyAuthError('invalid_api_key');
   // No token or digest enters the request context; freeze the authoritative projection.
   return Object.freeze({
@@ -79,7 +79,7 @@ export interface PlatformKeyAuthEnv {
 export function requirePlatformKey(now: () => number = Date.now): MiddlewareHandler<PlatformKeyAuthEnv> {
   return async (context, next) => {
     let at: number;
-    try { at = now(); } catch { throw new PlatformKeyAuthError('authentication_unavailable'); }
+    try { at = now(); } catch (error) { throw new PlatformKeyAuthError('authentication_unavailable', { cause: error }); }
     const auth = await authenticatePlatformKey(context.env.DB, context.req.raw, at);
     context.set('platformKeyAuth', auth);
     // Business failures after successful authentication are not relabeled as auth failures.

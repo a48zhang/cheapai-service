@@ -114,7 +114,7 @@ export async function sendRegistrationCode(
     // Preserve public typed decisions only. DB/Gate/crypto errors fail closed.
     if (error instanceof ApiError) throw error;
     console.error('Registration email code failed', error);
-    throw new ApiError("service_unavailable");
+    throw new ApiError("service_unavailable", { cause: error });
   }
 }
 
@@ -156,7 +156,7 @@ export function createSendCodeRoutes(dependencies: SendCodeRouteDependencies): H
       return response;
     } catch (error) {
       console.error('Registration email request failed', { request_id: requestId }, error);
-      const response = apiError(error instanceof ApiError ? error : new ApiError("service_unavailable"), requestId);
+      const response = apiError(error instanceof ApiError ? error : new ApiError("service_unavailable", { cause: error }), requestId);
       if (error instanceof SendCodeRateError) response.headers.set("Retry-After", Math.ceil(error.retryAfterMs / 1000).toString());
       return response;
     }

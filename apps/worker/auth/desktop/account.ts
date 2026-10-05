@@ -23,8 +23,8 @@ export async function getDesktopAccount(
   let row: DesktopAuthUserRow | null;
   try {
     row = await findDesktopAuthUserById(database, authenticated.session.user_id);
-  } catch {
-    throw new ApiError('service_unavailable');
+  } catch (error) {
+    throw new ApiError('service_unavailable', { cause: error });
   }
   if (row === null) throw new DesktopSessionAuthError('user_inactive');
   activeAccount(row);
@@ -32,8 +32,8 @@ export async function getDesktopAccount(
   let units: bigint;
   try {
     units = parseUnits(row.balance_units);
-  } catch {
-    throw new ApiError('service_unavailable');
+  } catch (error) {
+    throw new ApiError('service_unavailable', { cause: error });
   }
   const balanceUnits = units.toString();
   const user: DesktopPublicUser = {

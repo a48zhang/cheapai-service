@@ -80,6 +80,30 @@ function writes() { return createChannelRoutes({ now: () => now, trustedOrigin: 
 async function rowCount() { return testEnv.DB.prepare('SELECT COUNT(*) AS count FROM channels').first('count'); }
 
 describe('administrator channel creation HTTP', () => {
+  it.each(['encryption configuration', 'database write'])('logs the original %s error with the response request ID', async (failure) => {
+    const original = new Error(`Channel ${failure} failed`);
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const route = createChannelRoutes({ now: () => now, trustedOrigin: origin, encryptionKey: () => {
+        if (failure === 'encryption configuration') throw original;
+        return encryption;
+      } });
+      const database = failure === 'database write' ? {
+        prepare: (sql: string) => testEnv.DB.prepare(sql),
+        batch: async () => { throw original; },
+      } as unknown as D1Database : testEnv.DB;
+      const response = await route.request(origin + ADMIN_CHANNELS_PATH, {
+        method: 'POST', headers: writeHeaders(), body: JSON.stringify(newChannel),
+      }, { DB: database });
+      const body = await response.json() as { error: { code: string }; request_id: string };
+      expect(response.status).toBe(503);
+      expect(log).toHaveBeenCalledWith('API request failed', {
+        request_id: body.request_id, code: 'service_unavailable', status: 503,
+      }, expect.any(Error), original);
+      expect(JSON.stringify(body)).not.toContain(original.message);
+      expect(await rowCount()).toBe(3);
+    } finally { log.mockRestore(); }
+  });
   it('creates encrypted/normalized configuration and atomic audit with no secrets in the response', async () => {
     const response = await writes().request(origin + ADMIN_CHANNELS_PATH, { method: 'POST', headers: writeHeaders(), body: JSON.stringify(newChannel) }, { DB: testEnv.DB });
     expect(response.status).toBe(201);

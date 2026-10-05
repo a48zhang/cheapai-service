@@ -97,7 +97,7 @@ export function requireCsrf(trustedOrigin: string): MiddlewareHandler {
     } catch (error) {
       const existing = context.get('requestId');
       const requestId = typeof existing === 'string' ? existing : createRequestId();
-      return apiError(error instanceof ApiError ? error : new ApiError('service_unavailable'), requestId);
+      return apiError(error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }), requestId);
     }
     await next();
   };

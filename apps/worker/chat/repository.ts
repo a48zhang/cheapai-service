@@ -112,7 +112,7 @@ export async function createConversation(
     if (error instanceof ApiError) throw error;
     if (error instanceof Error && error.message.includes('FOREIGN KEY constraint failed')) throw new ApiError('invalid_request');
     if (error instanceof Error && error.message.includes('UNIQUE constraint failed')) throw new ApiError('conflict');
-    throw new ApiError('service_unavailable');
+    throw new ApiError('service_unavailable', { cause: error });
   }
 }
 
@@ -184,7 +184,7 @@ export async function updateConversation(
   } catch (error) {
     if (error instanceof ApiError) throw error;
     if (error instanceof Error && error.message.includes('FOREIGN KEY constraint failed')) throw new ApiError('invalid_request');
-    throw new ApiError('service_unavailable');
+    throw new ApiError('service_unavailable', { cause: error });
   }
 }
 
@@ -214,7 +214,7 @@ export async function deleteConversation(
     return true;
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    throw new ApiError('service_unavailable');
+    throw new ApiError('service_unavailable', { cause: error });
   }
 }
 

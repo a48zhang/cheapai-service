@@ -44,7 +44,7 @@ export function createPublicSettingsRoutes(dependencies: PublicSettingsDependenc
       // A06 malformed-cookie errors remain forbidden; storage/readiness failures
       // are service errors and must never masquerade as an open default policy.
       response = apiError(error instanceof ApiError && error.code === 'forbidden'
-        ? error : new ApiError('service_unavailable'), requestId);
+        ? error : new ApiError('service_unavailable', { cause: error }), requestId);
     }
     response.headers.set('Cache-Control', 'no-store');
     if (setCookie !== undefined) response.headers.append('Set-Cookie', setCookie);

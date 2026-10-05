@@ -46,5 +46,5 @@ export async function markAbandonedRequests(database: D1Database, now: number, o
       if (result.changes === 1) abandoned++;
     }
     return { selected: candidates.length, abandoned, skipped: candidates.length - abandoned };
-  } catch { throw new ApiError('service_unavailable'); }
+  } catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
 }

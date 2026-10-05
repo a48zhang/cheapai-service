@@ -75,7 +75,7 @@ function noStore(response: Response): Response { response.headers.set('Cache-Con
  */
 export function createRequestQueryRoutes(dependencies: { now(): number } = { now: Date.now }): Hono<RouteEnv> {
   const app = new Hono<RouteEnv>();
-  app.onError((error, context) => noStore(apiError(error instanceof ApiError ? error : new ApiError('service_unavailable'), context.get('requestId') ?? createRequestId())));
+  app.onError((error, context) => noStore(apiError(error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }), context.get('requestId') ?? createRequestId())));
   const initialize: MiddlewareHandler<RouteEnv> = async (context, next) => {
     context.set('requestId', context.get('requestId') ?? createRequestId());
     const now = dependencies.now();

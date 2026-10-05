@@ -9,8 +9,8 @@ export interface DesktopKeyEncryptionKey {
 }
 
 export class DesktopKeyCipherError extends Error {
-  constructor() {
-    super('Desktop Key encryption failed.');
+  constructor(options?: ErrorOptions) {
+    super('Desktop Key encryption failed.', options);
     this.name = 'DesktopKeyCipherError';
   }
 }
@@ -39,8 +39,8 @@ export async function encryptDesktopKey(
     if (activeKey === null || typeof activeKey !== 'object' ||
         typeof activeKey.keyVersion !== 'string' || !(activeKey.key instanceof Uint8Array)) throw new DesktopKeyCipherError();
     return await encryptSecretEnvelope(token, activeKey.keyVersion, activeKey.key, aad(sessionId, keyId, activeKey.keyVersion));
-  } catch {
-    throw new DesktopKeyCipherError();
+  } catch (error) {
+    throw new DesktopKeyCipherError({ cause: error });
   }
 }
 
@@ -54,7 +54,7 @@ export async function decryptDesktopKey(
   try {
     if (!validIdentity(sessionId) || !validIdentity(keyId)) throw new DesktopKeyCipherError();
     return await decryptSecretEnvelope(encrypted, keyring, version => aad(sessionId, keyId, version));
-  } catch {
-    throw new DesktopKeyCipherError();
+  } catch (error) {
+    throw new DesktopKeyCipherError({ cause: error });
   }
 }

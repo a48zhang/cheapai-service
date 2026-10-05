@@ -53,7 +53,7 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
 /** Full paths, mounted separately by C17. Binding/clock resolution is request-local. */
 export function createGroupRoutes(source: GroupDependencySource = env => ({ database: env.DB, now: Date.now })): Hono<RouteEnv> {
   const app = new Hono<RouteEnv>();
-  app.onError((error, context) => noStore(apiError(error instanceof ApiError ? error : new ApiError('service_unavailable'), context.get('requestId') ?? createRequestId())));
+  app.onError((error, context) => noStore(apiError(error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }), context.get('requestId') ?? createRequestId())));
   app.notFound(context => noStore(apiError(new ApiError('not_found'), context.get('requestId') ?? createRequestId())));
   const initialize: MiddlewareHandler<RouteEnv> = async (context, next) => {
     context.set('requestId', context.get('requestId') ?? createRequestId());

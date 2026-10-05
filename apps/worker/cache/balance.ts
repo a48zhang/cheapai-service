@@ -76,7 +76,7 @@ export async function readBalance(
     data = await prepare<BalanceData>(database,
       'SELECT id AS user_id, CAST(balance_units AS TEXT) AS balance_units, version AS user_version FROM users WHERE id=?', [userId]).first();
     if (data !== null && !validate(data)) throw new Error('Invalid D1 balance row');
-  } catch { throw new ApiError('service_unavailable'); }
+  } catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
   if (data === null) return null;
   const snapshot: Snapshot<BalanceData> = { schema_version: 1, observed_at: observedAt, data };
   // Best effort, no retries or KV balance arithmetic. Preserve read-start age.

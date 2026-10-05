@@ -31,7 +31,7 @@ function writeError(error: unknown): never {
   for (let cause = error, depth = 0; cause instanceof Error && depth < 4; cause = cause.cause, depth++) {
     if (cause.message.includes('model_mapping_conflict')) throw new ApiError('conflict');
   }
-  throw new ApiError('service_unavailable');
+  throw new ApiError('service_unavailable', { cause: error });
 }
 export async function createModelMapping(database: D1Database, input: ModelMappingInput, context: ModelMappingAuditContext): Promise<ModelMappingView> {
   const fields = object(input, ['channelId', 'publicModelId', 'protocol', 'upstreamModel', 'capabilities']);

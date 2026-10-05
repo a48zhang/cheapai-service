@@ -38,15 +38,15 @@ export async function logoutDesktopSession(
   let tokenHash: string;
   try {
     tokenHash = await hashToken('desktopSession', token);
-  } catch {
-    throw new ApiError('service_unavailable');
+  } catch (error) {
+    throw new ApiError('service_unavailable', { cause: error });
   }
 
   let session: StoredDesktopSession | null;
   try {
     session = await findDesktopSessionByHash(database, tokenHash);
-  } catch {
-    throw new ApiError('service_unavailable');
+  } catch (error) {
+    throw new ApiError('service_unavailable', { cause: error });
   }
   if (session === null) throw new DesktopSessionAuthError('invalid_token');
 
@@ -69,7 +69,7 @@ export async function logoutDesktopSession(
           WHERE id = ? AND user_id = ?`,
         [now, now, session.id, session.user_id]),
     ]);
-  } catch {
-    throw new ApiError('service_unavailable');
+  } catch (error) {
+    throw new ApiError('service_unavailable', { cause: error });
   }
 }

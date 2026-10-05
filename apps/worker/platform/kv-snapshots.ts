@@ -1,3 +1,4 @@
+import { logError } from '../logging';
 import { decodeSnapshot, encodeSnapshot } from '../cache/snapshot-codec';
 import type { Snapshot, SnapshotDataValidator, SnapshotFreshness } from '../cache/snapshot-codec';
 
@@ -17,7 +18,8 @@ export async function readSnapshot<T>(
   try {
     // Do not equate KV's edge cacheTtl with application freshness.
     return decodeSnapshot(await kv.get(key, 'text'), freshness, validateData);
-  } catch {
+  } catch (error) {
+    logError('KV snapshot read failed', error);
     return null;
   }
 }
@@ -41,7 +43,8 @@ export async function writeSnapshot<T>(
     const expirationTtl = Math.max(MIN_KV_EXPIRATION_TTL_SECONDS, Math.ceil(remainingMs / 1000));
     await kv.put(key, encoded, { expirationTtl });
     return true;
-  } catch {
+  } catch (error) {
+    logError('KV snapshot write failed', error);
     // A failed/429 cache put must not fail the authoritative read or transaction.
     return false;
   }

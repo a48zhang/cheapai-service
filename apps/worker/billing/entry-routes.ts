@@ -53,7 +53,7 @@ export function createBillingEntryRoutes(options: { now?: () => number } = {}): 
     return now;
   };
   app.use('*', async (context, next) => { await next(); context.res.headers.set('Cache-Control', 'no-store'); });
-  app.onError((error, context) => noStore(apiError(error instanceof ApiError ? error : new ApiError('service_unavailable'), context.get('requestId') ?? createRequestId())));
+  app.onError((error, context) => noStore(apiError(error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }), context.get('requestId') ?? createRequestId())));
   app.notFound(context => noStore(apiError(new ApiError('not_found'), context.get('requestId') ?? createRequestId())));
   app.get(BILLING_ENTRIES_PATH, requireSession(clock), async context => {
     const page = await queryBillingEntries(context.env.DB, { kind: 'owner', userId: context.get('user').id }, queryOptions(context.req.raw));

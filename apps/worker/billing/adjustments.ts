@@ -65,7 +65,7 @@ async function prepareAdjustment(value: BalanceAdjustmentInput, trustedAdminId: 
 async function requireCurrentAdmin(database: D1Database, actorId: string): Promise<void> {
   let actor: { id: string } | null;
   try { actor = await prepare<{ id: string }>(database, "SELECT id FROM users WHERE id=? AND role='admin' AND status='active'", [actorId]).first(); }
-  catch { throw new ApiError('service_unavailable'); }
+  catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
   if (!actor) throw new ApiError('forbidden');
 }
 
@@ -86,7 +86,7 @@ async function lookup(database: D1Database, expected: PreparedAdjustment): Promi
     return row ? match(row, expected) : null;
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    throw new ApiError('service_unavailable');
+    throw new ApiError('service_unavailable', { cause: error });
   }
 }
 
@@ -134,6 +134,6 @@ export async function adjustBalance(database: D1Database, input: BalanceAdjustme
     if (committed) return { entry: committed, outcome: 'existing' };
     if (error instanceof ApiError) throw error;
     if (error instanceof Error && error.message.includes('balance_adjustment_rejected')) throw new ApiError('conflict');
-    throw new ApiError('service_unavailable');
+    throw new ApiError('service_unavailable', { cause: error });
   }
 }

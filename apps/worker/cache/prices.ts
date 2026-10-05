@@ -82,7 +82,7 @@ export async function readPrices(
     if (model === null || model.status !== 'active') return null;
     data = { public_model_id: model.publicModelId, price_version: model.priceVersion, sell_prices: model.sellPrices };
     if (!validate(data)) throw new Error('Invalid D1 prices');
-  } catch { throw new ApiError('service_unavailable'); }
+  } catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
   const snapshot: Snapshot<PriceData> = { schema_version: 1, observed_at: observedAt, data };
   // KV errors never undo/reject the authoritative configuration read.
   await writeSnapshot(kv, key, snapshot, { now: clock(), maxAgeMs }, validate);

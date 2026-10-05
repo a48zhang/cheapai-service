@@ -162,6 +162,6 @@ export async function registerUser(dependencies: RegisterDependencies, input: Re
     }
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    throw new ApiError("service_unavailable");
+    throw new ApiError("service_unavailable", { cause: error });
   }
 }

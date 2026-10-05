@@ -96,7 +96,7 @@ function csrf(options: ChatRouteOptions): MiddlewareHandler<ChatEnv> {
   return async (context, next) => {
     if (['GET', 'HEAD', 'OPTIONS'].includes(context.req.method.toUpperCase())) { await next(); return; }
     try { validateCsrfRequest(context.req.raw, originFor(options, context.env)); }
-    catch (error) { return noStore(apiError(error instanceof ApiError ? error : new ApiError('service_unavailable'), requestId(context))); }
+    catch (error) { return noStore(apiError(error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }), requestId(context))); }
     await next();
   };
 }
@@ -131,7 +131,7 @@ export function createChatRoutes(options: ChatRouteOptions = {}): Hono<ChatEnv> 
   const session = requireSession(options.now ?? Date.now);
   app.use(`${root}/*`, session);
   app.use(`${root}/*`, csrf(options));
-  app.onError((error, context) => noStore(apiError(error instanceof ApiError ? error : new ApiError('internal_error'), requestId(context))));
+  app.onError((error, context) => noStore(apiError(error instanceof ApiError ? error : new ApiError('internal_error', { cause: error }), requestId(context))));
   app.notFound(context => noStore(apiError(new ApiError('not_found'), requestId(context))));
 
   app.get(`${root}/models`, async context => {

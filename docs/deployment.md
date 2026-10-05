@@ -154,6 +154,14 @@ Secrets 由受控密钥工具生成并放入仓库外的临时部署文件或密
 
 生产配置已启用 Cloudflare Workers Observability，`head_sampling_rate: 1` 保留所有调用的日志。部署后，在 Cloudflare Dashboard → Workers & Pages → `sub2api-cloudflare-production` → Observability → Logs 查看请求及其 console 日志；也可以从 `apps/worker` 运行 `pnpm exec wrangler tail --env production --format json` 实时观察。历史请求不会补产生日志。
 
+2026-10-05 补齐全局错误日志：生产显式启用 `observability.logs` 的持久化、invocation logs 和全量采样，并上传 source map。API 的 5xx 通过 `console.error` 输出请求 ID、错误码、状态、原始 Error、堆栈及 cause 链；4xx 使用 `console.warn`。HTTP 入口记录 method、path、状态和耗时。渠道/模型/用户管理、认证、聊天、账务等原先将异常改写为 503 的位置保留原始 cause，不改变客户端响应格式。
+
+上游请求、流式执行及结算、后台任务、KV 和租约续期失败也直接记录原始异常；JSON 上游 HTTP 拒绝记录已经读取的错误响应。未新增日志后端或 redact 流程，也不额外记录请求体、Authorization 或配置 Secret 值。
+
+排查渠道创建时，先用界面上的 `request_id` 找到 `API request failed`，再展开同一 invocation 的日志。密钥配置失败会显示 `CHANNEL_KEYRING_JSON` 缺失/格式错误、`CHANNEL_ACTIVE_KEY_VERSION` 缺失/不存在等具体原因；数据库失败保留 D1 原始异常。这些新日志只在发布后的请求中生成，需要重新操作获取新的请求 ID。
+
+本轮本地验证：Node/React 1,858 项、Worker 2,089 项测试通过；最终渠道/配置/API Key/租约/JSON 网关定向回归 94 项通过，包含两项原始异常与响应请求 ID 关联测试。类型检查、production dry-run 和 diff 检查通过。未执行线上发布或核验 Cloudflare 历史日志。
+
 发码请求开始和结束使用 `console.debug` 记录 `request_id`，可以与浏览器响应匹配；同一次 Worker invocation 下的日志由 Cloudflare 关联。发送流程的 `catch` 使用 `console.error` 保留原始异常及堆栈，HTTP 拒绝包含 Resend 状态码及错误响应正文。还会记录请求开始、收到响应、耗时、超时或缺失 message ID，数据库和路由 catch 也会记录异常。没有自定义日志后端、诊断类型或回调。
 
 排查时，401/403 看 Resend 错误正文以区分密钥、发送权限、域名或边缘拒绝；429 检查服务商限流；只有请求开始而没有响应日志时，查看随后的网络异常或超时。日志不主动打印 Worker Secrets、Authorization 请求头或验证码邮件请求体。对匿名客户端仍返回通用错误。

@@ -7,8 +7,8 @@ import type { InternalPlatformKeyAuth } from './key-repository';
 export type WebChatAuthFailure = 'unauthorized' | 'authentication_unavailable';
 
 export class WebChatAuthError extends ApiError {
-  constructor(readonly reason: WebChatAuthFailure) {
-    super(reason === 'authentication_unavailable' ? 'service_unavailable' : 'unauthorized');
+  constructor(readonly reason: WebChatAuthFailure, options?: ErrorOptions) {
+    super(reason === 'authentication_unavailable' ? 'service_unavailable' : 'unauthorized', options);
     this.name = 'WebChatAuthError';
   }
 }
@@ -112,6 +112,6 @@ export async function authenticateWebChat(
     return readWebChatAuth(row, userId, groupId, now);
   } catch (error) {
     if (error instanceof WebChatAuthError) throw error;
-    throw new WebChatAuthError('authentication_unavailable');
+    throw new WebChatAuthError('authentication_unavailable', { cause: error });
   }
 }

@@ -73,7 +73,7 @@ export async function bindResponseHistory(database: D1Database, subject: Interna
         AND cm.public_model_id=r.public_model_id AND cm.protocol=r.upstream_protocol
       WHERE r.user_id=? AND r.api_key_id=? AND ${platformRequestId === null ? 'r.response_id' : 'r.id'}=? ORDER BY r.id LIMIT 2`,
     [subject.user.id, subject.key.id, platformRequestId ?? previous]).all()).rows;
-  } catch { throw new ApiError('service_unavailable'); }
+  } catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
   if (rows.length === 0) throw new ResponseHistoryError('unknown_reference');
   // A collision within one Key cannot safely choose a provider/channel by luck.
   if (rows.length !== 1) throw new ResponseHistoryError('ambiguous_reference');

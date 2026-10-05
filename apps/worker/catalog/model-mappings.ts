@@ -106,7 +106,7 @@ function view(row: Row): ModelMappingView {
     if (typeof row.capabilities_json !== 'string' || row.capabilities_json.length > 16384) invalid();
     return { channelId: text(row.channel_id), publicModelId: text(row.public_model_id), protocol: protocol(row.protocol), upstreamModel: text(row.upstream_model),
       capabilities: validateMappingCapabilities(JSON.parse(row.capabilities_json), row.protocol), configVersion: integer(row.config_version) };
-  } catch { throw new ApiError('service_unavailable'); }
+  } catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
 }
 export async function getModelMapping(database: D1Database, input: ModelMappingKey): Promise<ModelMappingView | null> {
   const identity = key(input);

@@ -37,7 +37,7 @@ export function createSessionRoutes(options: SessionRoutesOptions = {}): Hono<Au
       response.headers.append('Set-Cookie', clearCookie);
       return response;
     } catch (error) {
-      return apiError(error instanceof ApiError ? error : new ApiError('service_unavailable'), requestId);
+      return apiError(error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }), requestId);
     }
   });
   return routes;

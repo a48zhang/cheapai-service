@@ -36,8 +36,8 @@ export type LeaseClientErrorCode = 'invalid_input' | 'invalid_handle' | 'invalid
 
 export class LeaseClientError extends Error {
   readonly retryable: boolean;
-  constructor(readonly code: LeaseClientErrorCode) {
-    super(`Internal lease client: ${code}`);
+  constructor(readonly code: LeaseClientErrorCode, options?: ErrorOptions) {
+    super(`Internal lease client: ${code}`, options);
     this.name = 'LeaseClientError';
     this.retryable = code === 'unavailable';
   }
@@ -64,10 +64,10 @@ function remoteError(error: unknown): LeaseClientError {
     const info = error as { name?: unknown; code?: unknown };
     if (info.name === 'TypeError' || info.name === 'RangeError'
       || (typeof info.code === 'string' && ['invalid_parameters', 'configuration_changed', 'invalid_state', 'state_limit_exceeded', 'LEASE_STORAGE_INVALID'].includes(info.code))) {
-      return new LeaseClientError('remote_rejected');
+      return new LeaseClientError('remote_rejected', { cause: error });
     }
   }
-  return new LeaseClientError('unavailable');
+  return new LeaseClientError('unavailable', { cause: error });
 }
 
 function parseLease(value: unknown, requestId: string): Lease {

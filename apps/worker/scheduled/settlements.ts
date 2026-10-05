@@ -1,3 +1,4 @@
+import { logError } from '../logging';
 import type { UsageSnapshot } from '@sub2api/apicompat/types/shared';
 import { prepare } from '../db';
 import { ApiError } from '../http';
@@ -37,7 +38,7 @@ export async function retryPendingSettlements(database: D1Database, now: number,
     candidates = (await prepare<Candidate>(database, `SELECT id,user_id,retry_count,next_retry_at,usage_quality,usage_json,cost_units,fingerprint
       FROM requests WHERE billing_status='settlement_pending' AND next_retry_at IS NOT NULL AND next_retry_at<=? AND retry_count<?
       ORDER BY next_retry_at,id LIMIT ?`, [now, MAX_SCHEDULED_SETTLEMENT_ROUNDS, limit]).all()).rows;
-  } catch { throw new ApiError('service_unavailable'); }
+  } catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
   summary.selected = candidates.length;
   for (const candidate of candidates) {
     if (performance.now() - started >= budget) break;
@@ -63,7 +64,8 @@ export async function retryPendingSettlements(database: D1Database, now: number,
           priceSnapshotJson: request.price_snapshot, usage, costUnits: cost });
         if (checked.costUnits !== String(candidate.cost_units) || checked.fingerprint !== candidate.fingerprint
           || checked.usageSnapshotJson !== candidate.usage_json) throw new Error();
-      } catch {
+      } catch (error) {
+        logError('Scheduled settlement evidence read failed', error, { request_id: candidate.id });
         await prepare(database, `UPDATE requests SET next_retry_at=NULL,error_code='settlement_evidence_invalid',
           error_message='Saved settlement evidence requires manual review.'
           WHERE id=? AND user_id=? AND billing_status='settlement_pending' AND retry_count=?
@@ -83,6 +85,7 @@ export async function retryPendingSettlements(database: D1Database, now: number,
         if (result.inFlight) summary.inFlight.push(result.inFlight);
       }
     } catch (error) {
+      logError('Scheduled settlement retry failed', error, { request_id: candidate.id, round });
       // Keep the already persisted round/backoff; never restore an old state over
       // a late settlement. SQL/transport errors can still represent a committed debit.
       summary.pending++;

@@ -1,3 +1,5 @@
+import { logError } from './logging';
+
 // Management APIs (/api/v1) only. Gateway JSON/SSE uses its native protocol.
 export const API_ERRORS = {
   invalid_request: { status: 400, message: 'Invalid request.' },
@@ -26,8 +28,8 @@ export interface ErrorEnvelope {
 }
 
 export class ApiError extends Error {
-  constructor(public readonly code: ApiErrorCode) {
-    super(API_ERRORS[code].message);
+  constructor(public readonly code: ApiErrorCode, options?: ErrorOptions) {
+    super(API_ERRORS[code].message, options);
     this.name = 'ApiError';
   }
 }
@@ -48,6 +50,9 @@ export function apiError(error: unknown, requestId: string): Response {
     ? error.code
     : 'internal_error';
   const definition = API_ERRORS[code];
+  const details = { request_id: requestId, code, status: definition.status };
+  if (definition.status >= 500) logError('API request failed', error, details);
+  else console.warn('API request rejected', details, error);
   // Never serialize exception messages, causes, stacks, or upstream response bodies.
   const body: ErrorEnvelope = {
     error: { code, message: definition.message },

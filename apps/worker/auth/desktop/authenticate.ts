@@ -70,15 +70,15 @@ export async function authenticateDesktopSession(
   let tokenHash: string;
   try {
     tokenHash = await hashToken('desktopSession', token);
-  } catch {
-    throw new ApiError('service_unavailable');
+  } catch (error) {
+    throw new ApiError('service_unavailable', { cause: error });
   }
 
   let session: StoredDesktopSession | null;
   try {
     session = await findDesktopSessionByHash(database, tokenHash);
-  } catch {
-    throw new ApiError('service_unavailable');
+  } catch (error) {
+    throw new ApiError('service_unavailable', { cause: error });
   }
   if (session === null) throw new DesktopSessionAuthError('invalid_token');
   if (!Number.isSafeInteger(session.expires_at) || !Number.isSafeInteger(session.created_at)
@@ -93,8 +93,8 @@ export async function authenticateDesktopSession(
   let account: DesktopAuthUserRow | null;
   try {
     account = await findDesktopAuthUserById(database, session.user_id);
-  } catch {
-    throw new ApiError('service_unavailable');
+  } catch (error) {
+    throw new ApiError('service_unavailable', { cause: error });
   }
   if (account === null || account.status !== 'active') {
     throw new DesktopSessionAuthError('user_inactive');

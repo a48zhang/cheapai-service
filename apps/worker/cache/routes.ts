@@ -111,7 +111,7 @@ export async function readRoutes(database: D1Database, kv: KVNamespace, groupId:
     }
     data = { group: { id: group.id, version: group.version }, model: { publicModelId: model.publicModelId, priceVersion: model.priceVersion }, candidates };
     if (!validate(data)) throw new Error('Invalid D1 route configuration');
-  } catch { throw new ApiError('service_unavailable'); }
+  } catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
   const snapshot: Snapshot<RouteData> = { schema_version: 1, observed_at: observedAt, data };
   await writeSnapshot(kv, key, snapshot, { now: clock(), maxAgeMs }, validate);
   return { snapshot, source: 'd1', requiresAuthoritativeRecheck: true };

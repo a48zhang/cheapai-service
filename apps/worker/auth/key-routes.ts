@@ -26,7 +26,7 @@ async function protectWrite<B extends Bindings>(dependencies: KeyRouteDependenci
     validateCsrfRequest(request, origin);
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    throw new ApiError('service_unavailable');
+    throw new ApiError('service_unavailable', { cause: error });
   }
 }
 
@@ -62,7 +62,7 @@ export function createKeyRoutes<B extends Bindings = Bindings>(dependencies: Key
   const app = new Hono<KeyRouteEnv<B>>();
   app.onError((error, context) => {
     const mapped = error instanceof ApiError ? error : error instanceof PlatformKeyCreationError ? new ApiError('forbidden')
-      : error instanceof TypeError ? new ApiError('invalid_request') : new ApiError('service_unavailable');
+      : error instanceof TypeError ? new ApiError('invalid_request') : new ApiError('service_unavailable', { cause: error });
     const response = apiError(mapped, context.get('requestId') ?? createRequestId());
     response.headers.set('Cache-Control', 'no-store');
     return response;
@@ -70,7 +70,7 @@ export function createKeyRoutes<B extends Bindings = Bindings>(dependencies: Key
   app.use('*', async (context, next) => {
     context.set('requestId', context.get('requestId') ?? createRequestId());
     let now: number;
-    try { now = dependencies.now(); } catch { throw new ApiError('service_unavailable'); }
+    try { now = dependencies.now(); } catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
     if (!Number.isSafeInteger(now) || now < 0) throw new ApiError('service_unavailable');
     context.set('keyNow', now);
     await next();

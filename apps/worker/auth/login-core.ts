@@ -121,6 +121,6 @@ export async function loginWithCredential<Credential>(
     if (error instanceof ApiError) throw error;
     // Includes PasswordBusyError and native D1/DO/crypto failures. No raw error,
     // hash, user-existence detail or credential is exposed through this boundary.
-    throw new ApiError('service_unavailable');
+    throw new ApiError('service_unavailable', { cause: error });
   }
 }

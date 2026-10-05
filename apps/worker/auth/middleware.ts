@@ -36,9 +36,9 @@ export function requireSession(now: () => number = Date.now): MiddlewareHandler<
       }
       context.set('session', session);
       context.set('user', user);
-    } catch {
+    } catch (error) {
       // Backend/crypto failures must not be presented as bad credentials.
-      return apiError(new ApiError('service_unavailable'), requestId);
+      return apiError(new ApiError('service_unavailable', { cause: error }), requestId);
     }
     // Downstream business errors belong to the route/error handler, not auth.
     await next();

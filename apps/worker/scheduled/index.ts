@@ -1,5 +1,6 @@
 import type { Env } from '../env';
 import { ApiError } from '../http';
+import { logError } from '../logging';
 import { retryPendingSettlements } from './settlements';
 import type { ScheduledSettlementResult } from './settlements';
 import { markAbandonedRequests } from './abandoned';
@@ -39,28 +40,32 @@ export async function runScheduledMaintenance(database: D1Database, context: Pic
   };
   const processedAt = now();
   const start = performance.now();
-  const run = async <T>(operation: () => Promise<T>): Promise<MaintenanceTaskResult<T>> => {
+  const run = async <T>(task: string, operation: () => Promise<T>): Promise<MaintenanceTaskResult<T>> => {
     const work = Promise.resolve().then(operation).then<MaintenanceTaskResult<T>, MaintenanceTaskResult<T>>(
       result => ({ status: 'completed', result }),
-      error => ({ status: 'failed', code: error instanceof ApiError ? error.code : 'service_unavailable' }));
+      error => {
+        logError('Scheduled maintenance task failed', error, { task });
+        return { status: 'failed', code: error instanceof ApiError ? error.code : 'service_unavailable' };
+      });
     context.waitUntil(work.then(() => undefined));
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<MaintenanceTaskResult<T>>(resolve => {
       timer = setTimeout(() => resolve({ status: 'uncertain' }), Math.max(0, budget - (performance.now() - start)));
     });
     const result = await Promise.race([work, timeout]);
+    if (result.status === 'uncertain') console.warn('Scheduled maintenance task timed out', { task, budget_ms: budget });
     if (timer !== undefined) clearTimeout(timer);
     return result;
   };
   const [settlements, abandoned, cleanup] = await Promise.all([
-    run(async () => {
+    run('settlements', async () => {
       const value = await retryPendingSettlements(database, now(), { limit: options.settlementLimit ?? 20, budgetMs: budget });
       const { inFlight, ...counts } = value;
-      for (const promise of inFlight) context.waitUntil(promise.then(() => undefined, () => undefined));
+      for (const promise of inFlight) context.waitUntil(promise.then(() => undefined, error => logError('Scheduled background settlement failed', error)));
       return { ...counts, inFlightCount: inFlight.length };
     }),
-    run(() => markAbandonedRequests(database, now(), { limit: options.abandonedLimit ?? 20 })),
-    run(() => cleanupExpiredIdentityData(database, now(), { limit: options.cleanupLimit ?? 50 })),
+    run('abandoned', () => markAbandonedRequests(database, now(), { limit: options.abandonedLimit ?? 20 })),
+    run('cleanup', () => cleanupExpiredIdentityData(database, now(), { limit: options.cleanupLimit ?? 50 })),
   ]);
   return { processedAt, elapsedMs: Math.max(0, performance.now() - start), settlements, abandoned, cleanup,
     uncertain: [settlements, abandoned, cleanup].some(result => result.status === 'uncertain')
@@ -69,7 +74,11 @@ export async function runScheduledMaintenance(database: D1Database, context: Pic
 
 /** scheduledTime may be old after delayed delivery; actual processing time wins. */
 export async function handleScheduled(_controller: ScheduledController, env: Env, context: ExecutionContext): Promise<void> {
-  const report = await runScheduledMaintenance(env.DB, context);
-  // Counts/statuses only: no request IDs, usage bodies, prices or raw exceptions.
-  console.info('scheduled_maintenance', report);
+  try {
+    const report = await runScheduledMaintenance(env.DB, context);
+    console.info('scheduled_maintenance', report);
+  } catch (error) {
+    logError('Scheduled maintenance failed', error, { cron: _controller.cron });
+    throw error;
+  }
 }

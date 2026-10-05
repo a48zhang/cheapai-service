@@ -81,6 +81,6 @@ export async function createUser(database: D1Database, input: CreateUserInput, c
       if (error.message.includes('create_user_group_inactive')) throw new ApiError('invalid_request');
       if (error.message.includes('UNIQUE constraint failed: users.email_normalized')) throw new ApiError('conflict');
     }
-    throw new ApiError('service_unavailable');
+    throw new ApiError('service_unavailable', { cause: error });
   }
 }

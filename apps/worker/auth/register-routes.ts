@@ -60,7 +60,7 @@ async function readInput(request: Request): Promise<RegisterInput> {
 /** Unmounted factory: A31 owns integration with the main application. */
 export function createRegisterRoutes<Bindings extends object = Env>(options: RegisterRoutesOptions<Bindings>): Hono<{ Bindings: Bindings }> {
   const app = new Hono<{ Bindings: Bindings }>();
-  app.onError((error) => apiError(error instanceof ApiError ? error : new ApiError("service_unavailable"), createRequestId()));
+  app.onError((error) => apiError(error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }), createRequestId()));
   app.use("*", async (context, next) => {
     await next();
     context.res.headers.set("Cache-Control", "no-store");
@@ -82,7 +82,7 @@ export function createRegisterRoutes<Bindings extends object = Env>(options: Reg
       if (result.session === "created") response.headers.set("Set-Cookie", result.setCookie);
       return response;
     } catch (error) {
-      const response = apiError(error instanceof ApiError ? error : new ApiError("service_unavailable"), requestId);
+      const response = apiError(error instanceof ApiError ? error : new ApiError("service_unavailable", { cause: error }), requestId);
       if (error instanceof RegistrationRateError) response.headers.set("Retry-After", Math.ceil(error.retryAfterMs / 1000).toString());
       return response;
     }

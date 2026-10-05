@@ -73,7 +73,7 @@ export function createLoginRoutes<Bindings extends object = Record<string, unkno
       response = apiSuccess(result.user, requestId);
       response.headers.set('Set-Cookie', result.setCookie);
     } catch (error) {
-      response = apiError(error instanceof ApiError ? error : new ApiError('service_unavailable'), requestId);
+      response = apiError(error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }), requestId);
       if (error instanceof LoginRateError) response.headers.set('Retry-After', String(Math.max(1, Math.ceil(error.retryAfterMs / 1000))));
     }
     response.headers.set('Cache-Control', 'no-store');

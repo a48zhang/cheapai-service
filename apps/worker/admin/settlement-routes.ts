@@ -45,7 +45,7 @@ async function emptyBody(request: Request): Promise<void> {
  */
 export function createSettlementRoutes(dependencies: SettlementRouteDependencies = { now: Date.now }): Hono<RouteEnv> {
   const app = new Hono<RouteEnv>();
-  app.onError((error, context) => noStore(apiError(error instanceof ApiError ? error : new ApiError('service_unavailable'), context.get('requestId') ?? createRequestId())));
+  app.onError((error, context) => noStore(apiError(error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }), context.get('requestId') ?? createRequestId())));
   app.post(RETRY_SETTLEMENT_PATH, async (context, next) => {
     context.set('requestId', context.get('requestId') ?? createRequestId());
     const now = dependencies.now(); if (!Number.isSafeInteger(now) || now < 0 || now > 8_640_000_000_000_000) throw new ApiError('service_unavailable');

@@ -1,3 +1,4 @@
+import { logError } from '../logging';
 import { defaultProtocolRegistry } from '@sub2api/apicompat';
 import type { ProtocolRegistry, ResolvedProtocolAdapters } from '@sub2api/apicompat';
 import { encodeChatError, encodeResponsesError, encodeMessagesError } from '@sub2api/apicompat/errors';
@@ -153,7 +154,7 @@ export async function dispatchGatewayRequest(dependencies: GatewayDispatchDepend
   let admission: AdmittedRequest | undefined;
   let observer: RequestObserver | undefined;
   let transferred = false;
-  const own = (work: Promise<unknown>) => context.waitUntil(work.then(() => undefined, () => undefined));
+  const own = (work: Promise<unknown>) => context.waitUntil(work.then(() => undefined, error => logError('Gateway background task failed', error, { request_id: requestId })));
   try {
     now = dependencies.now ?? Date.now;
     if (request.method !== 'POST') throw new ApiError('invalid_request');
@@ -204,7 +205,7 @@ export async function dispatchGatewayRequest(dependencies: GatewayDispatchDepend
     const onUpstreamResponse = (response: ChannelCooldownInput): Promise<void> => {
       const work = recordChannelCooldown(dependencies.GATE, response, { clock: now }).then(() => undefined, error => {
         // Timeout/transport failure cannot prove whether the write committed.
-        // Never log provider headers, body, credentials, or raw exception text.
+        logError('Channel cooldown write failed', error, { request_id: requestId, channel_id: response.channelId });
         try { console.warn(JSON.stringify({ event: 'channel_cooldown_write_uncertain', request_id: requestId,
           channel_id: response.channelId, upstream_status: response.status,
           error_code: error instanceof CooldownClientError ? error.code : 'unavailable' })); } catch { /* Best effort. */ }
@@ -233,18 +234,20 @@ export async function dispatchGatewayRequest(dependencies: GatewayDispatchDepend
     observer.mark('first_byte');
     own(execution.completion.then(async completion => {
       let finalization: Awaited<NonNullable<typeof finalizer.completion>> | undefined;
-      try { finalization = finalizer.completion === null ? undefined : await finalizer.completion; } catch { /* Telemetry cannot alter execution. */ }
+      try { finalization = finalizer.completion === null ? undefined : await finalizer.completion; } catch (error) { logError('Gateway finalization failed', error, { request_id: requestId }); }
       const details = { usage: completion.usage, ...(finalization === undefined ? {} : { finalization }) };
       observer?.mark('stream_terminal', { terminal: completion.terminal, ...details });
       observer?.mark('settlement', details);
       observer?.finish({ terminal: completion.terminal, ...details });
-    }, () => {
+    }, error => {
+      logError('Gateway stream completion failed', error, { request_id: requestId });
       observer?.finish({ terminal: observationFailure });
     }));
     const headers = new Headers(execution.response.headers);
     headers.set('X-Request-Id', requestId); headers.set('Cache-Control', 'no-store');
     return new Response(execution.response.body, { status: execution.response.status, headers });
   } catch (error) {
+    logError('Gateway dispatch failed', error, { request_id: requestId, protocol: downstream });
     observer?.finish({ terminal: observationFailure });
     if (admission && (!transferred || (error instanceof StreamExecutionError && error.completion === null))) {
       const held = admission;

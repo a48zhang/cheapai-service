@@ -56,14 +56,14 @@ function safeInteger(value: unknown, minimum = 1): number {
 
 function sellPrices(value: string): PriceTable {
   try { return validateModelPrices(JSON.parse(value)); }
-  catch { throw new ApiError('service_unavailable'); }
+  catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
 }
 
 /** Multiplier validation is shared with billing. Missing or malformed values
  * are unavailable; the chat catalogue never turns a broken price into free. */
 export function normalizeBillingMultiplier(value: unknown): string {
   try { return parseBillingMultiplier(value).text; }
-  catch (error) { if (error instanceof PricingError) throw new ApiError('service_unavailable'); throw error; }
+  catch (error) { if (error instanceof PricingError) throw new ApiError('service_unavailable', { cause: error }); throw error; }
 }
 
 function rowToSelection(row: AuthorizedCatalogRow): AuthorizedChatSelection {
@@ -99,7 +99,7 @@ async function readCatalog(database: D1Database, userId: string, now: number): P
     return (await prepare<CatalogRow>(database, catalogSql, [owner, safeInteger(now, 0), now, now]).all()).rows;
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    throw new ApiError('service_unavailable');
+    throw new ApiError('service_unavailable', { cause: error });
   }
 }
 
@@ -155,6 +155,6 @@ export async function authorizeChatSelection(database: D1Database, userId: strin
     return result;
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    throw new ApiError('service_unavailable');
+    throw new ApiError('service_unavailable', { cause: error });
   }
 }

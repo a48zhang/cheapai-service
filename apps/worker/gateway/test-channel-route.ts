@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { logError } from '../logging';
 import type { MiddlewareHandler } from 'hono';
 import type { Protocol } from '@sub2api/apicompat/types/shared';
 import { parseChatResponse } from '@sub2api/apicompat/types/chat';
@@ -84,7 +85,7 @@ export function createTestChannelRoutes<B extends Bindings = Bindings>(dependenc
     context.set('requestId', context.get('requestId') ?? createRequestId());
     await next(); context.header('Cache-Control', 'no-store');
   });
-  app.onError((error, context) => apiError(error instanceof ApiError ? error : new ApiError('service_unavailable'), context.get('requestId') ?? createRequestId()));
+  app.onError((error, context) => apiError(error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }), context.get('requestId') ?? createRequestId()));
   app.use(TEST_CHANNEL_PATH, (context, next) => {
     const authenticate: MiddlewareHandler = requireSession(now);
     return authenticate(context, next);
@@ -128,7 +129,7 @@ export function createTestChannelRoutes<B extends Bindings = Bindings>(dependenc
         body.protocol, mapping.configVersion, mapping.upstreamModel]), audit('channel.test.intent')]);
     } catch (error) {
       if (error instanceof Error && error.message.includes('channel_probe_conflict')) throw new ApiError('conflict');
-      throw new ApiError('service_unavailable');
+      throw new ApiError('service_unavailable', { cause: error });
     }
     const requestBody = body.protocol === 'responses'
       ? { model: mapping.upstreamModel, input: 'Reply OK.', max_output_tokens: outputLimit, stream: false }
@@ -147,10 +148,11 @@ export function createTestChannelRoutes<B extends Bindings = Bindings>(dependenc
       outcome = error instanceof UpstreamTransportError && error.reason.endsWith('_timeout') ? 'timeout'
         : error instanceof UpstreamTransportError && error.reason === 'cancelled' ? 'cancelled'
         : error instanceof SyntaxError ? 'invalid_response' : 'transport_error';
+      logError('Channel diagnostic failed', error, { request_id: context.get('requestId'), diagnostic_id: diagnosticId, channel_id: channelId, outcome });
     } finally { exchange?.cancel(); }
     // Status is in a controlled action token; no provider error/body/secret enters audit.
     try { await audit(`channel.test.${outcome}${upstreamStatus === null ? '' : `.${upstreamStatus}`}`).run(); }
-    catch { throw new ApiError('service_unavailable'); }
+    catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
     return apiSuccess({ diagnosticId, channelId, publicModelId: body.publicModelId, protocol: body.protocol, outcome, upstreamStatus,
       channelVersion: channel.configVersion, mappingVersion: mapping.configVersion, priceVersion: model.priceVersion,
       maxOutputTokens: outputLimit, mayIncurUpstreamCost: true, userBalanceCharged: false }, context.get('requestId'));

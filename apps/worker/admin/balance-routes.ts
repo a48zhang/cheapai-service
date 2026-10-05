@@ -52,7 +52,7 @@ async function body(request: Request): Promise<Omit<BalanceAdjustmentInput, 'ope
 /** Unmounted full-path router. Origin is resolved lazily, after session/admin auth. */
 export function createAdminBalanceRoutes(dependencies?: BalanceRouteDependencies): Hono<RouteEnv> {
   const app = new Hono<RouteEnv>();
-  app.onError((error, context) => noStore(apiError(error instanceof ApiError ? error : new ApiError('service_unavailable'), context.get('requestId') ?? createRequestId())));
+  app.onError((error, context) => noStore(apiError(error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }), context.get('requestId') ?? createRequestId())));
   app.notFound(context => noStore(apiError(new ApiError('not_found'), context.get('requestId') ?? createRequestId())));
   app.post(ADMIN_BALANCE_PATH,
     async (context, next) => {

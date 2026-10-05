@@ -23,7 +23,7 @@ function billingMultiplier(value: string): string {
   try {
     return parseBillingMultiplier(value).text;
   } catch (error) {
-    if (error instanceof PricingError) throw new ApiError('service_unavailable');
+    if (error instanceof PricingError) throw new ApiError('service_unavailable', { cause: error });
     throw error;
   }
 }
@@ -31,8 +31,8 @@ function billingMultiplier(value: string): string {
 function modelPrices(value: string): PriceTable {
   try {
     return validateModelPrices(JSON.parse(value));
-  } catch {
-    throw new ApiError('service_unavailable');
+  } catch (error) {
+    throw new ApiError('service_unavailable', { cause: error });
   }
 }
 

@@ -1,3 +1,4 @@
+import { logError } from '../logging';
 import type { JsonResponseAdapter, RequestAdapter } from '@sub2api/apicompat/types/adapter';
 import type { UsageSnapshot } from '@sub2api/apicompat/types/shared';
 import { createResponseIds } from '@sub2api/apicompat/ids';
@@ -172,6 +173,9 @@ export async function executeJson<Input, Wire, Upstream, Output>(dependencies: J
     lifecycle.attachUpstream(() => exchange!.cancel());
     await observeUpstreamResponse(options.onUpstreamResponse, request.channel_id, exchange.response, lifecycle.signal);
     const raw = await lifecycle.active(readJson(exchange.response, maxBytes));
+    if (!exchange.response.ok) console.error('Upstream rejected request', {
+      request_id: requestId, channel_id: request.channel_id, status: exchange.response.status,
+    }, raw);
     const completion = await lifecycle.active(exchange.done);
     if (!completion.ok) throw completion.error;
     upstreamRequestId = nativeId(exchange.response.headers.get('request-id') ?? exchange.response.headers.get('x-request-id'));
@@ -204,7 +208,8 @@ export async function executeJson<Input, Wire, Upstream, Output>(dependencies: J
     if (!await lifecycle.persist(() => finishRequest(dependencies.database, requestId, request!.user_id, { status: 'succeeded',
       ...(upstreamResponseId === undefined ? {} : { responseId: upstreamResponseId }), ...(upstreamRequestId === undefined ? {} : { upstreamRequestId }) }, clock()))) throw new Error();
     terminalSaved = true; failure = undefined;
-  } catch {
+  } catch (error) {
+    logError('Gateway JSON execution failed', error, { request_id: requestId, phase: failure });
     failure = lifecycle.reason === 'lease_lost' ? 'lease_lost' : lifecycle.reason === 'cancelled' || options.signal?.aborted ? 'cancelled' : failure ?? 'service_failure';
     lifecycle.beginFinalization(false);
     lifecycle.stop('failed');
@@ -217,7 +222,7 @@ export async function executeJson<Input, Wire, Upstream, Output>(dependencies: J
           if (marked.changes !== 1) throw new Error();
           billingStatus = 'not_chargeable';
         }
-      } catch { failure = 'service_failure'; }
+      } catch (error) { logError('Gateway JSON recovery failed', error, { request_id: requestId }); failure = 'service_failure'; }
       try {
         terminalSaved = await lifecycle.persist(() => finishRequest(dependencies.database, requestId, request!.user_id, {
           status: failure === 'cancelled' ? 'cancelled' : 'failed',
@@ -225,7 +230,7 @@ export async function executeJson<Input, Wire, Upstream, Output>(dependencies: J
           ...(upstreamResponseId === undefined ? {} : { responseId: upstreamResponseId }), ...(upstreamRequestId === undefined ? {} : { upstreamRequestId }),
         }, clock()));
         if (!terminalSaved) failure = 'service_failure';
-      } catch { failure = 'service_failure'; }
+      } catch (error) { logError('Gateway JSON recovery failed', error, { request_id: requestId }); failure = 'service_failure'; }
     }
   } finally {
     const report = await lifecycle.close(cleanupAllowed);

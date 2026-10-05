@@ -47,23 +47,25 @@ routes.get('/healthz', (c) => {
   return c.json({ status: 'ok' }, 200);
 });
 
-function unavailable(): never { throw new ApiError('service_unavailable'); }
+function unavailable(message = 'Required server configuration is missing or invalid.'): never {
+  throw new ApiError('service_unavailable', { cause: new Error(message) });
+}
 
 /** Configuration is resolved per request, not while the module is imported. */
 function trustedOriginFromConfig(env: Env): string {
-  if (!env || typeof env.PUBLIC_BASE_URL !== 'string') unavailable();
+  if (!env || typeof env.PUBLIC_BASE_URL !== 'string') unavailable('PUBLIC_BASE_URL is missing.');
   let origin: string;
   try {
     const url = new URL(env.PUBLIC_BASE_URL);
-    if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash) unavailable();
+    if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash) unavailable('PUBLIC_BASE_URL must be an HTTPS origin.');
     origin = url.origin;
-    if (env.PUBLIC_BASE_URL !== origin && env.PUBLIC_BASE_URL !== `${origin}/`) unavailable();
-  } catch { return unavailable(); }
+    if (env.PUBLIC_BASE_URL !== origin && env.PUBLIC_BASE_URL !== `${origin}/`) unavailable('PUBLIC_BASE_URL must match its canonical origin.');
+  } catch (error) { throw error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }); }
   return origin;
 }
 
 function trustedEntryConfiguration(env: Env) {
-  if (!env || !['local', 'staging', 'production'].includes(env.ENVIRONMENT)) unavailable();
+  if (!env || !['local', 'staging', 'production'].includes(env.ENVIRONMENT)) unavailable('ENVIRONMENT is missing or unsupported.');
   return { trustedOrigin: trustedOriginFromConfig(env) };
 }
 
@@ -86,7 +88,7 @@ function trustedEmailConfiguration(env: Env) {
       if (decoded.length < 32 || decoded.length > 512 || btoa(decoded) !== env.EMAIL_HMAC_KEY) unavailable();
       hmacKey = Uint8Array.from(decoded, c => c.charCodeAt(0));
       emailFrom = normalizeEmail(env.EMAIL_FROM);
-    } catch { return unavailable(); }
+    } catch (error) { throw error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }); }
   }
   return { emailAvailable, hmacKey, emailFrom, email };
 }
@@ -103,7 +105,7 @@ function codeManagement(env: Env) {
 }
 function registrationManagement(env: Env) {
   let emailAvailable = false;
-  try { emailAvailable = trustedEmailConfiguration(env).emailAvailable; } catch { /* Display unready diagnostics; do not hide the settings UI. */ }
+  try { emailAvailable = trustedEmailConfiguration(env).emailAvailable; } catch (error) { console.error('Email configuration unavailable in registration settings', error); }
   return createRegistrationSettingsRoutes<Env>({ now: Date.now, emailAvailable, trustedOrigin: () => trustedOriginFromConfig(env) });
 }
 const personalKeys = createKeyRoutes<Env>({ now: Date.now, trustedOrigin: env => trustedOriginFromConfig(env) });
@@ -163,7 +165,7 @@ const auditQueries = createAuditRoutes();
 export const ADMIN_RECONCILIATION_PATH = '/api/v1/admin/billing/reconciliation';
 const reconciliationQueries = new Hono<AuthEnv>();
 reconciliationQueries.onError((error, context) => {
-  const response = apiError(error instanceof ApiError ? error : new ApiError('service_unavailable'), context.get('requestId') ?? createRequestId());
+  const response = apiError(error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }), context.get('requestId') ?? createRequestId());
   response.headers.set('Cache-Control', 'no-store'); return response;
 });
 reconciliationQueries.get(ADMIN_RECONCILIATION_PATH, requireSession(), requireAdmin, async context => {
@@ -273,7 +275,7 @@ for (const path of paths) {
         let emailAvailable = false;
         let invalidMailConfiguration = false;
         try { emailAvailable = trustedEmailConfiguration(env).emailAvailable; }
-        catch { invalidMailConfiguration = true; }
+        catch (error) { console.error('Public registration email configuration failed', error); invalidMailConfiguration = true; }
         // Anonymous login bootstrap must survive mail configuration failures.
         // Reuse A30's nonce/cookie validation and A09's authoritative D1 read;
         // never turn a storage/CSRF failure into a successful settings response.
@@ -300,7 +302,7 @@ for (const path of paths) {
       }).fetch(request, env);
     } catch (error) {
       console.error('Auth route failed', { path }, error);
-      const response = apiError(new ApiError('service_unavailable'), createRequestId());
+      const response = apiError(new ApiError('service_unavailable', { cause: error }), createRequestId());
       response.headers.set('Cache-Control', 'no-store');
       return response;
     }

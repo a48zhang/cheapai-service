@@ -1,3 +1,4 @@
+import { logError } from '../logging';
 import { Hono } from 'hono';
 import { authenticatePlatformKey, PlatformKeyAuthError } from '../auth/api-key-auth';
 import { prepare } from '../db';
@@ -45,6 +46,8 @@ export function createModelsRoute(dependencies: { now?: () => number } = {}): Ho
       const conflict = error instanceof PlatformKeyAuthError && error.reason === 'conflicting_api_key_headers';
       const invalidRequest = error instanceof InvalidModelListRequest;
       const status = invalidKey ? 401 : conflict || invalidRequest ? 400 : 503;
+      if (status >= 500) logError('Gateway model list failed', error, { path: MODELS_PATH });
+      else console.warn('Gateway model list rejected', { status }, error);
       response = Response.json({ error: {
         message: invalidKey ? 'Invalid API key.' : conflict ? 'Conflicting API key headers.' : invalidRequest ? 'Invalid model list request.' : 'Service temporarily unavailable.',
         type: invalidKey ? 'authentication_error' : conflict || invalidRequest ? 'invalid_request_error' : 'server_error',

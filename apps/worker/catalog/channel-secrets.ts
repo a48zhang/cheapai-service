@@ -4,8 +4,8 @@ import type { SecretKeyring } from './secret-envelope';
 export type ChannelKeyring = SecretKeyring;
 
 export class ChannelSecretError extends Error {
-  constructor() {
-    super('Channel secret operation failed.');
+  constructor(options?: ErrorOptions) {
+    super('Channel secret operation failed.', options);
     this.name = 'ChannelSecretError';
   }
 }
@@ -34,8 +34,8 @@ export async function encryptChannelSecret(
 ): Promise<string> {
   try {
     return await encryptSecretEnvelope(plaintext, keyVersion, key, aad(channelId, keyVersion));
-  } catch {
-    throw new ChannelSecretError();
+  } catch (error) {
+    throw new ChannelSecretError({ cause: error });
   }
 }
 
@@ -47,7 +47,7 @@ export async function decryptChannelSecret(
 ): Promise<string> {
   try {
     return await decryptSecretEnvelope(encrypted, keyring, version => aad(channelId, version));
-  } catch {
-    throw new ChannelSecretError();
+  } catch (error) {
+    throw new ChannelSecretError({ cause: error });
   }
 }

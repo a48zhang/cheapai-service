@@ -15,8 +15,8 @@ export interface CooldownBinding {
 }
 export class CooldownClientError extends Error {
   readonly retryable: boolean;
-  constructor(readonly code: 'invalid_input' | 'invalid_response' | 'remote_rejected' | 'unavailable' | 'timeout') {
-    super(`Channel cooldown: ${code}`);
+  constructor(readonly code: 'invalid_input' | 'invalid_response' | 'remote_rejected' | 'unavailable' | 'timeout', options?: ErrorOptions) {
+    super(`Channel cooldown: ${code}`, options);
     this.name = 'CooldownClientError';
     this.retryable = code === 'unavailable' || code === 'timeout';
   }
@@ -65,10 +65,10 @@ function remoteError(error: unknown): CooldownClientError {
     const info = error as { name?: unknown; code?: unknown };
     if (info.name === 'TypeError' || info.name === 'RangeError'
       || (typeof info.code === 'string' && ['invalid_parameters', 'invalid_state', 'configuration_changed', 'LEASE_STORAGE_INVALID'].includes(info.code))) {
-      return new CooldownClientError('remote_rejected');
+      return new CooldownClientError('remote_rejected', { cause: error });
     }
   }
-  return new CooldownClientError('unavailable');
+  return new CooldownClientError('unavailable', { cause: error });
 }
 
 function channelStub(binding: CooldownBinding, channelId: string): ReturnType<CooldownBinding['get']> {

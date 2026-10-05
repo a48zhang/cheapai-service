@@ -2,6 +2,7 @@ import { DEFAULT_CONFIG } from '../config';
 import { buildUpstreamHeaders } from './headers';
 import type { UpstreamHeaderOptions } from './headers';
 import { buildUpstreamUrl } from './upstream-url';
+import { logError } from '../logging';
 
 export type TransportFailure = 'invalid_configuration' | 'cancelled' | 'headers_timeout' | 'request_timeout' | 'idle_timeout' | 'network_error' | 'stream_error' | 'redirect_rejected';
 export class UpstreamTransportError extends Error {
@@ -47,7 +48,10 @@ export async function sendUpstream(options: UpstreamRequestOptions, dependencies
     totalMs = timeout(options.maxDurationMs ?? DEFAULT_CONFIG.requestMaxDurationMs, 2_147_483_647);
     headerMs = timeout(options.headersTimeoutMs ?? Math.min(DEFAULT_CONFIG.upstreamHeadersTimeoutMs, totalMs), totalMs);
     idleMs = timeout(options.idleTimeoutMs ?? Math.min(DEFAULT_CONFIG.upstreamIdleTimeoutMs, totalMs), totalMs);
-  } catch { throw new UpstreamTransportError('invalid_configuration', 'not_started'); }
+  } catch (error) {
+    logError('Upstream request configuration failed', error);
+    throw new UpstreamTransportError('invalid_configuration', 'not_started');
+  }
   if (options.signal?.aborted) throw new UpstreamTransportError('cancelled', 'not_started');
 
   const controller = new AbortController();
@@ -72,6 +76,7 @@ export async function sendUpstream(options: UpstreamRequestOptions, dependencies
     if (idleTimer !== undefined) clearTimeout(idleTimer);
     options.signal?.removeEventListener('abort', onAbort);
     if (error) {
+      if (error.reason !== 'cancelled') logError('Upstream transport failed', error, { protocol: options.upstreamProtocol });
       controller.abort(error);
       rejectHeaders?.(error);
       try { streamController?.error(error); } catch { /* Stream may already be cancelled. */ }
@@ -100,7 +105,8 @@ export async function sendUpstream(options: UpstreamRequestOptions, dependencies
     if (failure) throw failure;
     if (headerTimer !== undefined) clearTimeout(headerTimer);
     headerTimer = undefined; rejectHeaders = undefined;
-  } catch {
+  } catch (cause) {
+    logError('Upstream fetch failed', cause, { protocol: options.upstreamProtocol });
     const error = failure ?? new UpstreamTransportError('network_error', 'uncertain');
     finish(error); throw error;
   }
@@ -109,10 +115,12 @@ export async function sendUpstream(options: UpstreamRequestOptions, dependencies
     const error = new UpstreamTransportError('redirect_rejected', 'uncertain', upstream.status);
     finish(error); throw error;
   }
+  if (!upstream.ok) console.error('Upstream returned an HTTP error', { status: upstream.status, protocol: options.upstreamProtocol });
   const cancel = () => finish(new UpstreamTransportError('cancelled', 'uncertain'));
   if (upstream.body === null) { finish(); return { response: upstream, done, cancel }; }
   try { reader = upstream.body.getReader(); }
-  catch {
+  catch (cause) {
+    logError('Upstream response reader failed', cause);
     const error = new UpstreamTransportError('stream_error', 'uncertain');
     finish(error); throw error;
   }
@@ -128,7 +136,8 @@ export async function sendUpstream(options: UpstreamRequestOptions, dependencies
         if (terminal) return;
         if (part.done) { target.close(); finish(); }
         else target.enqueue(part.value);
-      } catch {
+      } catch (cause) {
+        logError('Upstream response stream failed', cause);
         finish(failure ?? new UpstreamTransportError('stream_error', 'uncertain'));
       }
     },
@@ -137,7 +146,8 @@ export async function sendUpstream(options: UpstreamRequestOptions, dependencies
   try {
     const response = new Response(body, { status: upstream.status, statusText: upstream.statusText, headers: upstream.headers });
     return { response, done, cancel };
-  } catch {
+  } catch (cause) {
+    logError('Upstream response construction failed', cause);
     const error = new UpstreamTransportError('stream_error', 'uncertain');
     finish(error); throw error;
   }

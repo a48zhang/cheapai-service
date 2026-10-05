@@ -271,7 +271,7 @@ export async function acceptSend(database: D1Database, input: AcceptSendInput): 
     if (error instanceof ApiError) throw error;
     if (isExpectedStorageConflict(error)) throw new ApiError('conflict');
     if (error instanceof Error && error.message.includes('FOREIGN KEY constraint failed')) throw new ApiError('invalid_request');
-    throw new ApiError('service_unavailable');
+    throw new ApiError('service_unavailable', { cause: error });
   }
 }
 
@@ -351,7 +351,7 @@ export async function acceptRegenerate(database: D1Database, input: AcceptRegene
     if (error instanceof ApiError) throw error;
     if (isExpectedStorageConflict(error)) throw new ApiError('conflict');
     if (error instanceof Error && error.message.includes('FOREIGN KEY constraint failed')) throw new ApiError('invalid_request');
-    throw new ApiError('service_unavailable');
+    throw new ApiError('service_unavailable', { cause: error });
   }
 }
 
@@ -415,7 +415,7 @@ export async function attachRequest(
   } catch (error) {
     if (error instanceof Error && (error.message.includes('UNIQUE constraint failed: chat_messages.request_id')
       || error.message.includes('FOREIGN KEY constraint failed'))) throw new ApiError('conflict');
-    throw new ApiError('service_unavailable');
+    throw new ApiError('service_unavailable', { cause: error });
   }
   const current = await messageById(database, userId, targetId);
   if (!current) throw new ApiError('not_found');
@@ -483,7 +483,7 @@ export async function finalize(database: D1Database, input: FinalizeInput): Prom
       if (replay && replay.status !== 'generating') return replay;
       throw new ApiError('conflict');
     }
-    throw new ApiError('service_unavailable');
+    throw new ApiError('service_unavailable', { cause: error });
   }
   const replay = await messageById(database, userId, messageId);
   if (!replay) throw new ApiError('not_found');
@@ -542,7 +542,7 @@ export async function selectMessageVersion(
   } catch (error) {
     if (error instanceof ApiError) throw error;
     if (error instanceof Error && error.message.includes('chat_select_conflict')) throw new ApiError('conflict');
-    throw new ApiError('service_unavailable');
+    throw new ApiError('service_unavailable', { cause: error });
   }
   const full = await bundle(database, userId, conversationId);
   return Object.freeze({ conversation: full.conversation, messages: full.messages });

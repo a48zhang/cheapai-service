@@ -1,8 +1,11 @@
 import { Hono } from 'hono';
 import { routes } from './routes';
 import type { Env } from './env';
+import { apiError, createRequestId } from './http';
 
 export const app = new Hono<{ Bindings: Env }>();
+
+app.onError((error) => apiError(error, createRequestId()));
 
 const csp = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
 const apiPrefixes = ['/api', '/v1', '/healthz'] as const;
@@ -44,8 +47,14 @@ function applySecurityHeaders(response: Response, origin?: string, requestOrigin
 // Keep API responses in the Worker path while permitting only the configured
 // console origin to use browser CORS. No credentialed CORS is enabled.
 app.use('*', async (context, next) => {
+  const startedAt = Date.now();
+  const details = { method: context.req.method, path: context.req.path };
+  if (workerPath(context.req.path)) console.debug('HTTP request started', details);
   await next();
   context.res = applySecurityHeaders(context.res, configuredOrigin(context.env), context.req.header('Origin'), context.req.path);
+  if (workerPath(context.req.path)) console.debug('HTTP request completed', {
+    ...details, status: context.res.status, elapsed_ms: Date.now() - startedAt,
+  });
 });
 
 // Production's www alias is only an entry point: keep cookies, CSRF and API
@@ -97,7 +106,7 @@ app.notFound(async context => {
         const response = await assets.fetch(context.req.raw);
         if (response.status !== 404) return response;
       }
-    } catch { /* Asset failures fall through to the structured 404. */ }
+    } catch (error) { console.error('Static asset fetch failed', { path: context.req.path }, error); }
   }
   return context.json({ error: { code: 'not_found', message: 'Resource not found.' }, request_id: crypto.randomUUID() }, 404);
 });

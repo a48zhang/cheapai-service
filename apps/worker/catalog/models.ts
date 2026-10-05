@@ -87,7 +87,7 @@ function view(row: ModelRow): ModelView {
       priceVersion: integer(row.price_version, 1), admissionMinBalanceUnits: String(integer(row.admission_min_balance_units, 0)),
       maxOutputTokens, createdAt: integer(row.created_at, 0), updatedAt: integer(row.updated_at, 0),
     });
-  } catch { throw new ApiError('service_unavailable'); } // Corrupt stored prices must never become free.
+  } catch (error) { throw new ApiError('service_unavailable', { cause: error }); } // Corrupt stored prices must never become free.
 }
 
 /** Reads validate stored prices too; malformed configuration is unavailable. */
@@ -96,7 +96,7 @@ export async function getModelById(database: D1Database, publicModelId: string):
   try {
     const row = await prepare<ModelRow>(database, `SELECT ${projection} FROM models WHERE public_model_id=?`, [id]).first();
     return row ? view(row) : null;
-  } catch { throw new ApiError('service_unavailable'); }
+  } catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
 }
 
 export type { ModelRow };

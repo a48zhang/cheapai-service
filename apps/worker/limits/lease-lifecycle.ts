@@ -1,3 +1,4 @@
+import { logError } from '../logging';
 import { DEFAULT_CONFIG } from '../config';
 import type { DualLeaseCleanupReport, DualLeasePermit } from './dual-lease';
 import type { HeldSubjectLease } from './dual-lease';
@@ -76,7 +77,7 @@ export function startLeaseLifecycle(permit: DualLeasePermit, options: LeaseLifec
     let cancelled = true;
     for (const handle of [renewTimer, safetyTimer]) {
       if (handle !== undefined) {
-        try { scheduler.cancel(handle); } catch { cancelled = false; }
+        try { scheduler.cancel(handle); } catch (error) { logError('Lease timer cancellation failed', error); cancelled = false; }
       }
     }
     renewTimer = undefined;
@@ -108,7 +109,7 @@ export function startLeaseLifecycle(permit: DualLeasePermit, options: LeaseLifec
 
   function readClock(): number | undefined {
     let now: number;
-    try { now = clock(); } catch { stop('clock_invalid'); return undefined; }
+    try { now = clock(); } catch (error) { logError('Lease clock failed', error); stop('clock_invalid'); return undefined; }
     if (!Number.isSafeInteger(now) || now < 0) { stop('clock_invalid'); return undefined; }
     if (now < lastNow) { stop('clock_regression'); return undefined; }
     lastNow = now;
@@ -124,7 +125,7 @@ export function startLeaseLifecycle(permit: DualLeasePermit, options: LeaseLifec
     if (now === undefined) return;
     const remaining = expiresAt() - safetyMarginMs - now;
     if (remaining <= 0) { stop('lease_unsafe'); return; }
-    try { safetyTimer = scheduler.schedule(checkSafety, Math.min(remaining, MAX_TIMER_DELAY_MS)); } catch { stop('scheduler_failed'); }
+    try { safetyTimer = scheduler.schedule(checkSafety, Math.min(remaining, MAX_TIMER_DELAY_MS)); } catch (error) { logError('Lease scheduling failed', error); stop('scheduler_failed'); }
   }
 
   function arm(): void {
@@ -138,7 +139,7 @@ export function startLeaseLifecycle(permit: DualLeasePermit, options: LeaseLifec
       safetyTimer = scheduler.schedule(checkSafety, Math.min(safeFor, MAX_TIMER_DELAY_MS));
       // A permit close to its margin must renew now, not wait a full interval.
       renewTimer = scheduler.schedule(renew, safeFor <= renewIntervalMs ? 0 : renewIntervalMs);
-    } catch { stop('scheduler_failed'); }
+    } catch (error) { logError('Lease scheduling failed', error); stop('scheduler_failed'); }
   }
 
   async function renewOne(held: HeldSubjectLease, handle: LeaseHandle): Promise<LeaseHandle | undefined> {
@@ -147,7 +148,8 @@ export function startLeaseLifecycle(permit: DualLeasePermit, options: LeaseLifec
       if (closed) return undefined;
       if (!result.renewed) { stop('renewal_failed'); return undefined; }
       return result.handle;
-    } catch {
+    } catch (error) {
+      logError('Lease renewal failed', error, { request_id: handle.requestId, subject: handle.subject });
       if (!closed) stop('renewal_failed');
       return undefined;
     }

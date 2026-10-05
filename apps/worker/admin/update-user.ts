@@ -91,6 +91,6 @@ export async function updateUser(database: D1Database, userId: string, expectedV
       if (cause.message.includes('update_user_group_inactive')) throw new ApiError('invalid_request');
       if (cause.message.includes('update_user_last_admin') || cause.message.includes('update_user_conflict')) throw new ApiError('conflict');
     }
-    throw new ApiError('service_unavailable');
+    throw new ApiError('service_unavailable', { cause: error });
   }
 }

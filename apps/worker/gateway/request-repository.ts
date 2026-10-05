@@ -107,7 +107,7 @@ export async function commitRequestRegistration(database: D1Database, registrati
       if (cause.message.includes('request_registration_conflict') || cause.message.includes('UNIQUE constraint failed: requests.id')) throw new ApiError('conflict');
     }
     if (error instanceof ApiError) throw error;
-    throw new ApiError('service_unavailable');
+    throw new ApiError('service_unavailable', { cause: error });
   }
 }
 

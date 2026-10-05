@@ -54,13 +54,13 @@ async function encrypt(key: unknown, id: string, encryption: ChannelEncryptionKe
   const plaintext = text(key, 16384); // An omitted key is handled by update; empty never means deletion.
   if (!encryption) throw new ApiError('service_unavailable');
   try { return await encryptChannelSecret(plaintext, id, encryption.keyVersion, encryption.key); }
-  catch { throw new ApiError('service_unavailable'); }
+  catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
 }
 function writeError(error: unknown): never {
   if (error instanceof ApiError) throw error;
   // Only classify our fixed SQL guard marker; never expose underlying DB errors.
   if (error instanceof Error && error.message.includes('channel_write_conflict')) throw new ApiError('conflict');
-  throw new ApiError('service_unavailable');
+  throw new ApiError('service_unavailable', { cause: error });
 }
 function requireOneChange(database: D1Database) {
   // changes() observes the immediately preceding write on the SAME D1 batch.
