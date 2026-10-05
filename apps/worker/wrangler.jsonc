@@ -1,5 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
+  // Top-level is local only. Builds/deploys must explicitly select --env production.
   // Local uses placeholders; production and generated PR previews use isolated resources.
   "name": "sub2api-cloudflare-local",
   "main": "index.ts",

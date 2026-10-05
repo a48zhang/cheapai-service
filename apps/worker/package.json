@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
-    "build": "wrangler deploy --dry-run --outdir dist",
+    "dev": "wrangler dev --config wrangler.jsonc --env= --local",
+    "build": "wrangler deploy --config wrangler.jsonc --env production --dry-run --strict --outdir dist",
+    "deploy": "wrangler deploy --config wrangler.jsonc --env production --strict",
     "typecheck": "tsc --project tsconfig.json --noEmit",
     "test": "vitest run --root ../.. --config ../../vitest.config.ts"
   },

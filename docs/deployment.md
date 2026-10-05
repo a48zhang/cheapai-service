@@ -8,6 +8,24 @@
 
 从仓库根目录执行 `pnpm run production:check`（Windows 可用 `pnpm.cmd`）。它先构建前端，再对 **production** 执行 `deploy --dry-run --strict`，输出到忽略提交的 `.wrangler/build-production`；不会上传、应用远程迁移、配置 Secrets 或发布。此检查只验证打包和配置，不证明线上功能可用。
 
+### Cloudflare Workers Builds 设置
+
+2026-10-05 修正：Worker 的 `build` 和 `deploy` 脚本均显式指定配置文件及 `--env production`，本地 `dev` 显式指定顶层环境和 `--local`。顶层配置仍是本地占位资源，不作为生产默认值。
+
+在 `sub2api-cloudflare-production` 的 Settings → Builds 中使用以下设置：
+
+| 设置 | 值 |
+| --- | --- |
+| Root directory | 仓库根目录 `/` |
+| Build command | `pnpm run build` |
+| Deploy command | `pnpm run deploy` |
+
+这些 Dashboard 设置不由 Git 中的 package scripts 自动覆盖。必须将已有的裸命令 `npx wrangler deploy` 替换为上表命令，再重试发布。若保留 Wrangler 直接调用，等价命令为 `pnpm --filter @sub2api/worker exec wrangler deploy --config wrangler.jsonc --env production --strict`。`deploy` 使用构建步骤生成的前端产物，不重复构建。
+
+CI 自动将 Worker 名称替换为 production 名称，不会同时切换 D1、KV、邮件或 vars。构建及发布日志中应确认 `ENVIRONMENT` 为 `production`、DB 为 `sub2api-cloudflare-production`、CACHE 为 `3da22af80f0946cdbb9cd85caee9810d`，且没有 local 邮件占位绑定。不能只依据 Worker 名称判断选中了生产环境。
+
+本地验证：在故意设置 `CLOUDFLARE_ENV=local` 时，`pnpm run build` 和 `pnpm run deploy --dry-run --outdir /tmp/cheapai-production-deploy` 均成功，解析为上述生产绑定。未实际发布，也未修改 Dashboard 配置。Wrangler 仍提示生产未继承顶层 `send_email`；这是 production 使用 Resend、明确设置 `send_email: []` 的现有配置，不应补入本地邮件绑定。
+
 发布者必须核对目标账户及现有资源，不能重复创建或替换：
 
 | production 项目 | 配置值 |
