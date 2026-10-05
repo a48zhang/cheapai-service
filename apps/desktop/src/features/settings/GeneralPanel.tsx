@@ -1,3 +1,4 @@
+import { ThemePicker } from '@cheapai/theme';
 import { useState } from 'react';
 import { readPreferences, savePreferences, type DesktopPreferences, type DesktopPreferencePatch } from './preferences';
 
@@ -53,6 +54,8 @@ export function GeneralPanel({ userId, modelSource, directorySource }: GeneralPa
           设置保存在本机，不会与对话历史或其他账号混存。
         </p>
       </div>
+
+      <div className="ui-field"><span>外观</span><ThemePicker compact={false} /></div>
 
       <label className="ui-field" htmlFor="default-model">
         <span>默认模型</span>

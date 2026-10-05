@@ -49,14 +49,14 @@ export function BillingTable({
       id: 'kind',
       header: '类型',
       cell: ({ row }) => (
-        <span className="font-medium text-slate-800">{kindLabels[row.original.kind]}</span>
+        <span className="font-medium text-[var(--color-ink)]">{kindLabels[row.original.kind]}</span>
       ),
     },
     {
       id: 'amount',
       header: '金额变化',
       cell: ({ row }) => (
-        <span className="whitespace-nowrap font-mono text-sm font-medium tabular-nums text-slate-900">
+        <span className="whitespace-nowrap font-mono text-sm font-medium tabular-nums text-[var(--color-ink)]">
           {amountLabel(row.original.deltaUnits, row.original.kind)}
         </span>
       ),
@@ -67,7 +67,7 @@ export function BillingTable({
             id: 'user',
             header: '用户',
             cell: ({ row }) => (
-              <span className="break-all font-mono text-xs text-slate-600">
+              <span className="break-all font-mono text-xs text-[var(--color-ink-secondary)]">
                 {row.original.userId}
               </span>
             ),
@@ -80,20 +80,20 @@ export function BillingTable({
       cell: ({ row }) =>
         row.original.requestId ? (
           <Link
-            className="font-mono text-xs text-indigo-700 hover:underline"
+            className="font-mono text-xs text-[var(--color-accent)] hover:underline"
             to={`${scope === 'admin' ? '/admin/requests' : '/requests'}/${encodeURIComponent(row.original.requestId)}`}
           >
             {row.original.requestId}
           </Link>
         ) : (
-          <span className="text-slate-500">—</span>
+          <span className="text-[var(--color-ink-muted)]">—</span>
         ),
     },
     {
       id: 'reason',
       header: '原因',
       cell: ({ row }) => (
-        <span className="block min-w-40 max-w-xl break-words text-sm text-slate-600">
+        <span className="block min-w-40 max-w-xl break-words text-sm text-[var(--color-ink-secondary)]">
           {row.original.reason ?? (row.original.kind === 'consumption' ? '模型消费' : '—')}
         </span>
       ),
@@ -104,7 +104,7 @@ export function BillingTable({
       cell: ({ row }) => (
         <time
           dateTime={row.original.createdAt}
-          className="whitespace-nowrap text-xs text-slate-600"
+          className="whitespace-nowrap text-xs text-[var(--color-ink-secondary)]"
         >
           {formatDateTime(row.original.createdAt)}
         </time>
@@ -118,7 +118,7 @@ export function BillingTable({
       cell: ({ row }) => (
         <time
           dateTime={row.original.createdAt}
-          className="whitespace-nowrap text-xs text-slate-600"
+          className="whitespace-nowrap text-xs text-[var(--color-ink-secondary)]"
         >
           {formatDateTime(row.original.createdAt)}
         </time>
@@ -129,9 +129,13 @@ export function BillingTable({
       header: '类型 / 模型',
       cell: ({ row }) => (
         <div className="grid gap-1">
-          <span className="font-medium text-slate-800">{kindLabels[row.original.kind]}</span>
+          <span className="font-medium text-[var(--color-ink)]">
+            {kindLabels[row.original.kind]}
+          </span>
           {row.original.modelId && (
-            <span className="font-mono text-xs text-slate-500">{row.original.modelId}</span>
+            <span className="font-mono text-xs text-[var(--color-ink-muted)]">
+              {row.original.modelId}
+            </span>
           )}
         </div>
       ),
@@ -140,7 +144,7 @@ export function BillingTable({
       id: 'source',
       header: '来源',
       cell: ({ row }) => (
-        <span className="whitespace-nowrap text-slate-600">
+        <span className="whitespace-nowrap text-[var(--color-ink-secondary)]">
           {row.original.source === 'web_chat'
             ? '网页聊天'
             : row.original.source === 'api'
@@ -153,7 +157,7 @@ export function BillingTable({
       id: 'amount',
       header: '金额',
       cell: ({ row }) => (
-        <span className="whitespace-nowrap font-mono text-sm font-medium tabular-nums text-slate-900">
+        <span className="whitespace-nowrap font-mono text-sm font-medium tabular-nums text-[var(--color-ink)]">
           {amountLabel(row.original.deltaUnits, row.original.kind, true)}
         </span>
       ),
@@ -164,13 +168,13 @@ export function BillingTable({
       cell: ({ row }) =>
         row.original.requestId ? (
           <Link
-            className="whitespace-nowrap text-indigo-700 hover:underline"
+            className="whitespace-nowrap text-[var(--color-accent)] hover:underline"
             to={`/requests/${encodeURIComponent(row.original.requestId)}`}
           >
             查看记录
           </Link>
         ) : (
-          <span className="text-slate-500">—</span>
+          <span className="text-[var(--color-ink-muted)]">—</span>
         ),
     },
   ];

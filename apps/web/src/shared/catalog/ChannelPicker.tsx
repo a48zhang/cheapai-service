@@ -144,7 +144,7 @@ export function ChannelPicker({
               value={search}
               onChange={(event) => setSearch(event.currentTarget.value)}
               placeholder="按名称或 ID 搜索"
-              className="min-h-10 rounded-md border bg-white px-3 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+              className="min-h-10 rounded-md border bg-[var(--color-surface)] px-3 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
               style={{ borderColor: 'var(--color-border)', color: 'var(--color-foreground)' }}
             />
           </label>

@@ -41,7 +41,7 @@ export function Dialog({
       {trigger && <DialogPrimitive.Trigger asChild>{trigger}</DialogPrimitive.Trigger>}
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay
-          className={`fixed inset-0 z-50 bg-slate-950/45 ${overlayClassName ?? ''}`}
+          className={`fixed inset-0 z-50 bg-[var(--color-overlay)] ${overlayClassName ?? ''}`}
         />
         <DialogPrimitive.Content
           className={`fixed left-1/2 top-1/2 z-50 flex max-h-[min(90dvh,52rem)] w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border p-0 shadow-[var(--shadow-lg)] outline-none ${className ?? ''}`}

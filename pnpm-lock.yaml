@@ -43,6 +43,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@cheapai/theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
       '@deepseek-ai/cordis':
         specifier: 4.0.5-alpha.1
         version: 4.0.5-alpha.1(@deepseek-ai/cordis-plugin-include@1.0.10-alpha.1)(@deepseek-ai/cordis-plugin-loader@1.0.6-alpha.1)
@@ -165,6 +168,9 @@ importers:
       '@cheapai/model-catalog':
         specifier: workspace:*
         version: link:../../packages/model-catalog
+      '@cheapai/theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
       '@hookform/resolvers':
         specifier: 5.9.1
         version: 5.9.1(@standard-schema/spec@1.1.0)(ajv@8.20.0)(react-hook-form@7.89.0(@types/react@19.3.0)(react@19.3.0))(zod@4.6.5)
@@ -337,6 +343,18 @@ importers:
 
   packages/model-catalog:
     devDependencies:
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/theme:
+    devDependencies:
+      '@types/react':
+        specifier: 19.3.0
+        version: 19.3.0
+      react:
+        specifier: 19.3.0
+        version: 19.3.0
       typescript:
         specifier: 5.9.3
         version: 5.9.3

@@ -1,3 +1,4 @@
+import { ThemePicker } from '@cheapai/theme';
 import { useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useSession } from '../../features/session/useSession';
@@ -27,7 +28,7 @@ export function ConsoleLayout({ children }: { children?: ReactNode }) {
                 end={item.path === '/'}
                 onClick={() => setMobileOpen(false)}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${isActive ? 'bg-indigo-50 font-medium text-indigo-600' : 'text-[var(--color-muted-foreground)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-foreground)]'}`
+                  `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${isActive ? 'bg-[var(--color-accent-soft)] font-medium text-[var(--color-accent)]' : 'text-[var(--color-muted-foreground)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-foreground)]'}`
                 }
               >
                 <span aria-hidden="true" className="w-4 text-center">
@@ -45,11 +46,11 @@ export function ConsoleLayout({ children }: { children?: ReactNode }) {
     <div className="flex min-h-dvh bg-[var(--color-canvas)]">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-white focus:p-4"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-[var(--color-surface)] focus:p-4"
       >
         跳到主要内容
       </a>
-      <aside className="sticky top-0 hidden h-dvh w-[var(--sidebar-width)] shrink-0 flex-col border-r border-[var(--color-border)] bg-white md:flex">
+      <aside className="sticky top-0 hidden h-dvh w-[var(--sidebar-width)] shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] md:flex">
         <BrandLink className="px-6 py-5 text-xl font-semibold tracking-tight" />
         {navigation}
         <div className="border-t border-[var(--color-border)] p-4">
@@ -62,7 +63,7 @@ export function ConsoleLayout({ children }: { children?: ReactNode }) {
         {navigation}
       </Sheet>
       <div className="min-w-0 flex-1">
-        <header className="flex h-14 items-center justify-between gap-3 border-b border-[var(--color-border)] bg-white px-5 md:px-8">
+        <header className="flex h-14 items-center justify-between gap-3 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-5 md:px-8">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
@@ -75,32 +76,35 @@ export function ConsoleLayout({ children }: { children?: ReactNode }) {
             </Button>
             <span className="text-sm font-medium">管理控制台</span>
           </div>
-          <DropdownMenu
-            trigger={
-              <button
-                type="button"
-                aria-label="账户菜单"
-                className="flex items-center gap-2 text-sm"
-              >
-                <span className="grid h-7 w-7 place-items-center rounded-full bg-indigo-100 text-indigo-600">
-                  {user?.email_normalized.slice(0, 1).toUpperCase()}
-                </span>
-                <span className="hidden sm:block">{user?.email_normalized}</span>
-              </button>
-            }
-            items={[
-              {
-                label: '退出登录',
-                disabled: pending !== null,
-                onSelect: () => {
-                  void session
-                    .logout()
-                    .then(() => navigate('/login', { replace: true }))
-                    .catch(() => undefined);
+          <div className="flex items-center gap-3">
+            <ThemePicker />
+            <DropdownMenu
+              trigger={
+                <button
+                  type="button"
+                  aria-label="账户菜单"
+                  className="flex items-center gap-2 text-sm"
+                >
+                  <span className="grid h-7 w-7 place-items-center rounded-full bg-[var(--color-accent-soft)] text-[var(--color-accent)]">
+                    {user?.email_normalized.slice(0, 1).toUpperCase()}
+                  </span>
+                  <span className="hidden sm:block">{user?.email_normalized}</span>
+                </button>
+              }
+              items={[
+                {
+                  label: '退出登录',
+                  disabled: pending !== null,
+                  onSelect: () => {
+                    void session
+                      .logout()
+                      .then(() => navigate('/login', { replace: true }))
+                      .catch(() => undefined);
+                  },
                 },
-              },
-            ]}
-          />
+              ]}
+            />
+          </div>
         </header>
         <main id="main-content" className="mx-auto max-w-[1440px] space-y-5 p-5 md:p-8">
           {error && <ApiErrorNotice error={error} />}

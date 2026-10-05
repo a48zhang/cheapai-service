@@ -161,7 +161,9 @@ export function CodeBatchDialog({
               />
             </Field>
             {intent && (
-              <p className="text-sm text-amber-800">此前结果尚未确认，重试将恢复相同批次。</p>
+              <p className="text-sm text-[var(--color-warning)]">
+                此前结果尚未确认，重试将恢复相同批次。
+              </p>
             )}
           </>
         )}

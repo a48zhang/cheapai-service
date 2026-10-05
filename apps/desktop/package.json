@@ -26,7 +26,8 @@
     "@deepseek-ai/dsh-api-remotes": "0.2.1-alpha.1",
     "@deepseek-ai/dsh-user-questions": "0.2.1-alpha.1",
     "@deepseek-ai/dsh-user-approval": "0.2.1-alpha.1",
-    "@deepseek-ai/dsh-typert-protocol": "0.2.1-alpha.1"
+    "@deepseek-ai/dsh-typert-protocol": "0.2.1-alpha.1",
+    "@cheapai/theme": "workspace:*"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.8.4",

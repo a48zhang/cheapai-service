@@ -45,7 +45,7 @@ export function AsyncState(props: AsyncStateProps) {
   if (status === 'loading') {
     return (
       <div {...attributes} className={wrapperClassName} role="status" aria-live="polite">
-        <span className="inline-flex items-center gap-2 text-sm text-slate-600">
+        <span className="inline-flex items-center gap-2 text-sm text-[var(--color-ink-secondary)]">
           <span
             aria-hidden="true"
             className="size-4 animate-spin rounded-full border-2 border-current border-r-transparent"
@@ -61,14 +61,18 @@ export function AsyncState(props: AsyncStateProps) {
       <div
         {...attributes}
         className={[
-          'rounded-xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center',
+          'rounded-xl border border-dashed border-[var(--color-line-strong)] bg-[var(--color-surface)] px-6 py-10 text-center',
           wrapperClassName,
         ].join(' ')}
         role="status"
       >
-        {heading && <h2 className="mb-2 text-base font-semibold text-slate-900">{heading}</h2>}
+        {heading && (
+          <h2 className="mb-2 text-base font-semibold text-[var(--color-ink)]">{heading}</h2>
+        )}
         {description && (
-          <div className="mx-auto max-w-xl text-sm leading-6 text-slate-600">{description}</div>
+          <div className="mx-auto max-w-xl text-sm leading-6 text-[var(--color-ink-secondary)]">
+            {description}
+          </div>
         )}
         {action && <div className="mt-5 flex justify-center">{action}</div>}
       </div>
@@ -80,7 +84,7 @@ export function AsyncState(props: AsyncStateProps) {
       <div
         {...attributes}
         className={[
-          'rounded-xl border border-rose-200 bg-rose-50 px-5 py-4 text-rose-900',
+          'rounded-xl border border-[var(--color-danger-line)] bg-[var(--color-danger-soft)] px-5 py-4 text-[var(--color-danger)]',
           wrapperClassName,
         ].join(' ')}
         role="alert"
@@ -90,7 +94,7 @@ export function AsyncState(props: AsyncStateProps) {
         {onRetry && retryLabel && (
           <button
             type="button"
-            className="mt-3 inline-flex min-h-9 items-center rounded-md border border-rose-300 bg-white px-3 text-sm font-medium text-rose-800 hover:bg-rose-100"
+            className="mt-3 inline-flex min-h-9 items-center rounded-md border border-[var(--color-danger-line)] bg-[var(--color-surface)] px-3 text-sm font-medium text-[var(--color-danger)] hover:bg-[var(--color-danger-soft)]"
             onClick={onRetry}
           >
             {retryLabel}
@@ -108,7 +112,7 @@ export function AsyncState(props: AsyncStateProps) {
     >
       {(refreshing || refreshError) && (
         <div
-          className="flex items-center justify-end gap-2 text-xs text-slate-500"
+          className="flex items-center justify-end gap-2 text-xs text-[var(--color-ink-muted)]"
           role={refreshError ? 'alert' : 'status'}
           aria-live={refreshError ? 'assertive' : 'polite'}
         >
@@ -123,7 +127,7 @@ export function AsyncState(props: AsyncStateProps) {
           {refreshError && onRetry && retryLabel && (
             <button
               type="button"
-              className="rounded px-2 py-1 font-medium text-indigo-700 underline underline-offset-2 hover:text-indigo-900"
+              className="rounded px-2 py-1 font-medium text-[var(--color-accent)] underline underline-offset-2 hover:text-[var(--color-accent)]"
               onClick={onRetry}
             >
               {retryLabel}

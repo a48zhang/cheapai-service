@@ -1,22 +1,6 @@
+@import '@cheapai/theme/tokens.css';
+
 :root {
-  color-scheme: light;
-
-  --color-canvas: #f6f9ff;
-  --color-surface: #ffffff;
-  --color-surface-muted: #f0f5fd;
-  --color-surface-hover: #e9f1fd;
-  --color-primary: #2563eb;
-  --color-primary-hover: #1d4ed8;
-  --color-primary-soft: #e9f1ff;
-  --color-ink: #17243a;
-  --color-ink-muted: #5f6f86;
-  --color-ink-subtle: #8290a5;
-  --color-border: #dce5f1;
-  --color-border-strong: #bdcde2;
-  --color-danger: #b42332;
-  --color-danger-soft: #fff0f1;
-  --color-focus: #3275f6;
-
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -40,5 +24,4 @@
   --radius-md: 0.625rem;
   --radius-lg: 0.875rem;
   --radius-pill: 999px;
-  --shadow-panel: 0 1px 2px rgb(26 54 93 / 6%), 0 8px 24px rgb(26 54 93 / 5%);
 }

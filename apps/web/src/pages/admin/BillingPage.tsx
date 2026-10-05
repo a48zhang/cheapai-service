@@ -27,7 +27,7 @@ export default function BillingPage() {
       <PageHeader heading="全局账单" />
       <form
         key={params.toString()}
-        className="flex flex-wrap items-end gap-3 rounded-xl border border-[var(--color-border)] bg-white p-4"
+        className="flex flex-wrap items-end gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
         onSubmit={(event) => {
           event.preventDefault();
           const data = new FormData(event.currentTarget);
@@ -49,7 +49,7 @@ export default function BillingPage() {
           <select
             name="kind"
             defaultValue={filters.kind ?? ''}
-            className="h-10 rounded-md border px-3"
+            className="h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3"
           >
             <option value="">全部</option>
             <option value="consumption">模型消费</option>

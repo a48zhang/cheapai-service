@@ -1,10 +1,11 @@
+import { appearanceBootstrap } from '@cheapai/theme/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { dshClientModules } from './dsh-client-plugin';
 
 export default defineConfig({
   base: './',
-  plugins: [dshClientModules(), react()],
+  plugins: [appearanceBootstrap(), dshClientModules(), react()],
   // Keep the upstream non-ESM factories in Vite's transform pipeline in dev.
   optimizeDeps: {
     exclude: [

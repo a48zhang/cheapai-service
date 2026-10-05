@@ -19,7 +19,7 @@ export function ChatLayout({ sidebar, children, controls, onNew }: ChatLayoutPro
     <div className="chat-theme chat-workspace">
       <a
         href="#chat-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-white focus:p-4"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-[var(--color-surface)] focus:p-4"
       >
         跳到对话内容
       </a>

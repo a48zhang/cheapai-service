@@ -155,17 +155,17 @@ export function BillingPage() {
               type="date"
               value={dateDraft.startDate}
               onChange={(event) => updateDate('startDate', event.currentTarget.value)}
-              className="min-h-10 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm"
+              className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
             />
           </label>
-          <span className="pb-3 text-sm text-slate-500">至</span>
+          <span className="pb-3 text-sm text-[var(--color-ink-muted)]">至</span>
           <label className="grid gap-1.5 text-xs font-medium text-[var(--color-foreground)]">
             结束日期
             <input
               type="date"
               value={dateDraft.endDate}
               onChange={(event) => updateDate('endDate', event.currentTarget.value)}
-              className="min-h-10 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm"
+              className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
             />
           </label>
         </fieldset>
@@ -174,8 +174,8 @@ export function BillingPage() {
           aria-pressed={!hasCustomDateRange}
           className={`min-h-10 rounded-md border px-3 text-sm font-medium ${
             hasCustomDateRange
-              ? 'border-[var(--color-border)] bg-white text-slate-700'
-              : 'border-indigo-200 bg-indigo-50 text-indigo-800'
+              ? 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-ink-secondary)]'
+              : 'border-[var(--color-accent-line)] bg-[var(--color-accent-soft)] text-[var(--color-accent)]'
           }`}
           onClick={() => {
             setDateDraft({ startDate: defaultMonth.startDate, endDate: defaultMonth.endDate });
@@ -200,7 +200,7 @@ export function BillingPage() {
                 ),
               );
             }}
-            className="min-h-10 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm"
+            className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
           >
             <option value="">全部类型</option>
             {billingKindSchema.options.map((value) => (
@@ -211,11 +211,11 @@ export function BillingPage() {
           </select>
         </label>
         {requestId && (
-          <div className="flex min-h-10 items-center gap-2 rounded-md bg-slate-100 px-3 text-xs text-slate-700">
+          <div className="flex min-h-10 items-center gap-2 rounded-md bg-[var(--color-surface-subtle)] px-3 text-xs text-[var(--color-ink-secondary)]">
             <span>请求 ID 筛选：{requestId}</span>
             <button
               type="button"
-              className="font-medium text-indigo-700 hover:underline"
+              className="font-medium text-[var(--color-accent)] hover:underline"
               aria-label="清除请求 ID 筛选"
               onClick={() => setSearchParams(searchParamsForFilters(dateRange, kind, undefined))}
             >
@@ -226,7 +226,7 @@ export function BillingPage() {
         {hasActiveFilters && (
           <button
             type="button"
-            className="min-h-10 rounded-md px-3 text-sm font-medium text-indigo-700 hover:underline"
+            className="min-h-10 rounded-md px-3 text-sm font-medium text-[var(--color-accent)] hover:underline"
             onClick={clearFilters}
           >
             清除筛选

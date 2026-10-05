@@ -38,8 +38,8 @@ export function ChannelTable({
         header: '渠道',
         cell: ({ row }) => (
           <div className="min-w-48">
-            <p className="font-medium text-slate-900">{row.original.name}</p>
-            <code className="mt-1 block break-all text-xs text-slate-500">
+            <p className="font-medium text-[var(--color-ink)]">{row.original.name}</p>
+            <code className="mt-1 block break-all text-xs text-[var(--color-ink-muted)]">
               {row.original.baseUrl}
             </code>
           </div>
@@ -51,11 +51,12 @@ export function ChannelTable({
         header: '模型映射',
         cell: ({ row }) => {
           const models = row.original.models;
-          if (!models.length) return <span className="text-sm text-slate-500">尚未配置模型</span>;
+          if (!models.length)
+            return <span className="text-sm text-[var(--color-ink-muted)]">尚未配置模型</span>;
           return (
             <div className="max-w-md space-y-1">
               <p className="text-sm">{models.length} 个映射</p>
-              <p className="break-all text-xs text-slate-500">
+              <p className="break-all text-xs text-[var(--color-ink-muted)]">
                 {models
                   .slice(0, 3)
                   .map((model) => model.publicModelId)
@@ -84,7 +85,7 @@ export function ChannelTable({
           const { concurrencyLimit, rpmLimit, priority } = row.original;
           const unlimited = Number.MAX_SAFE_INTEGER;
           return (
-            <div className="space-y-1 whitespace-nowrap text-xs text-slate-600">
+            <div className="space-y-1 whitespace-nowrap text-xs text-[var(--color-ink-secondary)]">
               <p>并发 {concurrencyLimit === unlimited ? '不限' : concurrencyLimit}</p>
               <p>RPM {rpmLimit === unlimited ? '不限' : rpmLimit}</p>
               <p>优先级 {priority}</p>
@@ -98,7 +99,7 @@ export function ChannelTable({
         header: '上游凭证',
         cell: ({ row }) =>
           row.original.hasCredential ? (
-            <span className="text-sm text-slate-600">已配置</span>
+            <span className="text-sm text-[var(--color-ink-secondary)]">已配置</span>
           ) : (
             <StatusBadge tone="warning">未配置</StatusBadge>
           ),

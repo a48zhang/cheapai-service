@@ -203,7 +203,7 @@ export function UserAccessPanel({ user, api, onEdit, onRevoked }: UserAccessPane
         {result ? (
           <div
             role="status"
-            className={`rounded-lg border p-4 text-sm ${ownerMatches ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-amber-300 bg-amber-50 text-amber-950'}`}
+            className={`rounded-lg border p-4 text-sm ${ownerMatches ? 'border-[var(--color-success-line)] bg-[var(--color-success-soft)] text-[var(--color-success)]' : 'border-[var(--color-warning-line)] bg-[var(--color-warning-soft)] text-[var(--color-warning)]'}`}
           >
             <p className="font-medium">
               {result.kind === 'already_revoked' ? '此 Key 已经撤销。' : 'Key 已撤销。'}
@@ -225,7 +225,7 @@ export function UserAccessPanel({ user, api, onEdit, onRevoked }: UserAccessPane
               void revoke(event);
             }}
           >
-            <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
+            <p className="rounded-lg border border-[var(--color-warning-line)] bg-[var(--color-warning-soft)] p-3 text-sm leading-6 text-[var(--color-warning)]">
               请确认 Key 属于当前用户，错误的 ID 可能撤销其他用户的 Key。
             </p>
             <Field label="Key ID" required>
@@ -260,7 +260,7 @@ export function UserAccessPanel({ user, api, onEdit, onRevoked }: UserAccessPane
             </Field>
             {error !== null && <ApiErrorNotice error={error} />}
             {intent && locked && (
-              <p role="status" className="text-sm text-amber-900">
+              <p role="status" className="text-sm text-[var(--color-warning)]">
                 结果未确认。重试会复用相同 Key ID 和版本；请勿更换输入。
               </p>
             )}

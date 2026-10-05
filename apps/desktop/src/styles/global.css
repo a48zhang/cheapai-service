@@ -157,7 +157,7 @@ a {
 
 .ui-button[data-variant="primary"] {
   background: var(--color-primary);
-  color: var(--color-surface);
+  color: var(--color-primary-foreground);
 }
 
 .ui-button[data-variant="primary"]:hover:not(:disabled) {
@@ -294,4 +294,10 @@ a {
   .workspace-empty {
     padding: var(--space-8) var(--space-5);
   }
+}
+
+::selection { background: var(--color-selection); color: var(--color-ink); }
+.desktop-header .desktop-runtime-status { margin-left: auto; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }

@@ -92,19 +92,19 @@ export function UsageBreakdown({ usage, usageValid, className }: UsageBreakdownP
         <StatusBadge tone={usage.quality === 'complete' ? 'success' : 'warning'}>
           {usage.quality === 'complete' ? '完整用量' : '部分用量'}
         </StatusBadge>
-        <span className="text-xs text-slate-500">{usage.protocol}</span>
+        <span className="text-xs text-[var(--color-ink-muted)]">{usage.protocol}</span>
       </div>
       <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
         {rows.map(([label, value, note]) => (
           <div
             key={label}
-            className="flex min-w-0 items-baseline justify-between gap-3 border-b border-slate-100 py-1.5"
+            className="flex min-w-0 items-baseline justify-between gap-3 border-b border-[var(--color-line)] py-1.5"
           >
-            <dt className="min-w-0 text-slate-600">
+            <dt className="min-w-0 text-[var(--color-ink-secondary)]">
               {label}
-              {note && <span className="ml-1 text-xs text-slate-400">· {note}</span>}
+              {note && <span className="ml-1 text-xs text-[var(--color-ink-muted)]">· {note}</span>}
             </dt>
-            <dd className="m-0 shrink-0 font-mono tabular-nums text-slate-900">
+            <dd className="m-0 shrink-0 font-mono tabular-nums text-[var(--color-ink)]">
               {value === undefined ? '—' : number.format(value)}
             </dd>
           </div>
@@ -112,7 +112,7 @@ export function UsageBreakdown({ usage, usageValid, className }: UsageBreakdownP
       </dl>
       {usage.semantics.cacheWriteTtl === 'subsets_of_cache_write' &&
         (counts.cacheWrite5mTokens !== undefined || counts.cacheWrite1hTokens !== undefined) && (
-          <p className="m-0 text-xs leading-5 text-slate-500">
+          <p className="m-0 text-xs leading-5 text-[var(--color-ink-muted)]">
             5 分钟与 1 小时缓存写入计数属于缓存写入子集，请勿重复加总。
           </p>
         )}

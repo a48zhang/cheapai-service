@@ -8,11 +8,15 @@ export interface StatusBadgeProps extends HTMLAttributes<HTMLSpanElement> {
 }
 
 const toneClassName: Record<StatusBadgeTone, string> = {
-  neutral: 'bg-slate-100 text-slate-700 ring-slate-200',
-  info: 'bg-blue-50 text-blue-800 ring-blue-200',
-  success: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
-  warning: 'bg-amber-50 text-amber-900 ring-amber-200',
-  danger: 'bg-rose-50 text-rose-800 ring-rose-200',
+  neutral:
+    'bg-[var(--color-surface-subtle)] text-[var(--color-ink-secondary)] ring-[var(--color-line)]',
+  info: 'bg-[var(--color-info-soft)] text-[var(--color-info)] ring-[var(--color-info-line)]',
+  success:
+    'bg-[var(--color-success-soft)] text-[var(--color-success)] ring-[var(--color-success-line)]',
+  warning:
+    'bg-[var(--color-warning-soft)] text-[var(--color-warning)] ring-[var(--color-warning-line)]',
+  danger:
+    'bg-[var(--color-danger-soft)] text-[var(--color-danger)] ring-[var(--color-danger-line)]',
 };
 
 /** A compact, text-bearing status marker; color supplements its label. */

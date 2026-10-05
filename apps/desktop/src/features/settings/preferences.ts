@@ -38,10 +38,10 @@ export function savePreferences(userId: string | null, patch: DesktopPreferenceP
     version: PREFERENCES_VERSION,
     defaultModelId: patch.defaultModelId === undefined
       ? current.defaultModelId
-      : normalizeText(patch.defaultModelId),
+      : parseText(patch.defaultModelId),
     defaultDirectory: patch.defaultDirectory === undefined
       ? current.defaultDirectory
-      : normalizeText(patch.defaultDirectory),
+      : parseText(patch.defaultDirectory),
   };
   const storage = localStorageOrNull();
   if (storage === null) throw new Error('Local preference storage is unavailable.');
@@ -68,10 +68,6 @@ function parsePreferences(value: unknown): DesktopPreferences {
 
 function parseText(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;
-}
-
-function normalizeText(value: string | null): string | null {
-  return value === null ? null : parseText(value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

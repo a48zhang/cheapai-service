@@ -57,3 +57,6 @@ jobs:
         env:
           CHEAPAI_E2E_REUSE_BUILD: '1'
         run: pnpm exec playwright test
+
+      - name: Check Desktop appearance in Chromium
+        run: pnpm exec playwright test --config playwright.desktop.config.ts

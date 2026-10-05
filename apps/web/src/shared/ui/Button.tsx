@@ -39,7 +39,7 @@ const variantStyles: Record<ButtonVariant, CSSProperties> = {
   danger: {
     backgroundColor: 'var(--color-destructive)',
     borderColor: 'var(--color-destructive)',
-    color: '#fff',
+    color: 'var(--color-danger-foreground)',
   },
 };
 

@@ -84,7 +84,7 @@
   }
 
   ::selection {
-    background: #dcdafe;
+    background: var(--color-selection);
     color: var(--color-ink);
   }
 

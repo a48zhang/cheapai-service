@@ -189,7 +189,7 @@ export function BalanceAdjustmentDialog({
         {settled ? (
           <div
             role="status"
-            className="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900"
+            className="space-y-2 rounded-lg border border-[var(--color-success-line)] bg-[var(--color-success-soft)] p-4 text-sm text-[var(--color-success)]"
           >
             <p className="font-medium">
               {settled.outcome === 'existing' ? '已确认此前相同操作的结果。' : '余额调整已写入。'}
@@ -253,7 +253,7 @@ export function BalanceAdjustmentDialog({
             {operation.status === 'unknown' && (
               <div
                 role="status"
-                className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"
+                className="rounded-lg border border-[var(--color-warning-line)] bg-[var(--color-warning-soft)] p-3 text-sm text-[var(--color-warning)]"
               >
                 <p>
                   提交结果尚未确认。请保持当前窗口，重试会复用操作编号及完全相同的金额、原因和关联请求
@@ -265,7 +265,7 @@ export function BalanceAdjustmentDialog({
               </div>
             )}
             {operation.status === 'correctable' && (
-              <p role="status" className="text-sm text-amber-900">
+              <p role="status" className="text-sm text-[var(--color-warning)]">
                 服务器明确拒绝了此前请求。修改参数后提交会创建新的操作编号。
               </p>
             )}

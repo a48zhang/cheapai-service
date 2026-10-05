@@ -1,0 +1,72 @@
+.appearance-control {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.appearance-picker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  border: 1px solid var(--color-line);
+  border-radius: 9px;
+  background: var(--color-surface);
+  color: var(--color-ink-secondary);
+}
+.appearance-picker > svg {
+  position: absolute;
+  left: 10px;
+  pointer-events: none;
+}
+.appearance-picker select {
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 10px 6px 36px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+.appearance-picker option {
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+.appearance-picker--compact {
+  width: 36px;
+  border-color: transparent;
+  background: transparent;
+}
+.appearance-picker--compact select {
+  opacity: 0;
+  padding: 0;
+}
+.appearance-picker--compact > svg {
+  left: 8px;
+}
+.appearance-picker:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-ink);
+}
+.appearance-picker:focus-within {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+.appearance-save-error {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 80;
+  width: max-content;
+  max-width: 220px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-surface-raised);
+  color: var(--color-ink);
+  font-size: 12px;
+  box-shadow: var(--shadow-md);
+}

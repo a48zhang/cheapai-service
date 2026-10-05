@@ -467,8 +467,6 @@ export function createChatController(options: ChatControllerOptions) {
       baselineMessageIds: detail.messages.map((message) => message.id),
       operationId: commandId,
     });
-    if (!chatRegenerateInputSchema.safeParse(operation.input).success)
-      return Promise.resolve('rejected');
     const run = makeRun(owner, commandId, 'regenerate');
     run.operation = operation;
     run.conversationId = detail.conversation.id;

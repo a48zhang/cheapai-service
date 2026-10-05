@@ -66,7 +66,7 @@ export function ConversationRow({
 
   return (
     <li
-      className={`group flex min-w-0 items-center rounded-md ${selected ? 'bg-white shadow-sm ring-1 ring-[var(--color-line)]' : 'hover:bg-white/70'}`}
+      className={`group flex min-w-0 items-center rounded-md ${selected ? 'bg-[var(--color-surface)] shadow-sm ring-1 ring-[var(--color-line)]' : 'hover:bg-[var(--color-surface-hover)]'}`}
     >
       {editing ? (
         <div className="grid min-w-0 flex-1 gap-1.5 px-2 py-2">

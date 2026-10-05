@@ -292,7 +292,7 @@ export function ChannelSetup({
         {progress.step === 'complete' && progress.channel && (
           <section
             role="status"
-            className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"
+            className="space-y-3 rounded-lg border border-[var(--color-success-line)] bg-[var(--color-success-soft)] p-4 text-sm text-[var(--color-success)]"
           >
             <h3 className="font-semibold">渠道设置已完成</h3>
             <div className="flex flex-wrap gap-3">

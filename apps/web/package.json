@@ -32,7 +32,8 @@
     "react-router-dom": "7.18.4",
     "rehype-sanitize": "6.0.0",
     "remark-gfm": "4.0.1",
-    "zod": "4.6.5"
+    "zod": "4.6.5",
+    "@cheapai/theme": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.3.3",

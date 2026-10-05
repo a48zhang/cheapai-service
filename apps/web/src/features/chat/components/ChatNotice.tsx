@@ -24,7 +24,7 @@ export function ChatNotice({
   return (
     <div
       role="alert"
-      className="mx-auto w-full max-w-[52rem] rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+      className="mx-auto w-full max-w-[52rem] rounded-xl border border-[var(--color-warning-line)] bg-[var(--color-warning-soft)] px-4 py-3 text-sm text-[var(--color-warning)]"
     >
       <p>{message}</p>
       <div className="mt-3 flex flex-wrap gap-2">
@@ -37,7 +37,7 @@ export function ChatNotice({
           刷新会话
         </Button>
         {insufficientBalance && (
-          <Link className="px-2 py-1 text-indigo-700" to="/billing">
+          <Link className="px-2 py-1 text-[var(--color-accent)]" to="/billing">
             查看费用
           </Link>
         )}

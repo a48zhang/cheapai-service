@@ -44,7 +44,7 @@ export function RequestDetailPage() {
         description={id ? `请求编号 ${id}` : '请求编号无效。'}
         actions={
           <Link
-            className="rounded-md border border-[var(--color-border)] bg-white px-3 py-2 text-sm font-medium"
+            className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm font-medium"
             to={returnTo}
           >
             {scope === 'admin' ? '返回请求列表' : '返回使用记录'}
@@ -64,19 +64,19 @@ export function RequestDetailPage() {
             <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
               <div className="min-w-0">
                 <dt className="text-xs text-[var(--color-muted-foreground)]">时间</dt>
-                <dd className="m-0 mt-1 text-sm text-slate-900">
+                <dd className="m-0 mt-1 text-sm text-[var(--color-ink)]">
                   {formatDateTime(item.created_at)}
                 </dd>
               </div>
               <div className="min-w-0">
                 <dt className="text-xs text-[var(--color-muted-foreground)]">模型</dt>
-                <dd className="m-0 mt-1 break-all text-sm font-medium text-slate-900">
+                <dd className="m-0 mt-1 break-all text-sm font-medium text-[var(--color-ink)]">
                   {item.public_model_id}
                 </dd>
               </div>
               <div>
                 <dt className="text-xs text-[var(--color-muted-foreground)]">来源</dt>
-                <dd className="m-0 mt-1 text-sm text-slate-900">
+                <dd className="m-0 mt-1 text-sm text-[var(--color-ink)]">
                   {requestSourceLabel(item.source)}
                 </dd>
               </div>
@@ -88,14 +88,14 @@ export function RequestDetailPage() {
               </div>
               <div>
                 <dt className="text-xs text-[var(--color-muted-foreground)]">费用</dt>
-                <dd className="m-0 mt-1 break-words font-mono text-sm tabular-nums text-slate-900">
+                <dd className="m-0 mt-1 break-words font-mono text-sm tabular-nums text-[var(--color-ink)]">
                   {requestCostLabel(item)}
                 </dd>
               </div>
             </dl>
             {item.error && (
               <div
-                className="mt-5 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900"
+                className="mt-5 rounded-lg border border-[var(--color-danger-line)] bg-[var(--color-danger-soft)] p-4 text-sm text-[var(--color-danger)]"
                 role="alert"
               >
                 <strong>{item.error.code}</strong>
@@ -108,7 +108,7 @@ export function RequestDetailPage() {
             className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"
             open={scope === 'admin'}
           >
-            <summary className="cursor-pointer text-sm font-semibold text-slate-900">
+            <summary className="cursor-pointer text-sm font-semibold text-[var(--color-ink)]">
               技术详情
             </summary>
             <div className="mt-4 space-y-4">
@@ -185,7 +185,7 @@ export function RequestDetailPage() {
             className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"
             open={scope === 'admin'}
           >
-            <summary className="cursor-pointer text-sm font-semibold text-slate-900">
+            <summary className="cursor-pointer text-sm font-semibold text-[var(--color-ink)]">
               Token 用量
             </summary>
             <div className="mt-4">
@@ -197,7 +197,7 @@ export function RequestDetailPage() {
             className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"
             open={scope === 'admin'}
           >
-            <summary className="cursor-pointer text-sm font-semibold text-slate-900">
+            <summary className="cursor-pointer text-sm font-semibold text-[var(--color-ink)]">
               价格快照
             </summary>
             <PriceSnapshot

@@ -72,21 +72,21 @@ export function ChannelDetailPage() {
       {!isAdmin ? (
         <div
           role="alert"
-          className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+          className="rounded-lg border border-[var(--color-warning-line)] bg-[var(--color-warning-soft)] p-4 text-sm text-[var(--color-warning)]"
         >
           此页面需要管理员权限。
         </div>
       ) : !channelId ? (
         <div
           role="alert"
-          className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-700"
+          className="rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] p-4 text-sm text-[var(--color-ink-secondary)]"
         >
           渠道编号无效。
         </div>
       ) : channelQuery.isPending ? (
         <p
           role="status"
-          className="rounded-lg border border-slate-200 bg-white p-5 text-sm text-slate-600"
+          className="rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] p-5 text-sm text-[var(--color-ink-secondary)]"
         >
           正在读取渠道配置…
         </p>
@@ -168,7 +168,7 @@ export function ChannelDetailPage() {
       ) : (
         <div
           role="status"
-          className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-700"
+          className="rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] p-4 text-sm text-[var(--color-ink-secondary)]"
         >
           未找到此渠道。
         </div>

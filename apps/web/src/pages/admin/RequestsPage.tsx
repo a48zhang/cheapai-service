@@ -53,7 +53,7 @@ export default function RequestsPage() {
       <PageHeader heading="全局请求" />
       <form
         key={serializeRequestFilters(filters, 'admin')}
-        className="flex flex-wrap items-end gap-3 rounded-xl border border-[var(--color-border)] bg-white p-4"
+        className="flex flex-wrap items-end gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
         aria-label="请求筛选"
         onSubmit={applyFilters}
       >
@@ -67,7 +67,7 @@ export default function RequestsPage() {
           <select
             name="status"
             defaultValue={filters.status ?? ''}
-            className="h-10 rounded-md border px-3"
+            className="h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3"
           >
             <option value="">全部</option>
             {executionStatusSchema.options.map((status) => (
@@ -81,7 +81,7 @@ export default function RequestsPage() {
           <select
             name="billingStatus"
             defaultValue={filters.billingStatus ?? ''}
-            className="h-10 rounded-md border px-3"
+            className="h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3"
           >
             <option value="">全部</option>
             {billingStatusSchema.options.map((status) => (

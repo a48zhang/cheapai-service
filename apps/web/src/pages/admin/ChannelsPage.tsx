@@ -125,7 +125,7 @@ export function ChannelsPage() {
       {!isAdmin && (
         <div
           role="alert"
-          className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+          className="rounded-lg border border-[var(--color-warning-line)] bg-[var(--color-warning-soft)] p-4 text-sm text-[var(--color-warning)]"
         >
           此页面需要管理员权限。
         </div>

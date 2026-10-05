@@ -61,7 +61,7 @@ export function UserForm(props: Props) {
           (typeof message === 'string' ? (
             <div
               role="status"
-              className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
+              className="rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-subtle)] p-3 text-sm text-[var(--color-ink-secondary)]"
             >
               {message}
             </div>

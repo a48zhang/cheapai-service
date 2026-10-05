@@ -1,3 +1,4 @@
+import { appearanceBootstrap } from '@cheapai/theme/vite';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,7 +44,7 @@ export default defineConfig(({ command, mode }) => {
   return {
     root: appRoot,
     base: '/',
-    plugins: [react(), tailwindcss()],
+    plugins: [appearanceBootstrap(), react(), tailwindcss()],
     build: {
       outDir: 'dist',
       emptyOutDir: true,

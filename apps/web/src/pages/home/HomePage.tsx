@@ -1,3 +1,4 @@
+import { ThemePicker } from '@cheapai/theme';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowDown, ArrowRight, ArrowUpRight, Check, Copy, Menu, Plus, X } from 'lucide-react';
@@ -69,6 +70,7 @@ export default function HomePage() {
             <a href="#questions">常见问题</a>
           </nav>
           <div className="home-header-actions">
+            <ThemePicker />
             <Link className="home-login" to={isAuthenticated ? '/keys' : '/login?returnTo=%2Fchat'}>
               {isAuthenticated ? '控制台' : '登录'}
               <ArrowUpRight size={15} aria-hidden="true" />

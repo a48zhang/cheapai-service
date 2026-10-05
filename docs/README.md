@@ -28,6 +28,8 @@
 6. [React 面板设计](frontend-react-design.md)、[微任务开发计划](frontend-react-development-plan.md)、[模块边界](frontend-react-module-boundaries.md)
 7. [React 集中验收](validation/cheapai-react-final.md)、[目录切换](frontend-react-cutover-manifest.md)、[迁移回滚](frontend-react-rollback.md)
 
+8. [Web 与 Desktop 外观主题](appearance.md)：共享主题、暗色设计、首屏初始化及验收范围
+
 ## 当前状态怎么看
 
 不要把“有设计”“有实现”“本地通过”和“已在线上验证”混为一项状态。

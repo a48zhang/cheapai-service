@@ -35,14 +35,17 @@ function Amount({ label, units, currency, loading, error, onRetry }: AmountProps
 
   return (
     <section className="min-w-0 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:p-5">
-      <h2 className="m-0 text-sm font-medium text-slate-600">{label}</h2>
+      <h2 className="m-0 text-sm font-medium text-[var(--color-ink-secondary)]">{label}</h2>
       {amount !== null ? (
         <>
-          <p className="mb-0 mt-2 whitespace-nowrap font-mono text-2xl font-semibold tabular-nums text-slate-950 sm:text-3xl">
+          <p className="mb-0 mt-2 whitespace-nowrap font-mono text-2xl font-semibold tabular-nums text-[var(--color-ink)] sm:text-3xl">
             {amount}
           </p>
           {error && (
-            <p className="mb-0 mt-2 flex items-center gap-2 text-xs text-rose-700" role="status">
+            <p
+              className="mb-0 mt-2 flex items-center gap-2 text-xs text-[var(--color-danger)]"
+              role="status"
+            >
               更新失败
               <Button variant="ghost" size="sm" className="px-2" onClick={onRetry}>
                 重试
@@ -51,11 +54,14 @@ function Amount({ label, units, currency, loading, error, onRetry }: AmountProps
           )}
         </>
       ) : loading ? (
-        <p role="status" className="mb-0 mt-2 text-sm text-slate-500">
+        <p role="status" className="mb-0 mt-2 text-sm text-[var(--color-ink-muted)]">
           正在读取…
         </p>
       ) : (
-        <p className="mb-0 mt-2 flex items-center gap-2 text-sm text-rose-700" role="alert">
+        <p
+          className="mb-0 mt-2 flex items-center gap-2 text-sm text-[var(--color-danger)]"
+          role="alert"
+        >
           {error ? '读取失败' : '暂不可用'}
           <Button variant="ghost" size="sm" className="px-2" onClick={onRetry}>
             重试

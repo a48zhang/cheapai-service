@@ -33,7 +33,7 @@
   height: 2.75rem;
   border-radius: var(--radius-md);
   background: var(--color-primary);
-  color: var(--color-surface);
+  color: var(--color-primary-foreground);
   font-size: var(--font-size-xl);
   font-weight: 750;
   letter-spacing: -0.08em;

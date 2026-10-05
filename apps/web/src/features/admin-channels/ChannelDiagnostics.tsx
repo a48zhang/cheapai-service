@@ -36,7 +36,7 @@ function mappingLabel(model: ChannelModel): ReactNode {
   return (
     <span className="flex min-w-0 items-center justify-between gap-4">
       <span className="truncate">{model.publicModelId}</span>
-      <span className="shrink-0 text-xs text-slate-500">{model.protocol}</span>
+      <span className="shrink-0 text-xs text-[var(--color-ink-muted)]">{model.protocol}</span>
     </span>
   );
 }
@@ -118,7 +118,7 @@ export function ChannelDiagnostics({ open, channel, api, onOpenChange }: Channel
         }
       >
         <div className="space-y-5">
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+          <div className="rounded-lg border border-[var(--color-warning-line)] bg-[var(--color-warning-soft)] p-4 text-sm text-[var(--color-warning)]">
             <p className="font-semibold">费用提示</p>
             <p className="mt-1 leading-6">诊断可能产生上游费用，不扣用户余额。</p>
           </div>
@@ -126,7 +126,7 @@ export function ChannelDiagnostics({ open, channel, api, onOpenChange }: Channel
           {channel.status !== 'active' && (
             <div
               role="status"
-              className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
+              className="rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-subtle)] p-3 text-sm text-[var(--color-ink-secondary)]"
             >
               当前渠道已停用，不能执行连接诊断。
             </div>
@@ -153,28 +153,28 @@ export function ChannelDiagnostics({ open, channel, api, onOpenChange }: Channel
           ) : (
             <div
               role="status"
-              className="rounded-lg border border-dashed border-slate-300 p-5 text-sm text-slate-600"
+              className="rounded-lg border border-dashed border-[var(--color-line-strong)] p-5 text-sm text-[var(--color-ink-secondary)]"
             >
               此渠道没有模型映射。先配置映射后再运行诊断。
             </div>
           )}
 
           {selectedModel && (
-            <dl className="grid gap-3 rounded-lg border border-slate-200 p-4 text-sm sm:grid-cols-2">
+            <dl className="grid gap-3 rounded-lg border border-[var(--color-line)] p-4 text-sm sm:grid-cols-2">
               <div>
-                <dt className="text-xs text-slate-500">公开模型</dt>
+                <dt className="text-xs text-[var(--color-ink-muted)]">公开模型</dt>
                 <dd className="mt-1 break-all font-medium">{selectedModel.publicModelId}</dd>
               </div>
               <div>
-                <dt className="text-xs text-slate-500">上游模型</dt>
+                <dt className="text-xs text-[var(--color-ink-muted)]">上游模型</dt>
                 <dd className="mt-1 break-all font-mono">{selectedModel.upstreamModel}</dd>
               </div>
               <div>
-                <dt className="text-xs text-slate-500">协议</dt>
+                <dt className="text-xs text-[var(--color-ink-muted)]">协议</dt>
                 <dd className="mt-1">{selectedModel.protocol}</dd>
               </div>
               <div>
-                <dt className="text-xs text-slate-500">版本</dt>
+                <dt className="text-xs text-[var(--color-ink-muted)]">版本</dt>
                 <dd className="mt-1">
                   渠道 {channel.configVersion} · 映射 {selectedModel.mappingVersion} · 价格{' '}
                   {selectedModel.priceVersion}
@@ -186,7 +186,7 @@ export function ChannelDiagnostics({ open, channel, api, onOpenChange }: Channel
           {result && (
             <section
               aria-live="polite"
-              className="space-y-3 rounded-lg border border-slate-200 p-4"
+              className="space-y-3 rounded-lg border border-[var(--color-line)] p-4"
             >
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="text-sm font-semibold">诊断结果</h3>
@@ -196,19 +196,19 @@ export function ChannelDiagnostics({ open, channel, api, onOpenChange }: Channel
               </div>
               <dl className="grid gap-2 text-sm sm:grid-cols-2">
                 <div>
-                  <dt className="text-xs text-slate-500">诊断编号</dt>
+                  <dt className="text-xs text-[var(--color-ink-muted)]">诊断编号</dt>
                   <dd className="mt-1 break-all font-mono">{result.diagnosticId}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-slate-500">上游 HTTP 状态</dt>
+                  <dt className="text-xs text-[var(--color-ink-muted)]">上游 HTTP 状态</dt>
                   <dd className="mt-1">{result.upstreamStatus ?? '无响应状态'}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-slate-500">本次输出上限</dt>
+                  <dt className="text-xs text-[var(--color-ink-muted)]">本次输出上限</dt>
                   <dd className="mt-1">{result.maxOutputTokens} tokens</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-slate-500">账务</dt>
+                  <dt className="text-xs text-[var(--color-ink-muted)]">账务</dt>
                   <dd className="mt-1">
                     {result.userBalanceCharged ? '用户余额已扣费' : '用户余额未扣费'}
                   </dd>
@@ -222,7 +222,7 @@ export function ChannelDiagnostics({ open, channel, api, onOpenChange }: Channel
               <ApiErrorNotice error={error} />
               {error instanceof ApiClientError &&
                 (error.kind === 'network' || error.kind === 'aborted') && (
-                  <p className="text-xs text-slate-600">
+                  <p className="text-xs text-[var(--color-ink-secondary)]">
                     诊断结果未确认。再次诊断可能产生额外费用。
                   </p>
                 )}

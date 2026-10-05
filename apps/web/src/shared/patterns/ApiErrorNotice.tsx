@@ -14,7 +14,7 @@ export function ApiErrorNotice({
   return (
     <div
       role="alert"
-      className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+      className="rounded-lg border border-[var(--color-danger-line)] bg-[var(--color-danger-soft)] p-4 text-sm text-[var(--color-danger)]"
     >
       <p>{message}</p>
       {requestId && (

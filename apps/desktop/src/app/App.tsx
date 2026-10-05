@@ -1,3 +1,4 @@
+import { ThemePicker } from '@cheapai/theme';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import type { DesktopAccountProblem } from '@sub2api/desktop-contracts'
@@ -54,6 +55,7 @@ export function App() {
         <header className="desktop-header">
           <span className="desktop-brand">cheapai.dev</span>
           <span className="desktop-runtime-status" role="status">正在初始化桌面服务</span>
+          <ThemePicker />
         </header>
       </div>
     )
@@ -166,6 +168,7 @@ function RuntimeApplication({
         <header className="desktop-header">
           <span className="desktop-brand">cheapai.dev</span>
           <span className="desktop-runtime-status" role="status">桌面服务不可用</span>
+          <ThemePicker />
         </header>
         <StatusPanel
           title="请使用桌面应用"
@@ -273,6 +276,7 @@ function RuntimeApplication({
       <header className="desktop-header">
         <span className="desktop-brand">cheapai.dev</span>
         <span className="desktop-runtime-status" role="status" aria-live="polite">{runtimeLabel}</span>
+        <ThemePicker />
       </header>
       {content}
     </div>

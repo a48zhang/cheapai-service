@@ -25,9 +25,10 @@
     "lint:web": "pnpm --filter @cheapai/web exec eslint src",
     "test:e2e": "playwright test",
     "production:check": "pnpm --filter @cheapai/web run build && pnpm --filter @sub2api/worker exec wrangler deploy --env production --dry-run --strict --outdir ../../.wrangler/build-production",
-    "lint:shared": "pnpm --filter @cheapai/web exec eslint ../../packages/api-client/src ../../packages/contracts/src",
-    "format:web": "prettier --write \"apps/web/src/**/*.{ts,tsx,css}\" \"packages/api-client/src/**/*.ts\" \"packages/contracts/src/**/*.ts\" apps/web/eslint.config.js eslint.config.mjs",
-    "format:check:web": "prettier --check \"apps/web/src/**/*.{ts,tsx,css}\" \"packages/api-client/src/**/*.ts\" \"packages/contracts/src/**/*.ts\" apps/web/eslint.config.js eslint.config.mjs"
+    "lint:shared": "pnpm --filter @cheapai/web exec eslint ../../packages/api-client/src ../../packages/contracts/src ../../packages/theme/src",
+    "format:web": "prettier --write \"apps/web/src/**/*.{ts,tsx,css}\" \"packages/api-client/src/**/*.ts\" \"packages/contracts/src/**/*.ts\" apps/web/eslint.config.js eslint.config.mjs \"packages/theme/**/*.{ts,tsx,js,mjs,mts,css,json}\"",
+    "format:check:web": "prettier --check \"apps/web/src/**/*.{ts,tsx,css}\" \"packages/api-client/src/**/*.ts\" \"packages/contracts/src/**/*.ts\" apps/web/eslint.config.js eslint.config.mjs \"packages/theme/**/*.{ts,tsx,js,mjs,mts,css,json}\"",
+    "test:desktop-ui": "playwright test --config playwright.desktop.config.ts"
   },
   "devDependencies": {
     "@cheapai/api-client": "workspace:*",

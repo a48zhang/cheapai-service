@@ -164,7 +164,7 @@ export function Sidebar({
                           <span
                             aria-label="运行中"
                             title="运行中"
-                            style={{ flex: '0 0 auto', color: snapshot.activeSessionId === session.sessionId ? 'white' : 'var(--color-primary)', fontSize: 'var(--font-size-xs)' }}
+                            style={{ flex: '0 0 auto', color: snapshot.activeSessionId === session.sessionId ? 'var(--color-primary-foreground)' : 'var(--color-primary)', fontSize: 'var(--font-size-xs)' }}
                           >
                             ●
                           </span>

@@ -166,7 +166,7 @@ export function ConversationPage({
           aria-label="工作目录选择"
           aria-modal="true"
           role="dialog"
-          style={{ position: 'fixed', inset: 0, zIndex: 10, display: 'grid', placeItems: 'center', overflow: 'auto', padding: 'var(--space-6)', background: 'rgb(23 36 58 / 34%)' }}
+          style={{ position: 'fixed', inset: 0, zIndex: 10, display: 'grid', placeItems: 'center', overflow: 'auto', padding: 'var(--space-6)', background: 'var(--color-overlay)' }}
         >
           <section style={{ display: 'grid', gap: 'var(--space-4)', width: 'min(100%, 38rem)', maxHeight: 'min(90vh, 54rem)', overflow: 'auto', padding: 'var(--space-5)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', background: 'var(--color-surface)', boxShadow: 'var(--shadow-panel)' }}>
             <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-3)' }}>

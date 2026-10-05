@@ -79,7 +79,7 @@
 .conversation-message--user .conversation-message__body {
   max-width: min(88%, 42rem);
   padding: var(--space-3) var(--space-4);
-  border: 1px solid #d5e5ff;
+  border: 1px solid var(--color-accent-line);
   border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-lg);
   background: var(--color-primary-soft);
   color: var(--color-ink);
@@ -116,8 +116,8 @@
   --dsw-alias-border-l3: var(--color-border-strong);
   --dsw-alias-bg-base: var(--color-surface);
   --dsw-alias-markdown-inline-code: var(--color-surface-muted);
-  --dsw-alias-markdown-code-block: #f4f7fc;
-  --dsw-alias-markdown-code-block-banner: #eaf1fb;
+  --dsw-alias-markdown-code-block: var(--color-code);
+  --dsw-alias-markdown-code-block-banner: var(--color-code-header);
   --dsw-radius-xs: var(--radius-sm);
   --dsw-radius-sm: var(--radius-sm);
   --dsw-radius-md: var(--radius-md);
@@ -126,7 +126,7 @@
   --dsw-focus-ring-width: 2px;
   --ds-transition-duration: 120ms;
   --ds-ease-in-out: ease-in-out;
-  --shiki-background: #f4f7fc;
+  --shiki-background: var(--color-code);
   --shiki-foreground: var(--color-ink);
 
   min-width: 0;
@@ -172,3 +172,33 @@
     bottom: var(--space-4);
   }
 }
+
+/* Shiki's variable theme changes without rebuilding or remounting messages. */
+.conversation-message__markdown {
+  --shiki-token-comment: var(--color-ink-muted);
+  --shiki-token-keyword: var(--color-accent);
+  --shiki-token-string: var(--color-success);
+  --shiki-token-string-expression: var(--color-success);
+  --shiki-token-constant: var(--color-info);
+  --shiki-token-parameter: var(--color-ink-secondary);
+  --shiki-token-function: var(--color-accent);
+  --shiki-token-punctuation: var(--color-ink-secondary);
+  --shiki-token-link: var(--color-accent);
+  --shiki-token-inserted: var(--color-success);
+  --shiki-token-deleted: var(--color-danger);
+  --shiki-token-changed: var(--color-warning);
+}
+.conversation-tool-call {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--font-size-sm);
+}
+.conversation-tool-call summary { cursor: pointer; }
+.conversation-tool-call summary > span { margin-right: var(--space-3); }
+.conversation-tool-call summary > span:not(:first-child),
+.conversation-tool-call dt { color: var(--color-ink-muted); }
+.conversation-tool-call dd { margin: var(--space-2) 0 var(--space-4); }
+.conversation-tool-call pre { max-height: 24rem; overflow: auto; padding: var(--space-3); background: var(--color-code); border-radius: var(--radius-sm); }

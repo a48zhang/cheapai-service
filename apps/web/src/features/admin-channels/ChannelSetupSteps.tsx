@@ -187,7 +187,9 @@ export function ChannelSetupSteps({
               disabled={busy}
             />
           </Field>
-          <p className="text-xs leading-5 text-amber-800">流式、工具调用等能力需在模型详情配置。</p>
+          <p className="text-xs leading-5 text-[var(--color-warning)]">
+            流式、工具调用等能力需在模型详情配置。
+          </p>
         </form>
       )}
 
@@ -242,7 +244,9 @@ export function ChannelSetupSteps({
             </p>
           )}
           {progressError && (
-            <p className="text-xs text-amber-800">若配置已变更，请刷新并重新选择访问组。</p>
+            <p className="text-xs text-[var(--color-warning)]">
+              若配置已变更，请刷新并重新选择访问组。
+            </p>
           )}
         </form>
       )}

@@ -6,6 +6,7 @@ packages:
   - packages/apicompat
   - packages/contracts
   - packages/api-client
+  - packages/theme
   - packages/model-catalog
   - packages/desktop-contracts
 

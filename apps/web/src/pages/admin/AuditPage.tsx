@@ -67,7 +67,7 @@ export default function AuditPage() {
       <PageHeader heading="管理审计" />
       <form
         key={params.toString()}
-        className="flex flex-wrap items-end gap-3 rounded-xl border border-[var(--color-border)] bg-white p-4"
+        className="flex flex-wrap items-end gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
         onSubmit={applyFilters}
       >
         {textFields.map((field) => (

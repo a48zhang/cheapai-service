@@ -25,7 +25,7 @@ export function SettingsForm({
   const [saved, setSaved] = useState(false);
   return (
     <form
-      className="max-w-xl space-y-5 rounded-xl border border-[var(--color-border)] bg-white p-6"
+      className="max-w-xl space-y-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6"
       onSubmit={async (event) => {
         event.preventDefault();
         if (busy || settings.version === null) return;
@@ -74,12 +74,12 @@ export function SettingsForm({
         邮件服务：{settings.emailAvailable ? '可用' : '不可用'}
       </p>
       {!settings.valid && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-[var(--color-danger)]">
           当前策略配置不完整，请先修复服务端设置。
         </p>
       )}
       {verification && !settings.emailAvailable && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-[var(--color-danger)]">
           邮件服务不可用，无法保存启用邮箱验证的策略。
         </p>
       )}

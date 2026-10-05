@@ -14,7 +14,7 @@ export function SettlementAction({ request }: { request: RequestRecord }) {
   const [message, setMessage] = useState('');
   if (request.billing_status !== 'settlement_pending' && !message) return null;
   return (
-    <section className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-5">
+    <section className="space-y-3 rounded-xl border border-[var(--color-warning-line)] bg-[var(--color-warning-soft)] p-5">
       <h2 className="font-semibold">结算恢复</h2>
       <p className="text-sm">
         仅在用量和价格证据完整时，服务端才会补记消费账本。重复操作不会重复扣费。

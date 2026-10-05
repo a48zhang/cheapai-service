@@ -1,3 +1,4 @@
+import { ThemePicker } from '@cheapai/theme';
 import { ArrowUpRight } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { safeReturnPath } from '../../shared/lib/return-path';
@@ -13,6 +14,7 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
 
   return (
     <nav aria-label="个人导航" className="flex items-center gap-2 sm:gap-4">
+      <ThemePicker />
       <Link
         to="/keys"
         aria-label="API 接入"

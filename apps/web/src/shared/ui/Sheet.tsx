@@ -63,7 +63,7 @@ export function Sheet({
       {trigger && <DialogPrimitive.Trigger asChild>{trigger}</DialogPrimitive.Trigger>}
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay
-          className={`fixed inset-0 z-50 bg-slate-950/45 ${overlayClassName ?? ''}`}
+          className={`fixed inset-0 z-50 bg-[var(--color-overlay)] ${overlayClassName ?? ''}`}
         />
         <DialogPrimitive.Content
           className={`fixed z-50 flex flex-col overflow-hidden shadow-[var(--shadow-lg)] outline-none ${sheetMotion[side]} ${sideClasses[side]} ${className ?? ''}`}

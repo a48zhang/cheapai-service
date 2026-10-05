@@ -5,7 +5,7 @@ import { BrandLink } from '../../shared/ui/BrandLink';
 export function PersonalLayout() {
   return (
     <div className="flex min-h-dvh flex-col bg-[var(--color-canvas)]">
-      <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-[var(--color-border)] bg-white px-4 md:px-6">
+      <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 md:px-6">
         <BrandLink className="text-lg font-semibold tracking-tight" />
         <AccountMenu />
       </header>

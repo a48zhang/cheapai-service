@@ -162,7 +162,7 @@ export function GroupForm({
       {!needsRefresh && saveError && <ApiErrorNotice error={saveError} />}
       {versionChanged && latestGroup && (
         <div
-          className="grid gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"
+          className="grid gap-2 rounded-lg border border-[var(--color-warning-line)] bg-[var(--color-warning-soft)] p-3 text-sm text-[var(--color-warning)]"
           role="alert"
         >
           <p>

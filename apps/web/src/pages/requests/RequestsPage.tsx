@@ -143,7 +143,7 @@ export function RequestsPage() {
             }
             maxLength={128}
             autoComplete="off"
-            className="min-h-10 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm"
+            className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
           />
         </label>
         <div className="grid gap-1.5 text-xs font-medium text-[var(--color-foreground)]">
@@ -160,7 +160,7 @@ export function RequestsPage() {
               onChange={(event) =>
                 setDraft((current) => ({ ...current, from: event.currentTarget.value }))
               }
-              className="min-h-10 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm"
+              className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
             />
             <span aria-hidden="true" className="text-[var(--color-muted-foreground)]">
               至
@@ -176,19 +176,19 @@ export function RequestsPage() {
               onChange={(event) =>
                 setDraft((current) => ({ ...current, to: event.currentTarget.value }))
               }
-              className="min-h-10 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm"
+              className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
             />
           </div>
         </div>
         <button
           type="submit"
-          className="min-h-10 rounded-md bg-[var(--color-primary)] px-4 text-sm font-medium text-white"
+          className="min-h-10 rounded-md bg-[var(--color-primary)] px-4 text-sm font-medium text-[var(--color-primary-foreground)]"
         >
           应用筛选
         </button>
         <button
           type="button"
-          className="min-h-10 rounded-md border border-[var(--color-border)] bg-white px-4 text-sm"
+          className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-4 text-sm"
           onClick={() => {
             setDraft(emptyDraft);
             setMoreFiltersOpen(false);
@@ -214,7 +214,7 @@ export function RequestsPage() {
                 onChange={(event) =>
                   setDraft((current) => ({ ...current, status: event.currentTarget.value }))
                 }
-                className="min-h-10 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm"
+                className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
               >
                 <option value="">全部</option>
                 {executionStatusSchema.options.map((value) => (
@@ -231,7 +231,7 @@ export function RequestsPage() {
                 onChange={(event) =>
                   setDraft((current) => ({ ...current, billingStatus: event.currentTarget.value }))
                 }
-                className="min-h-10 rounded-md border border-[var(--color-border)] bg-white px-3 text-sm"
+                className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
               >
                 <option value="">全部</option>
                 {billingStatusSchema.options.map((value) => (

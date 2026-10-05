@@ -44,7 +44,7 @@ function createdColumn(): ColumnDef<RequestRecord, unknown> {
       return (
         <time
           dateTime={Number.isFinite(date.getTime()) ? date.toISOString() : undefined}
-          className="whitespace-nowrap text-xs text-slate-600"
+          className="whitespace-nowrap text-xs text-[var(--color-ink-secondary)]"
         >
           {formatDateTime(row.original.created_at)}
         </time>
@@ -64,7 +64,7 @@ function personalColumns(
       header: '模型',
       cell: ({ row }) => (
         <Link
-          className="break-all font-medium text-indigo-700 hover:text-indigo-900"
+          className="break-all font-medium text-[var(--color-accent)] hover:text-[var(--color-accent)]"
           aria-label={`查看 ${row.original.public_model_id} 使用详情`}
           to={detailHref(row.original.id, detailPath, listLocation)}
         >
@@ -76,7 +76,7 @@ function personalColumns(
       id: 'source',
       header: '来源',
       cell: ({ row }) => (
-        <span className="whitespace-nowrap text-sm text-slate-700">
+        <span className="whitespace-nowrap text-sm text-[var(--color-ink-secondary)]">
           {requestSourceLabel(row.original.source)}
         </span>
       ),
@@ -93,7 +93,7 @@ function personalColumns(
       id: 'cost',
       header: '费用',
       cell: ({ row }) => (
-        <span className="whitespace-nowrap font-mono text-sm tabular-nums text-slate-800">
+        <span className="whitespace-nowrap font-mono text-sm tabular-nums text-[var(--color-ink)]">
           {requestCostLabel(row.original)}
         </span>
       ),
@@ -112,14 +112,18 @@ function adminColumns(
       cell: ({ row }) => (
         <div className="min-w-48 space-y-1">
           <Link
-            className="font-mono text-xs font-medium text-indigo-700 hover:text-indigo-900"
+            className="font-mono text-xs font-medium text-[var(--color-accent)] hover:text-[var(--color-accent)]"
             to={detailHref(row.original.id, detailPath, listLocation)}
           >
             {row.original.id}
           </Link>
-          <p className="m-0 break-all font-medium text-slate-900">{row.original.public_model_id}</p>
-          <p className="m-0 break-all text-xs text-slate-500">{row.original.user_id}</p>
-          <p className="m-0 text-xs text-slate-500">
+          <p className="m-0 break-all font-medium text-[var(--color-ink)]">
+            {row.original.public_model_id}
+          </p>
+          <p className="m-0 break-all text-xs text-[var(--color-ink-muted)]">
+            {row.original.user_id}
+          </p>
+          <p className="m-0 text-xs text-[var(--color-ink-muted)]">
             {row.original.downstream_protocol} → {row.original.upstream_protocol} ·{' '}
             {row.original.upstream_model}
           </p>
@@ -132,11 +136,11 @@ function adminColumns(
       cell: ({ row }) => (
         <div className="min-w-28 text-sm">
           <span>{row.original.source === 'web_chat' ? '网页聊天' : 'API 请求'}</span>
-          <p className="m-0 mt-1 break-all text-xs text-slate-500">
+          <p className="m-0 mt-1 break-all text-xs text-[var(--color-ink-muted)]">
             分组：{row.original.group_id ?? '未知'}
           </p>
           <Link
-            className="mt-1 inline-block text-xs text-indigo-700 hover:underline"
+            className="mt-1 inline-block text-xs text-[var(--color-accent)] hover:underline"
             to={`/admin/billing?${new URLSearchParams({ userId: row.original.user_id, requestId: row.original.id })}`}
           >
             查看相关账单
@@ -158,14 +162,16 @@ function adminColumns(
       id: 'usage',
       header: '用量',
       cell: ({ row }) => (
-        <span className="whitespace-nowrap text-xs text-slate-600">{usageText(row.original)}</span>
+        <span className="whitespace-nowrap text-xs text-[var(--color-ink-secondary)]">
+          {usageText(row.original)}
+        </span>
       ),
     },
     {
       id: 'cost',
       header: '费用',
       cell: ({ row }) => (
-        <span className="whitespace-nowrap font-mono text-sm tabular-nums text-slate-800">
+        <span className="whitespace-nowrap font-mono text-sm tabular-nums text-[var(--color-ink)]">
           {requestCostLabel(row.original)}
         </span>
       ),

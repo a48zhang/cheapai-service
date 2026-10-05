@@ -211,14 +211,14 @@ export function KeyTable({
         </Button>
       </div>
       {operationMessage && (
-        <p role="status" className="text-sm text-emerald-800">
+        <p role="status" className="text-sm text-[var(--color-success)]">
           {operationMessage}
         </p>
       )}
       {operationError && (
         <div
           role="alert"
-          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--color-danger-line)] bg-[var(--color-danger-soft)] p-3 text-sm text-[var(--color-danger)]"
         >
           <span>{operationError}</span>
           <Button

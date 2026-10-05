@@ -36,8 +36,8 @@ export function UserTable({
         header: '账户',
         cell: ({ row }) => (
           <div className="min-w-44">
-            <p className="font-medium text-slate-900">{row.original.email_normalized}</p>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="font-medium text-[var(--color-ink)]">{row.original.email_normalized}</p>
+            <p className="mt-1 text-xs text-[var(--color-ink-muted)]">
               {row.original.role === 'admin' ? '管理员' : '普通用户'}
             </p>
           </div>
@@ -55,7 +55,7 @@ export function UserTable({
               ) : (
                 <StatusBadge tone="neutral">停用</StatusBadge>
               )}
-              <p className="text-xs text-slate-600">{user.group_name}</p>
+              <p className="text-xs text-[var(--color-ink-secondary)]">{user.group_name}</p>
             </div>
           );
         },
@@ -76,7 +76,7 @@ export function UserTable({
         cell: ({ row }) => {
           const user = row.original;
           return (
-            <div className="space-y-1 whitespace-nowrap text-xs text-slate-600">
+            <div className="space-y-1 whitespace-nowrap text-xs text-[var(--color-ink-secondary)]">
               <p>
                 并发{' '}
                 {user.concurrency_limit === Number.MAX_SAFE_INTEGER
@@ -95,7 +95,7 @@ export function UserTable({
         accessorKey: 'created_at',
         header: '创建时间',
         cell: ({ row }) => (
-          <span className="whitespace-nowrap text-xs text-slate-600">
+          <span className="whitespace-nowrap text-xs text-[var(--color-ink-secondary)]">
             {formatDateTime(row.original.created_at)}
           </span>
         ),
