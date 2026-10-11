@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   // Top-level is local only. Builds/deploys must explicitly select --env production.
-  // Local uses placeholders; production and generated PR previews use isolated resources.
+  // Local uses placeholders; Cloudflare manages native Preview configuration.
   "name": "sub2api-cloudflare-local",
   "main": "index.ts",
   "compatibility_date": "2026-08-15",
@@ -40,7 +40,7 @@
     "remote": false
   }],
   "env": {
-    // Production is independent of PR previews. Enable mail only after verification.
+    // Match the production Worker settings maintained in the Cloudflare Dashboard.
     "production": {
       "name": "sub2api-cloudflare-production",
       "upload_source_maps": true,
@@ -50,11 +50,12 @@
         "logs": { "enabled": true, "invocation_logs": true, "persist": true, "head_sampling_rate": 1 }
       },
       "account_id": "4ac5221079fd3481ce2d92f1d1e049cd",
-      "workers_dev": false,
-      "preview_urls": false,
+      "workers_dev": true,
+      "preview_urls": true,
       "routes": [
         { "pattern": "cheapai.dev/*", "zone_name": "cheapai.dev" },
-        { "pattern": "www.cheapai.dev/*", "zone_name": "cheapai.dev" }
+        { "pattern": "www.cheapai.dev/*", "zone_name": "cheapai.dev" },
+        { "pattern": "pre.cheapai.dev/*", "zone_name": "cheapai.dev" }
       ],
       // Apply origin selection and security headers before serving static assets.
       "assets": {

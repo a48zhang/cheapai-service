@@ -35,7 +35,7 @@ CI 自动将 Worker 名称替换为 production 名称，不会同时切换 D1、
 | D1 / `DB` | `sub2api-cloudflare-production` / `d85930ad-8e4f-41b7-9fb6-ddf97719e41d` |
 | KV / `CACHE` | `3da22af80f0946cdbb9cd85caee9810d` |
 | 公网 origin | `https://cheapai.dev` |
-| routes | `cheapai.dev/*`、`www.cheapai.dev/*` |
+| routes | `cheapai.dev/*`、`www.cheapai.dev/*`、`pre.cheapai.dev/*` |
 
 以下为只读核对，不读取 Secret 值：
 
@@ -66,7 +66,7 @@ pnpm --filter @sub2api/worker exec wrangler deployments list --env production
 | DO | `GATE` → `Gate`，`migrations` 的 `v1` 使用 `new_sqlite_classes: ["Gate"]` |
 | 邮件 | `EMAIL` / `send_email`；所有 `.invalid` 发件人和收件人都是占位符 |
 | 定时任务 | 顶层本地配置和 production 显式配置每五分钟一次；PR previews 无 cron |
-| 公网入口 | local/production 为 `workers_dev: false`；production 使用 cheapai.dev 路由，PR 使用独立 workers.dev。version preview URLs 关闭；每次发布仍要核对域名与访问结果 |
+| 公网入口 | local 为 `workers_dev: false`；production 与 Dashboard 同步为 `workers_dev: true`、`preview_urls: true`，保留 cheapai.dev、www.cheapai.dev 和 pre.cheapai.dev 路由；原生 Preview 由 Cloudflare 管理 |
 
 `remote: false` 描述本地开发 binding 行为，不会让发布后的 Worker 使用本地数据库。远程 D1 操作仍必须明确 `--remote --env ...`。这与已安装 Wrangler schema 及[开发 binding 模式](https://developers.cloudflare.com/workers/local-development/bindings-per-env/)一致。
 
