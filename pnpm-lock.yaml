@@ -13,6 +13,9 @@ importers:
 
   .:
     devDependencies:
+      yaml:
+        specifier: 2.9.1
+        version: 2.9.1
       '@cheapai/api-client':
         specifier: workspace:*
         version: link:packages/api-client

@@ -2,13 +2,19 @@ name: Desktop installers
 
 on:
   push:
-    branches: [main, feat/cheapai-desktop]
+    branches: [main]
     paths: &desktop-paths
       - '.github/workflows/desktop-package.yml'
       - 'apps/desktop/**'
       - 'apps/desktop-runtime/**'
       - 'packages/desktop-contracts/**'
+      - 'packages/theme/**'
       - 'scripts/desktop/**'
+      - 'scripts/ci/**'
+      - 'tests/desktop/**'
+      - 'tests/desktop-ui/**'
+      - 'playwright.desktop.config.ts'
+      - 'tsconfig.base.json'
       - 'LICENSES/desktop/**'
       - 'THIRD_PARTY_NOTICES.md'
       - 'package.json'
@@ -27,7 +33,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Detect desktop changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      desktop: ${{ steps.changes.outputs.desktop }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install change detector dependencies
+        run: pnpm install --filter . --frozen-lockfile --ignore-scripts --registry=https://registry.npmjs.org
+      - name: Detect desktop changes
+        id: changes
+        run: node scripts/ci/desktop-changes.mjs
+
   package:
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
     name: ${{ matrix.target }}
     strategy:
       fail-fast: false
