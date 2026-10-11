@@ -151,6 +151,40 @@ beforeEach(async () => {
 });
 
 describe('web chat HTTP contract and accounting boundaries', () => {
+  it.each(['chat', 'responses', 'messages'])('exposes and authorizes %s mappings created without capability fields', async protocol => {
+    await seedChatFixtures();
+    const user = await createIdentity(`capability-free-${protocol}`);
+    await testEnv.DB.prepare("UPDATE users SET role='admin' WHERE id=?").bind(user.id).run();
+    const channelId = `chat-full-channel-${sequence}`;
+    await testEnv.DB.prepare('DELETE FROM channel_models WHERE channel_id=?').bind(channelId).run();
+    const mapping = await request(`/api/v1/admin/models/${model}/mappings`, {
+      method: 'POST', headers: jsonHeaders(user, true),
+      body: JSON.stringify({ channelId, protocol, upstreamModel: 'upstream-full' }),
+    });
+    expect(mapping.response.status, mapping.text).toBe(201);
+    expect((await body(mapping)).data.capabilities.features).toEqual([]);
+    const catalog = await request('/api/v1/chat/models', { headers: jsonHeaders(user) });
+    expect(catalog.response.status).toBe(200);
+    expect((await body(catalog)).data.items.find((group: { id: string }) => group.id === 'chat-full').models)
+      .toContainEqual({ publicModelId: model, maxOutputTokens: 64, sellPrices: { input: '1', output: '1', cacheRead: '0.5' } });
+    const created = await request('/api/v1/chat/conversations', {
+      method: 'POST', headers: jsonHeaders(user, true),
+      body: JSON.stringify({ groupId: 'chat-full', modelId: model }),
+    });
+    expect(created.response.status, created.text).toBe(201);
+    if (protocol === 'chat') {
+      const conversation = (await body(created)).data;
+      vi.stubGlobal('fetch', async () => streamResponse(answer, 'upstream-full'));
+      const sent = await request(`/api/v1/chat/conversations/${conversation.id}/messages`, {
+        method: 'POST', headers: jsonHeaders(user, true),
+        body: JSON.stringify({ operationId: 'capability-free-send', conversationVersion: conversation.version,
+          groupId: 'chat-full', modelId: model, content: 'hello' }),
+      });
+      expect(sent.response.status, sent.text).toBe(200);
+      expect(events(sent.text).some(event => event.event === 'done')).toBe(true);
+    }
+  });
+
   it('requires a session and CSRF, then returns authorized groups with exact multipliers', async () => {
     expect(await chatContractReady()).toBe(true);
     await seedChatFixtures();

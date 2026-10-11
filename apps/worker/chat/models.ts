@@ -88,8 +88,6 @@ const catalogSql = `
   JOIN models m ON m.public_model_id=cm.public_model_id AND m.status='active'
   WHERE access.user_id=? AND u.status='active' AND g.status='active'
     AND access.created_at<=? AND u.created_at<=? AND g.created_at<=?
-    AND EXISTS (SELECT 1 FROM json_each(cm.capabilities_json,'$.features') feature WHERE feature.value='streaming')
-    AND (cm.protocol<>'chat' OR EXISTS (SELECT 1 FROM json_each(cm.capabilities_json,'$.features') usage WHERE usage.value='stream_usage'))
   GROUP BY g.id,g.name,g.version,g.billing_multiplier,m.public_model_id,m.sell_prices_json
   ORDER BY CASE WHEN g.id=u.group_id THEN 0 ELSE 1 END,g.name,g.id,m.public_model_id`;
 
@@ -142,8 +140,6 @@ export async function authorizeChatSelection(database: D1Database, userId: strin
     WHERE access.user_id=? AND access.group_id=? AND m.public_model_id=?
       AND u.status='active' AND g.status='active'
       AND access.created_at<=? AND u.created_at<=? AND g.created_at<=?
-      AND EXISTS (SELECT 1 FROM json_each(cm.capabilities_json,'$.features') feature WHERE feature.value='streaming')
-      AND (cm.protocol<>'chat' OR EXISTS (SELECT 1 FROM json_each(cm.capabilities_json,'$.features') usage WHERE usage.value='stream_usage'))
       AND (? IS NULL OR ? <= m.max_output_tokens)
     GROUP BY g.id,g.name,g.version,g.billing_multiplier,m.public_model_id
     LIMIT 1`;

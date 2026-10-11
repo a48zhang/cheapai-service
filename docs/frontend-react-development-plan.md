@@ -200,7 +200,7 @@
 | I-089 | I-088 + I-010 + I-015 | `W/features/admin-models/ModelForm.tsx`；`W/features/admin-models/PriceFields.tsx` | 模型与价格表单，明确每百万 Token/缓存/推理字段和版本；金额字符串处理。 | 模型编辑无浮点舍入，冲突保留原输入。 |
 | I-090 | I-032 + I-041 | `W/features/admin-models/mapping-api.ts`；`W/features/admin-models/MappingTable.tsx`；`W/features/admin-models/public.ts` | 模型映射的查询/创建/编辑入口与状态展示；公共入口先导出稳定的表格与 query 工厂。 | 模型与映射操作有各自版本和请求，跨 feature 消费有明确入口。 |
 | I-091 | I-030 + I-014 + I-041 | `W/shared/catalog/channel-options.ts`；`W/shared/catalog/ChannelPicker.tsx` | 完整加载/去重渠道候选，记录终止 cursor；中页失败不可当完整列表提交，支持停用/缺失当前值及关闭重开取消。 | 模型与组共同使用完整、可恢复的渠道选择器。 |
-| I-092 | I-090 + I-091 + I-012 | `W/features/admin-models/MappingForm.tsx`；`W/features/admin-models/CapabilityFields.tsx`；`W/features/admin-models/public.ts` | 映射字段、能力选项与版本冲突；mapping 读取重试与渠道候选重试独立；公共入口补导出 MappingForm。 | 映射编辑保持已有字段和当前值，不因候选变化清掉选择。 |
+| I-092 | I-090 + I-091 + I-012 | `W/features/admin-models/MappingForm.tsx`；`W/features/admin-models/public.ts` | 映射字段与版本冲突；mapping 读取重试与渠道候选重试独立；公共入口补导出 MappingForm。能力配置已移除，新增映射无需能力字段。 | 映射编辑保持已有字段和当前值，不因候选变化清掉选择。 |
 | I-093 | I-088–I-090 + I-092 | `W/pages/admin/ModelDetailPage.tsx` | 组合模型、价格、映射详情与保存反馈；ID 统一编码。 | 模型配置在一个可刷新的详情页完成。 |
 | I-094 | I-033 + I-041 + I-091 + I-084 | `W/features/admin-groups/api.ts`；`W/features/admin-groups/GroupForm.tsx`；`W/features/admin-groups/GroupTable.tsx` | 组列表/详情/写入、精确倍率与渠道关联，复用 ChannelPicker。 | 组 CRUD 的数据与组件层完成，不实现未经后端解析的授权预览。 |
 | I-095 | I-094 + I-014 | `W/pages/admin/GroupsPage.tsx`；`W/pages/admin/GroupDetailPage.tsx` | 组合组列表与详情，显示授权关系说明和配置冲突。 | 访问组页面支持深链及实际关联编辑。 |
