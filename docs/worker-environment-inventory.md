@@ -12,8 +12,8 @@
 
 | 名称 | 类别与配置位置 | 是否需要 | 用途 / 当前 Git 配置 |
 | --- | --- | --- | --- |
-| `ENVIRONMENT` | Worker 普通变量；`apps/worker/wrangler.jsonc` 的 `env.production.vars` | 必需 | 当前 `production`；决定生产 canonical redirect、本地 IP 行为和入口环境校验。 |
-| `PUBLIC_BASE_URL` | 同上 | 生产必需 | 当前 `https://cheapai.dev`；可信控制台 HTTPS origin、写入来源验证、CORS、www 跳转。格式是 HTTPS origin，可带单个尾斜杠，不含路径/用户名密码/query/hash。 |
+| `ENVIRONMENT` | Worker 普通变量；`apps/worker/wrangler.jsonc` 的 `env.production.vars` | 必需 | 当前 `production`；决定生产可信 `www` 入口、本地 IP 行为和入口环境校验。 |
+| `PUBLIC_BASE_URL` | 同上 | 生产必需 | 当前 `https://cheapai.dev`；可信控制台 HTTPS origin、写入来源验证与 CORS；生产允许 HTTPS、同端口的 `www` 对应入口，并按本次访问 origin 校验，不进行 host 跳转。格式是 HTTPS origin，可带单个尾斜杠，不含路径/用户名密码/query/hash。 |
 | `EMAIL_VERIFICATION_READY` | 同上 | 要启用验证邮件必须为 `"true"`；未设相当于 false | **当前 Git 已设 `"true"`**。它表示服务端邮件能力就绪；与数据库中的业务开关 `emailVerificationEnabled` 不同。不能用其中一个替代另一个。 |
 | `EMAIL_PROVIDER` | 同上 | 当前 Resend 方案需显式设置 | 当前 `resend`；允许 `resend` / `cloudflare`，省略默认 cloudflare。 |
 | `EMAIL_FROM` | 同上 | readiness=true 时需要 | 当前 `noreply@mail.cheapai.dev`；需要匹配 Resend 已验证的发送域/身份。 |
@@ -35,7 +35,7 @@
 | `DB` / D1 | 必需 | 数据库 `sub2api-cloudflare-production`，ID `d85930ad-8e4f-41b7-9fb6-ddf97719e41d`。用户、会话、渠道、模型、聊天、账单等持久化；迁移目录 `migrations/`。配置里的 `remote:false` 控制本地开发资源模式，不表示部署后仍使用本地 D1。 |
 | `CACHE` / KV | 必需 | ID `3da22af80f0946cdbb9cd85caee9810d`；路由/价格等缓存，不是事实数据库。 |
 | `GATE` / Durable Object | 必需 | 当前 Worker 导出的 `Gate` 类；`v1` migration 的 `new_sqlite_classes: ["Gate"]`。认证/注册节流、并发租约/RPM。无需另配密钥或 `script_name`。 |
-| `ASSETS` / Static Assets | Web 首页与控制台必需 | 从 `apps/web/dist` 上传；SPA fallback；生产 `run_worker_first:true` 确保 www 跳转和公共响应头。部署前需完成 Web build。 |
+| `ASSETS` / Static Assets | Web 首页与控制台必需 | 从 `apps/web/dist` 上传；SPA fallback；生产 `run_worker_first:true` 确保逐请求 origin 选择和公共响应头。部署前需完成 Web build。 |
 | `EMAIL` / send_email | 仅 provider=cloudflare 时需要 | 生产目前 `send_email: []`，Resend 通过 fetch 发邮件，**不要添加本地 `example.invalid` 邮件绑定**。切换提供方才需配置 Cloudflare 真实已验证发件/收件约束。 |
 | Routes | 对正式域名必需 | `cheapai.dev/*` 和 `www.cheapai.dev/*`，zone `cheapai.dev`；DNS/代理/TLS 线上状态另核。 |
 | `workers_dev` / `preview_urls` | 当前策略 | 两者生产均 false；不使用 workers.dev 作为生产入口。 |

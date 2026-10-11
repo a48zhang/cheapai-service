@@ -56,7 +56,7 @@
         { "pattern": "cheapai.dev/*", "zone_name": "cheapai.dev" },
         { "pattern": "www.cheapai.dev/*", "zone_name": "cheapai.dev" }
       ],
-      // www must redirect before Static Assets can serve any path directly.
+      // Apply origin selection and security headers before serving static assets.
       "assets": {
         "directory": "../web/dist",
         "binding": "ASSETS",
