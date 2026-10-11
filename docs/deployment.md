@@ -20,7 +20,7 @@
 | Build command | `pnpm run build` |
 | Deploy command | `pnpm run deploy` |
 
-这些 Dashboard 设置不由 Git 中的 package scripts 自动覆盖。必须将已有的裸命令 `npx wrangler deploy` 替换为上表命令，再重试发布。若保留 Wrangler 直接调用，等价命令为 `pnpm --filter @sub2api/worker exec wrangler deploy --config wrangler.jsonc --env production --strict`。`deploy` 使用构建步骤生成的前端产物，不重复构建。
+这些 Dashboard 设置不由 Git 中的 package scripts 自动覆盖。将失败的 `npx wrangler preview` 或裸命令 `npx wrangler deploy` 改为 `pnpm run deploy`，保存后重新运行失败的构建。该命令通过 Worker workspace 中已安装的 Wrangler 执行发布，使用构建步骤生成的前端产物，不重复构建。
 
 CI 自动将 Worker 名称替换为 production 名称，不会同时切换 D1、KV、邮件或 vars。构建及发布日志中应确认 `ENVIRONMENT` 为 `production`、DB 为 `sub2api-cloudflare-production`、CACHE 为 `3da22af80f0946cdbb9cd85caee9810d`，且没有 local 邮件占位绑定。不能只依据 Worker 名称判断选中了生产环境。
 
