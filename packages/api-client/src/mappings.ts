@@ -70,7 +70,9 @@ export function createMappingsApi(api: ApiClient) {
           channelId: input.channelId,
           protocol: input.protocol,
           upstreamModel: input.upstreamModel,
-          capabilities: capabilitiesBody(input.capabilities),
+          ...(input.capabilities === undefined
+            ? {}
+            : { capabilities: capabilitiesBody(input.capabilities) }),
         },
         { decode: decodeMapping },
       )

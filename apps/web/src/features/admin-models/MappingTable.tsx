@@ -38,22 +38,6 @@ function columnsFor(
       cell: ({ row }) => <code className="font-mono text-sm">{row.original.upstreamModel}</code>,
     },
     {
-      accessorKey: 'capabilities',
-      header: '能力声明',
-      cell: ({ row }) => (
-        <span className="console-muted" title={row.original.capabilities.features.join(', ')}>
-          {row.original.capabilities.features.length > 0
-            ? `${row.original.capabilities.features.length} 项能力`
-            : '未声明'}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'configVersion',
-      header: '映射版本',
-      cell: ({ row }) => <span className="font-mono text-sm">v{row.original.configVersion}</span>,
-    },
-    {
       id: 'actions',
       header: '操作',
       cell: ({ row }) => (

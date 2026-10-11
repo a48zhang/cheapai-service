@@ -1,11 +1,10 @@
-import { ThemePicker } from '@cheapai/theme';
-import { ArrowLeft, Menu, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Menu, MessageSquare, PanelLeft, PanelLeftClose } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { AccountMenu } from '../../features/session/public';
 import { useSession } from '../../features/session/useSession';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
-import { BrandLink } from '../../shared/ui/BrandLink';
+import { AppTopbar } from '../../shared/patterns/AppTopbar';
 import { Button } from '../../shared/ui/Button';
 import { Sheet } from '../../shared/ui/Sheet';
 import {
@@ -24,6 +23,7 @@ export function ConsoleLayout({
 }) {
   const { isAdmin, error } = useSession();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [desktopOpen, setDesktopOpen] = useState(true);
   const isManagement = mode === 'admin';
   const title = isManagement ? '管理控制台' : '个人控制台';
 
@@ -82,25 +82,31 @@ export function ConsoleLayout({
   );
 
   return (
-    <div className="flex min-h-dvh bg-[var(--color-canvas)]">
+    <div className="min-h-dvh bg-[var(--color-canvas)]">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:z-[70] focus:rounded-md focus:bg-[var(--color-surface)] focus:p-4"
       >
         跳到主要内容
       </a>
-      <aside className="sticky top-0 hidden h-dvh w-[236px] shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] md:flex">
-        <div className="flex h-16 shrink-0 items-center border-b border-[var(--color-border)] px-6">
-          <BrandLink className="text-xl font-semibold" />
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-5">{navigation}</div>
-        <div className="shrink-0 border-t border-[var(--color-border)] p-3">
-          <AccountMenu layout="sidebar" />
-        </div>
-      </aside>
-      <div className="min-w-0 flex-1">
-        <header className="flex h-16 items-center justify-between gap-3 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
+      <AppTopbar
+        sidebarToggle={
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hidden md:inline-flex"
+              aria-label={desktopOpen ? '收起导航' : '展开导航'}
+              aria-expanded={desktopOpen}
+              aria-controls="desktop-console-sidebar"
+              onClick={() => setDesktopOpen(!desktopOpen)}
+            >
+              {desktopOpen ? (
+                <PanelLeftClose aria-hidden="true" size={19} />
+              ) : (
+                <PanelLeft aria-hidden="true" size={19} />
+              )}
+            </Button>
             <Sheet
               open={mobileOpen}
               onOpenChange={setMobileOpen}
@@ -114,25 +120,36 @@ export function ConsoleLayout({
             >
               {navigation}
             </Sheet>
-            <span className="text-[15px] font-medium text-[var(--color-muted-foreground)]">
-              {title}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <ThemePicker />
-            <div className="md:hidden">
-              <AccountMenu compact showTheme={false} />
-            </div>
-          </div>
-        </header>
-        <main
-          id="main-content"
-          className="mx-auto w-full max-w-[1440px] space-y-6 p-4 sm:p-6 lg:p-8"
-          tabIndex={-1}
+          </>
+        }
+        context={
+          <span className="truncate text-[15px] font-medium text-[var(--color-muted-foreground)]">
+            {title}
+          </span>
+        }
+        account={<AccountMenu compact showTheme={false} showShortcut={false} />}
+      />
+      <div className="flex min-w-0">
+        <aside
+          id="desktop-console-sidebar"
+          className={
+            desktopOpen
+              ? 'sticky top-16 hidden h-[calc(100dvh-4rem)] w-[236px] shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] md:flex'
+              : 'hidden'
+          }
         >
-          {error && <ApiErrorNotice error={error} />}
-          {children ?? <Outlet />}
-        </main>
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-5">{navigation}</div>
+        </aside>
+        <div className="min-w-0 flex-1">
+          <main
+            id="main-content"
+            className="mx-auto w-full max-w-[1440px] space-y-6 p-4 sm:p-6 lg:p-8"
+            tabIndex={-1}
+          >
+            {error && <ApiErrorNotice error={error} />}
+            {children ?? <Outlet />}
+          </main>
+        </div>
       </div>
     </div>
   );

@@ -10,10 +10,12 @@ export function AccountMenu({
   compact = false,
   layout = 'inline',
   showTheme = true,
+  showShortcut = true,
 }: {
   compact?: boolean;
   layout?: 'inline' | 'sidebar';
   showTheme?: boolean;
+  showShortcut?: boolean;
 }) {
   const isSidebar = layout === 'sidebar';
   const { user, isAdmin, session, pending } = useSession();
@@ -27,7 +29,7 @@ export function AccountMenu({
       className={isSidebar ? 'w-full' : 'flex items-center gap-2 sm:gap-4'}
     >
       {!isSidebar && showTheme && <ThemePicker />}
-      {!isSidebar && (
+      {!isSidebar && showShortcut && (
         <Link
           to="/keys"
           aria-label="API 接入"
@@ -74,6 +76,7 @@ export function AccountMenu({
           side={isSidebar ? 'top' : 'bottom'}
           align={isSidebar ? 'start' : 'end'}
           items={[
+            ...(!showShortcut ? [{ label: 'API 接入', onSelect: () => navigate('/keys') }] : []),
             { label: '费用', onSelect: () => navigate('/billing') },
             { label: '使用记录', onSelect: () => navigate('/requests') },
             ...(isAdmin

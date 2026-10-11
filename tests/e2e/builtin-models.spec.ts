@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { BUILTIN_MODELS } from '../../packages/model-catalog/index';
 
-test('built-in models are installed and channel mapping defaults use catalog capabilities @resources', async ({ page }) => {
+test('built-in models are installed and channel mapping defaults use catalog protocol and name @resources', async ({ page }) => {
   const connection = JSON.parse(readFileSync(join(__dirname, `../../.wrangler/e2e/connection-${process.env.SUB2API_E2E_PORT ?? '9789'}.json`), 'utf8'));
   await page.goto('/login');
   await page.getByLabel('邮箱', { exact: true }).fill(connection.adminEmail);
@@ -22,6 +22,7 @@ test('built-in models are installed and channel mapping defaults use catalog cap
   const row = page.locator('tbody tr').filter({ hasText: astra!.id });
   await row.getByRole('link', { name: astra!.id, exact: true }).click();
   await expect(page).toHaveURL(`${connection.baseURL}/admin/models/${encodeURIComponent(astra!.id)}`);
+  await page.getByRole('button', { name: '编辑模型', exact: true }).click();
   const reference = page.locator('details').filter({ hasText: astra!.id });
   await reference.locator('summary').click();
   await expect(reference.locator('dl div').filter({ hasText: '上下文窗口' })).toContainText(astra!.contextWindow.toLocaleString());
@@ -29,6 +30,7 @@ test('built-in models are installed and channel mapping defaults use catalog cap
   const pricingNote = reference.locator('dl div').filter({ hasText: '参考价格说明' }).locator('dd');
   expect((await pricingNote.innerText()).trim().length).toBeGreaterThan(0);
 
+  await page.getByRole('button', { name: '取消', exact: true }).click();
   const csrf = (await (await api.get('/api/v1/settings/public')).json()).data.csrfToken;
   const name = `Catalog ${randomUUID().slice(0, 8)}`;
   const channel = await api.post('/api/v1/admin/channels', { headers: { Origin: connection.baseURL, 'X-CSRF-Token': csrf }, data: {
@@ -47,6 +49,6 @@ test('built-in models are installed and channel mapping defaults use catalog cap
     const mappingForm = page.locator('form').filter({ has: page.getByLabel('上游模型名称', { exact: true }) });
     await expect(mappingForm.getByRole('combobox', { name: '协议', exact: true })).toContainText(protocol);
     await expect(mappingForm.getByLabel('上游模型名称', { exact: true })).toHaveValue(id);
-    await expect(mappingForm.getByRole('checkbox', { name: 'tools', exact: true })).toBeChecked();
+    await expect(mappingForm.getByRole('checkbox', { name: 'tools', exact: true })).toHaveCount(0);
   }
 });

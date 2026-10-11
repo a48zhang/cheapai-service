@@ -16,6 +16,7 @@ import {
 import { groupCandidatesQueryOptions, recordGroupSaved } from '../../features/admin-groups/api';
 import { recordMappingSaved } from '../../features/admin-models/public';
 import { mergePageItems } from '../../shared/lib/pagination';
+import { ChannelManagement } from '../../features/admin-channels/ChannelManagement';
 import { ChannelForm } from '../../features/admin-channels/ChannelForm';
 import { ChannelTable } from '../../features/admin-channels/ChannelTable';
 import { useSession } from '../../features/session/useSession';
@@ -41,6 +42,8 @@ export function ChannelsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [formChannel, setFormChannel] = useState<ChannelView | null | undefined>(undefined);
+  const [managementChannel, setManagementChannel] = useState<ChannelView | null>(null);
+  const [managementTab, setManagementTab] = useState<'models' | 'settings'>('models');
   const [diagnosticChannel, setDiagnosticChannel] = useState<ChannelView | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
   const userId = user?.id ?? 'anonymous';
@@ -89,7 +92,10 @@ export function ChannelsPage() {
   };
 
   const openCreate = () => setFormChannel(null);
-  const openEdit = (channel: ChannelView) => setFormChannel(channel);
+  const openEdit = (channel: ChannelView, tab: 'models' | 'settings' = 'models') => {
+    setManagementTab(tab);
+    setManagementChannel(channel);
+  };
   const closeForm = (open: boolean) => {
     if (!open) setFormChannel(undefined);
   };
@@ -159,6 +165,20 @@ export function ChannelsPage() {
         />
       )}
 
+      {managementChannel && (
+        <ChannelManagement
+          key={managementChannel.id}
+          initialTab={managementTab}
+          channel={managementChannel}
+          client={client}
+          actorId={userId}
+          sessionEpoch={epoch}
+          onOpenChange={(open) => {
+            if (!open) setManagementChannel(null);
+          }}
+        />
+      )}
+
       {diagnosticChannel && (
         <ChannelDiagnostics
           open
@@ -167,7 +187,7 @@ export function ChannelsPage() {
           sessionIdentity={{ userId, epoch }}
           onRepair={(kind, model) => {
             setDiagnosticChannel(null);
-            if (kind === 'credentials') openEdit(diagnosticChannel);
+            if (kind === 'credentials') openEdit(diagnosticChannel, 'settings');
             else
               navigate(
                 `/admin/channels/${encodeURIComponent(diagnosticChannel.id)}#channel-model-mappings${model ? `-${encodeURIComponent(model.publicModelId)}` : ''}`,

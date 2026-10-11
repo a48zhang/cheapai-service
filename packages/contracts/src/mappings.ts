@@ -91,12 +91,14 @@ export const modelMappingInputSchema = z
     channelId: identifierSchema,
     protocol: protocolSchema,
     upstreamModel: identifierSchema,
-    capabilities: channelCapabilitiesSchema,
+    capabilities: channelCapabilitiesSchema.optional(),
   })
-
-  .refine((value) => value.capabilities.protocol === value.protocol, {
-    path: ['capabilities', 'protocol'],
-  });
+  .refine(
+    (value) => value.capabilities === undefined || value.capabilities.protocol === value.protocol,
+    {
+      path: ['capabilities', 'protocol'],
+    },
+  );
 
 export const modelMappingPatchSchema = z
   .object({

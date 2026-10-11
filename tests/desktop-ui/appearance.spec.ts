@@ -9,7 +9,8 @@ test('Desktop settings switch real DSH code highlighting without remounting mess
   await expect(token).toBeVisible();
   const originalToken = await token.elementHandle();
   const lightColor = await token.evaluate((element) => getComputedStyle(element).color);
-  await page.getByRole('combobox', { name: '外观', exact: true }).selectOption('dark');
+  await page.getByRole('button', { name: '外观', exact: true }).click();
+  await page.getByRole('menuitemradio', { name: '深色', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   expect(await originalToken!.evaluate((element) => element.isConnected)).toBe(true);
   expect(await token.evaluate((element) => getComputedStyle(element).color)).not.toBe(lightColor);
@@ -32,7 +33,8 @@ test('Desktop synchronizes native chrome and resets it to system mode', async ({
     };
   });
   await page.goto('/tests/appearance.html');
-  await page.getByRole('combobox', { name: '外观', exact: true }).selectOption('dark');
+  await page.getByRole('button', { name: '外观', exact: true }).click();
+  await page.getByRole('menuitemradio', { name: '深色', exact: true }).click();
   await expect
     .poll(() =>
       page.evaluate(
@@ -42,7 +44,8 @@ test('Desktop synchronizes native chrome and resets it to system mode', async ({
       ),
     )
     .toBe('dark');
-  await page.getByRole('combobox', { name: '外观', exact: true }).selectOption('system');
+  await page.getByRole('button', { name: '外观', exact: true }).click();
+  await page.getByRole('menuitemradio', { name: '跟随系统', exact: true }).click();
   await expect
     .poll(() =>
       page.evaluate(
