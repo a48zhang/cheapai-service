@@ -37,7 +37,7 @@ export async function createModelMapping(database: D1Database, input: ModelMappi
   const fields = object(input, ['channelId', 'publicModelId', 'protocol', 'upstreamModel', 'capabilities']);
   const identity = key({ channelId: fields.channelId as string, publicModelId: fields.publicModelId as string, protocol: fields.protocol as Protocol });
   const upstreamModel = text(fields.upstreamModel);
-  const capabilities = validateMappingCapabilities(fields.capabilities, identity.protocol);
+  const capabilities = validateMappingCapabilities(fields.capabilities === undefined ? { protocol: identity.protocol, features: [] } : fields.capabilities, identity.protocol);
   await parents(database, identity);
   const statement = await audit(database, identity, 1, context, 'channel_model.create');
   try {

@@ -16,21 +16,34 @@ test('appearance follows the OS, persists overrides, and synchronizes tabs', asy
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.emulateMedia({ colorScheme: 'light' });
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  const picker = page.getByRole('combobox', { name: '外观', exact: true });
-  await picker.selectOption('dark');
+  const picker = page.getByRole('button', { name: '外观', exact: true });
+  await picker.click();
+  await page.getByRole('menuitemradio', { name: '深色', exact: true }).click();
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.emulateMedia({ colorScheme: 'light' });
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.reload();
-  await expect(picker).toHaveValue('dark');
+  await picker.click();
+  await expect(page.getByRole('menuitemradio', { name: '深色', exact: true })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  );
+  await page.keyboard.press('Escape');
+  await expect(picker).toBeFocused();
   const other = await context.newPage();
   await anonymous(other);
   await other.goto('/chat');
   await expect(other.locator('html')).toHaveAttribute('data-theme', 'dark');
-  await picker.selectOption('light');
+  await picker.click();
+  await page.getByRole('menuitemradio', { name: '浅色', exact: true }).click();
   await expect(other.locator('html')).toHaveAttribute('data-theme', 'light');
   await other.evaluate(() => localStorage.removeItem('cheapai.appearance.v1'));
-  await expect(picker).toHaveValue('system');
+  await picker.click();
+  await expect(page.getByRole('menuitemradio', { name: '跟随系统', exact: true })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  );
+  await page.keyboard.press('Escape');
   await other.close();
 });
 
@@ -55,9 +68,35 @@ test('storage failure does not prevent switching appearance', async ({ page }) =
   });
   await anonymous(page);
   await page.goto('/');
-  await page.getByRole('combobox', { name: '外观', exact: true }).selectOption('dark');
+  await page.getByRole('button', { name: '外观', exact: true }).click();
+  await page.getByRole('menuitemradio', { name: '深色', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect(page.getByRole('status').filter({ hasText: '外观已切换' })).toContainText(
     '暂时无法保存',
   );
+});
+
+test('appearance menu supports keyboard navigation and outside dismissal', async ({ page }) => {
+  await anonymous(page);
+  await page.goto('/');
+  const picker = page.getByRole('button', { name: '外观', exact: true });
+  await picker.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('menuitemradio', { name: '浅色', exact: true })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('menuitemradio', { name: '深色', exact: true })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(picker).toBeFocused();
+  await picker.click();
+  await page.keyboard.press('End');
+  await expect(page.getByRole('menuitemradio', { name: '跟随系统', exact: true })).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(page.getByRole('menuitemradio', { name: '浅色', exact: true })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu', { name: '外观', exact: true })).toHaveCount(0);
+  await expect(picker).toBeFocused();
+  await picker.click();
+  await page.locator('main').click({ position: { x: 10, y: 10 } });
+  await expect(picker).toHaveAttribute('aria-expanded', 'false');
 });

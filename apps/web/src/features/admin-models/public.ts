@@ -1,7 +1,5 @@
 export { MappingTable } from './MappingTable';
 export type { MappingTableProps } from './MappingTable';
-export { CapabilityFields, capabilityFieldValues } from './CapabilityFields';
-export type { CapabilityFieldErrors, CapabilityFieldValues } from './CapabilityFields';
 export { MappingForm } from './MappingForm';
 export type { MappingFormProps } from './MappingForm';
 export {
@@ -17,3 +15,4 @@ export type {
   ModelMappingView,
   Protocol,
 } from './mapping-api';
+export { modelListQueryOptions } from './api';

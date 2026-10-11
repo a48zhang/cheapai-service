@@ -37,6 +37,18 @@ describe('typed administrator model mapping HTTP', () => {
     const filtered = await route.request(listUrl + '?protocol=responses', { headers: { Cookie: adminCookie } }, { DB: testEnv.DB });
     expect(await filtered.json()).toMatchObject({ data: { items: [{ protocol: 'responses', upstreamModel: 'upstream-responses' }] } });
   });
+  it('creates mappings without capability configuration and preserves legacy metadata on name edits', async () => {
+    const response = await app().request(listUrl, { method: 'POST', headers: headers(),
+      body: JSON.stringify({ channelId, protocol: 'responses', upstreamModel: 'codex-upstream' }) }, { DB: testEnv.DB });
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ data: { capabilities: { protocol: 'responses', features: [] } } });
+    await create();
+    const edited = await app().request(`${listUrl}/${channelId}/chat`, { method: 'PATCH', headers: headers(),
+      body: JSON.stringify({ version: 1, upstreamModel: 'renamed-upstream' }) }, { DB: testEnv.DB });
+    expect(edited.status).toBe(200);
+    expect(await edited.json()).toMatchObject({ data: { upstreamModel: 'renamed-upstream',
+      capabilities: { protocol: 'chat', features: [], maxOutputTokens: 4096 } } });
+  });
   it('requires session/admin and CSRF, rejecting identity/group/capability injection', async () => {
     expect((await app().request(listUrl, {}, { DB: testEnv.DB })).status).toBe(401);
     expect((await app().request(listUrl, { headers: { Cookie: userCookie } }, { DB: testEnv.DB })).status).toBe(403);

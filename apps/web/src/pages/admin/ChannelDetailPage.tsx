@@ -1,15 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import type { ChannelView } from '@cheapai/api-client/channels';
 import { ChannelDiagnostics } from '../../features/admin-channels/ChannelDiagnostics';
 import {
-  adminChannelsQueryKeys,
   channelDetailQueryOptions,
   createAdminChannelsFeatureApi,
-  invalidateAdminChannels,
 } from '../../features/admin-channels/api';
-import { ChannelForm } from '../../features/admin-channels/ChannelForm';
+import { ChannelManagement } from '../../features/admin-channels/ChannelManagement';
 import { ChannelMappingPanel } from '../../features/admin-channels/ChannelMappingPanel';
 import { useSession } from '../../features/session/useSession';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
@@ -27,8 +24,8 @@ export function ChannelDetailPage() {
   const channelId = routeChannelId ?? '';
   const location = useLocation();
   const { user, epoch, client, isAdmin } = useSession();
-  const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
+  const [managementTab, setManagementTab] = useState<'models' | 'settings'>('models');
   const [diagnosing, setDiagnosing] = useState(false);
   const userId = user?.id ?? 'anonymous';
   const api = useMemo(() => createAdminChannelsFeatureApi(client), [client]);
@@ -43,12 +40,6 @@ export function ChannelDetailPage() {
     target?.scrollIntoView({ block: 'start' });
     target?.focus({ preventScroll: true });
   }, [channel, location.hash]);
-
-  const onSaved = (saved: ChannelView) => {
-    setEditing(false);
-    queryClient.setQueryData(adminChannelsQueryKeys.detail(userId, epoch, saved.id), saved);
-    void invalidateAdminChannels(queryClient, userId, epoch);
-  };
 
   return (
     <section className="space-y-6">
@@ -68,7 +59,14 @@ export function ChannelDetailPage() {
                 >
                   连接诊断
                 </Button>
-                <Button onClick={() => setEditing(true)}>编辑配置</Button>
+                <Button
+                  onClick={() => {
+                    setManagementTab('models');
+                    setEditing(true);
+                  }}
+                >
+                  管理渠道
+                </Button>
               </>
             )}
           </>
@@ -186,14 +184,15 @@ export function ChannelDetailPage() {
       )}
 
       {editing && channel && (
-        <ChannelForm
-          open
+        <ChannelManagement
+          initialTab={managementTab}
           channel={channel}
-          api={api}
+          client={client}
+          actorId={userId}
+          sessionEpoch={epoch}
           onOpenChange={(open) => {
             if (!open) setEditing(false);
           }}
-          onSaved={onSaved}
         />
       )}
       {diagnosing && channel && (
@@ -204,8 +203,10 @@ export function ChannelDetailPage() {
           sessionIdentity={{ userId, epoch }}
           onRepair={(kind) => {
             setDiagnosing(false);
-            if (kind === 'credentials') setEditing(true);
-            else
+            if (kind === 'credentials') {
+              setManagementTab('settings');
+              setEditing(true);
+            } else
               requestAnimationFrame(() => {
                 const target = document.getElementById('channel-model-mappings');
                 target?.scrollIntoView({ block: 'start' });

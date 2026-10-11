@@ -4,8 +4,8 @@ import { prepare } from '../db';
 import { ApiError } from '../http';
 
 export interface ModelMappingKey { channelId: string; publicModelId: string; protocol: Protocol }
-export interface ModelMappingInput extends ModelMappingKey { upstreamModel: string; capabilities: ChannelCapabilities }
-export interface ModelMappingView extends ModelMappingInput { configVersion: number }
+export interface ModelMappingInput extends ModelMappingKey { upstreamModel: string; capabilities?: ChannelCapabilities }
+export interface ModelMappingView extends ModelMappingInput { capabilities: ChannelCapabilities; configVersion: number }
 export interface ModelMappingQuery { publicModelId: string; protocol?: Protocol; activeOnly?: boolean }
 
 function invalid(): never { throw new ApiError('invalid_request'); }

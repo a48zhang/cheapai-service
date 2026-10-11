@@ -185,9 +185,6 @@ export function ChannelSetupSteps({
               disabled={busy}
             />
           </Field>
-          <p className="text-sm leading-5 text-[var(--color-warning)]">
-            流式、工具调用等能力需在模型详情配置。
-          </p>
         </form>
       )}
 

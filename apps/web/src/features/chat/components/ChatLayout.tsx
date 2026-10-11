@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { PanelLeft, PanelLeftClose, SquarePen } from 'lucide-react';
 import { AccountMenu } from '../../session/public';
 import { Button } from '../../../shared/ui/Button';
-import { BrandLink } from '../../../shared/ui/BrandLink';
+import { AppTopbar } from '../../../shared/patterns/AppTopbar';
 import { Sheet } from '../../../shared/ui/Sheet';
 import './chat.css';
 
@@ -23,40 +23,43 @@ export function ChatLayout({ sidebar, children, controls, onNew }: ChatLayoutPro
       >
         跳到对话内容
       </a>
-      <header className="chat-header">
-        <div className="chat-header-brand">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="hidden md:inline-flex"
-            aria-label={desktopOpen ? '收起侧栏' : '展开侧栏'}
-            aria-expanded={desktopOpen}
-            aria-controls="desktop-chat-sidebar"
-            onClick={() => setDesktopOpen(!desktopOpen)}
-          >
-            {desktopOpen ? <PanelLeftClose size={19} /> : <PanelLeft size={19} />}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden"
-            aria-label="打开聊天记录"
-            onClick={() => setMobileOpen(true)}
-          >
-            <PanelLeft size={19} />
-          </Button>
-          <BrandLink className="text-xl font-semibold tracking-tight" />
-        </div>
-        <div className="chat-header-context">
-          {!desktopOpen && onNew && (
-            <Button variant="ghost" size="sm" onClick={onNew}>
-              <SquarePen size={16} aria-hidden="true" />
-              新对话
+      <AppTopbar
+        sidebarToggle={
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hidden md:inline-flex"
+              aria-label={desktopOpen ? '收起侧栏' : '展开侧栏'}
+              aria-expanded={desktopOpen}
+              aria-controls="desktop-chat-sidebar"
+              onClick={() => setDesktopOpen(!desktopOpen)}
+            >
+              {desktopOpen ? <PanelLeftClose size={19} /> : <PanelLeft size={19} />}
             </Button>
-          )}
-        </div>
-        <AccountMenu compact />
-      </header>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              aria-label="打开聊天记录"
+              onClick={() => setMobileOpen(true)}
+            >
+              <PanelLeft size={19} />
+            </Button>
+          </>
+        }
+        context={
+          <>
+            {!desktopOpen && onNew && (
+              <Button variant="ghost" size="sm" onClick={onNew}>
+                <SquarePen size={16} aria-hidden="true" />
+                新对话
+              </Button>
+            )}
+          </>
+        }
+        account={<AccountMenu compact showTheme={false} showShortcut={false} />}
+      />
       <div className="flex min-h-0 flex-1">
         <div
           id="desktop-chat-sidebar"

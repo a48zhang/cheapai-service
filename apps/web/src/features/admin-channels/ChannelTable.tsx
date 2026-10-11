@@ -115,7 +115,7 @@ export function ChannelTable({
           return (
             <div className="flex items-center gap-1 whitespace-nowrap">
               <Button variant="ghost" size="sm" onClick={() => onEdit?.(channel)}>
-                编辑
+                管理渠道
               </Button>
               <Button
                 variant="ghost"

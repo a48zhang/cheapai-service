@@ -81,7 +81,8 @@ export function createMappingRoutes<B extends Bindings = Bindings>(dependencies:
     const body = await readBody(context.req.raw);
     const result = await createModelMapping(context.env.DB, {
       publicModelId: context.req.param('publicModelId'), channelId: body.channelId as string,
-      protocol: body.protocol as Protocol, upstreamModel: body.upstreamModel as string, capabilities: body.capabilities as ChannelCapabilities,
+      protocol: body.protocol as Protocol, upstreamModel: body.upstreamModel as string,
+      ...(body.capabilities === undefined ? {} : { capabilities: body.capabilities as ChannelCapabilities }),
     }, { actorId: context.get('user').id, operationId: crypto.randomUUID(), now: context.get('mappingNow') });
     return apiSuccess(result, context.get('requestId'), 201);
   });

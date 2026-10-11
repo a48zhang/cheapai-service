@@ -42,9 +42,6 @@ jobs:
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile --strict-peer-dependencies --registry=https://registry.npmjs.org
 
-      - name: Check existing-preview orchestration
-        run: node scripts/pr-preview.mjs --self-test
-
       - name: Detect desktop changes
         id: changes
         run: node scripts/ci/desktop-changes.mjs

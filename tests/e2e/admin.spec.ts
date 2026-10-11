@@ -163,8 +163,8 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
   const protocol = page.getByRole('combobox', { name: '协议' });
   await chooseRadixOption(page, protocol, 'Chat Completions');
   await page.getByRole('textbox', { name: '上游模型名称' }).fill('fixture-chat-model');
-  await page.getByText('能力与高级设置', { exact: true }).click();
-  await page.getByRole('checkbox', { name: 'streaming' }).check();
+  await expect(page.getByText('能力与高级设置', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('checkbox', { name: 'streaming' })).toHaveCount(0);
   const mappingResponsePromise = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname.endsWith(
@@ -207,8 +207,9 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
   // network call or upstream fixture traffic.
   await page.goto('/admin/channels');
   const editableChannelRow = page.getByRole('row').filter({ hasText: channelName });
-  await editableChannelRow.getByRole('button', { name: '编辑' }).click();
+  await editableChannelRow.getByRole('button', { name: '管理渠道', exact: true }).click();
   const channelEditDialog = page.getByRole('dialog');
+  await channelEditDialog.getByRole('tab', { name: '渠道配置', exact: true }).click();
   await channelEditDialog
     .getByRole('textbox', { name: '上游地址' })
     .fill('https://e2e-failing-upstream.example.invalid');
@@ -219,6 +220,8 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
   );
   await channelEditDialog.getByRole('button', { name: '保存更改' }).click();
   expect((await channelUpdatePromise).status()).toBe(200);
+  await expect(channelEditDialog).toBeVisible();
+  await channelEditDialog.getByRole('button', { name: '关闭侧栏', exact: true }).click();
   await expect(channelEditDialog).toHaveCount(0);
   await expect(page.getByRole('row').filter({ hasText: channelName })).toContainText(
     'e2e-failing-upstream.example.invalid',
@@ -370,4 +373,70 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
   }
   await expect(page.locator('body')).not.toContainText(upstreamKey);
   await expect(page.locator('body')).not.toContainText(platformKey);
+});
+
+test('已有渠道可直接添加和编辑模型，取消草稿不写入配置', async ({ page }) => {
+  await loginThroughPage(page);
+  const tag = randomUUID().slice(0, 8);
+  const name = `管理渠道 ${tag}`;
+  const model = `channel-management-${tag}`;
+  const headers = { Origin: connection.baseURL, 'X-CSRF-Token': csrf };
+  const channelResponse = await administrator.post('/api/v1/admin/channels', {
+    headers,
+    data: { name, baseUrl: 'https://management.example.invalid', upstreamKey: 'fixture-only-key' },
+  });
+  expect(channelResponse.status(), await channelResponse.text()).toBe(201);
+  const channel = (await channelResponse.json()).data as { id: string };
+  const modelResponse = await administrator.post('/api/v1/admin/models', {
+    headers,
+    data: { publicModelId: model, sellPrices: { input: '1', output: '2' }, admissionMinBalanceUnits: '0', maxOutputTokens: 128 },
+  });
+  expect(modelResponse.status(), await modelResponse.text()).toBe(201);
+
+  await page.goto('/admin/channels');
+  await page.getByRole('row').filter({ hasText: name }).getByRole('button', { name: '管理渠道', exact: true }).click();
+  const panel = page.getByRole('dialog', { name: /管理渠道/ });
+  await expect(panel.getByRole('tab', { name: '模型管理', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(panel.getByText('此渠道尚未添加模型', { exact: true })).toBeVisible();
+  await panel.getByRole('button', { name: '添加模型', exact: true }).click();
+  const form = panel.locator('form').filter({ has: page.getByLabel('上游模型名称', { exact: true }) });
+  await expect(form.getByRole('checkbox')).toHaveCount(0);
+  await expect(form.getByText(/能力/)).toHaveCount(0);
+  await chooseRadixOption(page, form.getByRole('combobox', { name: '对外模型', exact: true }), model);
+  await form.getByLabel('上游模型名称', { exact: true }).fill('management-upstream');
+  const addResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/admin/models/${model}/mappings` && response.request().method() === 'POST');
+  await form.getByRole('button', { name: '添加模型', exact: true }).click();
+  expect((await addResponse).status()).toBe(201);
+  await expect(form).toHaveCount(0);
+  await expect(panel).toContainText('management-upstream');
+
+  await panel.getByRole('button', { name: '编辑', exact: true }).click();
+  await expect(form.getByRole('combobox', { name: '接口协议', exact: true })).toBeDisabled();
+  await form.getByLabel('上游模型名称', { exact: true }).fill('cancelled-upstream');
+  await form.getByRole('button', { name: '取消', exact: true }).click();
+  await expect(form).toHaveCount(0);
+  await expect(panel).not.toContainText('cancelled-upstream');
+  await panel.getByRole('button', { name: '编辑', exact: true }).click();
+  await expect(form.getByLabel('上游模型名称', { exact: true })).toHaveValue('management-upstream');
+  await form.getByLabel('上游模型名称', { exact: true }).fill('management-edited');
+  const editResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/admin/models/${model}/mappings/${channel.id}/chat` && response.request().method() === 'PATCH');
+  await form.getByRole('button', { name: '保存更改', exact: true }).click();
+  expect((await editResponse).status()).toBe(200);
+  await expect(form).toHaveCount(0);
+  await expect(panel).toContainText('management-edited');
+
+  await panel.getByRole('tab', { name: '渠道配置', exact: true }).click();
+  await panel.getByLabel('渠道名称', { exact: true }).fill(`${name} 已更新`);
+  const configResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/admin/channels/${channel.id}` && response.request().method() === 'PATCH');
+  await panel.getByRole('button', { name: '保存更改', exact: true }).click();
+  expect((await configResponse).status()).toBe(200);
+  await expect(panel).toBeVisible();
+  await expect(panel.getByRole('heading').first()).toContainText(`${name} 已更新`);
+  expect(await panel.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await panel.getByRole('button', { name: '关闭侧栏', exact: true }).click();
+  await expect(panel).toHaveCount(0);
+  await expect(page.getByRole('row').filter({ hasText: `${name} 已更新` })).toContainText(model);
+  const persisted = await administrator.get(`/api/v1/admin/channels/${channel.id}`);
+  expect(persisted.status()).toBe(200);
+  expect((await persisted.json()).data.models[0]).toMatchObject({ publicModelId: model, upstreamModel: 'management-edited' });
 });

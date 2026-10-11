@@ -200,7 +200,7 @@
 | I-089 | I-088 + I-010 + I-015 | `W/features/admin-models/ModelForm.tsx`；`W/features/admin-models/PriceFields.tsx` | 模型与价格表单，明确每百万 Token/缓存/推理字段和版本；金额字符串处理。 | 模型编辑无浮点舍入，冲突保留原输入。 |
 | I-090 | I-032 + I-041 | `W/features/admin-models/mapping-api.ts`；`W/features/admin-models/MappingTable.tsx`；`W/features/admin-models/public.ts` | 模型映射的查询/创建/编辑入口与状态展示；公共入口先导出稳定的表格与 query 工厂。 | 模型与映射操作有各自版本和请求，跨 feature 消费有明确入口。 |
 | I-091 | I-030 + I-014 + I-041 | `W/shared/catalog/channel-options.ts`；`W/shared/catalog/ChannelPicker.tsx` | 完整加载/去重渠道候选，记录终止 cursor；中页失败不可当完整列表提交，支持停用/缺失当前值及关闭重开取消。 | 模型与组共同使用完整、可恢复的渠道选择器。 |
-| I-092 | I-090 + I-091 + I-012 | `W/features/admin-models/MappingForm.tsx`；`W/features/admin-models/CapabilityFields.tsx`；`W/features/admin-models/public.ts` | 映射字段、能力选项与版本冲突；mapping 读取重试与渠道候选重试独立；公共入口补导出 MappingForm。 | 映射编辑保持已有字段和当前值，不因候选变化清掉选择。 |
+| I-092 | I-090 + I-091 + I-012 | `W/features/admin-models/MappingForm.tsx`；`W/features/admin-models/public.ts` | 映射字段与版本冲突；mapping 读取重试与渠道候选重试独立；公共入口补导出 MappingForm。能力配置已移除，新增映射无需能力字段。 | 映射编辑保持已有字段和当前值，不因候选变化清掉选择。 |
 | I-093 | I-088–I-090 + I-092 | `W/pages/admin/ModelDetailPage.tsx` | 组合模型、价格、映射详情与保存反馈；ID 统一编码。 | 模型配置在一个可刷新的详情页完成。 |
 | I-094 | I-033 + I-041 + I-091 + I-084 | `W/features/admin-groups/api.ts`；`W/features/admin-groups/GroupForm.tsx`；`W/features/admin-groups/GroupTable.tsx` | 组列表/详情/写入、精确倍率与渠道关联，复用 ChannelPicker。 | 组 CRUD 的数据与组件层完成，不实现未经后端解析的授权预览。 |
 | I-095 | I-094 + I-014 | `W/pages/admin/GroupsPage.tsx`；`W/pages/admin/GroupDetailPage.tsx` | 组合组列表与详情，显示授权关系说明和配置冲突。 | 访问组页面支持深链及实际关联编辑。 |
@@ -310,7 +310,7 @@ I-048 的 `CHEAPAI_E2E_REUSE_BUILD=1` 只跳过重复构建，不跳过 D1/fixtu
 | I-124 | I-123 | `pnpm-lock.yaml` | 依赖 owner 集中更新安装与锁文件，清除失去引用的 Vue 依赖；保留供应链限制，不执行构建或测试。 | 最终依赖图与清单对应，没有迁移期重复应用。 |
 | I-125 | I-123 | `vitest.config.ts`；`scripts/start-local-test-server.mjs`；`playwright.config.ts` | 根 React project、测试服务选择和报告路径归位；默认测试目标为 React，去掉只为旧 Vue 保留的构建分支。 | 正式测试入口不依赖 web-next 或 vue-tsc。 |
 | I-126 | I-125 | `tests/unit/api-client.node.test.ts`；`tests/unit/web-chat-client.test.ts`；`tests/unit/web-admin-contracts.test.ts` | 仅按清单修正归位后的应用纯逻辑 import、虚拟类型消费者路径，移除剩余 Vue 特有路径；不改业务断言。 | 旧测试文件连接最终 React/共享包位置。 |
-| I-127 | I-123 | `.github/workflows/check.yml`；`.github/workflows/preview.yml`；`scripts/pr-preview.mjs` | 更新旧包名过滤和产物路径，CI 维持单一完整检查入口；预览指向最终 React assets，清除可见旧品牌。 | CI/预览配置指向新应用；不触发远程工作流/部署。 |
+| I-127 | I-123 | `.github/workflows/check.yml` | 更新旧包名过滤和产物路径，CI 维持单一完整检查入口；PR 预发现由 Cloudflare 原生 Preview 管理。 | CI 配置指向新应用；不触发远程工作流/部署。 |
 | I-128 | I-123 | `apps/web/index.html`；`apps/web/src/shared/brand.ts`；`apps/web/src/app/navigation.ts` | 根据整合清单收口页面标题、品牌常量和导航，全部 cheapai；其余页面若残留品牌由对应小 FIX 处理，不在本任务改第四文件。 | 产品入口统一命名，保留必要协议标识。 |
 | I-129 | I-124–I-128 | `docs/development.md`；`docs/frontend-react-design.md`；`README.md` | 更新开发命令、应用目录、同源 HTTPS、环境变量/证书方式和设计实施状态；明确新增功能与仍未做的图表等范围。 | 文档描述最终代码位置和启动流程，不将未执行的验证写成已通过。 |
 | I-130 | I-129 | `docs/frontend-react-cutover-manifest.md` | 汇总回退旧前端所需源码/产物引用、包清单与锁文件、API 兼容性和部署配置；标记仅准备、未发布。 | 回退范围覆盖构建图与资源，不只是保留一张截图。 |

@@ -8,8 +8,6 @@ import { Field } from '../../shared/ui/Field';
 import { Input } from '../../shared/ui/Input';
 import { Select } from '../../shared/ui/Select';
 import { Button } from '../../shared/ui/Button';
-import { CapabilityFields } from './CapabilityFields';
-import type { CapabilityFieldErrors } from './CapabilityFields';
 import { mappingKey } from './mapping-form-model';
 import { useMappingForm } from './useMappingForm';
 
@@ -29,30 +27,6 @@ const protocols = [
   { value: 'responses', label: 'Responses' },
   { value: 'messages', label: 'Messages' },
 ] as const;
-
-function issueText(value: unknown, seen = new WeakSet<object>()): string | undefined {
-  if (typeof value !== 'object' || value === null) return undefined;
-  if (seen.has(value)) return undefined;
-  seen.add(value);
-  if ('message' in value && typeof value.message === 'string') return value.message;
-  for (const [key, child] of Object.entries(value)) {
-    if (key === 'ref') continue;
-    const message = issueText(child, seen);
-    if (message) return message;
-  }
-  return undefined;
-}
-
-function capabilityErrors(value: unknown): CapabilityFieldErrors {
-  if (typeof value !== 'object' || value === null) return {};
-  const fields = value as Record<string, unknown>;
-  return {
-    features: issueText(fields.features),
-    maxOutputTokens: issueText(fields.maxOutputTokens),
-    reasoningEfforts: issueText(fields.reasoningEfforts),
-    cacheTtls: issueText(fields.cacheTtls),
-  };
-}
 
 function protocolLabel(protocol: Protocol): string {
   return protocols.find((item) => item.value === protocol)?.label ?? protocol;
@@ -93,7 +67,6 @@ export function MappingForm({
   const [editorOpen, setEditorOpen] = useState(false);
   const showEditor =
     Boolean(initialMapping) || editorOpen || (mappings.isSuccess && rows.length === 0);
-  const watchedProtocol = form.watch('protocol');
   const mappingError = mappings.isError
     ? mappings.error instanceof Error
       ? mappings.error.message
@@ -228,9 +201,7 @@ export function MappingForm({
         >
           <div>
             <h3 className="font-semibold">{selected ? '编辑渠道映射' : '创建渠道映射'}</h3>
-            <p className="mt-1 console-muted">
-              关联目标渠道与协议，再声明该渠道可路由的上游模型和能力。
-            </p>
+            <p className="mt-1 console-muted">选择渠道与协议，并填写上游模型名称。</p>
           </div>
           <fieldset
             disabled={saving || mappings.isPending || mappings.isError || mappings.isFetching}
@@ -303,19 +274,6 @@ export function MappingForm({
                 placeholder="例如 vendor-model-v2"
               />
             </Field>
-            <Controller
-              name="capabilities"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <CapabilityFields
-                  protocol={watchedProtocol}
-                  value={field.value}
-                  errors={capabilityErrors(fieldState.error)}
-                  disabled={saving || needsRefresh}
-                  onChange={field.onChange}
-                />
-              )}
-            />
           </fieldset>
           {duplicate && (
             <p role="alert" className="text-sm text-[var(--color-destructive)]">

@@ -74,7 +74,7 @@ export function validateSetupMappingDraft(draft: SetupMappingDraft): string | nu
 export function buildSetupMappingDraft(draft: SetupMappingDraft): ChannelMappingDraft {
   const protocol = protocolSchema.parse(draft.protocol);
   const upstreamModel = modelMappingInputSchema.shape.upstreamModel.parse(draft.upstreamModel);
-  return { protocol, upstreamModel, capabilities: { protocol, features: [] } };
+  return { protocol, upstreamModel };
 }
 
 export function selectBuiltinReference(draft: SetupMappingDraft, value: string): SetupMappingDraft {
