@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import type { AuditQuery } from '@cheapai/contracts/audit';
+import type { AuditEntry, AuditQuery } from '@cheapai/contracts/audit';
 import { auditQueryOptions } from '../../features/admin-audit/api';
 import { useSession } from '../../features/session/useSession';
 import { PageHeader } from '../../shared/patterns/PageHeader';
@@ -17,10 +17,16 @@ import {
 } from '../../shared/lib/datetime';
 import { mergePageItems } from '../../shared/lib/pagination';
 import type { FormEvent } from 'react';
+import { AuditChangesSheet } from '../../features/admin-audit/AuditChangesSheet';
+import {
+  auditActionLabels,
+  auditActionLabel,
+  auditTargetLabel,
+} from '../../features/admin-audit/labels';
 
 const textFields = [
   { key: 'actorId', label: '操作者 ID' },
-  { key: 'action', label: '动作' },
+  { key: 'action', label: '操作类型' },
   { key: 'targetType', label: '目标类型' },
   { key: 'targetId', label: '目标 ID' },
   { key: 'operationId', label: '操作 ID' },
@@ -29,6 +35,14 @@ export default function AuditPage() {
   const { client, user } = useSession();
   const [params, setParams] = useSearchParams();
   const [error, setError] = useState<unknown>(null);
+  const [selectedEntry, setSelectedEntry] = useState<AuditEntry | null>(null);
+  const [actionChoice, setActionChoice] = useState<{ search: string; custom: boolean } | null>(
+    null,
+  );
+  const customAction =
+    actionChoice?.search === params.toString()
+      ? actionChoice.custom
+      : Boolean(params.get('action') && !auditActionLabels[params.get('action')!]);
   const filters: AuditQuery = {};
   for (const field of textFields) {
     const value = params.get(field.key)?.trim();
@@ -63,18 +77,47 @@ export default function AuditPage() {
     }
   }
   return (
-    <>
+    <section className="space-y-5">
       <PageHeader heading="管理审计" />
       <form
         key={params.toString()}
-        className="flex flex-wrap items-end gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
+        className="flex flex-wrap items-end gap-3 console-panel p-5"
         onSubmit={applyFilters}
       >
-        {textFields.map((field) => (
-          <Field key={field.key} label={field.label}>
-            <Input name={field.key} defaultValue={filters[field.key]} maxLength={128} />
+        <Field label="操作者 ID">
+          <Input name="actorId" defaultValue={filters.actorId} maxLength={128} />
+        </Field>
+        <Field label="操作类型">
+          <select
+            name={customAction ? undefined : 'action'}
+            defaultValue={customAction ? '__custom' : (filters.action ?? '')}
+            className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[15px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+            onChange={(event) =>
+              setActionChoice({
+                search: params.toString(),
+                custom: event.target.value === '__custom',
+              })
+            }
+          >
+            <option value="">全部操作</option>
+            {Object.entries(auditActionLabels).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+            <option value="__custom">其他操作类型</option>
+          </select>
+        </Field>
+        {customAction && (
+          <Field label="其他操作类型">
+            <Input
+              name="action"
+              defaultValue={filters.action}
+              placeholder="如 custom.action"
+              maxLength={64}
+            />
           </Field>
-        ))}
+        )}
         <Field label="开始时间">
           <Input
             name="from"
@@ -92,17 +135,35 @@ export default function AuditPage() {
           />
         </Field>
         <Button type="submit" variant="secondary">
-          查询
+          筛选
         </Button>
         <Button
           variant="ghost"
           onClick={() => {
             setError(null);
             setParams({});
+            setActionChoice(null);
           }}
         >
           清空
         </Button>
+        <details
+          className="basis-full border-t border-[var(--color-border)] pt-4"
+          open={Boolean(filters.targetType || filters.targetId || filters.operationId)}
+        >
+          <summary className="cursor-pointer text-sm font-medium text-[var(--color-ink-secondary)]">
+            更多筛选
+          </summary>
+          <div className="mt-4 flex flex-wrap gap-4">
+            {textFields
+              .filter((field) => field.key !== 'actorId' && field.key !== 'action')
+              .map((field) => (
+                <Field key={field.key} label={field.label}>
+                  <Input name={field.key} defaultValue={filters[field.key]} maxLength={128} />
+                </Field>
+              ))}
+          </div>
+        </details>
       </form>
       {(error || query.error) && (
         <ApiErrorNotice
@@ -119,44 +180,65 @@ export default function AuditPage() {
         hasMore={query.hasNextPage}
         onLoadMore={() => void query.fetchNextPage()}
         getRowId={(row) => row.id}
-        caption="脱敏审计记录"
+        onRowClick={setSelectedEntry}
+        caption="管理审计记录"
         emptyMessage="暂无审计记录"
         columns={[
           {
             header: '时间',
             id: 'time',
-            cell: (context) => formatDateTime(context.row.original.created_at),
+            size: 190,
+            cell: (context) => (
+              <span className="whitespace-nowrap tabular-nums">
+                {formatDateTime(context.row.original.created_at)}
+              </span>
+            ),
           },
-          { header: '操作者', accessorKey: 'actor_id' },
-          { header: '动作', accessorKey: 'action' },
+          {
+            header: '操作者',
+            id: 'actor',
+            cell: (context) => (
+              <span title={context.row.original.actor_id} className="block max-w-52 truncate">
+                {context.row.original.actor_email ?? context.row.original.actor_id}
+              </span>
+            ),
+          },
+          {
+            header: '操作',
+            id: 'action',
+            cell: (context) => (
+              <span className="whitespace-nowrap">
+                {auditActionLabel(context.row.original.action)}
+              </span>
+            ),
+          },
           {
             header: '目标',
             id: 'target',
             cell: (context) => (
-              <span>
-                {context.row.original.target_type}
-                <br />
-                <code>{context.row.original.target_id}</code>
-              </span>
+              <div className="grid gap-1">
+                <span title={context.row.original.target_id} className="block max-w-60 truncate">
+                  {context.row.original.target_name ?? context.row.original.target_id}
+                </span>
+                <span className="text-sm text-[var(--color-ink-secondary)]">
+                  {auditTargetLabel(context.row.original.target_type)}
+                </span>
+              </div>
             ),
           },
-          { header: '操作 ID', accessorKey: 'operation_id' },
           {
-            header: '脱敏变更',
+            header: '详情',
             id: 'changes',
+            size: 110,
             cell: (context) => (
-              <details>
-                <summary>查看变更</summary>
-                <pre className="max-w-sm whitespace-pre-wrap break-all text-xs">
-                  {context.row.original.redaction_valid
-                    ? (JSON.stringify(context.row.original.changes, null, 2) ?? '无变更')
-                    : '脱敏内容不可用'}
-                </pre>
-              </details>
+              <Button variant="ghost" onClick={() => setSelectedEntry(context.row.original)}>
+                查看变更
+              </Button>
             ),
           },
         ]}
       />
-    </>
+      <AuditChangesSheet entry={selectedEntry} onClose={() => setSelectedEntry(null)} />
+    </section>
   );
 }

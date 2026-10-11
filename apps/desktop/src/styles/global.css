@@ -19,7 +19,7 @@ body {
   min-height: 100vh;
   background: var(--color-canvas);
   color: var(--color-ink);
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;
+  font-family: var(--font-sans);
   font-size: var(--font-size-md);
   line-height: var(--line-height-normal);
   text-rendering: optimizeLegibility;
@@ -129,7 +129,7 @@ a {
   margin: 0;
   font-size: var(--font-size-2xl);
   font-weight: 650;
-  letter-spacing: -0.04em;
+  letter-spacing: normal;
   line-height: var(--line-height-tight);
 }
 
@@ -152,34 +152,37 @@ a {
   font-size: var(--font-size-sm);
   font-weight: 600;
   line-height: 1.25;
-  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
 }
 
-.ui-button[data-variant="primary"] {
+.ui-button[data-variant='primary'] {
   background: var(--color-primary);
   color: var(--color-primary-foreground);
 }
 
-.ui-button[data-variant="primary"]:hover:not(:disabled) {
+.ui-button[data-variant='primary']:hover:not(:disabled) {
   background: var(--color-primary-hover);
 }
 
-.ui-button[data-variant="secondary"] {
+.ui-button[data-variant='secondary'] {
   border-color: var(--color-border-strong);
   background: var(--color-surface);
   color: var(--color-ink);
 }
 
-.ui-button[data-variant="secondary"]:hover:not(:disabled) {
+.ui-button[data-variant='secondary']:hover:not(:disabled) {
   background: var(--color-surface-hover);
 }
 
-.ui-button[data-variant="quiet"] {
+.ui-button[data-variant='quiet'] {
   background: transparent;
   color: var(--color-ink-muted);
 }
 
-.ui-button[data-variant="quiet"]:hover:not(:disabled) {
+.ui-button[data-variant='quiet']:hover:not(:disabled) {
   background: var(--color-surface-hover);
   color: var(--color-ink);
 }
@@ -208,7 +211,7 @@ a {
   color: var(--color-ink-subtle);
 }
 
-.ui-input[aria-invalid="true"] {
+.ui-input[aria-invalid='true'] {
   border-color: var(--color-danger);
 }
 
@@ -296,8 +299,19 @@ a {
   }
 }
 
-::selection { background: var(--color-selection); color: var(--color-ink); }
-.desktop-header .desktop-runtime-status { margin-left: auto; }
+::selection {
+  background: var(--color-selection);
+  color: var(--color-ink);
+}
+.desktop-header .desktop-runtime-status {
+  margin-left: auto;
+}
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

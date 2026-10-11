@@ -49,6 +49,18 @@ describe('administrator audit queries on native D1', () => {
       expect.objectContaining({ id: 'o02-a', changes, redaction_valid: true }),
     ]) } });
   });
+  it('resolves display names without losing historical targets or duplicating paginated rows', async () => {
+    await testEnv.DB.prepare("UPDATE admin_audit SET target_id='deleted-group' WHERE id='o02-c'").run();
+    await testEnv.DB.prepare("UPDATE admin_audit SET target_id='o02-group' WHERE id='o02-a'").run();
+    await testEnv.DB.prepare("UPDATE admin_audit SET target_type='user',target_id=? WHERE id='o02-b'").bind(user).run();
+    const response = await (await request('?actorId=' + admin + '&limit=2')).json<{ data: { items: { id: string; actor_email: string | null; target_name: string | null; target_id: string }[]; nextCursor: string } }>();
+    expect(response.data.items).toEqual([
+      expect.objectContaining({ id: 'o02-c', actor_email: admin + '@example.invalid', target_name: null, target_id: 'deleted-group' }),
+      expect.objectContaining({ id: 'o02-b', target_name: user + '@example.invalid' }),
+    ]);
+    const next = await (await request('?actorId=' + admin + '&limit=2&cursor=' + response.data.nextCursor)).json<{ data: { items: { id: string; target_name: string }[] } }>();
+    expect(next.data.items).toEqual([expect.objectContaining({ id: 'o02-a', target_name: 'O02 Group' })]);
+  });
   it('filters actor/time/action/target/operation and rejects invalid queries', async () => {
     const filtered = await request(`?actorId=${other}&from=5000&to=5000&action=group.update&targetType=group&targetId=default&operationId=o02-operation`);
     expect(await filtered.json()).toMatchObject({ data: { items: [{ id: 'o02-other' }] } });

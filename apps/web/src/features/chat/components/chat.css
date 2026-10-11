@@ -47,9 +47,9 @@
   height: 62px;
 }
 .chat-sidebar > header h2 {
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 500;
-  letter-spacing: 0.08em;
+  letter-spacing: normal;
   color: var(--color-ink-muted);
 }
 .chat-sidebar > div > button {
@@ -92,7 +92,7 @@
   font-size: clamp(25px, 2.5vw, 32px);
   line-height: 1.4;
   font-weight: 500;
-  letter-spacing: -1px;
+  letter-spacing: normal;
   color: var(--color-ink);
 }
 
@@ -181,7 +181,7 @@
   display: block;
   padding: 8px;
   color: var(--color-ink-muted);
-  font-size: 12px;
+  font-size: 14px;
 }
 .chat-model-control {
   display: flex;
@@ -201,7 +201,7 @@
   padding: 6px 9px;
   border-radius: 8px;
   color: var(--color-ink-secondary);
-  font-size: 12px;
+  font-size: 14px;
   background: var(--color-surface-subtle);
 }
 .chat-model-trigger {
@@ -228,7 +228,7 @@
 }
 .chat-model-rate {
   color: var(--color-ink-muted);
-  font-size: 11px;
+  font-size: 13px;
   line-height: 18px;
   overflow-wrap: anywhere;
 }
@@ -237,7 +237,7 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 4px 8px;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 20px;
   color: var(--color-ink-muted);
   padding-left: 7px;
@@ -337,7 +337,7 @@
   flex: 1;
   min-width: 0;
   color: var(--color-ink);
-  font-size: 13px;
+  font-size: 14px;
 }
 .chat-model-name > span:first-child {
   min-width: 0;
@@ -347,7 +347,7 @@
 }
 .chat-model-group {
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--color-ink-muted);
 }
 .chat-model-price-tag {
@@ -356,7 +356,7 @@
   border-radius: 5px;
   background: var(--color-surface-hover);
   color: var(--color-ink-secondary);
-  font-size: 10px;
+  font-size: 12px;
   line-height: 16px;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -476,7 +476,7 @@
   align-items: center;
   gap: 10px;
   margin-bottom: 12px;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--color-ink-muted);
 }
 .chat-answer-model {
@@ -490,7 +490,7 @@
   padding: 3px 8px;
   background: var(--color-surface-subtle);
   color: var(--color-ink-secondary);
-  font-size: 11px;
+  font-size: 13px;
   line-height: 18px;
 }
 .chat-answer-body {

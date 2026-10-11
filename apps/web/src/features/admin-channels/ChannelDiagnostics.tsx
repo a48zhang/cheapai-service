@@ -36,7 +36,7 @@ function mappingLabel(model: ChannelModel): ReactNode {
   return (
     <span className="flex min-w-0 items-center justify-between gap-4">
       <span className="truncate">{model.publicModelId}</span>
-      <span className="shrink-0 text-xs text-[var(--color-ink-muted)]">{model.protocol}</span>
+      <span className="shrink-0 console-muted">{model.protocol}</span>
     </span>
   );
 }
@@ -117,7 +117,7 @@ export function ChannelDiagnostics({ open, channel, api, onOpenChange }: Channel
           </>
         }
       >
-        <div className="space-y-5">
+        <div className="space-y-6">
           <div className="rounded-lg border border-[var(--color-warning-line)] bg-[var(--color-warning-soft)] p-4 text-sm text-[var(--color-warning)]">
             <p className="font-semibold">费用提示</p>
             <p className="mt-1 leading-6">诊断可能产生上游费用，不扣用户余额。</p>
@@ -162,19 +162,19 @@ export function ChannelDiagnostics({ open, channel, api, onOpenChange }: Channel
           {selectedModel && (
             <dl className="grid gap-3 rounded-lg border border-[var(--color-line)] p-4 text-sm sm:grid-cols-2">
               <div>
-                <dt className="text-xs text-[var(--color-ink-muted)]">公开模型</dt>
+                <dt className="console-muted">公开模型</dt>
                 <dd className="mt-1 break-all font-medium">{selectedModel.publicModelId}</dd>
               </div>
               <div>
-                <dt className="text-xs text-[var(--color-ink-muted)]">上游模型</dt>
+                <dt className="console-muted">上游模型</dt>
                 <dd className="mt-1 break-all font-mono">{selectedModel.upstreamModel}</dd>
               </div>
               <div>
-                <dt className="text-xs text-[var(--color-ink-muted)]">协议</dt>
+                <dt className="console-muted">协议</dt>
                 <dd className="mt-1">{selectedModel.protocol}</dd>
               </div>
               <div>
-                <dt className="text-xs text-[var(--color-ink-muted)]">版本</dt>
+                <dt className="console-muted">版本</dt>
                 <dd className="mt-1">
                   渠道 {channel.configVersion} · 映射 {selectedModel.mappingVersion} · 价格{' '}
                   {selectedModel.priceVersion}
@@ -196,19 +196,19 @@ export function ChannelDiagnostics({ open, channel, api, onOpenChange }: Channel
               </div>
               <dl className="grid gap-2 text-sm sm:grid-cols-2">
                 <div>
-                  <dt className="text-xs text-[var(--color-ink-muted)]">诊断编号</dt>
+                  <dt className="console-muted">诊断编号</dt>
                   <dd className="mt-1 break-all font-mono">{result.diagnosticId}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-[var(--color-ink-muted)]">上游 HTTP 状态</dt>
+                  <dt className="console-muted">上游 HTTP 状态</dt>
                   <dd className="mt-1">{result.upstreamStatus ?? '无响应状态'}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-[var(--color-ink-muted)]">本次输出上限</dt>
+                  <dt className="console-muted">本次输出上限</dt>
                   <dd className="mt-1">{result.maxOutputTokens} tokens</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-[var(--color-ink-muted)]">账务</dt>
+                  <dt className="console-muted">账务</dt>
                   <dd className="mt-1">
                     {result.userBalanceCharged ? '用户余额已扣费' : '用户余额未扣费'}
                   </dd>
@@ -222,7 +222,7 @@ export function ChannelDiagnostics({ open, channel, api, onOpenChange }: Channel
               <ApiErrorNotice error={error} />
               {error instanceof ApiClientError &&
                 (error.kind === 'network' || error.kind === 'aborted') && (
-                  <p className="text-xs text-[var(--color-ink-secondary)]">
+                  <p className="text-sm text-[var(--color-ink-secondary)]">
                     诊断结果未确认。再次诊断可能产生额外费用。
                   </p>
                 )}

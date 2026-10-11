@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { createAdminUsersFeatureApi, userListQueryOptions } from '../../features/admin-users/api';
 import type { UserStatusFilter } from '../../features/admin-users/api';
@@ -11,7 +11,7 @@ import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { FilterBar } from '../../shared/patterns/FilterBar';
 import { PageHeader } from '../../shared/patterns/PageHeader';
 import { Field } from '../../shared/ui/Field';
-import { Input } from '../../shared/ui/Input';
+import { groupCandidatesQueryOptions } from '../../features/admin-groups/api';
 import { Select } from '../../shared/ui/Select';
 import { Button } from '../../shared/ui/Button';
 import { mergePageItems } from '../../shared/lib/pagination';
@@ -30,7 +30,6 @@ export default function UsersPage() {
   const { client, user, epoch, isAdmin } = useSession();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [groupDraft, setGroupDraft] = useState(searchParams.get('groupId') ?? '');
   const [createOpen, setCreateOpen] = useState(false);
   const status = parseStatus(searchParams.get('status'));
   const groupId = searchParams.get('groupId')?.trim() ?? '';
@@ -39,10 +38,21 @@ export default function UsersPage() {
   const users = useInfiniteQuery(
     userListQueryOptions(api, actorId, epoch, { status, groupId }, isAdmin),
   );
+  const groups = useQuery(groupCandidatesQueryOptions({ client, actorId }, isAdmin));
   const rows = mergePageItems(
     users.data?.pages,
     (candidate, current) => candidate.version - current.version,
   );
+  const groupItems = [
+    { value: 'all', label: '全部访问组' },
+    ...(groups.data ?? []).map((group) => ({ value: group.id, label: group.name })),
+  ];
+  if (groupId && !groupItems.some((item) => item.value === groupId)) {
+    groupItems.push({
+      value: groupId,
+      label: rows.find((row) => row.group_id === groupId)?.group_name ?? '当前分组',
+    });
+  }
   const error = users.isError
     ? users.error instanceof Error
       ? users.error.message
@@ -62,17 +72,15 @@ export default function UsersPage() {
   return (
     <section className="space-y-4">
       <PageHeader
-        eyebrow="用户与授权"
         heading="用户管理"
         actions={<Button onClick={() => setCreateOpen(true)}>创建普通用户</Button>}
       />
       <FilterBar
         onReset={() => {
-          setGroupDraft('');
           applyFilters('all', '');
         }}
       >
-        <Field label="账户状态">
+        <Field label="状态">
           <Select
             aria-label="按账户状态筛选"
             value={status}
@@ -83,26 +91,24 @@ export default function UsersPage() {
             }}
           />
         </Field>
-        <form
-          className="flex items-end gap-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            applyFilters(status, groupDraft.trim());
-          }}
-        >
-          <Field label="分组 ID">
-            <Input
-              value={groupDraft}
-              onChange={(event) => setGroupDraft(event.currentTarget.value)}
-              maxLength={128}
-              autoComplete="off"
-            />
-          </Field>
-          <Button type="submit" variant="secondary">
-            应用
-          </Button>
-        </form>
+        <Field label="访问组" className="min-w-48">
+          <Select
+            aria-label="按访问组筛选"
+            value={groupId || 'all'}
+            items={groupItems}
+            disabled={groups.isPending || groups.isError}
+            onValueChange={(value) => applyFilters(status, value === 'all' ? '' : value)}
+          />
+        </Field>
       </FilterBar>
+      {groups.isError && (
+        <ApiErrorNotice
+          error={groups.error}
+          onRetry={() => {
+            void groups.refetch();
+          }}
+        />
+      )}
       {!isAdmin && <ApiErrorNotice error={new Error('此页面需要管理员权限。')} />}
       <UserTable
         rows={rows}

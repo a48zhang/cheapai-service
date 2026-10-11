@@ -14,13 +14,13 @@ export function ApiErrorNotice({
   return (
     <div
       role="alert"
-      className="rounded-lg border border-[var(--color-danger-line)] bg-[var(--color-danger-soft)] p-4 text-sm text-[var(--color-danger)]"
+      className="rounded-lg border border-[var(--color-danger-line)] bg-[var(--color-danger-soft)] p-4 text-[15px] leading-6 text-[var(--color-danger)]"
     >
       <p>{message}</p>
       {requestId && (
-        <div className="mt-2 flex items-center gap-2 text-xs">
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
           <span>请求编号</span>
-          <code>{requestId}</code>
+          <code className="break-all">{requestId}</code>
           <button
             type="button"
             onClick={() => void navigator.clipboard.writeText(requestId).catch(() => undefined)}

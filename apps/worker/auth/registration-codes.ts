@@ -100,6 +100,7 @@ export interface ListRegistrationCodesInput {
   limit?: number;
   cursor?: string;
   createdBy?: string;
+  status?: RegistrationCodeStatus;
 }
 export type RegistrationCodeStatus = 'unused' | 'used' | 'expired' | 'revoked';
 export interface RegistrationCodeListItem extends RegistrationCodeMetadata {
@@ -107,25 +108,26 @@ export interface RegistrationCodeListItem extends RegistrationCodeMetadata {
   createdBy: string;
   createdAt: number;
   usedBy: string | null;
+  usedByEmail: string | null;
   usedAt: number | null;
   revokedAt: number | null;
   status: RegistrationCodeStatus;
 }
 interface ListRow extends RegistrationCodeMetadata {
-  batchId: string; createdBy: string; createdAt: number; usedBy: string | null; usedAt: number | null; revokedAt: number | null;
+  batchId: string; createdBy: string; createdAt: number; usedBy: string | null; usedByEmail: string | null; usedAt: number | null; revokedAt: number | null;
 }
-type Cursor = [version: 2, actorId: string, createdBy: string | null, snapshotAt: number, createdAt: number, id: string];
+type Cursor = [version: 3, actorId: string, createdBy: string | null, snapshotAt: number, createdAt: number, id: string, status: RegistrationCodeStatus | null];
 
 function encodeCursor(cursor: Cursor): string {
   const bytes = new TextEncoder().encode(JSON.stringify(cursor));
   return btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
 }
-function decodeCursor(raw: string, actorId: string, createdBy: string | null, now: number): Cursor {
+function decodeCursor(raw: string, actorId: string, createdBy: string | null, status: RegistrationCodeStatus | null, now: number): Cursor {
   try {
     if (raw.length > 1024 || !/^[A-Za-z0-9_-]+$/.test(raw)) throw new Error();
     const binary = atob(raw.replaceAll('-', '+').replaceAll('_', '/'));
     const parsed: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(Uint8Array.from(binary, (char) => char.charCodeAt(0))));
-    if (!Array.isArray(parsed) || parsed.length !== 6 || parsed[0] !== 2 || parsed[1] !== actorId || parsed[2] !== createdBy
+    if (!Array.isArray(parsed) || parsed.length !== 7 || parsed[0] !== 3 || parsed[1] !== actorId || parsed[2] !== createdBy || parsed[6] !== status
       || !Number.isSafeInteger(parsed[3]) || parsed[3] < 0 || parsed[3] > now
       || !Number.isSafeInteger(parsed[4]) || parsed[4] < 0 || parsed[4] > parsed[3]
       || !validId(parsed[5])) throw new Error();
@@ -149,18 +151,30 @@ export async function listRegistrationCodes(database: D1Database, input: ListReg
   if (!actor) throw new ApiError('forbidden');
   if (input.createdBy !== undefined && !validId(input.createdBy)) throw new ApiError('invalid_request');
   const createdBy = input.createdBy ?? null;
-  const cursor = input.cursor === undefined ? undefined : decodeCursor(input.cursor, input.actorId, createdBy, input.now);
+  const status = input.status ?? null;
+  if (status !== null && !['unused', 'used', 'expired', 'revoked'].includes(status)) throw new ApiError('invalid_request');
+  const cursor = input.cursor === undefined ? undefined : decodeCursor(input.cursor, input.actorId, createdBy, status, input.now);
   const snapshotAt = cursor?.[3] ?? input.now;
-  const projection = 'id,display_prefix AS displayPrefix,ordinal,expires_at AS expiresAt,operation_id AS batchId,created_by AS createdBy,created_at AS createdAt,used_by AS usedBy,used_at AS usedAt,revoked_at AS revokedAt';
-  const clauses = ['created_at<=?'];
+  const projection = 'c.id,c.display_prefix AS displayPrefix,c.ordinal,c.expires_at AS expiresAt,c.operation_id AS batchId,c.created_by AS createdBy,c.created_at AS createdAt,c.used_by AS usedBy,u.email_normalized AS usedByEmail,c.used_at AS usedAt,c.revoked_at AS revokedAt';
+  const clauses = ['c.created_at<=?'];
   const params: DbValue[] = [snapshotAt];
-  if (createdBy !== null) { clauses.push('created_by=?'); params.push(createdBy); }
+  if (createdBy !== null) { clauses.push('c.created_by=?'); params.push(createdBy); }
+  if (status === 'revoked') clauses.push('c.revoked_at IS NOT NULL');
+  if (status === 'used') clauses.push('c.revoked_at IS NULL AND c.used_at IS NOT NULL');
+  if (status === 'expired') {
+    clauses.push('c.revoked_at IS NULL AND c.used_at IS NULL AND c.expires_at IS NOT NULL AND c.expires_at<=?');
+    params.push(snapshotAt);
+  }
+  if (status === 'unused') {
+    clauses.push('c.revoked_at IS NULL AND c.used_at IS NULL AND (c.expires_at IS NULL OR c.expires_at>?)');
+    params.push(snapshotAt);
+  }
   if (cursor) {
-    clauses.push('(created_at<? OR (created_at=? AND id<?))');
+    clauses.push('(c.created_at<? OR (c.created_at=? AND c.id<?))');
     params.push(cursor[4], cursor[4], cursor[5]);
   }
   params.push(limit + 1);
-  const page = await prepare<ListRow>(database, `SELECT ${projection} FROM registration_codes WHERE ${clauses.join(' AND ')} ORDER BY created_at DESC,id DESC LIMIT ?`, params).all();
+  const page = await prepare<ListRow>(database, `SELECT ${projection} FROM registration_codes c LEFT JOIN users u ON u.id=c.used_by WHERE ${clauses.join(' AND ')} ORDER BY c.created_at DESC,c.id DESC LIMIT ?`, params).all();
   const selected = page.rows.slice(0, limit);
   const items = selected.map((row): RegistrationCodeListItem => ({ ...row,
     // Preserve all timestamps even when statuses overlap; revocation takes priority.
@@ -169,7 +183,7 @@ export async function listRegistrationCodes(database: D1Database, input: ListReg
   }));
   const last = selected.at(-1);
   return { items, snapshotAt, nextCursor: page.rows.length > limit && last
-    ? encodeCursor([2, input.actorId, createdBy, snapshotAt, last.createdAt, last.id]) : null };
+    ? encodeCursor([3, input.actorId, createdBy, snapshotAt, last.createdAt, last.id, status]) : null };
 }
 
 export interface RevokeRegistrationCodeInput { actorId: string; codeId: string; operationId: string; now: number }

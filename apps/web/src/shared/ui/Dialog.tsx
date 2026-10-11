@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import type { ReactElement, ReactNode } from 'react';
 
@@ -44,6 +45,7 @@ export function Dialog({
           className={`fixed inset-0 z-50 bg-[var(--color-overlay)] ${overlayClassName ?? ''}`}
         />
         <DialogPrimitive.Content
+          {...(description ? {} : { 'aria-describedby': undefined })}
           className={`fixed left-1/2 top-1/2 z-50 flex max-h-[min(90dvh,52rem)] w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border p-0 shadow-[var(--shadow-lg)] outline-none ${className ?? ''}`}
           style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
         >
@@ -52,11 +54,11 @@ export function Dialog({
             style={{ borderColor: 'var(--color-border)' }}
           >
             <div className="min-w-0">
-              <DialogPrimitive.Title className="text-lg font-semibold leading-tight text-[var(--color-foreground)]">
+              <DialogPrimitive.Title className="text-xl font-semibold leading-7 text-[var(--color-foreground)]">
                 {title}
               </DialogPrimitive.Title>
               {description && (
-                <DialogPrimitive.Description className="mt-1.5 text-sm text-[var(--color-muted-foreground)]">
+                <DialogPrimitive.Description className="mt-2 text-sm leading-6 text-[var(--color-muted-foreground)]">
                   {description}
                 </DialogPrimitive.Description>
               )}
@@ -67,11 +69,15 @@ export function Dialog({
                 aria-label={closeLabel}
                 className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-lg text-[var(--color-muted-foreground)] outline-none transition-colors hover:bg-[var(--color-muted)] hover:text-[var(--color-foreground)] focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
               >
-                <span aria-hidden="true">×</span>
+                <X size={18} aria-hidden="true" />
               </DialogPrimitive.Close>
             )}
           </div>
-          {children != null && <div className="min-h-0 overflow-y-auto px-6 py-5">{children}</div>}
+          {children != null && (
+            <div className="min-h-0 overflow-y-auto text-[15px] leading-6 px-6 py-5">
+              {children}
+            </div>
+          )}
           {footer && (
             <div
               className="flex flex-wrap justify-end gap-2 border-t px-6 py-4"

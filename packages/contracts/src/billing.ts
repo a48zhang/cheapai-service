@@ -24,6 +24,7 @@ export const billingEntrySchema = z.object({
   operationId: text(),
   kind: billingKindSchema,
   userId: text(),
+  userEmail: z.string().nullable().optional(),
   requestId: text().nullable(),
   modelId: text().nullable().optional(),
   source: z.enum(['api', 'web_chat']).nullable().optional(),

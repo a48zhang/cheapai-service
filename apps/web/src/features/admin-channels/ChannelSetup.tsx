@@ -208,7 +208,7 @@ export function ChannelSetup({
       closeButton={!busy && !progress.creationUncertain}
       footer={footer}
     >
-      <div className="space-y-5">
+      <div className="space-y-6">
         <ol
           aria-label="配置步骤"
           className="flex flex-wrap gap-x-5 gap-y-2 rounded-lg bg-[var(--color-muted)] px-4 py-3 text-sm"
@@ -222,7 +222,7 @@ export function ChannelSetup({
           <dl className="grid gap-3 rounded-lg border border-[var(--color-border)] p-4 text-sm sm:grid-cols-3">
             {progress.channel && (
               <div className="min-w-0">
-                <dt className="text-xs text-[var(--color-muted-foreground)]">已保存渠道</dt>
+                <dt className="console-muted">已保存渠道</dt>
                 <dd className="mt-1 break-all font-mono">
                   {progress.channel.id} · v{progress.channel.configVersion}
                 </dd>
@@ -230,13 +230,13 @@ export function ChannelSetup({
             )}
             {progress.mapping && (
               <div className="min-w-0">
-                <dt className="text-xs text-[var(--color-muted-foreground)]">已保存映射</dt>
+                <dt className="console-muted">已保存映射</dt>
                 <dd className="mt-1 break-all">{modelMappingReference(progress.mapping)}</dd>
               </div>
             )}
             {progress.group && (
               <div className="min-w-0">
-                <dt className="text-xs text-[var(--color-muted-foreground)]">已更新访问组</dt>
+                <dt className="console-muted">已更新访问组</dt>
                 <dd className="mt-1 break-all">
                   {progress.group.name} · v{progress.group.version}
                 </dd>

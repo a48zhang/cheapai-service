@@ -1,3 +1,9 @@
+import {
+  formatConsumptionUsd as displayConsumptionUsd,
+  formatWalletUsd as displayWalletUsd,
+  formatUsdUnits,
+} from '@cheapai/theme/money-display';
+
 const MONEY_DECIMALS = 8;
 const UNITS_PER_USD = 100_000_000n;
 const MAX_SAFE_UNITS = 9_007_199_254_740_991n;
@@ -55,23 +61,30 @@ export function parseUsdToUnits(value: unknown): bigint {
   return checkedSafeUnits(negative ? -magnitude : magnitude);
 }
 
-/** Format integer USD units, rounding half away from zero when reducing display precision. */
-export function formatUnitsToUsd(value: string | bigint, decimals = MONEY_DECIMALS): string {
-  if (!Number.isInteger(decimals) || decimals < 0 || decimals > MONEY_DECIMALS) {
-    throw new MoneyError('display precision must be between zero and eight');
-  }
+function displayUnits(value: string | bigint): bigint {
   if (typeof value !== 'string' && typeof value !== 'bigint') {
     throw new MoneyError('units must be a bigint or canonical integer string');
   }
   if (typeof value === 'string' && !isCanonicalUnits(value)) {
     throw new MoneyError('expected a canonical integer units string');
   }
-  const units = typeof value === 'bigint' ? value : BigInt(value);
-  const negative = units < 0n;
-  const divisor = 10n ** BigInt(MONEY_DECIMALS - decimals);
-  const magnitude = ((negative ? -units : units) + divisor / 2n) / divisor;
-  const digits = magnitude.toString().padStart(decimals + 1, '0');
-  const amount =
-    decimals === 0 ? digits : `${digits.slice(0, -decimals)}.${digits.slice(-decimals)}`;
-  return `${negative && magnitude !== 0n ? '-' : ''}${amount}`;
+  return typeof value === 'bigint' ? value : BigInt(value);
+}
+
+/** Format integer USD units, rounding half away from zero when reducing display precision. */
+export function formatUnitsToUsd(value: string | bigint, decimals = MONEY_DECIMALS): string {
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > MONEY_DECIMALS) {
+    throw new MoneyError('display precision must be between zero and eight');
+  }
+  return formatUsdUnits(displayUnits(value), decimals);
+}
+
+/** Consumption displays preserve small nonzero charges at ledger precision. */
+export function formatConsumptionUsd(value: string | bigint): string {
+  return displayConsumptionUsd(displayUnits(value));
+}
+
+/** Wallet balances display cents; their stored precision is unchanged. */
+export function formatWalletUsd(value: string | bigint): string {
+  return displayWalletUsd(displayUnits(value));
 }

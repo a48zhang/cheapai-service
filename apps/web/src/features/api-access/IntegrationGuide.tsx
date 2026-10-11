@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react';
+import { Copy, FileCode2 } from 'lucide-react';
 import type { KeyGroup, KeyMetadata } from '@cheapai/api-client/keys';
 import { Button } from '../../shared/ui/Button';
+import { Tabs } from '../../shared/ui/Tabs';
 import {
+  codexConfiguration,
   integrationExample,
   integrationModelScope,
   integrationProtocolOptions,
@@ -19,7 +22,6 @@ export interface IntegrationGuideProps {
 
 export function ApiBaseUrl({ baseUrl }: { readonly baseUrl: string }) {
   const [copyMessage, setCopyMessage] = useState('');
-
   async function copy() {
     try {
       await navigator.clipboard.writeText(baseUrl);
@@ -28,30 +30,32 @@ export function ApiBaseUrl({ baseUrl }: { readonly baseUrl: string }) {
       setCopyMessage('无法自动复制，请手动复制。');
     }
   }
-
   return (
-    <section aria-label="API 地址" className="rounded-xl border border-[var(--color-border)] p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold">Base URL</h2>
-          <code className="mt-1 block break-all text-sm text-[var(--color-muted-foreground)]">
-            {baseUrl}
-          </code>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => void copy()}>
-          复制
-        </Button>
-      </div>
-      <p
-        role="status"
-        aria-live="polite"
-        className="min-h-5 text-sm text-[var(--color-muted-foreground)]"
-      >
-        {copyMessage}
-      </p>
+    <section
+      aria-label="API 地址"
+      className="grid grid-cols-[1fr_auto] items-center gap-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 sm:flex"
+    >
+      <h2 className="text-[16px] font-semibold">接口地址</h2>
+      <code className="col-span-2 row-start-2 min-w-0 flex-1 break-all rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)] px-4 py-3 text-[15px]">
+        {baseUrl}
+      </code>
+      <Button variant="outline" className="col-start-2 row-start-1" onClick={() => void copy()}>
+        <Copy size={17} aria-hidden="true" />
+        复制
+      </Button>
+      {copyMessage && (
+        <span role="status" className="col-span-2 text-sm text-[var(--color-muted-foreground)]">
+          {copyMessage}
+        </span>
+      )}
     </section>
   );
 }
+
+const selectStyle =
+  'min-h-11 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[15px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]';
+const codeStyle =
+  'max-h-[30rem] overflow-auto rounded-lg bg-[var(--color-muted)] p-4 text-sm leading-7 sm:p-5';
 
 export function IntegrationGuide({
   baseUrl,
@@ -76,150 +80,196 @@ export function IntegrationGuide({
     ? selectedModelId
     : (scope.models[0] ?? '');
   const example = modelId ? integrationExample(protocol, baseUrl, modelId) : null;
-  const setup = `# 将 API Key 存入环境变量，避免写进代码或提交到版本库
-read -s -p "CheapAI API Key: " CHEAPAI_API_KEY; printf '\\n'
-export CHEAPAI_API_KEY
-export CHEAPAI_BASE_URL="${baseUrl}"`;
+  const configuration = modelId ? codexConfiguration(baseUrl, modelId) : null;
+  const setup = `export CHEAPAI_API_KEY="替换为你的完整 API Key"`;
 
-  async function copy(value: string, successMessage: string) {
+  async function copy(value: string) {
     try {
       await navigator.clipboard.writeText(value);
-      setCopyMessage(successMessage);
+      setCopyMessage('已复制');
     } catch {
       setCopyMessage('无法自动复制，请手动复制。');
     }
   }
 
-  return (
-    <section aria-labelledby="integration-guide-title" className="space-y-5">
-      <div>
-        <h2 id="integration-guide-title" className="text-lg font-semibold">
-          调用示例
-        </h2>
-      </div>
+  const state = groupsError ? (
+    <div
+      role="alert"
+      className="flex items-center gap-3 text-[15px] text-[var(--color-destructive)]"
+    >
+      <span>{groupsError}</span>
+      {onRetryGroups && (
+        <Button variant="outline" size="sm" onClick={onRetryGroups}>
+          重试
+        </Button>
+      )}
+    </div>
+  ) : groupsLoading ? (
+    <p role="status" className="text-[15px] text-[var(--color-muted-foreground)]">
+      正在读取可用模型…
+    </p>
+  ) : !modelId ? (
+    <p className="text-[15px] text-[var(--color-muted-foreground)]">当前授权范围暂无可用模型。</p>
+  ) : null;
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <p className="mb-1.5 text-sm font-medium">授权模型范围</p>
-          {selectedKey ? (
-            <p className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-muted)] px-3 py-2 text-sm">
-              {selectedKey.name} · {scope.group?.name ?? selectedKey.groupName}
-            </p>
-          ) : groups.length > 1 ? (
-            <select
-              aria-label="示例模型授权分组"
-              value={availableGroupId}
-              onChange={(event) => setGroupId(event.currentTarget.value)}
-              className="min-h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
-            >
-              {groups.map((group) => (
-                <option key={group.id} value={group.id}>
-                  {group.name}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <p className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-muted)] px-3 py-2 text-sm">
-              {scope.group?.name ?? '暂无可用分组'}
-            </p>
-          )}
-        </div>
-        <div>
-          <p className="mb-1.5 text-sm font-medium">模型</p>
-          {scope.models.length > 1 ? (
-            <select
-              aria-label="API 示例模型"
-              value={modelId}
-              onChange={(event) => setSelectedModelId(event.currentTarget.value)}
-              className="min-h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
-            >
-              {scope.models.map((model) => (
-                <option key={model} value={model}>
-                  {model}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <p className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-muted)] px-3 py-2 text-sm">
-              {modelId || '暂无可用模型'}
-            </p>
-          )}
-        </div>
-      </div>
-
+  const modelControls = (
+    <div className="grid gap-4 sm:grid-cols-2">
       <div>
-        <label htmlFor="integration-protocol" className="mb-1.5 block text-sm font-medium">
-          调用协议
+        <label htmlFor="integration-group" className="mb-2 block text-[15px] font-medium">
+          {selectedKey ? '选用密钥' : '授权分组'}
+        </label>
+        {selectedKey ? (
+          <p
+            id="integration-group"
+            className="min-h-11 rounded-lg bg-[var(--color-muted)] px-3 py-2.5 text-[15px]"
+          >
+            {selectedKey.name} · {scope.group?.name ?? selectedKey.groupName}
+          </p>
+        ) : (
+          <select
+            id="integration-group"
+            aria-label="示例模型授权分组"
+            value={availableGroupId}
+            disabled={groupsLoading || !groups.length}
+            onChange={(event) => setGroupId(event.currentTarget.value)}
+            className={selectStyle}
+          >
+            {!groups.length && <option value="">暂无可用分组</option>}
+            {groups.map((group) => (
+              <option key={group.id} value={group.id}>
+                {group.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+      <div>
+        <label htmlFor="integration-model" className="mb-2 block text-[15px] font-medium">
+          模型
         </label>
         <select
-          id="integration-protocol"
-          value={protocol}
-          onChange={(event) => setProtocol(event.currentTarget.value as IntegrationProtocol)}
-          className="min-h-10 w-full max-w-sm rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+          id="integration-model"
+          aria-label="API 示例模型"
+          value={modelId}
+          disabled={groupsLoading || !scope.models.length}
+          onChange={(event) => setSelectedModelId(event.currentTarget.value)}
+          className={selectStyle}
         >
-          {integrationProtocolOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
+          {!scope.models.length && <option value="">暂无可用模型</option>}
+          {scope.models.map((model) => (
+            <option key={model} value={model}>
+              {model}
             </option>
           ))}
         </select>
       </div>
+    </div>
+  );
 
-      {groupsError ? (
-        <div
-          role="alert"
-          className="flex flex-wrap items-center gap-3 text-sm text-[var(--color-destructive)]"
+  return (
+    <section
+      aria-labelledby="integration-guide-title"
+      className="space-y-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 sm:p-6"
+    >
+      <h2 id="integration-guide-title" className="text-xl font-semibold">
+        快速接入
+      </h2>
+      <Tabs
+        defaultValue="codex"
+        ariaLabel="接入方式"
+        contentClassName="pt-5"
+        items={[
+          {
+            value: 'codex',
+            label: '接入 Codex',
+            content:
+              state ??
+              (configuration && (
+                <div className="space-y-4">
+                  {modelControls}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <span className="inline-flex items-center gap-2 text-[15px]">
+                      <FileCode2 size={18} aria-hidden="true" />
+                      <code>~/.codex/config.toml</code>
+                    </span>
+                    <Button variant="outline" size="sm" onClick={() => void copy(configuration)}>
+                      <Copy size={16} aria-hidden="true" />
+                      复制配置
+                    </Button>
+                  </div>
+                  <pre className={codeStyle}>
+                    <code>{configuration}</code>
+                  </pre>
+                  <p className="text-[15px] leading-7 text-[var(--color-muted-foreground)]">
+                    将配置合并到用户目录的配置文件，设置环境变量后启动 Codex。
+                  </p>
+                  <div className="flex flex-wrap items-start gap-3">
+                    <pre className="min-w-0 flex-1 overflow-auto rounded-lg bg-[var(--color-muted)] p-3 text-sm leading-6">
+                      <code>{setup}</code>
+                    </pre>
+                    <Button variant="outline" size="sm" onClick={() => void copy(setup)}>
+                      复制命令
+                    </Button>
+                  </div>
+                  <p className="text-sm leading-6 text-[var(--color-muted-foreground)]">
+                    替换命令中的 API Key 为完整密钥。Codex 使用 Responses
+                    协议，所选模型及对应渠道需支持该协议。
+                  </p>
+                </div>
+              )),
+          },
+          {
+            value: 'api',
+            label: 'API 调用',
+            content:
+              state ??
+              (example && (
+                <div className="space-y-4">
+                  {modelControls}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <select
+                      aria-label="调用协议"
+                      value={protocol}
+                      onChange={(event) =>
+                        setProtocol(event.currentTarget.value as IntegrationProtocol)
+                      }
+                      className={`${selectStyle} max-w-xs`}
+                    >
+                      {integrationProtocolOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void copy(`${setup}\n\n${example.code}`)}
+                    >
+                      <Copy size={16} aria-hidden="true" />
+                      复制示例
+                    </Button>
+                  </div>
+                  <pre className={codeStyle}>
+                    <code>{example.code}</code>
+                  </pre>
+                  <p className="text-sm leading-6 text-[var(--color-muted-foreground)]">
+                    {example.description} 设置 CHEAPAI_API_KEY 环境变量后运行。
+                  </p>
+                </div>
+              )),
+          },
+        ]}
+      />
+      {copyMessage && (
+        <p
+          role="status"
+          aria-live="polite"
+          className="text-sm text-[var(--color-muted-foreground)]"
         >
-          <span>{groupsError}</span>
-          {onRetryGroups && (
-            <Button variant="secondary" size="sm" onClick={onRetryGroups}>
-              重试
-            </Button>
-          )}
-        </div>
-      ) : groupsLoading ? (
-        <p role="status" className="text-sm text-[var(--color-muted-foreground)]">
-          正在读取授权模型…
+          {copyMessage}
         </p>
-      ) : example === null ? (
-        <p className="text-sm text-[var(--color-muted-foreground)]">暂无可用模型</p>
-      ) : (
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h3 className="font-medium">{example.endpoint}</h3>
-              <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
-                {example.description}
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void copy(`${setup}\n\n${example.code}`, '已复制')}
-            >
-              复制示例
-            </Button>
-          </div>
-          <pre className="max-h-[32rem] overflow-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-muted)] p-4 text-xs leading-6">
-            <code>{example.code}</code>
-          </pre>
-          <details className="text-sm">
-            <summary className="cursor-pointer text-[var(--color-muted-foreground)]">
-              查看环境变量设置
-            </summary>
-            <pre className="mt-2 overflow-auto rounded-lg bg-[var(--color-muted)] p-3 text-xs leading-6">
-              <code>{setup}</code>
-            </pre>
-          </details>
-        </div>
       )}
-      <p
-        role="status"
-        aria-live="polite"
-        className="min-h-5 text-sm text-[var(--color-muted-foreground)]"
-      >
-        {copyMessage}
-      </p>
     </section>
   );
 }

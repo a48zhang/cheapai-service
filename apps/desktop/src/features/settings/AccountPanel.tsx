@@ -4,6 +4,7 @@ import type { DesktopAccountProblem, DesktopPublicAccountState } from '@sub2api/
 import { DesktopAccountAdapterError } from '../../adapters/native/account'
 import { Button } from '../../components/ui/controls'
 import type { DesktopAuthStore } from '../auth/auth-store'
+import { formatWalletUsd } from '@cheapai/theme/money-display'
 
 export interface AccountPanelProps {
   readonly store: DesktopAuthStore
@@ -168,10 +169,7 @@ function stateExpiry(state: DesktopPublicAccountState): number | null {
 function formatBalance(value: string): string {
   if (!/^(?:0|-?[1-9][0-9]*)$/u.test(value)) return '金额未知'
   try {
-    const units = BigInt(value)
-    const negative = units < 0n
-    const digits = (negative ? -units : units).toString().padStart(9, '0')
-    return `${negative ? '-' : ''}${digits.slice(0, -8)}.${digits.slice(-8)} USD`
+    return `${formatWalletUsd(value)} USD`
   } catch {
     return '金额未知'
   }

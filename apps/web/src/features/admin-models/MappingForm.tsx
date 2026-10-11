@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { ModelMappingView, Protocol } from '@cheapai/api-client/mappings';
 import type { ApiClient } from '@cheapai/api-client/types';
 import { Controller } from 'react-hook-form';
@@ -89,6 +90,9 @@ export function MappingForm({
     retainDraftOnLatestVersion,
     setChannelPickerVisibility,
   } = useMappingForm({ client, actorId, sessionEpoch, publicModelId, initialMapping, onSaved });
+  const [editorOpen, setEditorOpen] = useState(false);
+  const showEditor =
+    Boolean(initialMapping) || editorOpen || (mappings.isSuccess && rows.length === 0);
   const watchedProtocol = form.watch('protocol');
   const mappingError = mappings.isError
     ? mappings.error instanceof Error
@@ -98,24 +102,29 @@ export function MappingForm({
   const optionsSnapshot = channels.data;
 
   return (
-    <section className="grid gap-5 xl:grid-cols-[minmax(15rem,0.8fr)_minmax(0,1.6fr)]">
-      <aside className="grid content-start gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+    <section
+      className={`grid gap-5 ${showEditor ? 'xl:grid-cols-[minmax(15rem,0.8fr)_minmax(0,1.6fr)]' : ''}`}
+    >
+      <aside className="grid content-start gap-3 rounded-xl bg-[var(--color-muted)]/40 p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h3 className="font-semibold">渠道映射</h3>
-            <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">{rows.length} 项</p>
+            <h3 className="font-semibold">已配置渠道</h3>
+            <p className="mt-1 console-muted">{rows.length} 项</p>
           </div>
           <Button
             size="sm"
             variant="outline"
             disabled={saving || mappings.isFetching}
-            onClick={startCreate}
+            onClick={() => {
+              startCreate();
+              setEditorOpen(true);
+            }}
           >
             新建
           </Button>
         </div>
         {mappings.isPending && (
-          <p role="status" className="text-sm text-[var(--color-muted-foreground)]">
+          <p role="status" className="console-muted">
             正在读取模型映射…
           </p>
         )}
@@ -137,7 +146,7 @@ export function MappingForm({
           </div>
         )}
         {mappings.isSuccess && rows.length === 0 && (
-          <p className="text-sm text-[var(--color-muted-foreground)]">此模型尚无渠道映射。</p>
+          <p className="console-muted">此模型尚无渠道映射。</p>
         )}
         {rows.length > 0 && (
           <ul className="grid gap-2" aria-label="现有模型映射">
@@ -147,16 +156,24 @@ export function MappingForm({
                   type="button"
                   disabled={saving || mappings.isFetching}
                   aria-current={selectedKey === mappingKey(mapping) ? 'true' : undefined}
-                  onClick={() => chooseMapping(mapping)}
+                  onClick={() => {
+                    chooseMapping(mapping);
+                    setEditorOpen(true);
+                  }}
+                  title={`渠道 ID：${mapping.channelId}`}
                   className={`grid w-full gap-1 rounded-lg border px-3 py-2 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] ${selectedKey === mappingKey(mapping) ? 'border-[var(--color-primary)] bg-[var(--color-accent-soft)]' : 'border-[var(--color-border)] hover:bg-[var(--color-muted)]'}`}
                 >
-                  <span className="break-all font-mono text-xs">{mapping.channelId}</span>
-                  <span>
-                    {protocolLabel(mapping.protocol)} · v{mapping.configVersion}
+                  <span className="break-words font-medium">
+                    {optionsSnapshot?.items.find((channel) => channel.id === mapping.channelId)
+                      ?.name ??
+                      (channels.isError
+                        ? '渠道名称读取失败'
+                        : channels.isSuccess
+                          ? '渠道已删除'
+                          : '正在读取渠道名称…')}
                   </span>
-                  <span className="truncate text-xs text-[var(--color-muted-foreground)]">
-                    上游：{mapping.upstreamModel}
-                  </span>
+                  <span>{protocolLabel(mapping.protocol)}</span>
+                  <span className="truncate console-muted">上游：{mapping.upstreamModel}</span>
                 </button>
               </li>
             ))}
@@ -203,135 +220,144 @@ export function MappingForm({
         )}
       </aside>
 
-      <form
-        className="grid content-start gap-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"
-        noValidate
-        onSubmit={form.handleSubmit(submit)}
-      >
-        <div>
-          <h3 className="font-semibold">{selected ? '编辑渠道映射' : '创建渠道映射'}</h3>
-          <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
-            关联目标渠道与协议，再声明该渠道可路由的上游模型和能力。
-          </p>
-        </div>
-        <fieldset
-          disabled={saving || mappings.isPending || mappings.isError || mappings.isFetching}
-          className="grid gap-5"
+      {showEditor && (
+        <form
+          className="grid content-start gap-5 min-w-0"
+          noValidate
+          onSubmit={form.handleSubmit(submit)}
         >
-          <Controller
-            name="channelId"
-            control={form.control}
-            render={({ field }) => (
-              <ChannelPicker
-                label="关联渠道"
-                value={field.value ? [field.value] : []}
-                onValueChange={(ids) => field.onChange(ids[0] ?? '')}
-                onOpenChange={setChannelPickerVisibility}
-                candidates={optionsSnapshot}
-                loading={channels.isPending || channels.isFetching}
-                {...(channels.isError ? { error: channels.error } : {})}
-                onRetry={() => {
-                  void channels.refetch();
-                }}
-                maxSelected={1}
-                disabled={Boolean(selected) || saving || needsRefresh}
-              />
-            )}
-          />
-          <div className="grid gap-1.5">
-            <label
-              htmlFor="mapping-protocol"
-              className="text-sm font-medium text-[var(--color-foreground)]"
-            >
-              协议{' '}
-              <span aria-hidden="true" className="text-[var(--color-destructive)]">
-                *
-              </span>
-            </label>
+          <div>
+            <h3 className="font-semibold">{selected ? '编辑渠道映射' : '创建渠道映射'}</h3>
+            <p className="mt-1 console-muted">
+              关联目标渠道与协议，再声明该渠道可路由的上游模型和能力。
+            </p>
+          </div>
+          <fieldset
+            disabled={saving || mappings.isPending || mappings.isError || mappings.isFetching}
+            className="grid gap-5"
+          >
             <Controller
-              name="protocol"
+              name="channelId"
               control={form.control}
               render={({ field }) => (
-                <Select
-                  id="mapping-protocol"
-                  value={field.value}
-                  items={protocols}
-                  required
+                <ChannelPicker
+                  label="关联渠道"
+                  value={field.value ? [field.value] : []}
+                  onValueChange={(ids) => field.onChange(ids[0] ?? '')}
+                  onOpenChange={setChannelPickerVisibility}
+                  candidates={optionsSnapshot}
+                  loading={channels.isPending || channels.isFetching}
+                  {...(channels.isError ? { error: channels.error } : {})}
+                  onRetry={() => {
+                    void channels.refetch();
+                  }}
+                  maxSelected={1}
                   disabled={Boolean(selected) || saving || needsRefresh}
-                  onValueChange={field.onChange}
-                  aria-label="协议"
-                  aria-invalid={Boolean(form.formState.errors.protocol)}
                 />
               )}
             />
-            <p className="text-xs text-[var(--color-muted-foreground)]">更换协议需新建映射。</p>
-            {form.formState.errors.protocol?.message && (
-              <p role="alert" className="text-xs text-[var(--color-destructive)]">
-                {form.formState.errors.protocol.message}
-              </p>
-            )}
-          </div>
-          <Field
-            label="上游模型名称"
-            required
-            error={form.formState.errors.upstreamModel?.message}
-            description="填写此渠道实际接受的上游模型 ID。"
-          >
-            <Input
-              {...form.register('upstreamModel')}
-              required
-              autoComplete="off"
-              maxLength={128}
-              placeholder="例如 vendor-model-v2"
-            />
-          </Field>
-          <Controller
-            name="capabilities"
-            control={form.control}
-            render={({ field, fieldState }) => (
-              <CapabilityFields
-                protocol={watchedProtocol}
-                value={field.value}
-                errors={capabilityErrors(fieldState.error)}
-                disabled={saving || needsRefresh}
-                onChange={field.onChange}
+            <div className="grid gap-1.5">
+              <label
+                htmlFor="mapping-protocol"
+                className="text-sm font-medium text-[var(--color-foreground)]"
+              >
+                协议{' '}
+                <span aria-hidden="true" className="text-[var(--color-destructive)]">
+                  *
+                </span>
+              </label>
+              <Controller
+                name="protocol"
+                control={form.control}
+                render={({ field }) => (
+                  <Select
+                    id="mapping-protocol"
+                    value={field.value}
+                    items={protocols}
+                    required
+                    disabled={Boolean(selected) || saving || needsRefresh}
+                    onValueChange={field.onChange}
+                    aria-label="协议"
+                    aria-invalid={Boolean(form.formState.errors.protocol)}
+                  />
+                )}
               />
-            )}
-          />
-        </fieldset>
-        {duplicate && (
-          <p role="alert" className="text-sm text-[var(--color-destructive)]">
-            此渠道与协议已存在映射。请从左侧选择现有映射进行编辑。
-          </p>
-        )}
-        {needsRefresh && (
-          <ApiErrorNotice
-            error={saveError ?? new Error('请重新读取映射；读取成功后才能再次提交。')}
-          />
-        )}
-        {!needsRefresh && saveError && <ApiErrorNotice error={saveError} />}
-        {message && (
-          <p role="status" className="text-sm text-[var(--color-muted-foreground)]">
-            {message}
-          </p>
-        )}
-        <div className="flex flex-wrap justify-end gap-3">
-          {onCancel && (
-            <Button variant="outline" disabled={saving} onClick={onCancel}>
-              返回
-            </Button>
+              <p className="console-muted">更换协议需新建映射。</p>
+              {form.formState.errors.protocol?.message && (
+                <p role="alert" className="text-sm text-[var(--color-destructive)]">
+                  {form.formState.errors.protocol.message}
+                </p>
+              )}
+            </div>
+            <Field
+              label="上游模型名称"
+              required
+              error={form.formState.errors.upstreamModel?.message}
+              description="填写此渠道实际接受的上游模型 ID。"
+            >
+              <Input
+                {...form.register('upstreamModel')}
+                required
+                autoComplete="off"
+                maxLength={128}
+                placeholder="例如 vendor-model-v2"
+              />
+            </Field>
+            <Controller
+              name="capabilities"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <CapabilityFields
+                  protocol={watchedProtocol}
+                  value={field.value}
+                  errors={capabilityErrors(fieldState.error)}
+                  disabled={saving || needsRefresh}
+                  onChange={field.onChange}
+                />
+              )}
+            />
+          </fieldset>
+          {duplicate && (
+            <p role="alert" className="text-sm text-[var(--color-destructive)]">
+              此渠道与协议已存在映射。请从左侧选择现有映射进行编辑。
+            </p>
           )}
-          <Button type="submit" busy={saving} disabled={!canSave}>
-            {selected ? '保存映射' : '创建映射'}
-          </Button>
-        </div>
-        {!mappings.isSuccess && !mappingError && (
-          <p role="status" className="text-xs text-[var(--color-muted-foreground)]">
-            正在加载映射，加载后可保存。
-          </p>
-        )}
-        {duplicate && <span className="sr-only">请勿创建重复的渠道协议映射。</span>}
-      </form>
+          {needsRefresh && (
+            <ApiErrorNotice
+              error={saveError ?? new Error('请重新读取映射；读取成功后才能再次提交。')}
+            />
+          )}
+          {!needsRefresh && saveError && <ApiErrorNotice error={saveError} />}
+          {message && (
+            <p role="status" className="console-muted">
+              {message}
+            </p>
+          )}
+          <div className="flex flex-wrap justify-end gap-3">
+            {(onCancel || rows.length > 0) && (
+              <Button
+                variant="outline"
+                disabled={saving}
+                onClick={() => {
+                  if (onCancel) onCancel();
+                  else setEditorOpen(false);
+                }}
+              >
+                {onCancel ? '返回' : '取消'}
+              </Button>
+            )}
+            <Button type="submit" busy={saving} disabled={!canSave}>
+              {selected ? '保存映射' : '创建映射'}
+            </Button>
+          </div>
+          {!mappings.isSuccess && !mappingError && (
+            <p role="status" className="console-muted">
+              正在加载映射，加载后可保存。
+            </p>
+          )}
+          {duplicate && <span className="sr-only">请勿创建重复的渠道协议映射。</span>}
+        </form>
+      )}
     </section>
   );
 }

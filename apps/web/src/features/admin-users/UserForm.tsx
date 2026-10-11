@@ -56,7 +56,7 @@ export function UserForm(props: Props) {
         </>
       }
     >
-      <form id="admin-user-form" noValidate className="space-y-5" onSubmit={submit}>
+      <form id="admin-user-form" noValidate className="space-y-6" onSubmit={submit}>
         {message &&
           (typeof message === 'string' ? (
             <div
@@ -117,9 +117,6 @@ export function UserForm(props: Props) {
                 <p className="mt-1 text-[var(--color-muted-foreground)]">
                   角色：{user.role === 'admin' ? '管理员' : '普通用户'}（只读）
                 </p>
-                <p className="mt-1 text-xs text-[var(--color-muted-foreground)]">
-                  版本 {user.version}
-                </p>
               </div>
               <Field label="账户状态" required error={form.getFieldState('status').error?.message}>
                 <select
@@ -178,9 +175,7 @@ export function UserForm(props: Props) {
                       disabled={saving || locked}
                     >
                       <legend className="px-1 text-sm font-medium">可访问分组</legend>
-                      <p className="text-xs text-[var(--color-muted-foreground)]">
-                        默认分组不可移除；未显示的已有授权会保留。
-                      </p>
+                      <p className="console-muted">默认分组不可移除；未显示的已有授权会保留。</p>
                       <div className="grid gap-2 sm:grid-cols-2">
                         {visible.map((group) => (
                           <label key={group.id} className="flex items-center gap-2 text-sm">
@@ -201,7 +196,7 @@ export function UserForm(props: Props) {
                         ))}
                       </div>
                       {hidden.length > 0 && (
-                        <p className="break-all text-xs text-[var(--color-muted-foreground)]">
+                        <p className="break-all console-muted">
                           保留未显示授权：{hidden.join('、')}
                         </p>
                       )}
@@ -266,7 +261,7 @@ export function UserForm(props: Props) {
           </Button>
         )}
         {mode === 'create' && groupsQuery.isPending && (
-          <p role="status" className="text-xs text-[var(--color-muted-foreground)]">
+          <p role="status" className="console-muted">
             正在加载分组，也可留空使用默认分组。
           </p>
         )}

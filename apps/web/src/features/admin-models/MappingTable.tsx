@@ -2,10 +2,10 @@ import type { ColumnDef } from '@tanstack/react-table';
 import type { ModelMappingView } from '@cheapai/api-client/mappings';
 import { CursorTable } from '../../shared/patterns/CursorTable';
 import { Button } from '../../shared/ui/Button';
-import { StatusBadge } from '../../shared/ui/StatusBadge';
 
 export interface MappingTableProps {
   readonly rows: readonly ModelMappingView[];
+  readonly channelName?: string;
   readonly loading?: boolean;
   readonly error?: string | null;
   readonly onRetry?: () => void;
@@ -15,12 +15,17 @@ export interface MappingTableProps {
 
 function columnsFor(
   onEdit?: (mapping: ModelMappingView) => void,
+  channelName?: string,
 ): ColumnDef<ModelMappingView, unknown>[] {
   return [
     {
       accessorKey: 'channelId',
-      header: '渠道 ID',
-      cell: ({ row }) => <code className="font-mono text-xs">{row.original.channelId}</code>,
+      header: '渠道',
+      cell: ({ row }) => (
+        <span title={row.original.channelId} className="font-medium">
+          {channelName ?? row.original.channelId}
+        </span>
+      ),
     },
     {
       accessorKey: 'protocol',
@@ -30,29 +35,23 @@ function columnsFor(
     {
       accessorKey: 'upstreamModel',
       header: '上游模型',
-      cell: ({ row }) => <code className="font-mono text-xs">{row.original.upstreamModel}</code>,
+      cell: ({ row }) => <code className="font-mono text-sm">{row.original.upstreamModel}</code>,
     },
     {
       accessorKey: 'capabilities',
       header: '能力声明',
       cell: ({ row }) => (
-        <div className="max-w-xs space-y-1">
-          <StatusBadge tone="info">已配置</StatusBadge>
-          <p
-            className="line-clamp-2 break-words text-xs text-[var(--color-muted-foreground)]"
-            title={row.original.capabilities.features.join(', ')}
-          >
-            {row.original.capabilities.features.length
-              ? row.original.capabilities.features.join(', ')
-              : '未声明功能'}
-          </p>
-        </div>
+        <span className="console-muted" title={row.original.capabilities.features.join(', ')}>
+          {row.original.capabilities.features.length > 0
+            ? `${row.original.capabilities.features.length} 项能力`
+            : '未声明'}
+        </span>
       ),
     },
     {
       accessorKey: 'configVersion',
       header: '映射版本',
-      cell: ({ row }) => <span className="font-mono text-xs">v{row.original.configVersion}</span>,
+      cell: ({ row }) => <span className="font-mono text-sm">v{row.original.configVersion}</span>,
     },
     {
       id: 'actions',
@@ -75,6 +74,7 @@ function columnsFor(
 /** Shows configured upstream declarations without implying channel health or test success. */
 export function MappingTable({
   rows,
+  channelName,
   loading = false,
   error,
   onRetry,
@@ -95,7 +95,7 @@ export function MappingTable({
       </div>
       <CursorTable
         rows={rows}
-        columns={columnsFor(onEdit)}
+        columns={columnsFor(onEdit, channelName)}
         loading={loading}
         error={error}
         onRetry={onRetry}

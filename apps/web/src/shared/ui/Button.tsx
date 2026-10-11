@@ -44,8 +44,8 @@ const variantStyles: Record<ButtonVariant, CSSProperties> = {
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
-  sm: 'min-h-8 px-3 text-sm',
-  md: 'min-h-10 px-4 text-sm',
+  sm: 'min-h-9 px-3 text-sm',
+  md: 'min-h-10 px-4 text-[15px]',
   lg: 'min-h-11 px-5 text-base',
   icon: 'size-10 p-0',
 };
@@ -81,7 +81,7 @@ export function Button({
     }
     onClick?.(event as unknown as Parameters<NonNullable<typeof onClick>>[0]);
   };
-  const sharedClassName = `inline-flex items-center justify-center gap-2 rounded-md border font-medium outline-none transition-colors hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-surface)] disabled:pointer-events-none disabled:opacity-50 ${sizeClasses[size]} ${className ?? ''}`;
+  const sharedClassName = `inline-flex items-center justify-center gap-2 rounded-md border font-medium leading-6 whitespace-nowrap outline-none transition-colors hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-surface)] disabled:pointer-events-none disabled:opacity-50 ${sizeClasses[size]} ${className ?? ''}`;
   const sharedStyle = {
     ...variantStyles[variant],
     ...(unavailable ? { opacity: 0.55 } : {}),

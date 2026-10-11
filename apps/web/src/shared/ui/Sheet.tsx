@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
 
@@ -66,6 +67,7 @@ export function Sheet({
           className={`fixed inset-0 z-50 bg-[var(--color-overlay)] ${overlayClassName ?? ''}`}
         />
         <DialogPrimitive.Content
+          {...(description ? {} : { 'aria-describedby': undefined })}
           className={`fixed z-50 flex flex-col overflow-hidden shadow-[var(--shadow-lg)] outline-none ${sheetMotion[side]} ${sideClasses[side]} ${className ?? ''}`}
           style={contentStyle}
         >
@@ -74,11 +76,11 @@ export function Sheet({
             style={{ borderColor: 'var(--color-border)' }}
           >
             <div className="min-w-0">
-              <DialogPrimitive.Title className="text-lg font-semibold leading-tight text-[var(--color-foreground)]">
+              <DialogPrimitive.Title className="text-xl font-semibold leading-7 text-[var(--color-foreground)]">
                 {title}
               </DialogPrimitive.Title>
               {description && (
-                <DialogPrimitive.Description className="mt-1.5 text-sm text-[var(--color-muted-foreground)]">
+                <DialogPrimitive.Description className="mt-2 text-sm leading-6 text-[var(--color-muted-foreground)]">
                   {description}
                 </DialogPrimitive.Description>
               )}
@@ -89,12 +91,14 @@ export function Sheet({
                 aria-label={closeLabel}
                 className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-lg text-[var(--color-muted-foreground)] outline-none transition-colors hover:bg-[var(--color-muted)] hover:text-[var(--color-foreground)] focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
               >
-                <span aria-hidden="true">×</span>
+                <X size={18} aria-hidden="true" />
               </DialogPrimitive.Close>
             )}
           </div>
           {children != null && (
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
+            <div className="min-h-0 flex-1 overflow-y-auto text-[15px] leading-6 px-6 py-5">
+              {children}
+            </div>
           )}
           {footer && (
             <div

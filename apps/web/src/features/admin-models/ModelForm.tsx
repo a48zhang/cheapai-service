@@ -26,11 +26,8 @@ export function ModelForm({ client, model, onSaved, onCancel }: ModelFormProps) 
 
   return (
     <form className="space-y-6" noValidate onSubmit={form.handleSubmit(submit)}>
-      <fieldset
-        disabled={saving}
-        className="grid gap-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 sm:grid-cols-2"
-      >
-        <legend className="px-1 text-sm font-semibold">模型设置</legend>
+      <fieldset disabled={saving} className="grid gap-5 sm:grid-cols-2">
+        <legend className="sr-only">模型设置</legend>
         <Field
           label="公开模型 ID"
           required
@@ -52,23 +49,21 @@ export function ModelForm({ client, model, onSaved, onCancel }: ModelFormProps) 
             </summary>
             <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
               <div>
-                <dt className="text-xs text-[var(--color-muted-foreground)]">上下文窗口</dt>
-                <dd className="font-mono tabular-nums">
-                  {reference.contextWindow.toLocaleString()} Token
-                </dd>
+                <dt className="console-muted">上下文窗口</dt>
+                <dd className="console-number">{reference.contextWindow.toLocaleString()} Token</dd>
               </div>
               <div>
-                <dt className="text-xs text-[var(--color-muted-foreground)]">参考最大输出</dt>
-                <dd className="font-mono tabular-nums">
+                <dt className="console-muted">参考最大输出</dt>
+                <dd className="console-number">
                   {reference.maxOutputTokens.toLocaleString()} Token
                 </dd>
               </div>
               <div className="sm:col-span-2">
-                <dt className="text-xs text-[var(--color-muted-foreground)]">参考价格说明</dt>
+                <dt className="console-muted">参考价格说明</dt>
                 <dd>{reference.pricingNote}</dd>
               </div>
               <div className="sm:col-span-2">
-                <dt className="text-xs text-[var(--color-muted-foreground)]">官方资料</dt>
+                <dt className="console-muted">官方资料</dt>
                 <dd>
                   <a
                     href={reference.source}
@@ -107,15 +102,15 @@ export function ModelForm({ client, model, onSaved, onCancel }: ModelFormProps) 
           )}
         />
         <Field
-          label="最低余额门槛（USD 最小单位）"
+          label="最低余额门槛（USD）"
           required
           error={errors.admissionMinBalanceUnits?.message}
-          description="填写非负整数。"
+          description="填写 0 表示无最低余额要求。"
         >
           <Input
             {...form.register('admissionMinBalanceUnits')}
             required
-            inputMode="numeric"
+            inputMode="decimal"
             maxLength={17}
             placeholder="例如 0"
           />

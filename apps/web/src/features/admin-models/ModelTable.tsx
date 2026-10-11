@@ -17,11 +17,12 @@ export interface ModelTableProps {
 const columns: ColumnDef<ModelView, unknown>[] = [
   {
     accessorKey: 'publicModelId',
-    header: '公开模型 ID',
+    header: '模型名称',
     cell: ({ row }) => (
       <Link
         to={`/admin/models/${encodeURIComponent(row.original.publicModelId)}`}
-        className="font-mono text-sm font-medium text-[var(--color-primary)] underline-offset-4 hover:underline"
+        title={row.original.publicModelId}
+        className="block min-w-40 max-w-72 truncate font-mono text-sm font-medium text-[var(--color-primary)] underline-offset-4 hover:underline"
       >
         {row.original.publicModelId}
       </Link>
@@ -29,48 +30,57 @@ const columns: ColumnDef<ModelView, unknown>[] = [
   },
   {
     accessorKey: 'status',
-    header: '目录状态',
+    header: '状态',
     cell: ({ row }) => (
       <StatusBadge tone={row.original.status === 'active' ? 'success' : 'neutral'}>
-        {row.original.status === 'active' ? '已启用' : '已停用'}
+        {row.original.status === 'active' ? '启用' : '停用'}
       </StatusBadge>
     ),
   },
   {
-    accessorKey: 'sellPrices',
+    id: 'inputPrice',
+    meta: { align: 'right', numeric: true },
+    accessorFn: (model) => model.sellPrices.input,
     header: () => (
-      <span>
-        输入 / 输出
-        <br />
-        <span className="font-normal text-[var(--color-muted-foreground)]">USD / 百万 Token</span>
-      </span>
+      <div className="text-right">
+        输入价格<span className="block text-xs font-normal">USD / 百万 Token</span>
+      </div>
     ),
     cell: ({ row }) => (
-      <span className="font-mono text-xs tabular-nums">
-        {row.original.sellPrices.input} / {row.original.sellPrices.output}
-      </span>
+      <span className="console-number block text-right">{row.original.sellPrices.input}</span>
+    ),
+  },
+  {
+    id: 'outputPrice',
+    meta: { align: 'right', numeric: true },
+    accessorFn: (model) => model.sellPrices.output,
+    header: () => (
+      <div className="text-right">
+        输出价格<span className="block text-xs font-normal">USD / 百万 Token</span>
+      </div>
+    ),
+    cell: ({ row }) => (
+      <span className="console-number block text-right">{row.original.sellPrices.output}</span>
     ),
   },
   {
     accessorKey: 'maxOutputTokens',
-    header: '最大输出',
+    meta: { align: 'right', numeric: true },
+    header: '最大输出 Token',
     cell: ({ row }) => (
-      <span className="tabular-nums">{row.original.maxOutputTokens.toLocaleString()}</span>
+      <span className="whitespace-nowrap tabular-nums">
+        {row.original.maxOutputTokens.toLocaleString()}
+      </span>
     ),
   },
   {
-    accessorKey: 'priceVersion',
-    header: '价格版本',
-    cell: ({ row }) => <span className="font-mono text-xs">v{row.original.priceVersion}</span>,
-  },
-  {
     id: 'channelMappings',
-    header: '渠道可用性',
+    header: '渠道映射',
     cell: ({ row }) => (
       <Link
         to={`/admin/models/${encodeURIComponent(row.original.publicModelId)}`}
         aria-label={`查看 ${row.original.publicModelId} 的渠道映射`}
-        className="text-sm font-medium text-[var(--color-primary)] underline-offset-4 hover:underline"
+        className="whitespace-nowrap text-sm font-medium text-[var(--color-primary)] underline-offset-4 hover:underline"
       >
         查看映射
       </Link>
@@ -89,20 +99,18 @@ export function ModelTable({
   onLoadMore,
 }: ModelTableProps) {
   return (
-    <>
-      <CursorTable
-        rows={rows}
-        columns={columns}
-        loading={loading}
-        loadingMore={loadingMore}
-        hasMore={hasMore}
-        error={error}
-        onRetry={onRetry}
-        onLoadMore={onLoadMore}
-        getRowId={(model) => model.publicModelId}
-        emptyMessage="没有符合当前筛选条件的模型。"
-        caption="模型目录"
-      />
-    </>
+    <CursorTable
+      rows={rows}
+      columns={columns}
+      loading={loading}
+      loadingMore={loadingMore}
+      hasMore={hasMore}
+      error={error}
+      onRetry={onRetry}
+      onLoadMore={onLoadMore}
+      getRowId={(model) => model.publicModelId}
+      emptyMessage="暂无模型，可调整筛选条件或新增模型。"
+      caption="模型目录，输入与输出价格单位为 USD / 百万 Token"
+    />
   );
 }

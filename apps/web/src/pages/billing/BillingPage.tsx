@@ -141,38 +141,33 @@ export function BillingPage() {
         summaryError={query.isFetchNextPageError ? undefined : query.error}
         onRetrySummary={retryBilling}
       />
-      <div
-        className="flex flex-wrap items-end gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
-        aria-label="费用筛选"
-      >
+      <div className="flex flex-wrap items-end gap-3 console-panel p-5" aria-label="费用筛选">
         <fieldset className="flex flex-wrap items-end gap-3 border-0 p-0">
-          <legend className="mb-2 w-full text-xs font-medium text-[var(--color-foreground)]">
-            日期范围
-          </legend>
-          <label className="grid gap-1.5 text-xs font-medium text-[var(--color-foreground)]">
+          <legend className="sr-only">日期范围</legend>
+          <label className="grid gap-2 console-label">
             开始日期
             <input
               type="date"
               value={dateDraft.startDate}
               onChange={(event) => updateDate('startDate', event.currentTarget.value)}
-              className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
+              className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
             />
           </label>
           <span className="pb-3 text-sm text-[var(--color-ink-muted)]">至</span>
-          <label className="grid gap-1.5 text-xs font-medium text-[var(--color-foreground)]">
+          <label className="grid gap-2 console-label">
             结束日期
             <input
               type="date"
               value={dateDraft.endDate}
               onChange={(event) => updateDate('endDate', event.currentTarget.value)}
-              className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
+              className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
             />
           </label>
         </fieldset>
         <button
           type="button"
           aria-pressed={!hasCustomDateRange}
-          className={`min-h-10 rounded-md border px-3 text-sm font-medium ${
+          className={`min-h-11 rounded-lg border px-3 text-[15px] font-medium ${
             hasCustomDateRange
               ? 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-ink-secondary)]'
               : 'border-[var(--color-accent-line)] bg-[var(--color-accent-soft)] text-[var(--color-accent)]'
@@ -185,7 +180,7 @@ export function BillingPage() {
         >
           本月
         </button>
-        <label className="grid gap-1.5 text-xs font-medium text-[var(--color-foreground)]">
+        <label className="grid gap-2 console-label">
           类型
           <select
             value={kind ?? ''}
@@ -200,7 +195,7 @@ export function BillingPage() {
                 ),
               );
             }}
-            className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
+            className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
           >
             <option value="">全部类型</option>
             {billingKindSchema.options.map((value) => (
@@ -211,7 +206,7 @@ export function BillingPage() {
           </select>
         </label>
         {requestId && (
-          <div className="flex min-h-10 items-center gap-2 rounded-md bg-[var(--color-surface-subtle)] px-3 text-xs text-[var(--color-ink-secondary)]">
+          <div className="flex min-h-10 items-center gap-2 rounded-md bg-[var(--color-surface-subtle)] px-3 text-[15px] text-[var(--color-ink-secondary)]">
             <span>请求 ID 筛选：{requestId}</span>
             <button
               type="button"
@@ -226,7 +221,7 @@ export function BillingPage() {
         {hasActiveFilters && (
           <button
             type="button"
-            className="min-h-10 rounded-md px-3 text-sm font-medium text-[var(--color-accent)] hover:underline"
+            className="min-h-11 rounded-lg px-3 text-[15px] font-medium text-[var(--color-accent)] hover:underline"
             onClick={clearFilters}
           >
             清除筛选

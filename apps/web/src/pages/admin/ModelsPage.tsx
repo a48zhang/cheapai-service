@@ -12,8 +12,8 @@ import { mergePageItems } from '../../shared/lib/pagination';
 
 const statusItems = [
   { value: 'all', label: '全部状态' },
-  { value: 'active', label: '已启用' },
-  { value: 'disabled', label: '已停用' },
+  { value: 'active', label: '启用' },
+  { value: 'disabled', label: '停用' },
 ] as const;
 
 function filterStatus(value: string | null): ModelStatus | undefined {
@@ -53,9 +53,8 @@ export default function ModelsPage() {
   }
 
   return (
-    <section>
+    <section className="space-y-4">
       <PageHeader
-        eyebrow="资源配置"
         heading="模型与价格"
         actions={
           <Button asChild>
@@ -63,9 +62,9 @@ export default function ModelsPage() {
           </Button>
         }
       />
-      <FilterBar>
+      <FilterBar onReset={() => changeStatus('all')}>
         <label className="grid min-w-44 gap-1.5 text-sm font-medium text-[var(--color-foreground)]">
-          模型状态
+          状态
           <Select
             aria-label="模型状态"
             value={status ?? 'all'}

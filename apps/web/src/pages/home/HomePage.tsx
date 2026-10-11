@@ -1,7 +1,7 @@
 import { ThemePicker } from '@cheapai/theme';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowDown, ArrowRight, ArrowUpRight, Check, Copy, Menu, Plus, X } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Check, Copy, Menu, Plus, X } from 'lucide-react';
 import { BrandLink } from '../../shared/ui/BrandLink';
 import { BrandMark } from '../../shared/ui/BrandMark';
 import { useSession } from '../../features/session/useSession';
@@ -17,7 +17,7 @@ client = OpenAI(
 response = client.chat.completions.create(
     model="YOUR_MODEL",
     messages=[
-        {"role": "user", "content": "让想法，向前一步。"}
+        {"role": "user", "content": "帮我整理这段代码的改进建议。"}
     ],
 )
 
@@ -75,8 +75,8 @@ export default function HomePage() {
               {isAuthenticated ? '控制台' : '登录'}
               <ArrowUpRight size={15} aria-hidden="true" />
             </Link>
-            <Link className="home-button home-button-dark home-header-cta" to="/chat">
-              开始使用
+            <Link className="home-button home-button-primary home-header-cta" to="/chat">
+              开始对话
               <ArrowUpRight size={15} aria-hidden="true" />
             </Link>
             <button
@@ -111,7 +111,7 @@ export default function HomePage() {
               <ArrowUpRight size={16} />
             </a>
             <Link to="/chat">
-              开始使用
+              开始对话
               <ArrowUpRight size={16} />
             </Link>
           </nav>
@@ -120,92 +120,86 @@ export default function HomePage() {
 
       <main id="home-main">
         <section className="home-hero" aria-labelledby="hero-title">
-          <p className="home-eyebrow">
-            <span className="home-dot" /> FLAGSHIP AI. SMALLER BILLS.
-          </p>
-          <h1 id="hero-title">
-            旗舰模型，
-            <br />
-            <span>极低价格。</span>
-          </h1>
-          <p className="home-hero-description">
-            CheapAI 以极低价格，提供多种主流旗舰模型。
-            <br />
-            无论日常对话，还是 API 开发，让强大 AI 触手可及。
-          </p>
-          <div className="home-hero-actions">
-            <Link className="home-button home-button-dark" to="/chat">
-              开始对话
-              <ArrowUpRight size={17} aria-hidden="true" />
-            </Link>
-            <a className="home-text-link" href="#developers">
-              探索 API
-              <ArrowRight size={17} aria-hidden="true" />
-            </a>
-          </div>
-          <div className="home-art" aria-hidden="true">
-            <div className="home-art-grid" />
-            <div className="home-orbit home-orbit-one" />
-            <div className="home-orbit home-orbit-two" />
-            <div className="home-orbit home-orbit-three" />
-            <div className="home-art-glow" />
-            <div className="home-art-caption">
-              <span>MORE INTELLIGENCE. LESS COST.</span>
-              <span>旗舰级能力，更轻的成本。</span>
+          <div className="home-hero-copy">
+            <h1 id="hero-title">
+              旗舰模型，<span>极低价格。</span>
+            </h1>
+            <p className="home-hero-description">
+              CheapAI 以极低价格提供多种主流旗舰模型。直接开始对话，或通过 API 接入你的应用和工具。
+            </p>
+            <div className="home-hero-actions">
+              <Link className="home-button home-button-primary" to="/chat">
+                开始对话 <ArrowRight size={18} aria-hidden="true" />
+              </Link>
+              <Link className="home-button home-button-secondary" to="/keys">
+                API 接入 <ArrowUpRight size={18} aria-hidden="true" />
+              </Link>
             </div>
-            <span className="home-art-index">01 — EXPLORE</span>
           </div>
-          <a className="home-explore" href="#possibilities">
-            向下探索
-            <ArrowDown size={15} aria-hidden="true" />
-          </a>
+          <div className="home-art" aria-label="网页对话界面示意">
+            <div className="home-orbit" aria-hidden="true" />
+            <div className="home-preview">
+              <div className="home-preview-header">
+                <BrandMark className="home-mini-brand" />
+                <span>CheapAI 对话</span>
+                <span className="home-preview-label">界面示意</span>
+              </div>
+              <div className="home-preview-body">
+                <p className="home-preview-question">帮我整理一下这个项目的开发思路。</p>
+                <div className="home-preview-answer">
+                  <BrandMark className="home-mini-brand" />
+                  <div>
+                    <p>可以先从目标、功能和实现顺序入手。</p>
+                    <ul>
+                      <li>明确用户需要解决的问题</li>
+                      <li>整理核心功能与页面结构</li>
+                      <li>分阶段实现并验证使用体验</li>
+                    </ul>
+                  </div>
+                </div>
+                <div className="home-chat-input" aria-hidden="true">
+                  <span>继续提问…</span>
+                  <span className="home-send">
+                    <ArrowUpRight size={18} />
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
 
         <section id="possibilities" className="home-section" aria-labelledby="products-title">
           <div className="home-section-heading">
-            <p className="home-eyebrow">01 / POSSIBILITIES</p>
-            <h2 id="products-title">
-              多种旗舰模型，
-              <br />
-              两种使用方式。
-            </h2>
-            <p>
-              用自然语言探索，用代码构建。
-              <br />
-              让低成本的 AI 能力，融入你的日常。
-            </p>
+            <h2 id="products-title">选择适合你的使用方式</h2>
+            <p>日常对话与 API 调用，共用一个账户。</p>
           </div>
           <div className="home-products">
             <Link className="home-product" to="/chat">
               <div className="home-product-art home-chat-art" aria-hidden="true">
                 <span className="home-demo-label">对话示意</span>
-                <div className="home-chat-question">有一个想法，想和你聊聊。</div>
+                <div className="home-chat-question">帮我梳理这份文档的重点。</div>
                 <div className="home-chat-answer">
                   <BrandMark className="home-mini-brand" />
                   <div>
-                    当然。我们从哪里开始？
+                    我们可以从主要结论开始。
                     <span className="home-answer-line" />
                     <span className="home-answer-line short" />
                   </div>
                 </div>
                 <div className="home-chat-input">
-                  <span>让灵感继续…</span>
+                  <span>继续提问…</span>
                   <span className="home-send">
                     <ArrowUpRight size={18} />
                   </span>
                 </div>
               </div>
               <div className="home-product-title">
-                <h3>把问题，聊成思路。</h3>
+                <h3>网页对话</h3>
                 <ArrowUpRight size={25} aria-hidden="true" />
               </div>
-              <p>
-                写作、编程、梳理灵感。在持续的对话中，
-                <br className="home-desktop-break" />
-                找到值得继续的方向。
-              </p>
+              <p>在浏览器中选择模型，进行写作、编程和文档分析。</p>
               <span className="home-product-link">
-                探索网页对话
+                开始对话
                 <ArrowRight size={16} aria-hidden="true" />
               </span>
             </Link>
@@ -219,19 +213,14 @@ export default function HomePage() {
                   <span>CheapAI</span>
                 </div>
                 <div className="home-api-node home-api-target">旗舰模型</div>
-                <span className="home-api-tag">ONE API. MORE POSSIBILITIES.</span>
               </div>
               <div className="home-product-title">
-                <h3>把能力，写进产品。</h3>
+                <h3>API 接入</h3>
                 <ArrowUpRight size={25} aria-hidden="true" />
               </div>
-              <p>
-                创建 API Key，将可用模型连接到你的应用。
-                <br className="home-desktop-break" />
-                让下一次构建，从这里开始。
-              </p>
+              <p>创建 API Key，将主流模型接入应用、Agent 和开发工具。</p>
               <span className="home-product-link">
-                探索 API 接入
+                前往 API 接入
                 <ArrowRight size={16} aria-hidden="true" />
               </span>
             </Link>
@@ -241,17 +230,8 @@ export default function HomePage() {
         <section id="developers" className="home-developers" aria-labelledby="developers-title">
           <div className="home-developer-inner">
             <div className="home-developer-copy">
-              <p className="home-eyebrow">02 / BUILT FOR BUILDERS</p>
-              <h2 id="developers-title">
-                更低的成本。
-                <br />
-                新的可能。
-              </h2>
-              <p>
-                通过兼容的 API 接入多种主流旗舰模型。
-                <br />
-                少一些成本顾虑，多一些构建可能。
-              </p>
+              <h2 id="developers-title">用熟悉的方式接入模型</h2>
+              <p>兼容常用 API 协议。配置接口地址、密钥和模型，即可在现有应用中开始调用。</p>
               <Link className="home-button home-button-light" to="/keys">
                 获取 API Key
                 <ArrowUpRight size={17} aria-hidden="true" />
@@ -291,12 +271,7 @@ export default function HomePage() {
 
         <section id="questions" className="home-section home-faq" aria-labelledby="faq-title">
           <div>
-            <p className="home-eyebrow">03 / GOOD TO KNOW</p>
-            <h2 id="faq-title">
-              开始之前，
-              <br />
-              你可能想了解。
-            </h2>
+            <h2 id="faq-title">常见问题</h2>
           </div>
           <div className="home-faq-list">
             {questions.map(([question, answer]) => (
@@ -310,18 +285,10 @@ export default function HomePage() {
             ))}
           </div>
         </section>
-        <section className="home-closing" aria-labelledby="closing-title">
-          <p className="home-eyebrow">YOUR NEXT CHAPTER</p>
-          <h2 id="closing-title">让旗舰 AI，不再昂贵。</h2>
-          <Link className="home-button home-button-dark" to="/chat">
-            开始使用 CheapAI
-            <ArrowUpRight size={17} aria-hidden="true" />
-          </Link>
-        </section>
       </main>
       <footer className="home-footer">
         <BrandLink className="home-brand" />
-        <p>旗舰 AI，轻量成本。</p>
+        <p>多种旗舰模型，极低价格。</p>
         <nav aria-label="页脚导航">
           <Link to="/chat">对话</Link>
           <Link to="/keys">API 接入</Link>

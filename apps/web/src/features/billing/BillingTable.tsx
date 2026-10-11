@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { BillingEntry, BillingKind } from '@cheapai/contracts/billing';
 import { formatDateTime } from '../../shared/lib/datetime';
-import { formatUnitsToUsd } from '../../shared/lib/money';
+import { formatConsumptionUsd } from '../../shared/lib/money';
 import { CursorTable } from '../../shared/patterns/CursorTable';
 
 export interface BillingTableProps {
@@ -26,7 +26,7 @@ const kindLabels: Record<BillingKind, string> = {
 function amountLabel(value: string, kind: BillingKind, showConsumptionAsCost = false): string {
   try {
     const units = showConsumptionAsCost && kind === 'consumption' ? -BigInt(value) : BigInt(value);
-    return `${formatUnitsToUsd(units)} USD`;
+    return formatConsumptionUsd(units);
   } catch {
     return '金额未知';
   }
@@ -48,15 +48,20 @@ export function BillingTable({
     {
       id: 'kind',
       header: '类型',
+      size: 120,
       cell: ({ row }) => (
-        <span className="font-medium text-[var(--color-ink)]">{kindLabels[row.original.kind]}</span>
+        <span className="whitespace-nowrap font-medium text-[var(--color-ink)]">
+          {kindLabels[row.original.kind]}
+        </span>
       ),
     },
     {
       id: 'amount',
-      header: '金额变化',
+      header: '金额变化（USD）',
+      size: 180,
+      meta: { align: 'right', numeric: true },
       cell: ({ row }) => (
-        <span className="whitespace-nowrap font-mono text-sm font-medium tabular-nums text-[var(--color-ink)]">
+        <span className="whitespace-nowrap console-number text-[15px] font-medium text-[var(--color-ink)]">
           {amountLabel(row.original.deltaUnits, row.original.kind)}
         </span>
       ),
@@ -67,9 +72,13 @@ export function BillingTable({
             id: 'user',
             header: '用户',
             cell: ({ row }) => (
-              <span className="break-all font-mono text-xs text-[var(--color-ink-secondary)]">
-                {row.original.userId}
-              </span>
+              <Link
+                className="block max-w-48 truncate text-[var(--color-accent)] hover:underline"
+                title={row.original.userEmail ?? row.original.userId}
+                to={`/admin/users/${encodeURIComponent(row.original.userId)}`}
+              >
+                {row.original.userEmail ?? row.original.userId}
+              </Link>
             ),
           } as ColumnDef<BillingEntry, unknown>,
         ]
@@ -80,10 +89,11 @@ export function BillingTable({
       cell: ({ row }) =>
         row.original.requestId ? (
           <Link
-            className="font-mono text-xs text-[var(--color-accent)] hover:underline"
+            className="whitespace-nowrap text-[var(--color-accent)] hover:underline"
+            title={row.original.requestId}
             to={`${scope === 'admin' ? '/admin/requests' : '/requests'}/${encodeURIComponent(row.original.requestId)}`}
           >
-            {row.original.requestId}
+            查看请求
           </Link>
         ) : (
           <span className="text-[var(--color-ink-muted)]">—</span>
@@ -92,8 +102,12 @@ export function BillingTable({
     {
       id: 'reason',
       header: '原因',
+      size: 160,
       cell: ({ row }) => (
-        <span className="block min-w-40 max-w-xl break-words text-sm text-[var(--color-ink-secondary)]">
+        <span
+          title={row.original.reason ?? undefined}
+          className="block max-w-56 truncate text-sm text-[var(--color-ink-secondary)]"
+        >
           {row.original.reason ?? (row.original.kind === 'consumption' ? '模型消费' : '—')}
         </span>
       ),
@@ -101,10 +115,11 @@ export function BillingTable({
     {
       id: 'created',
       header: '时间',
+      size: 190,
       cell: ({ row }) => (
         <time
           dateTime={row.original.createdAt}
-          className="whitespace-nowrap text-xs text-[var(--color-ink-secondary)]"
+          className="whitespace-nowrap text-sm text-[var(--color-ink-secondary)]"
         >
           {formatDateTime(row.original.createdAt)}
         </time>
@@ -115,10 +130,11 @@ export function BillingTable({
     {
       id: 'created',
       header: '时间',
+      size: 190,
       cell: ({ row }) => (
         <time
           dateTime={row.original.createdAt}
-          className="whitespace-nowrap text-xs text-[var(--color-ink-secondary)]"
+          className="whitespace-nowrap text-sm text-[var(--color-ink-secondary)]"
         >
           {formatDateTime(row.original.createdAt)}
         </time>
@@ -133,7 +149,7 @@ export function BillingTable({
             {kindLabels[row.original.kind]}
           </span>
           {row.original.modelId && (
-            <span className="font-mono text-xs text-[var(--color-ink-muted)]">
+            <span className="font-mono text-sm text-[var(--color-ink-muted)]">
               {row.original.modelId}
             </span>
           )}
@@ -155,9 +171,11 @@ export function BillingTable({
     },
     {
       id: 'amount',
-      header: '金额',
+      header: '金额（USD）',
+      size: 180,
+      meta: { align: 'right', numeric: true },
       cell: ({ row }) => (
-        <span className="whitespace-nowrap font-mono text-sm font-medium tabular-nums text-[var(--color-ink)]">
+        <span className="whitespace-nowrap console-number text-[15px] font-medium text-[var(--color-ink)]">
           {amountLabel(row.original.deltaUnits, row.original.kind, true)}
         </span>
       ),

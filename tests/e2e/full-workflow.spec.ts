@@ -46,13 +46,13 @@ test('real browser signup → key → funding → nine JSON/SSE pairs → overdr
     const identity = (await (await page.context().request.get('/api/v1/auth/me')).json()).data;
     expect(identity.email_verified_at).not.toBeNull(); expect(identity.balance_units).toBe('0');
     await page.goto('/keys');
-    await page.getByRole('button', { name: '创建 Key' }).click();
+    await page.getByRole('button', { name: '创建密钥', exact: true }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByLabel('名称', { exact: true }).fill('Full workflow key');
     await expect(dialog.locator('input[name="groupId"]')).toHaveValue('default');
     await expect(dialog.getByRole('combobox', { name: '分组' })).toHaveCount(0);
     await expect(dialog.getByText(/授权模型与价格/)).toBeVisible();
-    await dialog.getByRole('button', { name: '创建 Key' }).click();
+    await dialog.getByRole('button', { name: '创建密钥', exact: true }).click();
     const secret = dialog.getByLabel('完整 API Key', { exact: true });
     await expect(secret).toBeVisible(); const token = await secret.inputValue();
     await dialog.getByRole('button', { name: '完成', exact: true }).click();

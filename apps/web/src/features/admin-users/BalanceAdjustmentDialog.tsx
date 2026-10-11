@@ -1,3 +1,4 @@
+import { formatConsumptionUsd, formatWalletUsd } from '../../shared/lib/money';
 import { useEffect, useRef, useState } from 'react';
 import type { UserListItem } from '@cheapai/api-client/users';
 import type { AdminUsersApi } from './api';
@@ -7,7 +8,6 @@ import {
   createBalanceAdjustmentIntent,
   executeBalanceAdjustment,
   formatAdjustmentInput,
-  formatBalanceAmount,
   idleBalanceAdjustment,
   reduceBalanceAdjustment,
 } from './balance-operation';
@@ -158,7 +158,7 @@ export function BalanceAdjustmentDialog({
       open={open}
       onOpenChange={close}
       title="调整账户余额"
-      description={`${user.email_normalized} · 当前余额 ${formatBalanceAmount(user.balance_units)}`}
+      description={`${user.email_normalized} · 当前余额 ${formatWalletUsd(user.balance_units)} USD`}
       closeLabel="关闭余额调整"
       closeButton={!busy && !locked}
       footer={
@@ -195,7 +195,7 @@ export function BalanceAdjustmentDialog({
               {settled.outcome === 'existing' ? '已确认此前相同操作的结果。' : '余额调整已写入。'}
             </p>
             <p>
-              金额：{formatBalanceAmount(settled.entry.deltaUnits)} · 操作编号：
+              金额：{formatConsumptionUsd(settled.entry.deltaUnits)} USD · 操作编号：
               <code className="break-all">{settled.entry.operationId}</code>
             </p>
             <p>当前余额会在重新读取用户资料后更新。</p>
@@ -270,9 +270,7 @@ export function BalanceAdjustmentDialog({
               </p>
             )}
             {operation.status === 'idle' && amountUsd && (
-              <p className="text-xs text-[var(--color-muted-foreground)]">
-                金额预览：{formatAdjustmentInputFromUsd(amountUsd)}
-              </p>
+              <p className="console-muted">金额预览：{formatAdjustmentInputFromUsd(amountUsd)}</p>
             )}
           </>
         )}

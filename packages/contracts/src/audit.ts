@@ -8,6 +8,8 @@ const count = z.number().int().nonnegative().refine(Number.isSafeInteger);
 export const auditEntrySchema = z.object({
   id: text,
   actor_id: text,
+  actor_email: z.string().nullable().optional(),
+  target_name: z.string().nullable().optional(),
   action: text.max(64),
   target_type: text.max(64),
   target_id: text,

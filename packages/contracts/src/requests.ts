@@ -103,6 +103,8 @@ export const requestSchema = z
   .object({
     id: text(),
     user_id: text(),
+    user_email: z.string().nullable().optional(),
+    group_name: z.string().nullable().optional(),
     api_key_id: text(),
     source: requestSourceSchema.optional(),
     group_id: text(128).nullable().optional(),

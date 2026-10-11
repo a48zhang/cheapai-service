@@ -28,7 +28,7 @@ export function Input({
       {...props}
       disabled={disabled}
       aria-invalid={isInvalid ? true : ariaInvalid}
-      className={`block min-h-10 w-full rounded-md border px-3 py-2 text-sm outline-none transition-colors placeholder:text-[var(--color-muted-foreground)] focus-visible:border-[var(--color-ring)] focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--color-surface)] disabled:cursor-not-allowed disabled:opacity-60 ${className ?? ''}`}
+      className={`block min-h-10 w-full rounded-md border px-3 py-2 text-[15px] leading-6 outline-none transition-colors placeholder:text-[var(--color-muted-foreground)] focus-visible:border-[var(--color-ring)] focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--color-surface)] disabled:cursor-not-allowed disabled:opacity-60 ${className ?? ''}`}
       style={inputStyle}
     />
   );

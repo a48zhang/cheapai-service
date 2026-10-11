@@ -7,7 +7,6 @@ import { Button } from '../../shared/ui/Button';
 import { Dialog } from '../../shared/ui/Dialog';
 import { Field } from '../../shared/ui/Field';
 import { Input } from '../../shared/ui/Input';
-import { StatusBadge } from '../../shared/ui/StatusBadge';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 
 type RevokeIntent = { readonly keyId: string; readonly version: number };
@@ -17,6 +16,7 @@ export interface UserAccessPanelProps {
   readonly user: UserListItem;
   readonly api: AdminUsersApi;
   readonly onEdit?: () => void;
+  readonly groupNames?: Readonly<Record<string, string>>;
   readonly onRevoked?: (result: RevokeResult) => void;
 }
 
@@ -30,7 +30,13 @@ function isDefinitiveRevokeFailure(error: unknown): boolean {
 }
 
 /** Read-only access summary and explicitly targeted admin Key revocation. */
-export function UserAccessPanel({ user, api, onEdit, onRevoked }: UserAccessPanelProps) {
+export function UserAccessPanel({
+  user,
+  api,
+  onEdit,
+  onRevoked,
+  groupNames = {},
+}: UserAccessPanelProps) {
   const [revokeOpen, setRevokeOpen] = useState(false);
   const [keyId, setKeyId] = useState('');
   const [versionText, setVersionText] = useState('');
@@ -100,10 +106,10 @@ export function UserAccessPanel({ user, api, onEdit, onRevoked }: UserAccessPane
   const ownerMatches = result?.key.userId === user.id;
 
   return (
-    <section className="space-y-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+    <section className="space-y-4 console-panel">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">访问与授权</h2>
+          <h2 className="console-section-title">访问与授权</h2>
         </div>
         {onEdit && (
           <Button variant="secondary" onClick={onEdit}>
@@ -111,58 +117,39 @@ export function UserAccessPanel({ user, api, onEdit, onRevoked }: UserAccessPane
           </Button>
         )}
       </div>
-      <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <dl className="grid gap-4 sm:grid-cols-2">
         <div>
-          <dt className="text-xs text-[var(--color-muted-foreground)]">角色</dt>
-          <dd className="mt-1 font-medium">{user.role === 'admin' ? '管理员' : '普通用户'}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-[var(--color-muted-foreground)]">账户状态</dt>
-          <dd className="mt-1">
-            {user.status === 'active' ? (
-              <StatusBadge tone="success">启用</StatusBadge>
-            ) : (
-              <StatusBadge>停用</StatusBadge>
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs text-[var(--color-muted-foreground)]">默认分组</dt>
-          <dd className="mt-1">{user.group_name}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-[var(--color-muted-foreground)]">并发上限</dt>
+          <dt className="console-muted">并发上限</dt>
           <dd className="mt-1">
             {user.concurrency_limit === Number.MAX_SAFE_INTEGER ? '不限' : user.concurrency_limit}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-[var(--color-muted-foreground)]">每分钟请求上限</dt>
+          <dt className="console-muted">每分钟请求上限</dt>
           <dd className="mt-1">
             {user.rpm_limit === Number.MAX_SAFE_INTEGER ? '不限' : user.rpm_limit}
           </dd>
         </div>
-        <div>
-          <dt className="text-xs text-[var(--color-muted-foreground)]">版本</dt>
-          <dd className="mt-1">{user.version}</dd>
-        </div>
       </dl>
-      <div>
-        <h3 className="text-sm font-medium">可访问分组 ID</h3>
+      <details className="border-t border-[var(--color-border)] pt-4">
+        <summary className="cursor-pointer font-medium">
+          可访问分组（{user.allowed_group_ids.length}）
+        </summary>
         <ul className="mt-2 flex flex-wrap gap-2">
           {user.allowed_group_ids.map((id) => (
             <li
               key={id}
-              className="rounded-md bg-[var(--color-surface-subtle)] px-2.5 py-1 font-mono text-xs"
+              className="rounded-md bg-[var(--color-surface-subtle)] px-2.5 py-1 text-sm"
             >
-              {id}
+              {groupNames[id] ?? id}
               {id === user.group_id ? ' · 默认' : ''}
             </li>
           ))}
         </ul>
-      </div>
-      <div className="border-t border-[var(--color-border)] pt-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+      </details>
+      <details className="border-t border-[var(--color-border)] pt-4">
+        <summary className="cursor-pointer font-medium">密钥管理</summary>
+        <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="font-medium">撤销已有 Key</h3>
             <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--color-muted-foreground)]">
@@ -173,7 +160,7 @@ export function UserAccessPanel({ user, api, onEdit, onRevoked }: UserAccessPane
             输入 Key 信息
           </Button>
         </div>
-      </div>
+      </details>
       <Dialog
         open={revokeOpen}
         onOpenChange={resetRevoke}

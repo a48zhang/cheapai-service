@@ -38,9 +38,9 @@ describe('request query HTTP on native D1', () => {
     await testEnv.DB.prepare("UPDATE requests SET source='web_chat',group_id='b12-group' WHERE id='b12-a'").run();
     const chat = await request(`${PERSONAL_REQUESTS_PATH}/b12-a`);
     expect(chat.status).toBe(200);
-    expect(await chat.json()).toMatchObject({ data: { source: 'web_chat', group_id: 'b12-group' } });
+    expect(await chat.json()).toMatchObject({ data: { source: 'web_chat', group_id: 'b12-group', group_name: 'B12' } });
     const api = await request(`${PERSONAL_REQUESTS_PATH}/b12-b`);
-    expect(await api.json()).toMatchObject({ data: { source: 'api', group_id: null } });
+    expect(await api.json()).toMatchObject({ data: { source: 'api', group_id: null, group_name: null } });
   });
   it('isolates personal list/detail despite client-selected identity or scope', async () => {
     const response = await request(); expect(response.status).toBe(200); expect(response.headers.get('Cache-Control')).toBe('no-store');
@@ -77,7 +77,7 @@ describe('request query HTTP on native D1', () => {
   it('filters admin user/time/status/model and validates query boundaries', async () => {
     await testEnv.DB.prepare("UPDATE requests SET execution_status='failed',billing_status='usage_unknown' WHERE id='b12-a'").run();
     const path = `${ADMIN_REQUESTS_PATH}?userId=${owner}&from=5000&to=5000&status=failed&billingStatus=usage_unknown&model=b12-model`;
-    expect(await (await request(path, admin)).json()).toMatchObject({ data: { items: [{ id: 'b12-a' }] } });
+    expect(await (await request(path, admin)).json()).toMatchObject({ data: { items: [{ id: 'b12-a', user_email: 'b12-owner@example.invalid' }] } });
     for (const query of ['from=-1', 'to=1.5', 'from=01', 'from=1%0A', 'from=10&to=9', 'to=9007199254740992', 'status=wrong', 'billingStatus=wrong', 'limit=101', 'limit=2&limit=3', 'cursor=', "model='%20OR%201=1"]) {
       expect((await request(`${ADMIN_REQUESTS_PATH}?${query}`, admin)).status, query).toBe(400);
     }

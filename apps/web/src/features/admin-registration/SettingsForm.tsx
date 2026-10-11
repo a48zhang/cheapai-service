@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import type { AdminRegistrationSettings } from '@cheapai/contracts/registration-admin';
 import { Button } from '../../shared/ui/Button';
-import { Field } from '../../shared/ui/Field';
 import { Select } from '../../shared/ui/Select';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 
@@ -25,7 +24,7 @@ export function SettingsForm({
   const [saved, setSaved] = useState(false);
   return (
     <form
-      className="max-w-xl space-y-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6"
+      className="console-panel max-w-4xl overflow-hidden"
       onSubmit={async (event) => {
         event.preventDefault();
         if (busy || settings.version === null) return;
@@ -42,9 +41,21 @@ export function SettingsForm({
         }
       }}
     >
-      <h2 className="text-lg font-semibold">注册策略</h2>
-      <Field label="注册模式">
+      <div className="grid gap-4 p-5 sm:grid-cols-[1fr_240px] sm:items-center sm:p-6">
+        <div>
+          <h2 className="text-[15px] font-medium">注册方式</h2>
+          <p className="mt-1 text-sm leading-6 text-[var(--color-ink-secondary)]">
+            {
+              {
+                closed: '暂停新用户注册，已有账户仍可登录。',
+                open: '任何用户均可创建账户。',
+                invite: '新用户需使用有效邀请码创建账户。',
+              }[mode]
+            }
+          </p>
+        </div>
         <Select
+          aria-label="注册方式"
           value={mode}
           onValueChange={(value) => {
             setMode(value as typeof mode);
@@ -57,41 +68,62 @@ export function SettingsForm({
             { value: 'invite', label: '邀请码注册' },
           ]}
         />
-      </Field>
-      <label className="flex items-center gap-3 text-sm">
-        <input
-          type="checkbox"
-          checked={verification}
-          onChange={(event) => {
-            setVerification(event.target.checked);
+      </div>
+      <div className="flex items-center justify-between gap-6 border-t border-[var(--color-border)] p-5 sm:p-6">
+        <div>
+          <label htmlFor="registration-verification" className="text-[15px] font-medium">
+            邮箱验证
+          </label>
+          <p className="mt-1 text-sm leading-6 text-[var(--color-ink-secondary)]">
+            {settings.emailAvailable
+              ? '启用后，新用户需要验证邮箱。'
+              : '邮件服务不可用，暂时无法启用邮箱验证。'}
+          </p>
+        </div>
+        <button
+          id="registration-verification"
+          type="button"
+          role="switch"
+          aria-label="邮箱验证"
+          aria-checked={verification}
+          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${verification ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-ink-muted)]'}`}
+          onClick={() => {
+            setVerification(!verification);
             setSaved(false);
           }}
           disabled={busy || !settings.emailAvailable}
-        />
-        启用邮箱验证
-      </label>
-      <p className="text-sm text-[var(--color-muted-foreground)]">
-        邮件服务：{settings.emailAvailable ? '可用' : '不可用'}
-      </p>
+        >
+          <span
+            aria-hidden="true"
+            className={`absolute top-1 size-4 rounded-full bg-white transition-transform ${verification ? 'left-1 translate-x-5' : 'left-1'}`}
+          />
+        </button>
+      </div>
       {!settings.valid && (
-        <p role="alert" className="text-sm text-[var(--color-danger)]">
-          当前策略配置不完整，请先修复服务端设置。
+        <p role="alert" className="px-6 pb-4 text-sm text-[var(--color-danger)]">
+          当前注册设置不完整，请先修复服务端设置。
         </p>
       )}
       {verification && !settings.emailAvailable && (
-        <p role="alert" className="text-sm text-[var(--color-danger)]">
-          邮件服务不可用，无法保存启用邮箱验证的策略。
+        <p role="alert" className="px-6 pb-4 text-sm text-[var(--color-danger)]">
+          邮件服务不可用，无法保存启用邮箱验证的设置。
         </p>
       )}
       {error != null && <ApiErrorNotice error={error} />}
-      {saved && <p role="status">策略已保存。</p>}
-      <Button
-        type="submit"
-        busy={busy}
-        disabled={settings.version === null || (verification && !settings.emailAvailable)}
-      >
-        保存策略
-      </Button>
+      <div className="flex flex-wrap items-center gap-4 border-t border-[var(--color-border)] p-5 sm:px-6">
+        <Button
+          type="submit"
+          busy={busy}
+          disabled={settings.version === null || (verification && !settings.emailAvailable)}
+        >
+          保存设置
+        </Button>
+        {saved && (
+          <p className="m-0 text-sm text-[var(--color-success)]" role="status">
+            设置已保存
+          </p>
+        )}
+      </div>
     </form>
   );
 }

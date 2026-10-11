@@ -21,6 +21,7 @@ export interface BillingEntrySummary {
   readonly operationId: string;
   readonly kind: BillingEntryKind;
   readonly userId: string;
+  readonly userEmail?: string | null;
   readonly requestId: string | null;
   readonly modelId: string | null;
   readonly source: 'api' | 'web_chat' | null;
@@ -37,7 +38,7 @@ export interface BillingEntryPeriodSummary {
   readonly createdBefore: number | null;
 }
 export interface BillingEntryPage { readonly items: readonly BillingEntrySummary[]; readonly nextCursor: string | null; readonly summary?: BillingEntryPeriodSummary }
-interface Row { id: string; operation_id: string; kind: BillingEntryKind; user_id: string; request_id: string | null; model_id: string | null; source: 'api' | 'web_chat' | null; currency: string; delta_units: string; created_by: string | null; reason: string | null; created_at: number }
+interface Row { user_email: string | null; id: string; operation_id: string; kind: BillingEntryKind; user_id: string; request_id: string | null; model_id: string | null; source: 'api' | 'web_chat' | null; currency: string; delta_units: string; created_by: string | null; reason: string | null; created_at: number }
 type Cursor = [2, 'owner' | 'admin', string, string | null, BillingEntryKind | null, string | null, number | null, number | null, number, number, string];
 export const MAX_LEDGER_TIME_MS = 8_640_000_000_000_000;
 const validId = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$/.test(value) && value.length <= 128;
@@ -116,9 +117,10 @@ export async function queryBillingEntries(database: D1Database, scope: EntryQuer
     if (cursor) { clauses.push('(b.created_at<? OR (b.created_at=? AND b.id>?))'); parameters.push(cursor[9], cursor[9], cursor[10]); }
     parameters.push(limit + 1);
     const result = await prepare<Row>(database, `SELECT b.id,b.operation_id,b.kind,b.user_id,b.request_id,
-        r.public_model_id AS model_id,r.source, b.currency,CAST(b.delta_units AS TEXT) AS delta_units,
+        r.public_model_id AS model_id,r.source, ${trusted.kind === 'admin' ? 'u.email_normalized' : 'NULL'} AS user_email, b.currency,CAST(b.delta_units AS TEXT) AS delta_units,
         b.created_by,b.reason,b.created_at
       FROM billing_entries b LEFT JOIN requests r ON r.id=b.request_id
+      ${trusted.kind === 'admin' ? 'LEFT JOIN users u ON u.id=b.user_id' : ''}
       WHERE ${clauses.join(' AND ')}
       ORDER BY b.created_at DESC,b.id ASC LIMIT ?`, parameters).all();
     const rows = result.rows.slice(0, limit);
@@ -127,7 +129,7 @@ export async function queryBillingEntries(database: D1Database, scope: EntryQuer
       const deltaUnits = parseUnits(row.delta_units).toString();
       if (row.source !== null && row.source !== 'api' && row.source !== 'web_chat') throw new ApiError('service_unavailable');
       return Object.freeze({ id: row.id, operationId: row.operation_id, kind: row.kind, userId: row.user_id, requestId: row.request_id,
-        modelId: row.model_id, source: row.source, currency: 'USD' as const, deltaUnits, createdBy: row.created_by,
+        ...(trusted.kind === 'admin' ? { userEmail: row.user_email } : {}), modelId: row.model_id, source: row.source, currency: 'USD' as const, deltaUnits, createdBy: row.created_by,
         reason: row.reason, createdAt: row.created_at });
     });
     const last = rows.at(-1);
