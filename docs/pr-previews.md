@@ -10,7 +10,6 @@ PR CI 不创建共享 D1、KV 或 Durable Object namespace，也不部署或更�
 | --- | --- | --- |
 | `CLOUDFLARE_API_TOKEN` | Secret | 目标账户的 Workers Scripts: Edit、D1: Edit、Workers KV Storage: Read 权限；不需要 DNS、Routes 或 Email Routing 权限 |
 | `CLOUDFLARE_ACCOUNT_ID` | Variable | 已有预发所在的账户 ID |
-| `PREVIEW_BACKEND_WORKER` | 可选 Variable | 覆盖共享预发 Worker 名称；未配置时 CI 使用已部署的 `cheapai-preview`，不会自动创建 |
 
 共享预发 Worker 必须具备以下现存绑定：
 
@@ -19,7 +18,7 @@ PR CI 不创建共享 D1、KV 或 Durable Object namespace，也不部署或更�
 - `CACHE`：已存在的预发 KV。
 - `GATE`：已存在的 `Gate` Durable Object namespace，可以属于共享预发 Worker 自身，也可以通过 `script_name` 指向已有 Gate host。
 
-CI 读取共享 Worker 的绑定，核实 D1、KV 和 Gate namespace 的实际存在及一致性，拒绝生产 Worker、生产环境标记及与 `sub2api-cloudflare-production` 相同的存储绑定。目标 Worker 或资源缺失、读取失败时直接失败，提供配置提示，不回退到生产，也不尝试新建。
+CI 固定按名称查找 `cheapai-preview`，不需要预发选择变量，也没有覆盖入口。读取该 Worker 的绑定，核实 D1、KV 和 Gate namespace 的实际存在及一致性，拒绝生产环境标记及与 `sub2api-cloudflare-production` 相同的存储绑定。目标 Worker 或资源缺失、读取失败时直接失败，提供配置提示，不回退到生产，也不尝试新建。
 
 2026-10-11 已清理两套历史预发及其 PR Worker，并单独建立一套固定共享预发：
 
@@ -48,7 +47,7 @@ pnpm --filter @sub2api/worker exec wrangler deploy --config wrangler.preview.jso
 
 ## 一套共享预发，多个分支入口
 
-每个 PR 的代码和 URL 独立：Worker 名称为 `sub2api-<仓库名 SHA256 前10位>-pr-<PR号>`。只有这个分支 Worker 和静态资源由 PR CI 发布；所有 PR 绑定 `PREVIEW_BACKEND_WORKER` 指定的同一套 D1、KV 和 Gate。共享资源不按仓库名推导，因此仓库改名不会创建第二套底层环境。
+每个 PR 的代码和 URL 独立：Worker 名称为 `sub2api-<仓库名 SHA256 前10位>-pr-<PR号>`。只有这个分支 Worker 和静态资源由 PR CI 发布；所有 PR 绑定 `cheapai-preview` 的同一套 D1、KV 和 Gate。共享资源不按仓库名推导，因此仓库改名不会创建第二套底层环境。
 
 数据、用户、余额、缓存、限流和渠道冷却都共享。PR 代码的数据库迁移仍应用到共享 D1，因此会影响其他预发；PR 部署不会更新共享 Gate 代码。需要更改 Gate 的类实现或 namespace 时，先单独更新共享环境，并维持各分支的接口兼容。
 
@@ -58,10 +57,9 @@ pnpm --filter @sub2api/worker exec wrangler deploy --config wrangler.preview.jso
 
 ## 首次登录与真实模型测试
 
-本地使用同一账户的 `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID` 和 `PREVIEW_BACKEND_WORKER` 环境变量；如未设置 `GITHUB_REPOSITORY`，默认仓库为 `a48zhang/cheapai-service`。示例 PR 号须替换为实际 PR：
+本地使用同一账户的 `CLOUDFLARE_API_TOKEN` 和 `CLOUDFLARE_ACCOUNT_ID` 环境变量，脚本同样按名称查找 `cheapai-preview`；如未设置 `GITHUB_REPOSITORY`，默认仓库为 `a48zhang/cheapai-service`。示例 PR 号须替换为实际 PR：
 
 ```sh
-export PREVIEW_BACKEND_WORKER=cheapai-preview
 PR_NUMBER=1 node scripts/pr-preview.mjs --config-only
 node scripts/bootstrap-admin.ts --remote --preview 1
 ```

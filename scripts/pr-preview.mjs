@@ -56,12 +56,11 @@ export function cloudflareApi(account, token, fetcher = fetch) {
     return data;
   };
 }
-export async function existingPreviewBackend(api, worker) {
-  if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(worker || '') || worker.endsWith('-production')) {
-    throw new Error('Set PREVIEW_BACKEND_WORKER to an existing staging Worker; production is not allowed. See docs/pr-previews.md.');
-  }
+export async function existingPreviewBackend(api) {
+  // Resolve the fixed shared environment by name; no CI variable or override.
+  const worker = 'cheapai-preview';
   const settings = await api(`workers/scripts/${worker}/settings`, 'GET', undefined, true);
-  if (!settings) throw new Error('Configured preview backend does not exist. Provision it separately; PR CI never creates shared resources.');
+  if (!settings) throw new Error('Shared Worker cheapai-preview does not exist. Provision it separately; PR CI never creates shared resources.');
   const bindings = settings.result?.bindings;
   if (!Array.isArray(bindings)) throw new Error('Invalid preview backend settings.');
   const binding = (name, type) => {
@@ -132,7 +131,7 @@ export async function main() {
       return;
     }
   }
-  const backend = await existingPreviewBackend(api, process.env.PREVIEW_BACKEND_WORKER);
+  const backend = await existingPreviewBackend(api);
   const subdomain = (await api('workers/subdomain')).result?.subdomain;
   if (!subdomain) throw new Error('Enable a workers.dev subdomain in the Cloudflare dashboard first.');
   const config = previewConfig({ repository, number, account, subdomain, backend });
@@ -192,7 +191,7 @@ async function selfTest() {
     assert.ok(Object.hasOwn(data, key), `Unexpected API request: ${key}`);
     return structuredClone(data[key]);
   };
-  const backend = await existingPreviewBackend(api(fixtures), shared);
+  const backend = await existingPreviewBackend(api(fixtures));
   const config = previewConfig({ repository, number: '1', account: 'a'.repeat(32), subdomain: 'test', backend });
   assert.equal(config.d1_databases[0].database_name, 'shared-preview-db');
   assert.equal(config.vars.PUBLIC_BASE_URL, `https://${name}.test.workers.dev`);
@@ -206,10 +205,8 @@ async function selfTest() {
   const rejectFixture = async (change, expected) => {
     const data = structuredClone(fixtures);
     change(data);
-    await assert.rejects(existingPreviewBackend(api(data), shared), expected);
+    await assert.rejects(existingPreviewBackend(api(data)), expected);
   };
-  await assert.rejects(existingPreviewBackend(api(fixtures), undefined), /PREVIEW_BACKEND_WORKER/);
-  await assert.rejects(existingPreviewBackend(api(fixtures), 'sub2api-cloudflare-production'), /production/);
   await rejectFixture(data => { data[`workers/scripts/${shared}/settings`] = null; }, /does not exist/);
   await rejectFixture(data => { data['storage/kv/namespaces'].result = []; }, /resources are missing/);
   await rejectFixture(data => { data['workers/durable_objects/namespaces'].result = []; }, /resources are missing/);
@@ -225,7 +222,7 @@ async function selfTest() {
   const external = structuredClone(fixtures);
   external[`workers/scripts/${shared}/settings`].result.bindings[3].script_name = 'existing-preview-gate';
   external['workers/durable_objects/namespaces'].result[0].script = 'existing-preview-gate';
-  assert.equal((await existingPreviewBackend(api(external), shared)).gate.script, 'existing-preview-gate');
+  assert.equal((await existingPreviewBackend(api(external))).gate.script, 'existing-preview-gate');
   let requests = 0;
   const resource = await findResource(async () => ({ result: ++requests === 1 ? Array.from({ length: 100 }, (_, i) => ({ name: `other-${i}` })) : [{ name: shared, uuid: 'chosen' }] }), 'd1/database', 'name', shared);
   assert.equal(requests, 2); assert.equal(resource.uuid, 'chosen');

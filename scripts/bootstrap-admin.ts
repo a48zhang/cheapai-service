@@ -103,7 +103,6 @@ async function execute(target: Target, filename: string): Promise<unknown> {
     const repository = process.env.GITHUB_REPOSITORY || 'a48zhang/cheapai-service';
     const backend = await existingPreviewBackend(
       cloudflareApi(process.env.CLOUDFLARE_ACCOUNT_ID, process.env.CLOUDFLARE_API_TOKEN),
-      process.env.PREVIEW_BACKEND_WORKER,
     );
     if (config.name !== previewName(repository, target.preview) || config.env || config.vars?.ENVIRONMENT !== 'staging'
       || config.account_id !== process.env.CLOUDFLARE_ACCOUNT_ID || config.d1_databases?.length !== 1
