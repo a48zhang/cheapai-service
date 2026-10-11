@@ -44,8 +44,8 @@ function applySecurityHeaders(response: Response, origin?: string, requestOrigin
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
-// Keep API responses in the Worker path while permitting only the configured
-// console origin to use browser CORS. No credentialed CORS is enabled.
+// Keep API responses in the Worker path while permitting the trusted origin
+// selected for this request to use browser CORS. No credentialed CORS is enabled.
 app.use('*', async (context, next) => {
   const startedAt = Date.now();
   const details = { method: context.req.method, path: context.req.path };
@@ -57,17 +57,19 @@ app.use('*', async (context, next) => {
   });
 });
 
-// Production's www alias is only an entry point: keep cookies, CSRF and API
-// requests on the configured canonical HTTPS origin, preserving path and query.
+// Serve the production www alias on its own origin. Scope the trusted origin
+// to this request so existing CSRF/CORS checks and host-only cookies agree.
+// Inherit bindings instead of reading or mutating unrelated secret properties.
 app.use('*', async (context, next) => {
   const origin = configuredOrigin(context.env);
   if (context.env.ENVIRONMENT === 'production' && origin !== undefined) {
     const canonical = new URL(origin);
-    const target = new URL(context.req.url);
-    if (target.hostname === `www.${canonical.hostname}`) {
-      target.protocol = canonical.protocol;
-      target.host = canonical.host;
-      return context.redirect(target.toString(), 308);
+    const requested = new URL(context.req.url);
+    if (requested.protocol === canonical.protocol && requested.port === canonical.port
+      && requested.hostname === `www.${canonical.hostname}`) {
+      context.env = Object.create(context.env, {
+        PUBLIC_BASE_URL: { value: requested.origin, enumerable: true },
+      }) as Env;
     }
   }
   await next();
