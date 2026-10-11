@@ -4,13 +4,13 @@
 
 ## 连接已有预发环境
 
-PR CI 不创建共享 D1、KV 或 Durable Object namespace，也不部署或更新共享 Gate Worker。必须先在 PR CI 之外准备好一套预发，然后在仓库 Settings → Secrets and variables → Actions 配置：
+PR CI 不创建共享 D1、KV 或 Durable Object namespace，也不部署或更新共享 Gate Worker。固定共享预发为 `cheapai-preview`，配置保存在 [`apps/worker/wrangler.preview.jsonc`](../apps/worker/wrangler.preview.jsonc)。在仓库 Settings → Secrets and variables → Actions 配置：
 
 | 配置 | 类型 | 用途 |
 | --- | --- | --- |
 | `CLOUDFLARE_API_TOKEN` | Secret | 目标账户的 Workers Scripts: Edit、D1: Edit、Workers KV Storage: Read 权限；不需要 DNS、Routes 或 Email Routing 权限 |
 | `CLOUDFLARE_ACCOUNT_ID` | Variable | 已有预发所在的账户 ID |
-| `PREVIEW_BACKEND_WORKER` | Variable | 已部署的共享预发 Worker 名称，例如 `cheapai-preview`；这是示例名称，不会自动创建 |
+| `PREVIEW_BACKEND_WORKER` | 可选 Variable | 覆盖共享预发 Worker 名称；未配置时 CI 使用已部署的 `cheapai-preview`，不会自动创建 |
 
 共享预发 Worker 必须具备以下现存绑定：
 
@@ -19,9 +19,32 @@ PR CI 不创建共享 D1、KV 或 Durable Object namespace，也不部署或更�
 - `CACHE`：已存在的预发 KV。
 - `GATE`：已存在的 `Gate` Durable Object namespace，可以属于共享预发 Worker 自身，也可以通过 `script_name` 指向已有 Gate host。
 
-CI 读取共享 Worker 的绑定，核实 D1、KV 和 Gate namespace 的实际存在及一致性，拒绝生产 Worker、生产环境标记及与 `sub2api-cloudflare-production` 相同的存储绑定。未配置、资源缺失或读取失败时直接失败，提供配置提示，不回退到生产，也不尝试新建。
+CI 读取共享 Worker 的绑定，核实 D1、KV 和 Gate namespace 的实际存在及一致性，拒绝生产 Worker、生产环境标记及与 `sub2api-cloudflare-production` 相同的存储绑定。目标 Worker 或资源缺失、读取失败时直接失败，提供配置提示，不回退到生产，也不尝试新建。
 
-2026-10-11 已清理两套历史预发及其 PR Worker；该清理后的账户中没有可供这条工作流连接的 CheapAI 预发。只有单独准备好共享环境并设置上述 Variable 后，新 PR 才能部署成功。Token 在 GitHub 安全输入框填写，不提交 Git 或粘贴日志。只有可信的同仓库分支可以使用部署凭据；从 base 读取脚本是为了统一部署策略，并不使未经审核的 PR 应用代码变得可信。
+2026-10-11 已清理两套历史预发及其 PR Worker，并单独建立一套固定共享预发：
+
+| 资源 | 名称 / ID |
+| --- | --- |
+| Worker / Gate host | `cheapai-preview` |
+| 共享入口 | <https://cheapai-preview.alphazhang689.workers.dev> |
+| D1 | `cheapai-preview` / `f9719b76-adb4-4ebe-be98-6e784e2440a1` |
+| KV | `cheapai-preview-cache` / `2e433b90bb3a4bc4a1b890852384bc80` |
+| Gate namespace | 由共享 Worker 的 `v1` SQLite DO migration 建立，PR 通过 `script_name: cheapai-preview` 复用 |
+
+共享 Worker 同时提供前端、API 和 Gate，开启 Cloudflare 原生日志；邮件及 cron 关闭。数据库只初始化仓库迁移和默认配置，不复制生产账号、渠道、余额或 Secrets。初始化管理员后才能登录；真实模型测试需要配置预发专用渠道和余额。
+
+Token 在 GitHub 安全输入框填写，不提交 Git 或粘贴日志。只有可信的同仓库分支可以使用部署凭据；从 base 读取脚本是为了统一部署策略，并不使未经审核的 PR 应用代码变得可信。
+
+更新共享环境时显式使用固定预发配置，以下命令只迁移和部署已有资源，不创建 D1 或 KV：
+
+```sh
+pnpm --filter @cheapai/web run build
+pnpm --filter @sub2api/worker exec wrangler deploy --config wrangler.preview.jsonc --dry-run --strict
+pnpm --filter @sub2api/worker exec wrangler d1 migrations apply DB --remote --config wrangler.preview.jsonc
+pnpm --filter @sub2api/worker exec wrangler deploy --config wrangler.preview.jsonc --strict
+```
+
+这些命令需要预发维护 Token（Workers Scripts: Edit、D1: Edit、Workers KV Storage: Read），并保留原有 Gate migration tag。不要使用根目录的 `pnpm deploy`，它选择生产环境。
 
 ## 一套共享预发，多个分支入口
 
