@@ -384,6 +384,45 @@ describe('explicit administrator channel probes using native D1 and mock fetch',
     expect((await prepare(testEnv.DB, 'SELECT count(*) AS n FROM requests').first())?.n).toBe(0);
   });
 
+  it('preserves JSON error details under a text MIME while removing masked key echoes', async () => {
+    const maskedKey = `${credential.slice(0, 8)}********${credential.slice(-6)}`;
+    const fetcher = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            error: { code: 'invalid_api_key', message: `Provider rejected ${maskedKey}` },
+          }),
+          { status: 401, headers: { 'content-type': 'text/plain' } },
+        ),
+    );
+    const response = await setup(fetcher).request(
+      path,
+      {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify(body()),
+      },
+      testEnv,
+    );
+    expect(response.status).toBe(200);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    const result = (await response.json()).data;
+    expect(result.evidence.response).toMatchObject({
+      status: 401,
+      format: 'text',
+      complete: true,
+      truncated: false,
+      redacted: true,
+      headers: { 'content-type': 'text/plain' },
+    });
+    const providerError = JSON.parse(result.evidence.response.body).error;
+    expect(providerError.code).toBe('invalid_api_key');
+    expect(providerError.message).toContain('[REDACTED]');
+    expect(providerError.message).not.toContain(maskedKey);
+    expect(result.evidence.failure).toMatchObject(providerError);
+    expect(JSON.stringify(result)).not.toContain(credential);
+  });
+
   it.each([
     {
       label: '429 quota JSON',
@@ -414,38 +453,41 @@ describe('explicit administrator channel probes using native D1 and mock fetch',
       failureCode: null,
       failureMessage: 'Provider maintenance window is active.',
     },
-  ])('retains the actual $label response', async ({ status, makeResponse, format, detail, failureCode, failureMessage }) => {
-    const fetcher = vi.fn(async () => makeResponse());
-    const response = await setup(fetcher).request(
-      path,
-      { method: 'POST', headers: headers(), body: JSON.stringify(body()) },
-      testEnv,
-    );
-    expect(response.status).toBe(200);
-    expect(fetcher).toHaveBeenCalledTimes(1);
-    const result = await response.json();
-    expect(result.data).toMatchObject({
-      outcome: 'http_error',
-      upstreamStatus: status,
-      evidence: {
-        execution: 'response_received',
-        response: {
-          status,
-          format,
-          complete: true,
-          truncated: false,
-          body: expect.stringContaining(detail),
+  ])(
+    'retains the actual $label response',
+    async ({ status, makeResponse, format, detail, failureCode, failureMessage }) => {
+      const fetcher = vi.fn(async () => makeResponse());
+      const response = await setup(fetcher).request(
+        path,
+        { method: 'POST', headers: headers(), body: JSON.stringify(body()) },
+        testEnv,
+      );
+      expect(response.status).toBe(200);
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      const result = await response.json();
+      expect(result.data).toMatchObject({
+        outcome: 'http_error',
+        upstreamStatus: status,
+        evidence: {
+          execution: 'response_received',
+          response: {
+            status,
+            format,
+            complete: true,
+            truncated: false,
+            body: expect.stringContaining(detail),
+          },
+          failure: {
+            source: 'upstream',
+            phase: 'headers',
+            code: failureCode,
+            message: expect.stringContaining(failureMessage),
+          },
         },
-        failure: {
-          source: 'upstream',
-          phase: 'headers',
-          code: failureCode,
-          message: expect.stringContaining(failureMessage),
-        },
-      },
-    });
-    expect(JSON.stringify(await actions())).not.toContain(detail);
-  });
+      });
+      expect(JSON.stringify(await actions())).not.toContain(detail);
+    },
+  );
 
   it('reports a concrete protocol issue for a complete invalid JSON response and keeps an empty 200 distinct', async () => {
     const invalidResponse = await setup(
