@@ -412,3 +412,47 @@ test('closing during a diagnostic requires an explicit browser confirmation', as
   expect(fixture.probes).toHaveLength(1);
   expect(fixture.unexpected).toEqual([]);
 });
+
+test('凭证修复从渠道列表和详情直接打开配置页签并保存', async ({ page }) => {
+  const fixture = await installAdminFixtures(page);
+  let repaired = false;
+  const updates: Record<string, unknown>[] = [];
+  await page.route('**/api/v1/admin/channels**', async route => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    const current = { ...channel, hasCredential: repaired, configVersion: repaired ? 7 : 6 };
+    if (path === '/api/v1/admin/channels' && request.method() === 'GET') {
+      return route.fulfill(jsonReply({ items: [current], nextCursor: null }));
+    }
+    if (path === `/api/v1/admin/channels/${channelId}`) {
+      if (request.method() === 'PATCH') {
+        updates.push(request.postDataJSON());
+        repaired = true;
+        return route.fulfill(jsonReply({ ...channel, configVersion: 7 }));
+      }
+      if (request.method() === 'GET') return route.fulfill(jsonReply(current));
+    }
+    return route.fallback();
+  });
+  for (const fromDetail of [false, true]) {
+    repaired = false;
+    await page.goto(fromDetail ? `/admin/channels/${channelId}` : '/admin/channels');
+    if (fromDetail) await page.getByRole('button', { name: '连接诊断', exact: true }).click();
+    else await page.getByRole('row').filter({ hasText: channelName }).getByRole('button', { name: '诊断', exact: true }).click();
+    const diagnostics = page.getByRole('dialog', { name: '渠道诊断' });
+    await expect(diagnostics.getByText('渠道缺少上游凭据。', { exact: true })).toBeVisible();
+    await diagnostics.getByRole('button', { name: '编辑渠道', exact: true }).click();
+    await expect(diagnostics).toHaveCount(0);
+    const management = page.getByRole('dialog', { name: /管理渠道/ });
+    await expect(management.getByRole('tab', { name: '渠道配置', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await management.getByLabel('替换上游凭证', { exact: true }).fill('repair-fixture-key');
+    await management.getByRole('button', { name: '保存更改', exact: true }).click();
+    await expect.poll(() => updates.length).toBe(fromDetail ? 2 : 1);
+    expect(updates.at(-1)).toMatchObject({ upstreamKey: 'repair-fixture-key' });
+    await expect(management.getByLabel('替换上游凭证', { exact: true })).toHaveValue('');
+    await management.getByRole('button', { name: '关闭侧栏', exact: true }).click();
+    await expect(management).toHaveCount(0);
+  }
+  expect(fixture.probes).toHaveLength(0);
+  expect(fixture.unexpected).toEqual([]);
+});
