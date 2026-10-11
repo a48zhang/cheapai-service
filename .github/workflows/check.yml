@@ -2,6 +2,7 @@ name: Local checks
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -23,6 +24,9 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -41,14 +45,29 @@ jobs:
       - name: Check existing-preview orchestration
         run: node scripts/pr-preview.mjs --self-test
 
-      - name: Typecheck all workspaces
-        run: pnpm run typecheck && pnpm run typecheck:desktop
+      - name: Detect desktop changes
+        id: changes
+        run: node scripts/ci/desktop-changes.mjs
+
+      - name: Check CI change detection
+        run: node --test scripts/ci/desktop-changes.test.mjs
+
+      - name: Typecheck cloud workspaces
+        run: pnpm run typecheck
+
+      - name: Typecheck desktop workspaces
+        if: steps.changes.outputs.desktop == 'true'
+        run: pnpm run typecheck:desktop
 
       - name: Run all tests
         run: pnpm run test
 
-      - name: Build all workspaces
-        run: pnpm run build && pnpm run build:desktop
+      - name: Build cloud workspaces
+        run: pnpm run build
+
+      - name: Build desktop workspaces
+        if: steps.changes.outputs.desktop == 'true'
+        run: pnpm run build:desktop
 
       - name: Check React and shared package style
         run: pnpm run lint:web && pnpm run lint:shared && pnpm run format:check:web
@@ -62,4 +81,5 @@ jobs:
         run: pnpm exec playwright test
 
       - name: Check Desktop appearance in Chromium
+        if: steps.changes.outputs.desktop == 'true'
         run: pnpm exec playwright test --config playwright.desktop.config.ts
