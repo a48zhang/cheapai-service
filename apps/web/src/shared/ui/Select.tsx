@@ -69,7 +69,7 @@ export function Select({
         aria-labelledby={ariaLabelledBy}
         aria-describedby={ariaDescribedBy}
         aria-invalid={ariaInvalid}
-        className={`flex min-h-10 w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left text-sm outline-none transition-colors focus-visible:border-[var(--color-ring)] focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--color-surface)] disabled:cursor-not-allowed disabled:opacity-60 ${className ?? ''}`}
+        className={`flex min-h-10 min-w-0 w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left text-[15px] leading-6 outline-none transition-colors focus-visible:border-[var(--color-ring)] focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--color-surface)] disabled:cursor-not-allowed disabled:opacity-60 ${className ?? ''}`}
         style={{
           borderColor:
             ariaInvalid === true || ariaInvalid === 'true'
@@ -79,7 +79,7 @@ export function Select({
           color: 'var(--color-foreground)',
         }}
       >
-        <SelectPrimitive.Value placeholder={placeholder} />
+        <SelectPrimitive.Value placeholder={placeholder} className="min-w-0 flex-1 truncate" />
         <SelectPrimitive.Icon
           aria-hidden="true"
           className="shrink-0 text-[var(--color-muted-foreground)]"
@@ -99,7 +99,7 @@ export function Select({
         <SelectPrimitive.Content
           position="popper"
           sideOffset={4}
-          className={`z-[60] max-h-72 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-md border shadow-[var(--shadow-md)] outline-none ${contentClassName ?? ''}`}
+          className={`z-[60] max-h-72 min-w-[var(--radix-select-trigger-width)] max-w-[calc(100vw-2rem)] overflow-hidden rounded-md border shadow-[var(--shadow-md)] outline-none ${contentClassName ?? ''}`}
           style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
         >
           <SelectPrimitive.Viewport className="max-h-72 overflow-y-auto p-1">
@@ -109,9 +109,11 @@ export function Select({
                   key={item.value}
                   value={item.value}
                   disabled={item.disabled ?? false}
-                  className="relative flex min-h-9 cursor-default select-none items-center rounded px-3 py-1.5 pr-9 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-45 data-[highlighted]:bg-[var(--color-accent-soft)] data-[highlighted]:text-[var(--color-foreground)]"
+                  className="relative flex min-h-10 cursor-default select-none items-center rounded px-3 py-1.5 pr-9 text-[15px] leading-6 outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-45 data-[highlighted]:bg-[var(--color-accent-soft)] data-[highlighted]:text-[var(--color-foreground)]"
                 >
-                  <SelectPrimitive.ItemText>{item.label}</SelectPrimitive.ItemText>
+                  <SelectPrimitive.ItemText className="min-w-0 break-words">
+                    {item.label}
+                  </SelectPrimitive.ItemText>
                   <SelectPrimitive.ItemIndicator className="absolute right-3 inline-flex items-center text-[var(--color-primary)]">
                     <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none">
                       <path

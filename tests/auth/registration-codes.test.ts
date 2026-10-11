@@ -52,6 +52,30 @@ describe('registration code metadata listing', () => {
     expect(byId.get(revoked!.id)).toMatchObject({ status: 'revoked', usedBy: actor2, usedAt: now + 1, revokedAt: now + 2 });
   });
 
+  it('filters all statuses before pagination and binds the cursor to the filter and expiry clock', async () => {
+    const created = await issue({ quantity: 8 });
+    const sorted = [...created.codes].sort((a, b) => b.id.localeCompare(a.id));
+    const [revoked, used, expired, ...unused] = sorted;
+    await prepare(testEnv.DB, 'UPDATE registration_codes SET used_by=?,used_at=?,revoked_at=? WHERE id=?', [actor2, now + 1, now + 2, revoked!.id]).run();
+    await prepare(testEnv.DB, 'UPDATE registration_codes SET used_by=?,used_at=?,expires_at=? WHERE id=?', [actor2, now + 1, now + 1, used!.id]).run();
+    await prepare(testEnv.DB, 'UPDATE registration_codes SET expires_at=? WHERE id=?', [now + 1, expired!.id]).run();
+    const first = await listRegistrationCodes(testEnv.DB, { actorId: actor, now: now + 3, status: 'unused', limit: 2 });
+    const second = await listRegistrationCodes(testEnv.DB, { actorId: actor, now: now + 70_000, status: 'unused', limit: 2, cursor: first.nextCursor! });
+    const third = await listRegistrationCodes(testEnv.DB, { actorId: actor, now: now + 70_000, status: 'unused', limit: 2, cursor: second.nextCursor! });
+    expect([...first.items, ...second.items, ...third.items].map((item) => item.id)).toEqual(unused.map((item) => item.id));
+    expect(third.nextCursor).toBeNull();
+    for (const [status, id] of [['revoked', revoked!.id], ['used', used!.id], ['expired', expired!.id]] as const) {
+      const page = await listRegistrationCodes(testEnv.DB, { actorId: actor, now: now + 3, status, limit: 1 });
+      expect(page.items.map((item) => item.id)).toEqual([id]);
+      expect(page.items[0]?.status).toBe(status);
+      expect(page.nextCursor).toBeNull();
+    }
+    const usedPage = await listRegistrationCodes(testEnv.DB, { actorId: actor, now: now + 3, status: 'used' });
+    expect(usedPage.items[0]?.usedByEmail).toBe(`${actor2}@example.invalid`);
+    await expect(listRegistrationCodes(testEnv.DB, { actorId: actor, now: now + 3, status: 'used', cursor: first.nextCursor! })).rejects.toMatchObject({ code: 'invalid_request' });
+    await expect(listRegistrationCodes(testEnv.DB, { actorId: actor, now: now + 3, cursor: first.nextCursor! })).rejects.toMatchObject({ code: 'invalid_request' });
+  });
+
   it('paginates equal timestamps by ID without duplicates and excludes newer insertions', async () => {
     const created = await issue({ quantity: 5 });
     const first = await listRegistrationCodes(testEnv.DB, { actorId: actor, now, limit: 2 });

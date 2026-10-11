@@ -56,7 +56,7 @@ export function Tabs({
             key={item.value}
             value={item.value}
             disabled={item.disabled ?? false}
-            className={`inline-flex min-h-10 shrink-0 items-center justify-center px-3 py-2 text-sm font-medium text-[var(--color-muted-foreground)] outline-none transition-colors hover:text-[var(--color-foreground)] focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] data-[state=active]:text-[var(--color-primary)] disabled:pointer-events-none disabled:opacity-50 ${orientation === 'vertical' ? 'w-full justify-start border-r-2 border-transparent data-[state=active]:border-[var(--color-primary)]' : 'border-b-2 border-transparent data-[state=active]:border-[var(--color-primary)]'}`}
+            className={`inline-flex min-h-11 shrink-0 items-center justify-center px-4 py-2.5 text-[15px] leading-6 font-medium text-[var(--color-muted-foreground)] outline-none transition-colors hover:text-[var(--color-foreground)] focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] data-[state=active]:text-[var(--color-primary)] disabled:pointer-events-none disabled:opacity-50 ${orientation === 'vertical' ? 'w-full justify-start border-r-2 border-transparent data-[state=active]:border-[var(--color-primary)]' : 'border-b-2 border-transparent data-[state=active]:border-[var(--color-primary)]'}`}
           >
             {item.label}
           </TabsPrimitive.Trigger>

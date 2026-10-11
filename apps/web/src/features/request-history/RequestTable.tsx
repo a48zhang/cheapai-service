@@ -3,8 +3,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import type { RequestRecord } from '@cheapai/contracts/requests';
 import { formatDateTime } from '../../shared/lib/datetime';
 import { CursorTable } from '../../shared/patterns/CursorTable';
-import { StatusBadge } from '../../shared/ui/StatusBadge';
-import { requestCostLabel, requestResultPresentation, requestSourceLabel } from './presentation';
+import { requestCostLabel, requestSourceLabel } from './presentation';
 import { RequestStatus } from './RequestStatus';
 
 export interface RequestTableProps {
@@ -28,7 +27,7 @@ function usageText(item: RequestRecord): string {
   const counts = item.usage.counts;
   const input = counts.inputTokens === undefined ? '—' : String(counts.inputTokens);
   const output = counts.outputTokens === undefined ? '—' : String(counts.outputTokens);
-  return `${item.usage.quality === 'complete' ? '完整' : '部分'} · 输入 ${input} / 输出 ${output}`;
+  return `输入 ${input} / 输出 ${output}${item.usage.quality === 'partial' ? '（部分）' : ''}`;
 }
 
 function detailHref(id: string, detailPath: string, listLocation: string): string {
@@ -39,12 +38,13 @@ function createdColumn(): ColumnDef<RequestRecord, unknown> {
   return {
     id: 'created',
     header: '时间',
+    size: 160,
     cell: ({ row }) => {
       const date = new Date(row.original.created_at);
       return (
         <time
           dateTime={Number.isFinite(date.getTime()) ? date.toISOString() : undefined}
-          className="whitespace-nowrap text-xs text-[var(--color-ink-secondary)]"
+          className="whitespace-nowrap text-sm text-[var(--color-ink-secondary)]"
         >
           {formatDateTime(row.original.created_at)}
         </time>
@@ -64,7 +64,7 @@ function personalColumns(
       header: '模型',
       cell: ({ row }) => (
         <Link
-          className="break-all font-medium text-[var(--color-accent)] hover:text-[var(--color-accent)]"
+          className="block max-w-64 truncate font-medium text-[var(--color-accent)] hover:underline"
           aria-label={`查看 ${row.original.public_model_id} 使用详情`}
           to={detailHref(row.original.id, detailPath, listLocation)}
         >
@@ -83,17 +83,31 @@ function personalColumns(
     },
     {
       id: 'result',
-      header: '结果',
+      header: '执行 / 计费',
       cell: ({ row }) => {
-        const result = requestResultPresentation(row.original.execution_status);
-        return <StatusBadge tone={result.tone}>{result.label}</StatusBadge>;
+        return (
+          <RequestStatus
+            executionStatus={row.original.execution_status}
+            billingStatus={row.original.billing_status}
+          />
+        );
       },
+    },
+    {
+      id: 'usage',
+      header: '用量',
+      size: 165,
+      cell: ({ row }) => (
+        <span className="text-sm text-[var(--color-ink-secondary)]">{usageText(row.original)}</span>
+      ),
     },
     {
       id: 'cost',
       header: '费用',
+      size: 170,
+      meta: { align: 'right', numeric: true },
       cell: ({ row }) => (
-        <span className="whitespace-nowrap font-mono text-sm tabular-nums text-[var(--color-ink)]">
+        <span className="whitespace-nowrap console-number text-[15px] text-[var(--color-ink)]">
           {requestCostLabel(row.original)}
         </span>
       ),
@@ -108,43 +122,36 @@ function adminColumns(
   return [
     {
       id: 'request',
-      header: '请求 / 用户',
+      header: '模型 / 用户',
+      size: 190,
       cell: ({ row }) => (
-        <div className="min-w-48 space-y-1">
+        <div className="min-w-40 max-w-64 space-y-1">
           <Link
-            className="font-mono text-xs font-medium text-[var(--color-accent)] hover:text-[var(--color-accent)]"
+            className="block truncate text-[15px] font-medium text-[var(--color-accent)] hover:underline"
             to={detailHref(row.original.id, detailPath, listLocation)}
           >
-            {row.original.id}
-          </Link>
-          <p className="m-0 break-all font-medium text-[var(--color-ink)]">
             {row.original.public_model_id}
-          </p>
-          <p className="m-0 break-all text-xs text-[var(--color-ink-muted)]">
-            {row.original.user_id}
-          </p>
-          <p className="m-0 text-xs text-[var(--color-ink-muted)]">
-            {row.original.downstream_protocol} → {row.original.upstream_protocol} ·{' '}
-            {row.original.upstream_model}
-          </p>
+          </Link>
+          <Link
+            className="block truncate text-sm text-[var(--color-ink-secondary)] hover:text-[var(--color-accent)]"
+            title={row.original.user_email ?? row.original.user_id}
+            to={`/admin/users/${encodeURIComponent(row.original.user_id)}`}
+          >
+            {row.original.user_email ?? row.original.user_id}
+          </Link>
         </div>
       ),
     },
     {
       id: 'source',
       header: '来源 / 分组',
+      size: 130,
       cell: ({ row }) => (
-        <div className="min-w-28 text-sm">
+        <div className="min-w-28 space-y-1 text-sm">
           <span>{row.original.source === 'web_chat' ? '网页聊天' : 'API 请求'}</span>
-          <p className="m-0 mt-1 break-all text-xs text-[var(--color-ink-muted)]">
-            分组：{row.original.group_id ?? '未知'}
+          <p className="m-0 mt-1 max-w-40 truncate text-sm text-[var(--color-ink-muted)]">
+            {row.original.group_name ?? row.original.group_id ?? '未记录分组'}
           </p>
-          <Link
-            className="mt-1 inline-block text-xs text-[var(--color-accent)] hover:underline"
-            to={`/admin/billing?${new URLSearchParams({ userId: row.original.user_id, requestId: row.original.id })}`}
-          >
-            查看相关账单
-          </Link>
         </div>
       ),
     },
@@ -161,8 +168,9 @@ function adminColumns(
     {
       id: 'usage',
       header: '用量',
+      size: 160,
       cell: ({ row }) => (
-        <span className="whitespace-nowrap text-xs text-[var(--color-ink-secondary)]">
+        <span className="block max-w-64 text-sm leading-6 text-[var(--color-ink-secondary)]">
           {usageText(row.original)}
         </span>
       ),
@@ -170,8 +178,10 @@ function adminColumns(
     {
       id: 'cost',
       header: '费用',
+      size: 170,
+      meta: { align: 'right', numeric: true },
       cell: ({ row }) => (
-        <span className="whitespace-nowrap font-mono text-sm tabular-nums text-[var(--color-ink)]">
+        <span className="whitespace-nowrap console-number text-[15px] text-[var(--color-ink)]">
           {requestCostLabel(row.original)}
         </span>
       ),

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { app } from '../../apps/worker/app';
 import type { Env } from '../../apps/worker/env';
 import { DEFAULT_CONFIG } from '../../apps/worker/config';
@@ -31,6 +31,79 @@ async function seedExistingLoginUser() {
 }
 
 describe('real production app entry with native D1/GATE (not a socket/mail acceptance test)', () => {
+
+  it.each(['https://cheapai.dev', 'https://www.cheapai.dev'])('keeps SPA requests on %s', async currentOrigin => {
+    const assets = { fetch: vi.fn(async (_request: Request) => new Response('<!doctype html><title>cheapai</title>', { headers: { 'Content-Type': 'text/html' } })) };
+    const env = bindings({ ENVIRONMENT: 'production', PUBLIC_BASE_URL: 'https://cheapai.dev', ASSETS: assets as unknown as Fetcher });
+    for (const path of ['/dashboard?view=overview', '/chat', '/admin/channels']) {
+      const url = currentOrigin + path;
+      const response = await app.fetch(new Request(url), env);
+      expect(response.status).toBe(200);
+      expect(response.headers.get('Location')).toBeNull();
+      expect(assets.fetch.mock.calls.at(-1)?.[0].url).toBe(url);
+    }
+    expect(env.PUBLIC_BASE_URL).toBe('https://cheapai.dev');
+  });
+
+  it('runs bootstrap, login, identity and logout on www without changing shared bindings', async () => {
+    await seedExistingLoginUser();
+    const www = 'https://www.cheapai.dev';
+    const env = bindings({ ENVIRONMENT: 'production', PUBLIC_BASE_URL: 'https://cheapai.dev' });
+    Object.defineProperty(env, 'RESEND_API_KEY', { enumerable: true, get() { throw new Error('Unrelated secret was accessed'); } });
+    const bootstrap = await app.fetch(new Request(www + settingsPath), env);
+    expect(bootstrap.status).toBe(200);
+    const { data } = await bootstrap.json<{ data: { csrfToken: string } }>();
+    const csrfCookie = bootstrap.headers.get('Set-Cookie')!.split(';')[0]!;
+    const headers = { Origin: www, 'Content-Type': 'application/json', Cookie: csrfCookie,
+      'X-CSRF-Token': data.csrfToken, 'CF-Connecting-IP': '198.51.100.42' };
+    const request = new Request(www + '/api/v1/auth/login', { method: 'POST', headers, body: JSON.stringify(credentials) });
+    // Simulate native edge metadata; forwarding headers alone do not establish it.
+    Object.defineProperty(request, 'cf', { value: { colo: 'SJC', httpProtocol: 'HTTP/2' } });
+    const login = await app.fetch(request, env);
+    expect(login.status).toBe(200);
+    expect(login.headers.get('Location')).toBeNull();
+    expect(login.headers.get('Access-Control-Allow-Origin')).toBe(www);
+    const session = login.headers.get('Set-Cookie')!;
+    expect(session).not.toMatch(/Domain=/i);
+    const cookie = session.split(';')[0]!;
+    const me = await app.fetch(new Request(www + '/api/v1/auth/me', { headers: { Cookie: cookie } }), env);
+    expect(me.status).toBe(200);
+    expect(await me.json()).toMatchObject({ data: { id: 'audit-login-user' } });
+    const logout = await app.fetch(new Request(www + '/api/v1/auth/logout', { method: 'POST', headers: {
+      ...headers, Cookie: `${cookie}; ${csrfCookie}`,
+    } }), env);
+    expect(logout.status).toBe(200);
+    expect(logout.headers.get('Location')).toBeNull();
+    expect((await app.fetch(new Request(www + '/api/v1/auth/me', { headers: { Cookie: cookie } }), env)).status).toBe(401);
+    expect(env.PUBLIC_BASE_URL).toBe('https://cheapai.dev');
+    expect((await app.fetch(new Request('https://cheapai.dev/healthz'), env)).status).toBe(200);
+  });
+
+  it("allows only each production host's own origin and never trusts a forged Host header", async () => {
+    const env = bindings({ ENVIRONMENT: 'production', PUBLIC_BASE_URL: 'https://cheapai.dev' });
+    for (const current of ['https://cheapai.dev', 'https://www.cheapai.dev']) {
+      const same = await app.fetch(new Request(current + '/v1/chat/completions', { method: 'OPTIONS', headers: {
+        Origin: current, 'Access-Control-Request-Method': 'POST',
+      } }), env);
+      expect(same.status).toBe(204);
+      expect(same.headers.get('Access-Control-Allow-Origin')).toBe(current);
+      const other = current.includes('www.') ? 'https://cheapai.dev' : 'https://www.cheapai.dev';
+      expect((await app.fetch(new Request(current + '/v1/chat/completions', { method: 'OPTIONS', headers: { Origin: other } }), env)).status).toBe(403);
+    }
+    const bootstrap = await app.fetch(new Request('https://cheapai.dev' + settingsPath), env);
+    const { data } = await bootstrap.json<{ data: { csrfToken: string } }>();
+    const csrfHeaders = { Cookie: bootstrap.headers.get('Set-Cookie')!.split(';')[0]!, 'X-CSRF-Token': data.csrfToken };
+    for (const target of ['https://www.cheapai.dev.evil.invalid', 'https://www.cheapai.dev:8443', 'http://www.cheapai.dev']) {
+      const response = await app.fetch(new Request(target + '/api/v1/auth/logout', { method: 'POST', headers: {
+        ...csrfHeaders, Origin: 'https://www.cheapai.dev', Host: 'www.cheapai.dev',
+      } }), env);
+      expect(response.status).toBe(403);
+      expect(response.headers.get('Location')).toBeNull();
+    }
+    const staging = bindings({ ENVIRONMENT: 'staging', PUBLIC_BASE_URL: 'https://cheapai.dev' });
+    expect((await app.fetch(new Request('https://www.cheapai.dev/v1/models', { method: 'OPTIONS', headers: { Origin: 'https://www.cheapai.dev' } }), staging)).status).toBe(403);
+  });
+
   it.each([
     ['missing key', { EMAIL_VERIFICATION_READY: true, EMAIL_FROM: 'sender@example.invalid' }],
     ['invalid key', { EMAIL_VERIFICATION_READY: true, EMAIL_HMAC_KEY: btoa('weak'), EMAIL_FROM: 'sender@example.invalid' }],

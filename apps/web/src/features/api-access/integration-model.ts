@@ -85,3 +85,14 @@ ${messagesHeaders}  -d '${payload}'`;
     code,
   };
 }
+
+export function codexConfiguration(baseUrl: string, modelId: string): string {
+  return `model_provider = "cheapai"
+model = ${JSON.stringify(modelId)}
+
+[model_providers.cheapai]
+name = "CheapAI"
+base_url = ${JSON.stringify(baseUrl)}
+env_key = "CHEAPAI_API_KEY"
+wire_api = "responses"`;
+}

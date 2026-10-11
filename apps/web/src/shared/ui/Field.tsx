@@ -51,10 +51,10 @@ export function Field({
   });
 
   return (
-    <div className={`grid gap-1.5 ${className ?? ''}`}>
+    <div className={`grid gap-2 ${className ?? ''}`}>
       <Label.Root
         htmlFor={controlId}
-        className="text-sm font-medium text-[var(--color-foreground)]"
+        className="text-[15px] font-medium leading-6 text-[var(--color-foreground)]"
       >
         {label}
         {required && (
@@ -66,12 +66,12 @@ export function Field({
       </Label.Root>
       {child}
       {description && (
-        <p id={descriptionId} className="text-xs text-[var(--color-muted-foreground)]">
+        <p id={descriptionId} className="text-sm leading-6 text-[var(--color-muted-foreground)]">
           {description}
         </p>
       )}
       {hasError && (
-        <p id={errorId} role="alert" className="text-xs text-[var(--color-destructive)]">
+        <p id={errorId} role="alert" className="text-sm leading-6 text-[var(--color-destructive)]">
           {error}
         </p>
       )}

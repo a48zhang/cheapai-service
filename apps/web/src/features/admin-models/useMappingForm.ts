@@ -49,7 +49,12 @@ export function useMappingForm({
   const api = useMemo(() => createMappingsApi(client), [client]);
   const mappings = useQuery(modelMappingsQueryOptions({ client, actorId }, publicModelId));
   const channels = useQuery(
-    channelOptionsQueryOptions(client, actorId, sessionEpoch, channelPickerOpen),
+    channelOptionsQueryOptions(
+      client,
+      actorId,
+      sessionEpoch,
+      channelPickerOpen || (mappings.data?.items.length ?? 0) > 0,
+    ),
   );
   const rows = useMemo(() => mappings.data?.items ?? [], [mappings.data]);
   const form = useForm<MappingFormValues, unknown, MappingFormOutput>({
@@ -98,7 +103,7 @@ export function useMappingForm({
 
   function setChannelPickerVisibility(open: boolean) {
     setChannelPickerOpen(open);
-    if (!open)
+    if (!open && rows.length === 0)
       void queryClient.cancelQueries({
         queryKey: channelOptionsQueryKey(actorId, sessionEpoch),
         exact: true,

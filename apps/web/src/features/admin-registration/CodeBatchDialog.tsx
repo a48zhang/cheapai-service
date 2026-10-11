@@ -25,7 +25,12 @@ export function CodeBatchDialog({
 }) {
   const { client, user, epoch } = useSession();
   const [quantity, setQuantity] = useState('1');
-  const [expires, setExpires] = useState('');
+  const [expires, setExpires] = useState(() => {
+    const deadline = new Date(Date.now() + 7 * 86_400_000);
+    return new Date(deadline.getTime() - deadline.getTimezoneOffset() * 60_000)
+      .toISOString()
+      .slice(0, 16);
+  });
   const [intent, setIntent] = useState<CodeIntent | null>(null);
   const [result, setResult] = useState<CodeBatch | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -93,7 +98,7 @@ export function CodeBatchDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="生成邀请码"
-      description="邀请码仅赋予注册资格，不增加账户余额。"
+      description="生成后可复制并分享给受邀用户。"
       closeLabel="关闭"
       footer={
         <>
@@ -108,19 +113,25 @@ export function CodeBatchDialog({
         </>
       }
     >
-      <div className="space-y-4 p-6">
+      <div className="space-y-5 p-6">
         {result ? (
           <>
-            <p role="status">
+            <p
+              role="status"
+              className="rounded-lg bg-[var(--color-surface-subtle)] p-4 text-sm leading-6"
+            >
               {result.replayed
                 ? '已恢复原批次。明文无法再次返回。'
                 : '请立即保存，关闭后无法再次查看完整邀请码。'}
             </p>
-            <ul className="max-h-64 space-y-2 overflow-auto">
+            <ul className="m-0 max-h-64 space-y-3 overflow-auto rounded-lg bg-[var(--color-surface-subtle)] p-4">
               {result.codes.map((code) => (
-                <li key={code.id}>
-                  <code className="break-all text-sm">
-                    {'token' in code ? code.token : code.displayPrefix}
+                <li key={code.id} className="flex items-start gap-3">
+                  <span className="w-5 shrink-0 text-sm tabular-nums text-[var(--color-ink-secondary)]">
+                    {code.ordinal + 1}
+                  </span>
+                  <code className="select-all break-all text-sm leading-6">
+                    {'token' in code ? code.token : `${code.displayPrefix}…`}
                   </code>
                 </li>
               ))}
@@ -135,14 +146,14 @@ export function CodeBatchDialog({
                     .catch(() => setCopyStatus('无法复制，请手动保存'))
                 }
               >
-                复制邀请码
+                复制全部邀请码
               </Button>
             )}
             {copyStatus && <p role="status">{copyStatus}</p>}
           </>
         ) : (
           <>
-            <Field label="数量">
+            <Field label="生成数量" description="每批最多 100 个">
               <Input
                 type="number"
                 min={1}
@@ -152,7 +163,7 @@ export function CodeBatchDialog({
                 disabled={busy || !!intent}
               />
             </Field>
-            <Field label="有效期">
+            <Field label="到期时间" description="最长有效期为 30 天">
               <Input
                 type="datetime-local"
                 value={expires}

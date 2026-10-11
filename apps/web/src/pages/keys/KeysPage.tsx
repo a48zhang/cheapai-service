@@ -1,4 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Plus } from 'lucide-react';
+import { Button } from '../../shared/ui/Button';
 import { useQuery } from '@tanstack/react-query';
 import type { KeyMetadata } from '@cheapai/api-client/keys';
 import {
@@ -72,17 +74,27 @@ export default function KeysPage() {
 
   return (
     <section className="space-y-6">
-      <PageHeader heading="API 接入" />
+      <PageHeader
+        heading="API 接入"
+        description="管理密钥，将模型接入你的应用。"
+        actions={
+          <Button
+            onClick={() => {
+              setEditing(null);
+              setCreateOpen(true);
+            }}
+          >
+            <Plus size={18} aria-hidden="true" />
+            创建密钥
+          </Button>
+        }
+      />
       <ApiBaseUrl baseUrl={baseUrl} />
       <KeyTable
         api={api}
         userId={userId}
         selectedKeyId={selectedKey?.id ?? null}
         onSelectKey={onSelectKey}
-        onCreate={() => {
-          setEditing(null);
-          setCreateOpen(true);
-        }}
         onEdit={(key) => {
           setCreateOpen(false);
           setEditing(key);

@@ -54,7 +54,7 @@ export function KeyForm(props: KeyFormProps) {
           busy={busy}
           disabled={groupsQuery.isLoading || groupsError !== '' || !selectedGroup}
         >
-          {busy ? '正在确认…' : createPhase === 'unknown' ? '重试确认' : '创建 Key'}
+          {busy ? '正在确认…' : createPhase === 'unknown' ? '重试确认' : '创建密钥'}
         </Button>
       )}
       {mode === 'edit' && current?.status !== 'revoked' && (
@@ -64,7 +64,7 @@ export function KeyForm(props: KeyFormProps) {
           busy={busy}
           disabled={groupsQuery.isLoading || groupsError !== '' || reloadNeeded}
         >
-          保存 Key
+          保存密钥
         </Button>
       )}
     </>
@@ -74,8 +74,8 @@ export function KeyForm(props: KeyFormProps) {
     <Dialog
       open={open}
       onOpenChange={close}
-      title={mode === 'create' ? '创建 API Key' : '编辑 Key'}
-      closeLabel={mode === 'create' ? '关闭创建 API Key' : '关闭编辑 Key'}
+      title={mode === 'create' ? '创建密钥' : '编辑密钥'}
+      closeLabel={mode === 'create' ? '关闭创建密钥' : '关闭编辑密钥'}
       closeButton={!busy}
       footer={footer}
     >
@@ -91,7 +91,7 @@ export function KeyForm(props: KeyFormProps) {
           <ApiErrorNotice error={notice} />
         ))}
       {mode === 'edit' && current?.status === 'revoked' && (
-        <p className="mb-4 text-sm text-[var(--color-muted-foreground)]">此 Key 已撤销。</p>
+        <p className="mb-4 text-sm text-[var(--color-muted-foreground)]">此 密钥已撤销。</p>
       )}
       {mode === 'edit' && current && (
         <p className="mb-4">
@@ -120,7 +120,7 @@ export function KeyForm(props: KeyFormProps) {
                 </div>
                 <input type="hidden" {...register('groupId')} />
                 {errors.groupId?.message && (
-                  <p role="alert" className="text-xs text-[var(--color-destructive)]">
+                  <p role="alert" className="text-sm text-[var(--color-destructive)]">
                     {errors.groupId.message}
                   </p>
                 )}
@@ -187,7 +187,7 @@ export function KeyForm(props: KeyFormProps) {
                           className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1"
                         >
                           <code>{model}</code>
-                          <span className="text-xs text-[var(--color-muted-foreground)]">
+                          <span className="text-sm text-[var(--color-muted-foreground)]">
                             输入{' '}
                             {formatUsdPerMillionTokens(
                               prices?.input,

@@ -8,7 +8,7 @@ import type { DbValue } from '../db';
 
 export const ADMIN_AUDIT_PATH = '/api/v1/admin/audit';
 interface RouteEnv extends AuthEnv { Variables: AuthEnv['Variables'] & { auditQueryNow?: number } }
-interface AuditRow { id: string; actor_id: string; action: string; target_type: string; target_id: string; operation_id: string; created_at: number; redacted_change_json: string }
+interface AuditRow { id: string; actor_id: string; action: string; target_type: string; target_id: string; operation_id: string; created_at: number; redacted_change_json: string; actor_email: string | null; target_name: string | null }
 function validId(value: string): boolean { return value.length <= 128 && value.trim() === value && /^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/.test(value); }
 function time(value: string | null): number | null {
   if (value === null) return null;
@@ -61,18 +61,37 @@ export function createAuditRoutes(dependencies: { now(): number } = { now: Date.
         ceiling = value[3] as number; position = [value[4] as number, value[5]];
       } catch { throw new ApiError('invalid_request'); }
     }
-    const conditions = ['created_at<=?']; const values: DbValue[] = [ceiling];
+    const conditions = ['a.created_at<=?']; const values: DbValue[] = [ceiling];
     for (const [column, value] of [['actor_id', filter.actorId], ['action', filter.action], ['target_type', filter.targetType], ['target_id', filter.targetId], ['operation_id', filter.operationId]] as const) {
-      if (value !== null) { conditions.push(`${column}=?`); values.push(value); }
+      if (value !== null) { conditions.push(`a.${column}=?`); values.push(value); }
     }
-    if (filter.from !== null) { conditions.push('created_at>=?'); values.push(filter.from); }
-    if (filter.to !== null) { conditions.push('created_at<=?'); values.push(filter.to); }
-    if (position) { conditions.push('(created_at<? OR (created_at=? AND id<?))'); values.push(position[0], position[0], position[1]); }
+    if (filter.from !== null) { conditions.push('a.created_at>=?'); values.push(filter.from); }
+    if (filter.to !== null) { conditions.push('a.created_at<=?'); values.push(filter.to); }
+    if (position) { conditions.push('(a.created_at<? OR (a.created_at=? AND a.id<?))'); values.push(position[0], position[0], position[1]); }
     values.push(page.limit + 1);
     const rows = (await prepare<AuditRow>(context.env.DB,
-      `SELECT id,actor_id,action,target_type,target_id,operation_id,created_at,
-       redacted_change_json FROM admin_audit
-       WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC,id DESC LIMIT ?`, values).all()).rows;
+      `SELECT a.id,a.actor_id,a.action,a.target_type,a.target_id,a.operation_id,a.created_at,
+       a.redacted_change_json,actor.email_normalized AS actor_email,
+       CASE a.target_type
+         WHEN 'user' THEN target_user.email_normalized
+         WHEN 'group' THEN target_group.name
+         WHEN 'channel' THEN target_channel.name
+         WHEN 'model' THEN a.target_id
+         WHEN 'api_key' THEN target_key.name
+         WHEN 'registration_code' THEN target_code.display_prefix
+         WHEN 'settings' THEN CASE WHEN a.target_id='registration' THEN '注册设置' END
+         WHEN 'channel_model' THEN CASE WHEN json_valid(a.redacted_change_json)
+           THEN CASE WHEN json_type(a.redacted_change_json,'$.public_model_id')='text'
+             THEN json_extract(a.redacted_change_json,'$.public_model_id') END END
+       END AS target_name
+       FROM admin_audit a
+       LEFT JOIN users actor ON actor.id=a.actor_id
+       LEFT JOIN users target_user ON a.target_type='user' AND target_user.id=a.target_id
+       LEFT JOIN groups target_group ON a.target_type='group' AND target_group.id=a.target_id
+       LEFT JOIN channels target_channel ON a.target_type='channel' AND target_channel.id=a.target_id
+       LEFT JOIN api_keys target_key ON a.target_type='api_key' AND target_key.id=a.target_id
+       LEFT JOIN registration_codes target_code ON a.target_type='registration_code' AND target_code.id=a.target_id
+       WHERE ${conditions.join(' AND ')} ORDER BY a.created_at DESC,a.id DESC LIMIT ?`, values).all()).rows;
     const selected = rows.slice(0, page.limit); const last = selected.at(-1);
     return noStore(apiSuccess({ items: selected.map(output), snapshotAt: ceiling,
       nextCursor: rows.length > page.limit && last ? encode([1, actor, filter, ceiling, last.created_at, last.id]) : null }, context.get('requestId')));

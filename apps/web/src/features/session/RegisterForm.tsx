@@ -41,7 +41,7 @@ export function RegisterForm({ returnTo = '/' }: { returnTo?: string }) {
   if (!publicSettings)
     return (
       <>
-        <p role="status">正在读取注册策略…</p>
+        <p role="status">正在读取注册设置…</p>
         <ApiErrorNotice
           error={settingsError}
           onRetry={() => void session.bootstrap().catch(() => undefined)}

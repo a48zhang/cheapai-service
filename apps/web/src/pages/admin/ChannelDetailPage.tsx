@@ -51,9 +51,8 @@ export function ChannelDetailPage() {
   };
 
   return (
-    <section className="space-y-5">
+    <section className="space-y-6">
       <PageHeader
-        eyebrow="资源配置 · 渠道详情"
         heading={channel?.name ?? '渠道详情'}
         actions={
           <>
@@ -106,63 +105,62 @@ export function ChannelDetailPage() {
         />
       ) : channel ? (
         <>
-          <section
-            aria-label="渠道配置"
-            className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"
-          >
+          <section aria-label="渠道配置" className="console-panel">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-muted-foreground)]">
-                  渠道状态
-                </p>
+                <p className="text-sm font-medium text-[var(--color-muted-foreground)]">渠道状态</p>
                 <div className="mt-2">
                   <StatusBadge tone={channel.status === 'active' ? 'success' : 'neutral'}>
                     {channel.status === 'active' ? '启用' : '停用'}
                   </StatusBadge>
                 </div>
               </div>
-              <p className="text-sm text-[var(--color-muted-foreground)]">
-                配置版本 <span className="font-mono">v{channel.configVersion}</span>
-              </p>
             </div>
             <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 xl:grid-cols-3">
               <div className="min-w-0">
-                <dt className="text-xs text-[var(--color-muted-foreground)]">渠道 ID</dt>
-                <dd className="mt-1 break-all font-mono text-sm">{channel.id}</dd>
-              </div>
-              <div className="min-w-0">
-                <dt className="text-xs text-[var(--color-muted-foreground)]">上游 Base URL</dt>
+                <dt className="console-muted">上游地址</dt>
                 <dd className="mt-1 break-all text-sm">{channel.baseUrl}</dd>
               </div>
               <div>
-                <dt className="text-xs text-[var(--color-muted-foreground)]">凭证</dt>
-                <dd className="mt-1 text-sm">
-                  {channel.hasCredential ? '已配置（不回显）' : '未配置'}
-                </dd>
+                <dt className="console-muted">凭证</dt>
+                <dd className="mt-1 text-sm">{channel.hasCredential ? '已配置' : '未配置'}</dd>
               </div>
               <div>
-                <dt className="text-xs text-[var(--color-muted-foreground)]">并发上限</dt>
+                <dt className="console-muted">并发上限</dt>
                 <dd className="mt-1 text-sm tabular-nums">
                   {limitLabel(channel.concurrencyLimit)}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-[var(--color-muted-foreground)]">每分钟请求上限</dt>
+                <dt className="console-muted">每分钟请求上限</dt>
                 <dd className="mt-1 text-sm tabular-nums">{limitLabel(channel.rpmLimit)}</dd>
               </div>
               <div>
-                <dt className="text-xs text-[var(--color-muted-foreground)]">调度优先级</dt>
+                <dt className="console-muted">调度优先级</dt>
                 <dd className="mt-1 text-sm tabular-nums">{channel.priority}</dd>
               </div>
               <div>
-                <dt className="text-xs text-[var(--color-muted-foreground)]">创建时间</dt>
+                <dt className="console-muted">创建时间</dt>
                 <dd className="mt-1 text-sm">{formatDateTime(channel.createdAt)}</dd>
               </div>
               <div>
-                <dt className="text-xs text-[var(--color-muted-foreground)]">最近更新</dt>
+                <dt className="console-muted">最近更新</dt>
                 <dd className="mt-1 text-sm">{formatDateTime(channel.updatedAt)}</dd>
               </div>
             </dl>
+            <details className="mt-6 border-t border-[var(--color-border)] pt-4">
+              <summary className="cursor-pointer console-muted">技术信息</summary>
+              <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div>
+                  <dt className="console-label">渠道 ID</dt>
+                  <dd className="mt-1 break-all font-mono text-sm select-all">{channel.id}</dd>
+                </div>
+                <div>
+                  <dt className="console-label">配置版本</dt>
+                  <dd className="mt-1 console-number">v{channel.configVersion}</dd>
+                </div>
+              </dl>
+            </details>
           </section>
 
           <div

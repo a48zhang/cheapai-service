@@ -67,6 +67,19 @@ function publicRecord(row: QueryRow) {
     ? { code: error_code, message: errors[error_code] } : { code: 'unclassified_error', message: 'Request processing failed.' };
   return { ...safe, price_snapshot: price, price_snapshot_valid: price !== null, usage: evidence.value, usage_valid: evidence.valid, error };
 }
+/** Resolve page labels in bounded batch reads, never one query per request. */
+async function publicRecords(database: D1Database, rows: QueryRow[], admin: boolean) {
+  const groupIds = [...new Set(rows.map(row => row.group_id).filter((id): id is string => id !== null))];
+  const groups = groupIds.length ? (await prepare<{ id: string; name: string }>(database,
+    `SELECT id,name FROM groups WHERE id IN (${groupIds.map(() => '?').join(',')})`, groupIds).all()).rows : [];
+  const groupNames = new Map(groups.map(group => [group.id, group.name]));
+  const userIds = admin ? [...new Set(rows.map(row => row.user_id))] : [];
+  const users = userIds.length ? (await prepare<{ id: string; email_normalized: string }>(database,
+    `SELECT id,email_normalized FROM users WHERE id IN (${userIds.map(() => '?').join(',')})`, userIds).all()).rows : [];
+  const emails = new Map(users.map(user => [user.id, user.email_normalized]));
+  return rows.map(row => ({ ...publicRecord(row), group_name: row.group_id ? groupNames.get(row.group_id) ?? null : null,
+    ...(admin ? { user_email: emails.get(row.user_id) ?? null } : {}) }));
+}
 function encode(value: unknown): string { return btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(value)))).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, ''); }
 function noStore(response: Response): Response { response.headers.set('Cache-Control', 'no-store'); return response; }
 
@@ -117,7 +130,7 @@ export function createRequestQueryRoutes(dependencies: { now(): number } = { now
       values.push(page.limit + 1);
       const result = await prepare<QueryRow>(context.env.DB, `SELECT ${projection} FROM requests WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC,id DESC LIMIT ?`, values).all();
       const selected = result.rows.slice(0, page.limit); const last = selected.at(-1);
-      return noStore(apiSuccess({ items: selected.map(publicRecord), snapshotAt: ceiling, nextCursor: result.rows.length > page.limit && last
+      return noStore(apiSuccess({ items: await publicRecords(context.env.DB, selected, admin), snapshotAt: ceiling, nextCursor: result.rows.length > page.limit && last
         ? encode([1, admin, actor, filter, ceiling, last.created_at, last.id]) : null }, context.get('requestId')));
     });
     app.get(`${path}/:id`, initialize, (context, next) => requireSession(() => context.get('queryNow')!)(context, next), authorize, async context => {
@@ -126,7 +139,7 @@ export function createRequestQueryRoutes(dependencies: { now(): number } = { now
       const row = await prepare<QueryRow>(context.env.DB, `SELECT ${projection} FROM requests WHERE id=?${admin ? '' : ' AND user_id=?'}`,
         admin ? [id] : [id, context.get('user').id]).first();
       if (!row) throw new ApiError('not_found');
-      return noStore(apiSuccess(publicRecord(row), context.get('requestId')));
+      return noStore(apiSuccess((await publicRecords(context.env.DB, [row], admin))[0], context.get('requestId')));
     });
   }
   app.notFound(context => noStore(apiError(new ApiError('not_found'), context.get('requestId') ?? createRequestId())));

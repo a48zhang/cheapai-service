@@ -47,7 +47,10 @@ describe('B09 scoped append-only ledger pagination', () => {
     expect((await queryBillingEntries(testEnv.DB, owner, { createdFrom: 2000 })).items.map(item => item.id)).toEqual(['entry-a', 'entry-b', 'entry-c']);
     expect((await queryBillingEntries(testEnv.DB, owner, { createdBefore: 2000 })).items.map(item => item.id)).toEqual(['entry-old']);
     expect((await queryBillingEntries(testEnv.DB, owner, { createdFrom: 2000, createdBefore: 2000 })).items).toEqual([]);
-    expect((await queryBillingEntries(testEnv.DB, { kind: 'admin', actorId: 'b09-admin' }, { createdFrom: 3000, createdBefore: 3001 })).items.map(item => item.id)).toEqual(['foreign-entry']);
+    const adminPage = await queryBillingEntries(testEnv.DB, { kind: 'admin', actorId: 'b09-admin' }, { createdFrom: 3000, createdBefore: 3001 });
+    expect(adminPage.items.map(item => item.id)).toEqual(['foreign-entry']);
+    expect(adminPage.items[0]?.userEmail).toBe('b09-other@example.invalid');
+    expect((await queryBillingEntries(testEnv.DB, owner)).items[0]).not.toHaveProperty('userEmail');
 
     const filteredLedger = await queryBillingEntries(testEnv.DB, owner, {
       kind: 'grant',

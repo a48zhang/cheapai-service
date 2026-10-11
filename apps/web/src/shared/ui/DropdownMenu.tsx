@@ -73,11 +73,14 @@ export function DropdownMenu({
                 key={`action-${index}`}
                 onSelect={item.onSelect}
                 disabled={item.disabled ?? false}
-                className={`flex min-h-9 cursor-default select-none items-center justify-between gap-5 rounded px-3 py-2 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-45 data-[highlighted]:bg-[var(--color-muted)] ${item.destructive ? 'text-[var(--color-destructive)] data-[highlighted]:bg-[var(--color-destructive-soft)]' : 'text-[var(--color-foreground)]'}`}
+                className={`flex min-h-10 cursor-default select-none items-center justify-between gap-5 rounded px-3 py-2 text-[15px] leading-6 outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-45 data-[highlighted]:bg-[var(--color-muted)] ${item.destructive ? 'text-[var(--color-destructive)] data-[highlighted]:bg-[var(--color-destructive-soft)]' : 'text-[var(--color-foreground)]'}`}
               >
                 <span>{item.label}</span>
                 {item.shortcut && (
-                  <span aria-hidden="true" className="text-xs text-[var(--color-muted-foreground)]">
+                  <span
+                    aria-hidden="true"
+                    className="text-[13px] text-[var(--color-muted-foreground)]"
+                  >
                     {item.shortcut}
                   </span>
                 )}

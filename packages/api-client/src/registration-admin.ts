@@ -4,12 +4,14 @@ import {
   decodeCodePage,
   codeRevocationSchema,
   type CodeBatchInput,
+  type CodeStatus,
 } from '@cheapai/contracts/registration-admin';
 import type { ApiClient, ApiReadOptions } from './types.js';
 export type {
   AdminRegistrationSettings,
   CodeMetadata,
   CodeListItem,
+  CodeStatus,
   CodeBatch,
   CodePage,
   CodeBatchInput,
@@ -40,7 +42,7 @@ export function createAdminRegistrationApi(client: ApiClient) {
       ).data;
     },
     async codes(
-      options: { cursor?: string | null; creatorFilter?: string } = {},
+      options: { cursor?: string | null; creatorFilter?: string; status?: CodeStatus } = {},
       readOptions?: ApiReadOptions,
     ) {
       return (

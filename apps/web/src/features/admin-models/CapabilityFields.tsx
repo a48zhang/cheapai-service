@@ -142,85 +142,88 @@ export function CapabilityFields({
   );
 
   return (
-    <fieldset
-      disabled={disabled}
-      className="grid gap-4 rounded-lg border border-[var(--color-border)] p-4"
+    <details
+      open={Object.values(errors).some(Boolean) || undefined}
+      className="border-t border-[var(--color-border)] pt-4"
     >
-      <legend className="px-1 text-sm font-semibold">模型能力</legend>
-      <p className="text-xs text-[var(--color-muted-foreground)]">
-        {protocol} · 能力作为渠道说明，不限制同协议参数透传。
-      </p>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {featureGroups.map((group) => (
-          <fieldset
-            key={group.label}
-            className="grid content-start gap-1 rounded-md bg-[var(--color-muted)]/40 p-3"
-          >
-            <legend className="px-1 text-xs font-semibold">{group.label}</legend>
-            {group.values.map(featureInput)}
-          </fieldset>
-        ))}
-        {otherFeatures.length > 0 && (
-          <fieldset className="grid content-start gap-1 rounded-md bg-[var(--color-muted)]/40 p-3">
-            <legend className="px-1 text-xs font-semibold">其他能力</legend>
-            {otherFeatures.map(featureInput)}
-          </fieldset>
-        )}
-      </div>
-      {errors.features && (
-        <p role="alert" className="text-xs text-[var(--color-destructive)]">
-          {errors.features}
-        </p>
-      )}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field
-          label="最大输出 Token（可选）"
-          error={errors.maxOutputTokens}
-          description="正整数；留空使用模型默认值。"
-        >
-          <Input
-            value={value.maxOutputTokens}
-            inputMode="numeric"
-            maxLength={16}
-            placeholder="例如 8192"
-            onChange={(event) => onChange({ ...value, maxOutputTokens: event.currentTarget.value })}
-          />
-        </Field>
-        <Field
-          label="推理档位（可选）"
-          error={errors.reasoningEfforts}
-          description="用逗号分隔，例如 low, medium, high。"
-        >
-          <Input
-            value={value.reasoningEfforts}
-            maxLength={512}
-            placeholder="low, medium"
-            onChange={(event) =>
-              onChange({ ...value, reasoningEfforts: event.currentTarget.value })
-            }
-          />
-        </Field>
-      </div>
-      <fieldset className="grid gap-2">
-        <legend className="text-sm font-medium">缓存 TTL（可选）</legend>
-        <div className="flex flex-wrap gap-4">
-          {[...new Set(['5m', '1h', ...value.cacheTtls])].map((ttl) => (
-            <label key={ttl} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={value.cacheTtls.includes(ttl)}
-                onChange={(event) => toggleTtl(ttl, event.currentTarget.checked)}
-              />
-              {ttl}
-            </label>
+      <summary className="cursor-pointer font-semibold text-[15px]">能力与高级设置</summary>
+      <fieldset disabled={disabled} className="mt-4 grid gap-4">
+        <legend className="sr-only">模型能力</legend>
+        <p className="console-muted">{protocol} · 能力作为渠道说明，不限制同协议参数透传。</p>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {featureGroups.map((group) => (
+            <fieldset
+              key={group.label}
+              className="grid content-start gap-1 rounded-md bg-[var(--color-muted)]/40 p-3"
+            >
+              <legend className="px-1 text-sm font-semibold">{group.label}</legend>
+              {group.values.map(featureInput)}
+            </fieldset>
           ))}
+          {otherFeatures.length > 0 && (
+            <fieldset className="grid content-start gap-1 rounded-md bg-[var(--color-muted)]/40 p-3">
+              <legend className="px-1 text-sm font-semibold">其他能力</legend>
+              {otherFeatures.map(featureInput)}
+            </fieldset>
+          )}
         </div>
-        {errors.cacheTtls && (
-          <p role="alert" className="text-xs text-[var(--color-destructive)]">
-            {errors.cacheTtls}
+        {errors.features && (
+          <p role="alert" className="text-sm text-[var(--color-destructive)]">
+            {errors.features}
           </p>
         )}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label="最大输出 Token（可选）"
+            error={errors.maxOutputTokens}
+            description="正整数；留空使用模型默认值。"
+          >
+            <Input
+              value={value.maxOutputTokens}
+              inputMode="numeric"
+              maxLength={16}
+              placeholder="例如 8192"
+              onChange={(event) =>
+                onChange({ ...value, maxOutputTokens: event.currentTarget.value })
+              }
+            />
+          </Field>
+          <Field
+            label="推理档位（可选）"
+            error={errors.reasoningEfforts}
+            description="用逗号分隔，例如 low, medium, high。"
+          >
+            <Input
+              value={value.reasoningEfforts}
+              maxLength={512}
+              placeholder="low, medium"
+              onChange={(event) =>
+                onChange({ ...value, reasoningEfforts: event.currentTarget.value })
+              }
+            />
+          </Field>
+        </div>
+        <fieldset className="grid gap-2">
+          <legend className="text-sm font-medium">缓存 TTL（可选）</legend>
+          <div className="flex flex-wrap gap-4">
+            {[...new Set(['5m', '1h', ...value.cacheTtls])].map((ttl) => (
+              <label key={ttl} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={value.cacheTtls.includes(ttl)}
+                  onChange={(event) => toggleTtl(ttl, event.currentTarget.checked)}
+                />
+                {ttl}
+              </label>
+            ))}
+          </div>
+          {errors.cacheTtls && (
+            <p role="alert" className="text-sm text-[var(--color-destructive)]">
+              {errors.cacheTtls}
+            </p>
+          )}
+        </fieldset>
       </fieldset>
-    </fieldset>
+    </details>
   );
 }

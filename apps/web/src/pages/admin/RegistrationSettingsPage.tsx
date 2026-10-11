@@ -11,10 +11,10 @@ export default function RegistrationSettingsPage() {
   const options = registrationSettingsQuery(client, user!.id);
   const query = useQuery(options);
   return (
-    <>
+    <section className="space-y-5">
       <PageHeader heading="注册设置" />
       {query.isPending ? (
-        <p role="status">正在读取注册策略…</p>
+        <p role="status">正在读取注册设置…</p>
       ) : query.data ? (
         <SettingsForm
           settings={query.data}
@@ -30,6 +30,6 @@ export default function RegistrationSettingsPage() {
       ) : (
         <ApiErrorNotice error={query.error} onRetry={() => void query.refetch()} />
       )}
-    </>
+    </section>
   );
 }

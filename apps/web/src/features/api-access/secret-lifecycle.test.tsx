@@ -139,10 +139,10 @@ afterEach(() => {
 });
 
 async function createKey(user = userEvent.setup()) {
-  await user.click(screen.getByRole('button', { name: /创建 Key/ }));
+  await user.click(screen.getByRole('button', { name: '创建密钥' }));
   const dialog = await screen.findByRole('dialog');
   await prepareSoleGroupKeyForm(dialog, user, metadata.name);
-  await user.click(within(dialog).getByRole('button', { name: /创建 Key/ }));
+  await user.click(within(dialog).getByRole('button', { name: '创建密钥' }));
   return within(await screen.findByRole('dialog')).findByRole('textbox', {
     name: /完整 API Key/,
   });
@@ -150,7 +150,7 @@ async function createKey(user = userEvent.setup()) {
 
 async function createInvite(user = userEvent.setup(), onOpenChange = vi.fn(), expectSecret = true) {
   const view = render(<CodeBatchDialog open onOpenChange={onOpenChange} onCreated={vi.fn()} />);
-  fireEvent.change(screen.getByLabelText(/有效期/), { target: { value: futureLocalDateTime() } });
+  fireEvent.change(screen.getByLabelText('到期时间'), { target: { value: futureLocalDateTime() } });
   await user.click(screen.getByRole('button', { name: /生成邀请码/ }));
   if (expectSecret) await screen.findByText(inviteToken);
   else await screen.findByRole('listitem');
@@ -178,7 +178,7 @@ describe('one-time credential lifecycle', () => {
     );
     const dialog = await screen.findByRole('dialog');
     await prepareSoleGroupKeyForm(dialog, user, metadata.name);
-    await user.click(within(dialog).getByRole('button', { name: /创建 Key/ }));
+    await user.click(within(dialog).getByRole('button', { name: '创建密钥' }));
 
     await waitFor(() => expect(onSecret).toHaveBeenCalledTimes(1));
     expect(onSecret).toHaveBeenCalledWith(keyToken, metadata.name);
@@ -238,10 +238,10 @@ describe('one-time credential lifecycle', () => {
     keyCreation = { kind: 'replayed', key: metadata };
     const user = userEvent.setup();
     render(withKeysPage(queryClient));
-    await user.click(screen.getByRole('button', { name: /创建 Key/ }));
+    await user.click(screen.getByRole('button', { name: '创建密钥' }));
     const dialog = await screen.findByRole('dialog');
     await prepareSoleGroupKeyForm(dialog, user, metadata.name);
-    await user.click(within(dialog).getByRole('button', { name: /创建 Key/ }));
+    await user.click(within(dialog).getByRole('button', { name: '创建密钥' }));
 
     await waitFor(() =>
       expect(within(screen.getByRole('dialog')).getByRole('status')).toBeInTheDocument(),
@@ -258,10 +258,10 @@ describe('one-time credential lifecycle', () => {
     mocks.session.client = createClient(delayedPost);
     const user = userEvent.setup();
     const view = render(withKeysPage(queryClient));
-    await user.click(screen.getByRole('button', { name: /创建 Key/ }));
+    await user.click(screen.getByRole('button', { name: '创建密钥' }));
     const dialog = await screen.findByRole('dialog');
     await prepareSoleGroupKeyForm(dialog, user, metadata.name);
-    await user.click(within(dialog).getByRole('button', { name: /创建 Key/ }));
+    await user.click(within(dialog).getByRole('button', { name: '创建密钥' }));
     await waitFor(() =>
       expect(within(dialog).getByRole('button', { name: /正在确认/ })).toBeDisabled(),
     );
@@ -310,7 +310,7 @@ describe('one-time credential lifecycle', () => {
 
     let dialog = await screen.findByRole('dialog');
     await prepareSoleGroupKeyForm(dialog, user, 'Key A');
-    await user.click(within(dialog).getByRole('button', { name: /创建 Key/ }));
+    await user.click(within(dialog).getByRole('button', { name: '创建密钥' }));
     await waitFor(() =>
       expect(within(dialog).getByRole('button', { name: /正在确认/ })).toBeDisabled(),
     );
@@ -321,7 +321,7 @@ describe('one-time credential lifecycle', () => {
     view.rerender(renderForm('user-2', 2, true));
     dialog = await screen.findByRole('dialog');
     await prepareSoleGroupKeyForm(dialog, user, 'Key B');
-    await user.click(within(dialog).getByRole('button', { name: /创建 Key/ }));
+    await user.click(within(dialog).getByRole('button', { name: '创建密钥' }));
     const nextOwnerSubmit = await within(dialog).findByRole('button', { name: /正在确认/ });
     expect(nextOwnerSubmit).toBeDisabled();
     expect(post).toHaveBeenCalledTimes(2);
@@ -385,7 +385,9 @@ describe('one-time credential lifecycle', () => {
     expect(screen.queryByText(inviteToken)).not.toBeInTheDocument();
     expect(document.body.textContent).not.toContain(inviteToken);
 
-    fireEvent.change(screen.getByLabelText(/有效期/), { target: { value: futureLocalDateTime() } });
+    fireEvent.change(screen.getByLabelText('到期时间'), {
+      target: { value: futureLocalDateTime() },
+    });
     await user.click(screen.getByRole('button', { name: /生成邀请码/ }));
     await screen.findByText(inviteToken);
 

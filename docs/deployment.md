@@ -2,7 +2,7 @@
 
 更新：2026-10-03；配置基线为 main `fd6ce3d37de87239a7474a04ab85b83c96f7df11`，本次清理移除共享 staging 的可执行入口。共享 staging 已于 2026-10-03 完成永久退役，相关 Worker、D1、KV 和 Gate DO 已删除并回读确认；这次文档更新不是删除或发布成功证明。历史资源与证据见[退役记录](staging-resources.md)。
 
-先读[管理员配置顺序](admin-guide.md)。正式入口为 https://cheapai.dev，www 入口由 Worker 重定向至 canonical origin。分支验证使用[每个 PR 独立的预发](pr-previews.md)；不要重建旧共享 staging，也不要以历史验证结果代替本次验收。
+先读[管理员配置顺序](admin-guide.md)。正式入口为 https://cheapai.dev 和 https://www.cheapai.dev；站内导航保留当前 host，两个入口分别使用 host-only 会话和 CSRF Cookie。分支验证使用[每个 PR 独立的预发](pr-previews.md)；不要重建旧共享 staging，也不要以历史验证结果代替本次验收。
 
 ## 发布前准备
 
@@ -61,7 +61,7 @@ pnpm --filter @sub2api/worker exec wrangler deployments list --env production
 | Node / pnpm / Wrangler | 24.19.0 / 11.19.0 / 4.129.0；遵守锁文件，不临时升级 |
 | compatibility_date | `2026-08-15`；不要用 `--latest` 随发布漂移 |
 | 前端 | `apps/web/dist`；相对 Worker 配置为 `../web/dist`，必须先构建 |
-| 静态路由 | `ASSETS`；production 的 `run_worker_first: true` 确保 www 重定向先于静态资源；本地/PR 的 API 和 health 路径先运行 Worker，未知 API 不能落成 SPA HTML |
+| 静态路由 | `ASSETS`；production 的 `run_worker_first: true` 确保可信 origin 选择和安全响应头先于静态资源；本地/PR 的 API 和 health 路径先运行 Worker，未知 API 不能落成 SPA HTML |
 | D1 / KV | 每环境独立 `DB` / `CACHE`；配置中的零前缀 ID 均是占位符 |
 | DO | `GATE` → `Gate`，`migrations` 的 `v1` 使用 `new_sqlite_classes: ["Gate"]` |
 | 邮件 | `EMAIL` / `send_email`；所有 `.invalid` 发件人和收件人都是占位符 |
