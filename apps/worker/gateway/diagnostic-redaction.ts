@@ -129,6 +129,26 @@ function isSensitiveField(name: string): boolean {
   );
 }
 
+function replaceMaskedSecretEchoes(input: string, secret: string): RedactedText {
+  let redacted = false;
+  const text = input.replace(/[A-Za-z0-9_-]*\*{2,}[A-Za-z0-9_-]*/gu, (match) => {
+    const firstStar = match.indexOf('*');
+    const prefix = match.slice(0, firstStar);
+    const suffix = match.slice(match.lastIndexOf('*') + 1);
+    if (
+      prefix.length + suffix.length >= secret.length ||
+      Math.max(prefix.length, suffix.length) < 4 ||
+      !secret.startsWith(prefix) ||
+      !secret.endsWith(suffix)
+    ) {
+      return match;
+    }
+    redacted = true;
+    return REDACTED;
+  });
+  return { text, redacted };
+}
+
 function replaceKnownSecrets(input: string, secrets: readonly string[]): RedactedText {
   let text = input;
   let redacted = false;
@@ -145,6 +165,9 @@ function replaceKnownSecrets(input: string, secrets: readonly string[]): Redacte
       text = text.replace(pattern, REDACTED);
       redacted = true;
     }
+    const maskedEcho = replaceMaskedSecretEchoes(text, secret);
+    text = maskedEcho.text;
+    if (maskedEcho.redacted) redacted = true;
   }
   return { text, redacted };
 }

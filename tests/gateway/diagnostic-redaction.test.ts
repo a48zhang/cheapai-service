@@ -122,4 +122,45 @@ describe('channel diagnostic redaction', () => {
     expect(rawProviderError.body).not.toContain(key.slice(0, 13));
     expect(rawProviderError.body).toContain('invalid_api_key');
   });
+
+  it('removes masked echoes only when their visible edges match a known key', () => {
+    const key = 'sk-synthetic-abc123456789-endXYZ';
+
+    const body = redactDiagnosticBody(
+      JSON.stringify({
+        error: {
+          code: 'invalid_api_key',
+          message: 'Provider rejected sk-synt********endXYZ; consult account settings.',
+        },
+      }),
+      { secrets: [key] },
+    );
+    expect(body.body).not.toContain('sk-synt********endXYZ');
+    expect(body.body).toContain('invalid_api_key');
+    expect(body.body).toContain('Provider rejected [REDACTED]; consult account settings.');
+    expect(body.redacted).toBe(true);
+
+    const text = redactDiagnosticText(
+      'Provider rejected sk-synt********; check account settings.',
+      [key],
+    );
+    expect(text.text).toBe('Provider rejected [REDACTED]; check account settings.');
+    expect(text.redacted).toBe(true);
+
+    const error = redactDiagnosticError(
+      {
+        code: 'provider_denied',
+        message: 'Provider rejected sk-synt********endXYZ; verify the project.',
+      },
+      [key],
+    );
+    expect(error).toEqual({
+      code: 'provider_denied',
+      message: 'Provider rejected [REDACTED]; verify the project.',
+    });
+
+    const ordinary = redactDiagnosticText('Provider logged ordinary****text.', [key]);
+    expect(ordinary.text).toBe('Provider logged ordinary****text.');
+    expect(ordinary.redacted).toBe(false);
+  });
 });
