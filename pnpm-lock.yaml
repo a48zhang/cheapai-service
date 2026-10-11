@@ -283,6 +283,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@cheapai/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@noble/hashes':
         specifier: 2.4.0
         version: 2.4.0

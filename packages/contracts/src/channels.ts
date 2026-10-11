@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { probeEvidenceSchema } from './channel-diagnostics.js';
 
 const safeInteger = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const positiveVersion = safeInteger.min(1);
@@ -127,6 +128,7 @@ export const channelProbeResultSchema = z.object({
   maxOutputTokens: positiveVersion,
   mayIncurUpstreamCost: z.literal(true),
   userBalanceCharged: z.literal(false),
+  evidence: probeEvidenceSchema.optional(),
 });
 
 export type ChannelStatus = z.infer<typeof channelStatusSchema>;

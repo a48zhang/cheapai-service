@@ -11,6 +11,7 @@
     "test": "vitest run --root ../.. --config ../../vitest.config.ts"
   },
   "dependencies": {
+    "@cheapai/contracts": "workspace:*",
     "@noble/hashes": "2.4.0",
     "@sub2api/apicompat": "workspace:*",
     "@sub2api/desktop-contracts": "workspace:*",

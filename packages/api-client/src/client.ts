@@ -161,7 +161,11 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       const message = Object.hasOwn(apiErrorMessages, code)
         ? apiErrorMessages[code as ApiErrorCode]
         : '请求未能完成，请稍后重试。';
-      throw new ApiClientError('api', message, { ...details, code });
+      throw new ApiClientError('api', message, {
+        ...details,
+        code,
+        ...(Object.hasOwn(payload.error, 'details') ? { details: payload.error.details } : {}),
+      });
     }
     if (!response.ok) {
       throw new ApiClientError('http', `请求失败（HTTP ${response.status}）。`, details);
