@@ -7,6 +7,7 @@ export function withErrorContext(cause: unknown, message: string): Error {
       ...(cause.status === null ? {} : { status: cause.status }),
       code: cause.code,
       ...(cause.request_id === null ? {} : { request_id: cause.request_id }),
+      details: cause.details,
       cause,
     });
   }

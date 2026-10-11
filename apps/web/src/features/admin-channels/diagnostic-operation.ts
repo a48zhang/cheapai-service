@@ -11,7 +11,11 @@ export function createDiagnosticOperation(api: AdminChannelsApi) {
   let active = false;
 
   return Object.freeze({
-    async run(channel: ChannelView, model: ChannelModel): Promise<ChannelProbeResult> {
+    async run(
+      channel: ChannelView,
+      model: ChannelModel,
+      signal?: AbortSignal,
+    ): Promise<ChannelProbeResult> {
       if (active) throw new Error('A channel diagnostic is already running.');
       if (channel.status !== 'active') throw new Error('Only active channels can be diagnosed.');
       const currentMapping = channel.models.find(
@@ -26,13 +30,17 @@ export function createDiagnosticOperation(api: AdminChannelsApi) {
 
       active = true;
       try {
-        return await api.probe(channel.id, {
-          publicModelId: currentMapping.publicModelId,
-          protocol: currentMapping.protocol,
-          channelVersion: channel.configVersion,
-          mappingVersion: currentMapping.mappingVersion,
-          priceVersion: currentMapping.priceVersion,
-        });
+        return await api.probe(
+          channel.id,
+          {
+            publicModelId: currentMapping.publicModelId,
+            protocol: currentMapping.protocol,
+            channelVersion: channel.configVersion,
+            mappingVersion: currentMapping.mappingVersion,
+            priceVersion: currentMapping.priceVersion,
+          },
+          signal === undefined ? undefined : { signal },
+        );
       } finally {
         active = false;
       }

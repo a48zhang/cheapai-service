@@ -1,42 +1,106 @@
 import { describe, expect, it } from 'vitest';
 import { billingMultiplierSchema, decodeGroup, groupInputSchema } from '@cheapai/contracts/groups';
+import { channelProbeResultSchema } from '@cheapai/contracts/channels';
+import {
+  CHANNEL_PROBE_MAX_OUTPUT_TOKENS,
+  CHANNEL_PROBE_PROMPT,
+  createChannelProbeBody,
+} from '@cheapai/contracts/channel-probe';
 import { decodeMapping } from '@cheapai/contracts/mappings';
 import { decodeRequest } from '@cheapai/contracts/requests';
-import { createChannelsApi } from '@cheapai/api-client/channels';
+import {
+  createChannelsApi,
+  extractChannelDiagnosticErrorDetails,
+} from '@cheapai/api-client/channels';
 import { createApiClient } from '@cheapai/api-client/client';
+import { ApiClientError } from '@cheapai/api-client/errors';
 
-const isBillingMultiplier = (value: unknown): value is string => billingMultiplierSchema.safeParse(value).success;
+const isBillingMultiplier = (value: unknown): value is string =>
+  billingMultiplierSchema.safeParse(value).success;
 
 const group = (patch: Record<string, unknown> = {}) => ({
-  id: 'group-1', name: '标准组', status: 'active', version: 1, createdAt: 10, updatedAt: 10, channelIds: [], ...patch,
+  id: 'group-1',
+  name: '标准组',
+  status: 'active',
+  version: 1,
+  createdAt: 10,
+  updatedAt: 10,
+  channelIds: [],
+  ...patch,
 });
 
 const request = (patch: Record<string, unknown> = {}) => ({
-  id: 'request-1', user_id: 'user-1', api_key_id: 'key-1', channel_id: 'channel-1', public_model_id: 'model-1', upstream_model: 'model-1',
-  downstream_protocol: 'chat', upstream_protocol: 'chat', execution_status: 'succeeded', billing_status: 'not_chargeable',
-  created_at: 10, started_at: null, finished_at: 20, updated_at: 20, usage: null, usage_valid: null, price_snapshot: null,
-  price_snapshot_valid: false, cost_units: null, error: null, retry_count: 0, next_retry_at: null, ...patch,
+  id: 'request-1',
+  user_id: 'user-1',
+  api_key_id: 'key-1',
+  channel_id: 'channel-1',
+  public_model_id: 'model-1',
+  upstream_model: 'model-1',
+  downstream_protocol: 'chat',
+  upstream_protocol: 'chat',
+  execution_status: 'succeeded',
+  billing_status: 'not_chargeable',
+  created_at: 10,
+  started_at: null,
+  finished_at: 20,
+  updated_at: 20,
+  usage: null,
+  usage_valid: null,
+  price_snapshot: null,
+  price_snapshot_valid: false,
+  cost_units: null,
+  error: null,
+  retry_count: 0,
+  next_retry_at: null,
+  ...patch,
 });
 
 const priceSnapshot = (patch: Record<string, unknown> = {}) => ({
-  schema_version: 1, canonical_json_version: 1, calculation_version: 1, currency: 'USD', decimals: 8,
-  tokens_per_price_unit: 1_000_000, rounding: 'half_up_after_sum', public_model_id: 'model-1', upstream_model: 'model-1',
-  upstream_protocol: 'chat', price_version: 1, sell_prices: { input: '1', output: '2' }, ...patch,
+  schema_version: 1,
+  canonical_json_version: 1,
+  calculation_version: 1,
+  currency: 'USD',
+  decimals: 8,
+  tokens_per_price_unit: 1_000_000,
+  rounding: 'half_up_after_sum',
+  public_model_id: 'model-1',
+  upstream_model: 'model-1',
+  upstream_protocol: 'chat',
+  price_version: 1,
+  sell_prices: { input: '1', output: '2' },
+  ...patch,
 });
 
 describe('web admin API contracts', () => {
   it('accepts future response fields and more than 100 channel assignments', () => {
     const channelIds = Array.from({ length: 150 }, (_, index) => `channel-${index}`);
-    expect(groupInputSchema.parse({ name: 'Large group', channelIds }).channelIds).toHaveLength(150);
+    expect(groupInputSchema.parse({ name: 'Large group', channelIds }).channelIds).toHaveLength(
+      150,
+    );
     expect(decodeGroup(group({ channelIds, future_field: true })).channelIds).toHaveLength(150);
   });
   it('accepts new capability metadata and ignores the obsolete extension allowlist', () => {
-    expect(decodeMapping({
-      channelId: 'channel-1', publicModelId: 'model-1', protocol: 'chat',
-      upstreamModel: 'upstream-1', configVersion: 1,
-      capabilities: { protocol: 'chat', features: ['vendor_feature'], reasoningEfforts: ['future'],
-        cacheTtls: ['1d'], nativeExtensions: [{ scope: 'new_scope', name: 'future' }] },
-    }).capabilities).toEqual({ protocol: 'chat', features: ['vendor_feature'], reasoningEfforts: ['future'], cacheTtls: ['1d'] });
+    expect(
+      decodeMapping({
+        channelId: 'channel-1',
+        publicModelId: 'model-1',
+        protocol: 'chat',
+        upstreamModel: 'upstream-1',
+        configVersion: 1,
+        capabilities: {
+          protocol: 'chat',
+          features: ['vendor_feature'],
+          reasoningEfforts: ['future'],
+          cacheTtls: ['1d'],
+          nativeExtensions: [{ scope: 'new_scope', name: 'future' }],
+        },
+      }).capabilities,
+    ).toEqual({
+      protocol: 'chat',
+      features: ['vendor_feature'],
+      reasoningEfforts: ['future'],
+      cacheTtls: ['1d'],
+    });
   });
 
   it('keeps group multipliers as exact non-negative decimal strings', () => {
@@ -52,69 +116,249 @@ describe('web admin API contracts', () => {
   });
 
   it('uses only the trusted web-chat source field for request labels', () => {
-    expect(decodeRequest(request({ source: 'web_chat', group_id: 'group-1' }))).toMatchObject({ source: 'web_chat', group_id: 'group-1' });
+    expect(decodeRequest(request({ source: 'web_chat', group_id: 'group-1' }))).toMatchObject({
+      source: 'web_chat',
+      group_id: 'group-1',
+    });
     expect(decodeRequest(request())).toMatchObject({ source: 'api', group_id: null });
     expect(() => decodeRequest(request({ source: 'web_chat', group_id: 42 }))).toThrow();
     expect(() => decodeRequest(request({ source: 'virtual_key' }))).toThrow();
   });
 
   it('decodes group facts in new price snapshots while preserving legacy snapshots', () => {
-    const decoded = decodeRequest(request({ price_snapshot: priceSnapshot({ group_id: 'group-1', group_version: 3, billing_multiplier: '0.2' }), price_snapshot_valid: true }));
-    expect(decoded.price_snapshot).toMatchObject({ group_id: 'group-1', group_version: 3, billing_multiplier: '0.2' });
-    expect(decodeRequest(request())).toMatchObject({ price_snapshot: null, price_snapshot_valid: false });
-    expect(() => decodeRequest(request({ price_snapshot: priceSnapshot({ group_version: 0 }), price_snapshot_valid: true }))).toThrow();
-    expect(() => decodeRequest(request({ price_snapshot: priceSnapshot({ billing_multiplier: '1e-1' }), price_snapshot_valid: true }))).toThrow();
-    expect(decodeRequest(request({ price_snapshot: priceSnapshot({ extra: 'future-field' }), price_snapshot_valid: true })).price_snapshot).toMatchObject({ public_model_id: 'model-1' });
+    const decoded = decodeRequest(
+      request({
+        price_snapshot: priceSnapshot({
+          group_id: 'group-1',
+          group_version: 3,
+          billing_multiplier: '0.2',
+        }),
+        price_snapshot_valid: true,
+      }),
+    );
+    expect(decoded.price_snapshot).toMatchObject({
+      group_id: 'group-1',
+      group_version: 3,
+      billing_multiplier: '0.2',
+    });
+    expect(decodeRequest(request())).toMatchObject({
+      price_snapshot: null,
+      price_snapshot_valid: false,
+    });
+    expect(() =>
+      decodeRequest(
+        request({
+          price_snapshot: priceSnapshot({ group_version: 0 }),
+          price_snapshot_valid: true,
+        }),
+      ),
+    ).toThrow();
+    expect(() =>
+      decodeRequest(
+        request({
+          price_snapshot: priceSnapshot({ billing_multiplier: '1e-1' }),
+          price_snapshot_valid: true,
+        }),
+      ),
+    ).toThrow();
+    expect(
+      decodeRequest(
+        request({
+          price_snapshot: priceSnapshot({ extra: 'future-field' }),
+          price_snapshot_valid: true,
+        }),
+      ).price_snapshot,
+    ).toMatchObject({ public_model_id: 'model-1' });
   });
 });
 
-
 const channel = (index: number) => ({
-  id: `channel-${index}`, name: `Channel ${index}`, baseUrl: 'https://upstream.example.invalid',
-  status: index === 41 ? 'disabled' : 'active', priority: 1, concurrencyLimit: 2, rpmLimit: 60,
-  configVersion: 1, createdAt: 10, updatedAt: 10, hasCredential: true, models: [],
+  id: `channel-${index}`,
+  name: `Channel ${index}`,
+  baseUrl: 'https://upstream.example.invalid',
+  status: index === 41 ? 'disabled' : 'active',
+  priority: 1,
+  concurrencyLimit: 2,
+  rpmLimit: 60,
+  configVersion: 1,
+  createdAt: 10,
+  updatedAt: 10,
+  hasCredential: true,
+  models: [],
+});
+
+const probeEvidence = {
+  requestId: 'request-1',
+  startedAt: 100,
+  durationMs: 12,
+  execution: 'not_started',
+  request: null,
+  redirects: [],
+  response: null,
+  failure: {
+    source: 'cheapai',
+    phase: 'configuration',
+    code: 'conflict',
+    message: 'Configuration changed.',
+    issues: [],
+  },
+  phases: [{ name: 'configuration', durationMs: 1, state: 'failed' }],
+};
+
+describe('channel diagnostic contracts', () => {
+  it('accepts legacy probe results without evidence and validates evidence when present', () => {
+    const legacy = {
+      diagnosticId: 'diagnostic-1',
+      channelId: 'channel-1',
+      publicModelId: 'model-1',
+      protocol: 'chat',
+      outcome: 'http_error',
+      upstreamStatus: 401,
+      channelVersion: 1,
+      mappingVersion: 1,
+      priceVersion: 1,
+      maxOutputTokens: 16,
+      mayIncurUpstreamCost: true,
+      userBalanceCharged: false,
+    };
+
+    expect(channelProbeResultSchema.parse(legacy).evidence).toBeUndefined();
+    expect(channelProbeResultSchema.parse({ ...legacy, evidence: probeEvidence }).evidence).toEqual(
+      probeEvidence,
+    );
+  });
+
+  it('decodes only the reviewed diagnostic error details shape', () => {
+    const details = { diagnostic: probeEvidence, diagnosticId: 'diagnostic-1' };
+    expect(
+      extractChannelDiagnosticErrorDetails(new ApiClientError('api', 'conflict', { details })),
+    ).toEqual(details);
+    expect(
+      extractChannelDiagnosticErrorDetails(
+        new ApiClientError('api', 'conflict', {
+          details: {
+            diagnostic: { ...probeEvidence, stack: 'private stack' },
+            diagnosticId: 'diagnostic-1',
+          },
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      extractChannelDiagnosticErrorDetails(
+        new ApiClientError('api', 'conflict', { details: { diagnostic: 'unknown' } }),
+      ),
+    ).toBeNull();
+    expect(extractChannelDiagnosticErrorDetails(new Error('raw response envelope'))).toBeNull();
+  });
+
+  it('uses fixed protocol request templates with a bounded output-token setting', () => {
+    expect(CHANNEL_PROBE_MAX_OUTPUT_TOKENS).toBe(16);
+    expect(
+      createChannelProbeBody('chat', 'upstream-model', CHANNEL_PROBE_MAX_OUTPUT_TOKENS),
+    ).toEqual({
+      model: 'upstream-model',
+      messages: [{ role: 'user', content: CHANNEL_PROBE_PROMPT }],
+      max_tokens: 16,
+      stream: false,
+    });
+    expect(createChannelProbeBody('responses', 'upstream-model', 4)).toEqual({
+      model: 'upstream-model',
+      input: CHANNEL_PROBE_PROMPT,
+      max_output_tokens: 4,
+      stream: false,
+    });
+    expect(createChannelProbeBody('messages', 'upstream-model', 1)).toEqual({
+      model: 'upstream-model',
+      max_tokens: 1,
+      messages: [{ role: 'user', content: CHANNEL_PROBE_PROMPT }],
+      stream: false,
+    });
+    for (const invalidLimit of [0, 17, 1.5, Number.NaN]) {
+      expect(() => createChannelProbeBody('chat', 'upstream-model', invalidLimit)).toThrow(
+        RangeError,
+      );
+    }
+  });
 });
 
 describe('complete administrator channel reads', () => {
   it('reads every page in order, preserves disabled channels and deduplicates IDs', async () => {
     const requests: URL[] = [];
-    const api = createChannelsApi(createApiClient({ fetch: async input => {
-      const url = new URL(String(input), 'https://console.example'); requests.push(url);
-      const cursor = url.searchParams.get('cursor');
-      const data = cursor === null
-        ? { items: Array.from({ length: 20 }, (_, i) => channel(i + 1)), nextCursor: 'page-2' }
-        : cursor === 'page-2'
-          ? { items: [channel(20), ...Array.from({ length: 20 }, (_, i) => channel(i + 21))], nextCursor: 'page-3' }
-          : { items: [channel(40), channel(41)], nextCursor: null };
-      return Response.json({ data, request_id: 'channels-read' });
-    } }));
+    const api = createChannelsApi(
+      createApiClient({
+        fetch: async (input) => {
+          const url = new URL(String(input), 'https://console.example');
+          requests.push(url);
+          const cursor = url.searchParams.get('cursor');
+          const data =
+            cursor === null
+              ? {
+                  items: Array.from({ length: 20 }, (_, i) => channel(i + 1)),
+                  nextCursor: 'page-2',
+                }
+              : cursor === 'page-2'
+                ? {
+                    items: [channel(20), ...Array.from({ length: 20 }, (_, i) => channel(i + 21))],
+                    nextCursor: 'page-3',
+                  }
+                : { items: [channel(40), channel(41)], nextCursor: null };
+          return Response.json({ data, request_id: 'channels-read' });
+        },
+      }),
+    );
     const result = await api.listAll();
     expect(result).toHaveLength(41);
     expect(result[20]?.id).toBe('channel-21');
     expect(result[40]).toMatchObject({ id: 'channel-41', status: 'disabled' });
-    expect(requests.map(url => url.searchParams.get('cursor'))).toEqual([null, 'page-2', 'page-3']);
-    expect(requests.every(url => url.searchParams.get('limit') === '20' && !url.searchParams.has('status'))).toBe(true);
+    expect(requests.map((url) => url.searchParams.get('cursor'))).toEqual([
+      null,
+      'page-2',
+      'page-3',
+    ]);
+    expect(
+      requests.every(
+        (url) => url.searchParams.get('limit') === '20' && !url.searchParams.has('status'),
+      ),
+    ).toBe(true);
   });
 
   it('preserves the paged list contract and optional status filtering', async () => {
     const requests: URL[] = [];
-    const api = createChannelsApi(createApiClient({ fetch: async input => {
-      const url = new URL(String(input), 'https://console.example'); requests.push(url);
-      return Response.json({ data: { items: [channel(41)], nextCursor: url.searchParams.get('cursor') ? null : 'next' }, request_id: 'channels-read' });
-    } }));
+    const api = createChannelsApi(
+      createApiClient({
+        fetch: async (input) => {
+          const url = new URL(String(input), 'https://console.example');
+          requests.push(url);
+          return Response.json({
+            data: {
+              items: [channel(41)],
+              nextCursor: url.searchParams.get('cursor') ? null : 'next',
+            },
+            request_id: 'channels-read',
+          });
+        },
+      }),
+    );
     expect((await api.list({ status: 'disabled' })).nextCursor).toBe('next');
     expect(requests).toHaveLength(1);
     expect(await api.listAll({ status: 'disabled' })).toHaveLength(1);
-    expect(requests.map(url => url.searchParams.get('cursor'))).toEqual([null, null, 'next']);
-    expect(requests.every(url => url.searchParams.get('status') === 'disabled')).toBe(true);
+    expect(requests.map((url) => url.searchParams.get('cursor'))).toEqual([null, null, 'next']);
+    expect(requests.every((url) => url.searchParams.get('status') === 'disabled')).toBe(true);
   });
 
   it('rejects repeated cursors rather than exposing a partial list or looping', async () => {
     let calls = 0;
-    const api = createChannelsApi(createApiClient({ fetch: async () => {
-      calls++;
-      return Response.json({ data: { items: [channel(calls)], nextCursor: 'same-cursor' }, request_id: 'channels-read' });
-    } }));
+    const api = createChannelsApi(
+      createApiClient({
+        fetch: async () => {
+          calls++;
+          return Response.json({
+            data: { items: [channel(calls)], nextCursor: 'same-cursor' },
+            request_id: 'channels-read',
+          });
+        },
+      }),
+    );
     await expect(api.listAll()).rejects.toThrow(TypeError);
     expect(calls).toBe(2);
   });
@@ -122,14 +366,31 @@ describe('complete administrator channel reads', () => {
   it('rejects a middle-page failure and restarts a later read from the first page', async () => {
     const cursors: (string | null)[] = [];
     let fail = true;
-    const api = createChannelsApi(createApiClient({ fetch: async input => {
-      const cursor = new URL(String(input), 'https://console.example').searchParams.get('cursor'); cursors.push(cursor);
-      if (cursor && fail) return Response.json({ error: { code: 'internal_error', message: 'page failed' }, request_id: 'channels-failed' }, { status: 500 });
-      return Response.json({ data: { items: [channel(cursor ? 21 : 1)], nextCursor: cursor ? null : 'next' }, request_id: 'channels-read' });
-    } }));
+    const api = createChannelsApi(
+      createApiClient({
+        fetch: async (input) => {
+          const cursor = new URL(String(input), 'https://console.example').searchParams.get(
+            'cursor',
+          );
+          cursors.push(cursor);
+          if (cursor && fail)
+            return Response.json(
+              {
+                error: { code: 'internal_error', message: 'page failed' },
+                request_id: 'channels-failed',
+              },
+              { status: 500 },
+            );
+          return Response.json({
+            data: { items: [channel(cursor ? 21 : 1)], nextCursor: cursor ? null : 'next' },
+            request_id: 'channels-read',
+          });
+        },
+      }),
+    );
     await expect(api.listAll()).rejects.toMatchObject({ status: 500 });
     fail = false;
-    expect((await api.listAll()).map(item => item.id)).toEqual(['channel-1', 'channel-21']);
+    expect((await api.listAll()).map((item) => item.id)).toEqual(['channel-1', 'channel-21']);
     expect(cursors).toEqual([null, 'next', null, 'next']);
   });
 });

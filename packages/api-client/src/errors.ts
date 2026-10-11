@@ -17,6 +17,7 @@ export interface ApiClientErrorOptions {
   readonly status?: number;
   readonly code?: string;
   readonly request_id?: string;
+  readonly details?: unknown;
   readonly cause?: unknown;
 }
 
@@ -25,6 +26,7 @@ export class ApiClientError extends Error {
   readonly status: number | null;
   readonly code: string;
   readonly request_id: string | null;
+  readonly details: unknown;
 
   constructor(kind: ApiClientErrorKind, message: string, options: ApiClientErrorOptions = {}) {
     super(message, options.cause === undefined ? undefined : { cause: options.cause });
@@ -33,5 +35,6 @@ export class ApiClientError extends Error {
     this.status = options.status ?? null;
     this.code = options.code ?? kind;
     this.request_id = options.request_id ?? null;
+    this.details = options.details;
   }
 }

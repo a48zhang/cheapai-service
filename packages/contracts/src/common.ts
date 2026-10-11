@@ -20,6 +20,7 @@ export interface SuccessEnvelope<T> {
 export interface ErrorBody {
   readonly code: string;
   readonly message: string;
+  readonly details?: unknown;
 }
 
 /** The wire envelope used by management API error responses. */
@@ -55,6 +56,7 @@ export const cursorSchema = z.string().nullable();
 export const errorBodySchema = z.object({
   code: z.string(),
   message: z.string(),
+  details: z.unknown().optional(),
 });
 
 export const errorEnvelopeSchema = z.object({

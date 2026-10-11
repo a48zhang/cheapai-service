@@ -25,7 +25,59 @@ test('six-character password, unlimited concurrency, channel models and granted 
   const mappingForm=page.locator('form').filter({has:page.getByLabel('上游模型名称',{exact:true})});await mappingForm.getByLabel('上游模型名称',{exact:true}).fill('upstream-gpt');await mappingForm.getByRole('button',{name:'创建映射',exact:true}).click();await expect(mappingForm.getByRole('status')).toContainText('模型映射已保存');
   const channels=(await(await admin.get('/api/v1/admin/channels?limit=100')).json()).data.items;
   const gptChannel=channels.find((item:{name:string})=>item.name===gptName);expect(gptChannel.concurrencyLimit).toBe(Number.MAX_SAFE_INTEGER);expect(gptChannel.rpmLimit).toBe(Number.MAX_SAFE_INTEGER);expect(gptChannel.models[0]).toMatchObject({publicModelId:gptModel,upstreamModel:'upstream-gpt'});
-  await page.goto(`/admin/channels/${encodeURIComponent(gptChannel.id)}`);await page.getByRole('button',{name:'连接诊断',exact:true}).click();dialog=page.getByRole('dialog',{name:'渠道连接诊断'});await expect(dialog.getByRole('combobox',{name:'选择模型映射',exact:true})).toBeVisible();await dialog.getByRole('button',{name:'执行诊断',exact:true}).click();const confirmation=page.getByRole('dialog',{name:/确认发送一次上游测试请求/});await expect(confirmation.getByRole('button',{name:'确认并诊断',exact:true})).toBeEnabled();await confirmation.getByRole('button',{name:'返回',exact:true}).click();await dialog.getByRole('button',{name:'关闭',exact:true}).click();
+  const diagnosticPosts: Record<string, unknown>[] = [];
+  // Intercept this browser probe so the regression check never calls the example upstream.
+  await page.route(`**/api/v1/admin/channels/${gptChannel.id}/test`, async (route) => {
+    diagnosticPosts.push(route.request().postDataJSON() as Record<string, unknown>);
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          diagnosticId: 'product-correction-probe-fixture',
+          channelId: gptChannel.id,
+          publicModelId: gptModel,
+          protocol: 'chat',
+          outcome: 'http_error',
+          upstreamStatus: 503,
+          channelVersion: gptChannel.configVersion,
+          mappingVersion: gptChannel.models[0].mappingVersion,
+          priceVersion: gptChannel.models[0].priceVersion,
+          maxOutputTokens: 16,
+          mayIncurUpstreamCost: true,
+          userBalanceCharged: false,
+        },
+        request_id: 'product-correction-probe-fixture',
+      }),
+    });
+  });
+  await page.goto(`/admin/channels/${encodeURIComponent(gptChannel.id)}`);
+  await page.getByRole('button', { name: '连接诊断', exact: true }).click();
+  dialog = page.getByRole('dialog', { name: '渠道诊断' });
+  await expect(dialog.getByRole('combobox', { name: '选择模型映射', exact: true })).toBeVisible();
+  expect(diagnosticPosts).toHaveLength(0);
+  await dialog.getByRole('tab', { name: '请求', exact: true }).click();
+  await dialog.getByRole('tab', { name: 'Headers', exact: true }).click();
+  await dialog.getByRole('tab', { name: '响应', exact: true }).click();
+  expect(diagnosticPosts).toHaveLength(0);
+  const diagnosticResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === `/api/v1/admin/channels/${gptChannel.id}/test` &&
+      response.request().method() === 'POST',
+  );
+  await dialog.getByRole('button', { name: '运行诊断', exact: true }).click();
+  const diagnosticResponse = await diagnosticResponsePromise;
+  expect(diagnosticResponse.status()).toBe(200);
+  await expect(dialog.getByText('当前后端未提供请求与响应详情。', { exact: true })).toBeVisible();
+  expect(diagnosticPosts).toHaveLength(1);
+  expect(diagnosticPosts[0]).toMatchObject({
+    publicModelId: gptModel,
+    protocol: 'chat',
+    channelVersion: gptChannel.configVersion,
+    mappingVersion: gptChannel.models[0].mappingVersion,
+    priceVersion: gptChannel.models[0].priceVersion,
+  });
+  await dialog.getByRole('button', { name: '关闭', exact: true }).click();
   const claudeChannel=await create('/api/v1/admin/channels',{name:claudeName,baseUrl:'https://e2e-upstream.example.invalid/v1',upstreamKey:'local-correction-key',concurrencyLimit:0,rpmLimit:60});
   await create(`/api/v1/admin/models/${claudeModel}/mappings`,{channelId:claudeChannel.id,protocol:'messages',upstreamModel:'upstream-claude',capabilities:{protocol:'messages',features:['streaming'],maxOutputTokens:64}});
   const gptGroup=await create('/api/v1/admin/groups',{name:gptName,status:'active',channelIds:[gptChannel.id]});

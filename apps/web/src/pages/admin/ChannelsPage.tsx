@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createGroupsApi } from '@cheapai/api-client/groups';
 import { createMappingsApi } from '@cheapai/api-client/mappings';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { ChannelView } from '@cheapai/api-client/channels';
 import { ChannelDiagnostics } from '../../features/admin-channels/ChannelDiagnostics';
 import { ChannelSetup } from '../../features/admin-channels/ChannelSetup';
@@ -38,6 +38,7 @@ function channelStatusFromUrl(value: string | null): 'all' | 'active' | 'disable
 export function ChannelsPage() {
   const { user, epoch, client, isAdmin } = useSession();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [formChannel, setFormChannel] = useState<ChannelView | null | undefined>(undefined);
   const [diagnosticChannel, setDiagnosticChannel] = useState<ChannelView | null>(null);
@@ -163,6 +164,15 @@ export function ChannelsPage() {
           open
           channel={diagnosticChannel}
           api={api}
+          sessionIdentity={{ userId, epoch }}
+          onRepair={(kind, model) => {
+            setDiagnosticChannel(null);
+            if (kind === 'credentials') openEdit(diagnosticChannel);
+            else
+              navigate(
+                `/admin/channels/${encodeURIComponent(diagnosticChannel.id)}#channel-model-mappings${model ? `-${encodeURIComponent(model.publicModelId)}` : ''}`,
+              );
+          }}
           onOpenChange={(open) => {
             if (!open) setDiagnosticChannel(null);
           }}

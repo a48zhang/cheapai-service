@@ -1,266 +1,243 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
+import { useRef, useState } from 'react';
 import type { ChannelModel, ChannelView } from '@cheapai/api-client/channels';
+import type { SessionIdentity } from '@cheapai/api-client/types';
 import { ApiClientError } from '@cheapai/api-client/errors';
-import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { Button } from '../../shared/ui/Button';
-import { Dialog } from '../../shared/ui/Dialog';
 import { Field } from '../../shared/ui/Field';
 import { Select } from '../../shared/ui/Select';
 import { Sheet } from '../../shared/ui/Sheet';
-import { StatusBadge } from '../../shared/ui/StatusBadge';
+import { Tabs } from '../../shared/ui/Tabs';
 import type { AdminChannelsApi } from './api';
-import { channelModelKey, createDiagnosticOperation } from './diagnostic-operation';
-import type { ChannelProbeResult } from '@cheapai/api-client/channels';
+import { DiagnosticDetails } from './DiagnosticDetails';
+import { DiagnosticRequest } from './DiagnosticRequest';
+import { DiagnosticResponse } from './DiagnosticResponse';
+import { DiagnosticSummary } from './DiagnosticSummary';
+import { channelModelKey } from './diagnostic-operation';
+import { createDiagnosticPreview, formatDiagnosticExport } from './diagnostic-format';
+import type { DiagnosticRepairAction } from './diagnostic-result';
+import { useChannelDiagnostic } from './useChannelDiagnostic';
 
 export interface ChannelDiagnosticsProps {
   open: boolean;
   channel: ChannelView;
   api: AdminChannelsApi;
   onOpenChange: (open: boolean) => void;
+  sessionIdentity?: SessionIdentity | null;
+  onRepair?: (kind: 'credentials' | 'mapping', model: ChannelModel | null) => void;
 }
 
-const outcomeDetails: Record<
-  ChannelProbeResult['outcome'],
-  { label: string; tone: 'success' | 'warning' | 'danger' | 'neutral' }
-> = {
-  responded: { label: '响应有效', tone: 'success' },
-  http_error: { label: '上游返回 HTTP 错误', tone: 'danger' },
-  invalid_response: { label: '响应内容无效', tone: 'warning' },
-  timeout: { label: '请求超时', tone: 'warning' },
-  cancelled: { label: '请求已取消', tone: 'neutral' },
-  transport_error: { label: '传输失败', tone: 'danger' },
-};
-
-function mappingLabel(model: ChannelModel): ReactNode {
-  return (
-    <span className="flex min-w-0 items-center justify-between gap-4">
-      <span className="truncate">{model.publicModelId}</span>
-      <span className="shrink-0 text-xs text-[var(--color-ink-muted)]">{model.protocol}</span>
-    </span>
-  );
-}
-
-export function ChannelDiagnostics({ open, channel, api, onOpenChange }: ChannelDiagnosticsProps) {
-  const operation = useMemo(() => createDiagnosticOperation(api), [api]);
-  const options = useMemo(
-    () =>
-      channel.models.map((model) => ({
-        value: channelModelKey(model),
-        label: mappingLabel(model),
-      })),
-    [channel.models],
-  );
-  const initialSelection = options[0]?.value ?? '';
-  const [selection, setSelection] = useState(initialSelection);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<ChannelProbeResult | null>(null);
-  const [error, setError] = useState<unknown>(null);
-  const selectedModel =
-    channel.models.find((model) => channelModelKey(model) === selection) ?? null;
-
-  useEffect(() => {
-    setSelection(options[0]?.value ?? '');
-    setConfirmOpen(false);
-    setResult(null);
-    setError(null);
-  }, [channel.id, options]);
-
-  const handleProbe = async () => {
-    if (!selectedModel || busy) return;
-    setBusy(true);
-    setError(null);
-    setResult(null);
+export function ChannelDiagnostics({
+  open,
+  channel,
+  api,
+  onOpenChange,
+  sessionIdentity = null,
+  onRepair,
+}: ChannelDiagnosticsProps) {
+  const diagnostic = useChannelDiagnostic({ open, channel, api, sessionIdentity });
+  const { selectedModel, busy, result, error, view } = diagnostic;
+  const detailsRef = useRef<HTMLDivElement>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const preview = selectedModel === null ? null : createDiagnosticPreview(channel, selectedModel);
+  const state = busy
+    ? 'running'
+    : view.state === 'idle'
+      ? 'idle'
+      : view.state === 'unconfirmed'
+        ? 'unconfirmed'
+        : 'complete';
+  const runnable = channel.status === 'active' && channel.hasCredential && selectedModel !== null;
+  const changeOpen = (next: boolean) => {
+    if (!next && busy && !window.confirm('诊断仍在进行，关闭后无法确认本次结果。仍要关闭？'))
+      return;
+    onOpenChange(next);
+  };
+  const repair = (action: DiagnosticRepairAction) => {
+    if (action.kind === 'execution') {
+      const details = detailsRef.current?.querySelector('details');
+      if (details) {
+        details.open = true;
+        details.querySelector('summary')?.focus();
+      }
+      return;
+    }
+    onRepair?.(action.kind, selectedModel);
+  };
+  const download = () => {
+    let url: string | null = null;
     try {
-      const completed = await operation.run(channel, selectedModel);
-      setResult(completed);
-    } catch (cause) {
-      setError(cause);
+      const content = formatDiagnosticExport({
+        result,
+        partialEvidence: view.evidence,
+        partialDiagnosticId: view.diagnosticId,
+        apiError:
+          view.apiError === null
+            ? null
+            : { status: view.apiError.status, code: view.apiError.code ?? 'unknown' },
+      });
+      url = URL.createObjectURL(new Blob([content], { type: 'application/json' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `cheapai-diagnostic-${view.diagnosticId ?? channel.id}.json`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setDownloadError(null);
+    } catch {
+      setDownloadError('下载失败，请重试。');
     } finally {
-      setBusy(false);
-      setConfirmOpen(false);
+      if (url !== null) URL.revokeObjectURL(url);
     }
   };
-
-  const closeSheet = (nextOpen: boolean) => {
-    if (!nextOpen && (busy || confirmOpen)) return;
-    onOpenChange(nextOpen);
-  };
-  const closeConfirmation = (nextOpen: boolean) => {
-    if (!nextOpen && busy) return;
-    setConfirmOpen(nextOpen);
-  };
+  const contextKey = `${channel.id}:${channel.configVersion}:${sessionIdentity?.userId ?? ''}:${sessionIdentity?.epoch ?? ''}:${diagnostic.selection}`;
 
   return (
-    <>
-      <Sheet
-        open={open}
-        onOpenChange={closeSheet}
-        title="渠道连接诊断"
-        closeButton={!busy && !confirmOpen}
-        footer={
-          <>
-            <Button
-              variant="outline"
-              disabled={busy || confirmOpen}
-              onClick={() => onOpenChange(false)}
-            >
-              关闭
-            </Button>
-            <Button
-              disabled={channel.status !== 'active' || !selectedModel || busy || confirmOpen}
-              onClick={() => setConfirmOpen(true)}
-            >
-              执行诊断
-            </Button>
-          </>
-        }
-      >
-        <div className="space-y-5">
-          <div className="rounded-lg border border-[var(--color-warning-line)] bg-[var(--color-warning-soft)] p-4 text-sm text-[var(--color-warning)]">
-            <p className="font-semibold">费用提示</p>
-            <p className="mt-1 leading-6">诊断可能产生上游费用，不扣用户余额。</p>
+    <Sheet
+      open={open}
+      onOpenChange={changeOpen}
+      title="渠道诊断"
+      description={channel.name}
+      footer={
+        <>
+          <p className="w-full text-xs text-[var(--color-ink-muted)]">
+            可能产生上游费用，不扣用户余额
+          </p>
+          <Button variant="outline" onClick={() => changeOpen(false)}>
+            关闭
+          </Button>
+          <Button
+            busy={busy}
+            disabled={!runnable}
+            onClick={() => {
+              setDownloadError(null);
+              void diagnostic.run();
+            }}
+          >
+            运行诊断
+          </Button>
+        </>
+      }
+    >
+      <div className="min-w-0 space-y-4">
+        <Field label="选择模型映射">
+          <Select
+            value={diagnostic.selection}
+            disabled={busy || channel.models.length === 0}
+            onValueChange={(selection) => {
+              setDownloadError(null);
+              diagnostic.selectMapping(selection);
+            }}
+            placeholder="暂无模型映射"
+            items={channel.models.map((model) => ({
+              value: channelModelKey(model),
+              label: `${model.publicModelId} · ${model.protocol}`,
+            }))}
+          />
+        </Field>
+        {!runnable && !busy && (
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <p>
+              {channel.status !== 'active'
+                ? '渠道已停用。'
+                : !channel.hasCredential
+                  ? '渠道缺少上游凭据。'
+                  : '此渠道尚无模型映射。'}
+            </p>
+            {onRepair && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  onRepair(
+                    channel.status !== 'active' || !channel.hasCredential
+                      ? 'credentials'
+                      : 'mapping',
+                    selectedModel,
+                  )
+                }
+              >
+                {channel.status !== 'active' || !channel.hasCredential
+                  ? '编辑渠道'
+                  : '配置模型映射'}
+              </Button>
+            )}
           </div>
-
-          {channel.status !== 'active' && (
-            <div
-              role="status"
-              className="rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-subtle)] p-3 text-sm text-[var(--color-ink-secondary)]"
-            >
-              当前渠道已停用，不能执行连接诊断。
-            </div>
-          )}
-
-          {channel.models.length > 0 ? (
-            <Field
-              label="选择模型映射"
-
-              required
-            >
-              <Select
-                items={options}
-                value={selection}
-                onValueChange={(value) => {
-                  setSelection(value);
-                  setResult(null);
-                  setError(null);
-                }}
-                disabled={busy}
-                required
-              />
-            </Field>
-          ) : (
-            <div
-              role="status"
-              className="rounded-lg border border-dashed border-[var(--color-line-strong)] p-5 text-sm text-[var(--color-ink-secondary)]"
-            >
-              此渠道没有模型映射。先配置映射后再运行诊断。
-            </div>
-          )}
-
-          {selectedModel && (
-            <dl className="grid gap-3 rounded-lg border border-[var(--color-line)] p-4 text-sm sm:grid-cols-2">
-              <div>
-                <dt className="text-xs text-[var(--color-ink-muted)]">公开模型</dt>
-                <dd className="mt-1 break-all font-medium">{selectedModel.publicModelId}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-[var(--color-ink-muted)]">上游模型</dt>
-                <dd className="mt-1 break-all font-mono">{selectedModel.upstreamModel}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-[var(--color-ink-muted)]">协议</dt>
-                <dd className="mt-1">{selectedModel.protocol}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-[var(--color-ink-muted)]">版本</dt>
-                <dd className="mt-1">
-                  渠道 {channel.configVersion} · 映射 {selectedModel.mappingVersion} · 价格{' '}
-                  {selectedModel.priceVersion}
-                </dd>
-              </div>
-            </dl>
-          )}
-
-          {result && (
-            <section
-              aria-live="polite"
-              className="space-y-3 rounded-lg border border-[var(--color-line)] p-4"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h3 className="text-sm font-semibold">诊断结果</h3>
-                <StatusBadge tone={outcomeDetails[result.outcome].tone}>
-                  {outcomeDetails[result.outcome].label}
-                </StatusBadge>
-              </div>
-              <dl className="grid gap-2 text-sm sm:grid-cols-2">
-                <div>
-                  <dt className="text-xs text-[var(--color-ink-muted)]">诊断编号</dt>
-                  <dd className="mt-1 break-all font-mono">{result.diagnosticId}</dd>
+        )}
+        <Tabs
+          key={contextKey}
+          defaultValue="result"
+          ariaLabel="渠道诊断内容"
+          contentClassName="pt-4 min-w-0"
+          items={[
+            {
+              value: 'result',
+              label: '结果',
+              content: (
+                <div className="space-y-3">
+                  <DiagnosticSummary view={view} busy={busy} onAction={repair} />
+                  {view.apiError && view.apiError.message !== view.detail && (
+                    <p role="alert" className="break-words text-sm text-[var(--color-danger)]">
+                      {view.apiError.message}
+                    </p>
+                  )}
+                  {error instanceof ApiClientError &&
+                    view.evidence === null &&
+                    error.request_id && (
+                      <p className="break-all text-xs text-[var(--color-ink-muted)]">
+                        请求编号：<code>{error.request_id}</code>
+                      </p>
+                    )}
+                  {(result !== null || view.evidence !== null) && (
+                    <>
+                      <div ref={detailsRef}>
+                        <DiagnosticDetails
+                          evidence={view.evidence}
+                          diagnosticId={view.diagnosticId}
+                          channelVersion={result?.channelVersion ?? null}
+                          mappingVersion={result?.mappingVersion ?? null}
+                          priceVersion={result?.priceVersion ?? null}
+                        />
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={download}>
+                        下载诊断 JSON
+                      </Button>
+                    </>
+                  )}
+                  {downloadError && (
+                    <p role="status" className="text-sm text-[var(--color-danger)]">
+                      {downloadError}
+                    </p>
+                  )}
                 </div>
-                <div>
-                  <dt className="text-xs text-[var(--color-ink-muted)]">上游 HTTP 状态</dt>
-                  <dd className="mt-1">{result.upstreamStatus ?? '无响应状态'}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-[var(--color-ink-muted)]">本次输出上限</dt>
-                  <dd className="mt-1">{result.maxOutputTokens} tokens</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-[var(--color-ink-muted)]">账务</dt>
-                  <dd className="mt-1">
-                    {result.userBalanceCharged ? '用户余额已扣费' : '用户余额未扣费'}
-                  </dd>
-                </div>
-              </dl>
-            </section>
-          )}
-
-          {error !== null && (
-            <div className="space-y-2">
-              <ApiErrorNotice error={error} />
-              {error instanceof ApiClientError &&
-                (error.kind === 'network' || error.kind === 'aborted') && (
-                  <p className="text-xs text-[var(--color-ink-secondary)]">
-                    诊断结果未确认。再次诊断可能产生额外费用。
-                  </p>
-                )}
-            </div>
-          )}
-        </div>
-      </Sheet>
-
-      <Dialog
-        open={confirmOpen}
-        onOpenChange={closeConfirmation}
-        title="确认发送一次上游测试请求"
-        description={
-          <span>
-            将以 <strong>{selectedModel?.publicModelId}</strong>（{selectedModel?.protocol}
-            ）发送测试请求。上游可能产生费用；CheapAI
-            不扣用户余额。每次确认只执行一次，不会自动重试。
-          </span>
-        }
-        closeButton={!busy}
-        footer={
-          <>
-            <Button variant="outline" disabled={busy} onClick={() => setConfirmOpen(false)}>
-              返回
-            </Button>
-            <Button
-              variant="primary"
-              busy={busy}
-              disabled={!selectedModel}
-              onClick={() => {
-                void handleProbe();
-              }}
-            >
-              确认并诊断
-            </Button>
-          </>
-        }
-      />
-    </>
+              ),
+            },
+            {
+              value: 'request',
+              label: '请求',
+              content: (
+                <DiagnosticRequest
+                  preview={preview}
+                  evidence={view.evidence}
+                  state={state}
+                  errorMessage={error instanceof Error ? error.message : null}
+                />
+              ),
+            },
+            {
+              value: 'response',
+              label: '响应',
+              content: (
+                <DiagnosticResponse
+                  evidence={view.evidence}
+                  state={state}
+                  upstreamStatus={view.upstreamStatus}
+                  errorMessage={error instanceof Error ? error.message : null}
+                />
+              ),
+            },
+          ]}
+        />
+      </div>
+    </Sheet>
   );
 }

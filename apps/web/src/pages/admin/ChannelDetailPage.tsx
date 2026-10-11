@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import type { ChannelView } from '@cheapai/api-client/channels';
 import { ChannelDiagnostics } from '../../features/admin-channels/ChannelDiagnostics';
 import {
@@ -25,6 +25,7 @@ function limitLabel(limit: number): string {
 export function ChannelDetailPage() {
   const { channelId: routeChannelId } = useParams<{ channelId: string }>();
   const channelId = routeChannelId ?? '';
+  const location = useLocation();
   const { user, epoch, client, isAdmin } = useSession();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
@@ -36,6 +37,12 @@ export function ChannelDetailPage() {
     enabled: isAdmin && channelId.length > 0,
   });
   const channel = channelQuery.data;
+  useEffect(() => {
+    if (!channel || !location.hash.startsWith('#channel-model-mappings')) return;
+    const target = document.getElementById('channel-model-mappings');
+    target?.scrollIntoView({ block: 'start' });
+    target?.focus({ preventScroll: true });
+  }, [channel, location.hash]);
 
   const onSaved = (saved: ChannelView) => {
     setEditing(false);
@@ -158,12 +165,18 @@ export function ChannelDetailPage() {
             </dl>
           </section>
 
-          <ChannelMappingPanel
-            channel={channel}
-            client={client}
-            actorId={userId}
-            sessionEpoch={epoch}
-          />
+          <div
+            id="channel-model-mappings"
+            tabIndex={-1}
+            className="outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+          >
+            <ChannelMappingPanel
+              channel={channel}
+              client={client}
+              actorId={userId}
+              sessionEpoch={epoch}
+            />
+          </div>
         </>
       ) : (
         <div
@@ -190,6 +203,17 @@ export function ChannelDetailPage() {
           open
           channel={channel}
           api={api}
+          sessionIdentity={{ userId, epoch }}
+          onRepair={(kind) => {
+            setDiagnosing(false);
+            if (kind === 'credentials') setEditing(true);
+            else
+              requestAnimationFrame(() => {
+                const target = document.getElementById('channel-model-mappings');
+                target?.scrollIntoView({ block: 'start' });
+                target?.focus({ preventScroll: true });
+              });
+          }}
           onOpenChange={(open) => {
             if (!open) setDiagnosing(false);
           }}

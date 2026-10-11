@@ -1,3 +1,5 @@
+import { channelDiagnosticErrorDetailsSchema } from '@cheapai/contracts/channel-diagnostics';
+import type { ChannelDiagnosticErrorDetails } from '@cheapai/contracts/channel-diagnostics';
 import {
   channelPageSchema,
   channelSchema,
@@ -12,6 +14,7 @@ import type {
   ChannelProbeResult,
   ChannelView,
 } from '@cheapai/contracts/channels';
+import { ApiClientError } from './errors.js';
 import type { ApiClient, ApiReadOptions } from './types.js';
 
 export type {
@@ -26,6 +29,15 @@ export type {
   ChannelStatus,
   ChannelView,
 } from '@cheapai/contracts/channels';
+
+/** Decode only the reviewed diagnostic detail shape from a management API error. */
+export function extractChannelDiagnosticErrorDetails(
+  error: unknown,
+): ChannelDiagnosticErrorDetails | null {
+  if (!(error instanceof ApiClientError)) return null;
+  const parsed = channelDiagnosticErrorDetailsSchema.safeParse(error.details);
+  return parsed.success ? parsed.data : null;
+}
 
 const pathFor = (id: string) => `/api/v1/admin/channels/${encodeURIComponent(id)}`;
 
@@ -72,10 +84,15 @@ export function createChannelsApi(api: ApiClient) {
     ).data;
   }
 
-  async function probe(id: string, input: ChannelProbeInput): Promise<ChannelProbeResult> {
+  async function probe(
+    id: string,
+    input: ChannelProbeInput,
+    readOptions?: ApiReadOptions,
+  ): Promise<ChannelProbeResult> {
     return (
       await api.post(`${pathFor(id)}/test`, input, {
         decode: (value) => channelProbeResultSchema.parse(value),
+        ...(readOptions?.signal === undefined ? {} : { signal: readOptions.signal }),
       })
     ).data;
   }
