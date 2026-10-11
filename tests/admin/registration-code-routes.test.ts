@@ -80,22 +80,25 @@ describe('registration code list HTTP on native D1 and Hono', () => {
   });
 
   it('translates creatorFilter and cursor into a stable creator-filtered page', async () => {
-    const first = await request(routeAt(), `?creatorFilter=${admin}&limit=2`);
+    const first = await request(routeAt(), `?creatorFilter=${admin}&status=unused&limit=2`);
     const firstBody = await first.json() as { data: { items: { id: string; createdBy: string }[]; nextCursor: string } };
     expect(firstBody.data.items).toHaveLength(2);
     expect(firstBody.data.items.every((item) => item.createdBy === admin)).toBe(true);
-    const second = await request(routeAt(), `?creatorFilter=${admin}&limit=2&cursor=${firstBody.data.nextCursor}`);
+    const second = await request(routeAt(), `?creatorFilter=${admin}&status=unused&limit=2&cursor=${firstBody.data.nextCursor}`);
     const secondBody = await second.json() as { data: { items: { id: string }[]; nextCursor: null } };
     expect(secondBody.data.items).toHaveLength(1);
     expect(secondBody.data.nextCursor).toBeNull();
+    expect((await request(routeAt(), `?creatorFilter=${admin}&status=used&cursor=${firstBody.data.nextCursor}`)).status).toBe(400);
+    const usedPage = await request(routeAt(), '?status=used');
+    expect(await usedPage.json()).toMatchObject({ data: { items: [], nextCursor: null } });
     expect(new Set([...firstBody.data.items, ...secondBody.data.items].map((item) => item.id)).size).toBe(3);
-    expect((await request(routeAt(), `?creatorFilter=${otherAdmin}&cursor=${firstBody.data.nextCursor}`)).status).toBe(400);
-    expect((await request(routeAt(), `?creatorFilter=${admin}&cursor=${firstBody.data.nextCursor}`, cookies.get(otherAdmin))).status).toBe(400);
+    expect((await request(routeAt(), `?creatorFilter=${otherAdmin}&status=unused&cursor=${firstBody.data.nextCursor}`)).status).toBe(400);
+    expect((await request(routeAt(), `?creatorFilter=${admin}&status=unused&cursor=${firstBody.data.nextCursor}`, cookies.get(otherAdmin))).status).toBe(400);
   });
 
   it('rejects duplicate, malformed and unknown query parameters', async () => {
     for (const query of ['?limit=0', '?limit=101', '?limit=02', '?limit=2&limit=3', '?cursor=', '?cursor=x&cursor=y',
-      '?creatorFilter=', '?creatorFilter=a&creatorFilter=b', '?creatorFilter=%20admin', '?cursor=invalid!']) {
+      '?creatorFilter=', '?creatorFilter=a&creatorFilter=b', '?status=', '?status=invalid', '?status=used&status=expired', '?creatorFilter=%20admin', '?cursor=invalid!']) {
       const response = await request(routeAt(), query);
       expect(response.status, query).toBe(400);
       expect(response.headers.get('Cache-Control'), query).toBe('no-store');

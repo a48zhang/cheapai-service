@@ -1,6 +1,6 @@
 import type { AccountBalance } from '@cheapai/api-client/account';
 import type { BillingSummary as BillingPeriodSummary } from '@cheapai/contracts/billing';
-import { formatUnitsToUsd } from '../../shared/lib/money';
+import { formatConsumptionUsd, formatWalletUsd } from '../../shared/lib/money';
 import { Button } from '../../shared/ui/Button';
 
 export interface BillingSummaryProps {
@@ -16,6 +16,7 @@ export interface BillingSummaryProps {
 
 interface AmountProps {
   readonly label: string;
+  readonly wallet?: boolean;
   readonly units?: string | undefined;
   readonly currency: string;
   readonly loading: boolean;
@@ -23,27 +24,27 @@ interface AmountProps {
   readonly onRetry: () => void;
 }
 
-function Amount({ label, units, currency, loading, error, onRetry }: AmountProps) {
+function Amount({ label, units, currency, loading, error, onRetry, wallet }: AmountProps) {
   let amount: string | null = null;
   if (units !== undefined) {
     try {
-      amount = `${formatUnitsToUsd(units, 2)} ${currency}`;
+      amount = `${wallet ? formatWalletUsd(units) : formatConsumptionUsd(units)} ${currency}`;
     } catch {
       amount = null;
     }
   }
 
   return (
-    <section className="min-w-0 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:p-5">
+    <section className="console-panel min-w-0 p-5 sm:p-6">
       <h2 className="m-0 text-sm font-medium text-[var(--color-ink-secondary)]">{label}</h2>
       {amount !== null ? (
         <>
-          <p className="mb-0 mt-2 whitespace-nowrap font-mono text-2xl font-semibold tabular-nums text-[var(--color-ink)] sm:text-3xl">
+          <p className="mb-0 mt-2 console-number overflow-x-auto whitespace-nowrap text-3xl font-semibold text-[var(--color-ink)]">
             {amount}
           </p>
           {error && (
             <p
-              className="mb-0 mt-2 flex items-center gap-2 text-xs text-[var(--color-danger)]"
+              className="mb-0 mt-2 flex items-center gap-2 text-sm text-[var(--color-danger)]"
               role="status"
             >
               更新失败
@@ -84,9 +85,10 @@ export function BillingSummary({
   onRetrySummary,
 }: BillingSummaryProps) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid gap-4 sm:grid-cols-2">
       <Amount
         label="当前余额"
+        wallet
         units={balance?.balance_units}
         currency={balance?.currency ?? 'USD'}
         loading={balanceLoading}
@@ -94,7 +96,7 @@ export function BillingSummary({
         onRetry={onRetryBalance}
       />
       <Amount
-        label="所选期间已结算消费"
+        label="期间消费（已结算）"
         units={summary?.consumptionUnits}
         currency={summary?.currency ?? 'USD'}
         loading={summaryLoading}

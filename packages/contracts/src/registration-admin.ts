@@ -23,6 +23,7 @@ export const codeListItemSchema = codeMetadataSchema.extend({
   createdBy: text,
   createdAt: count,
   usedBy: text.nullable(),
+  usedByEmail: z.string().nullable().optional(),
   usedAt: time,
   revokedAt: time,
   status: z.enum(['unused', 'used', 'expired', 'revoked']),
@@ -61,6 +62,7 @@ export const codeBatchInputSchema = z.object({
 export type AdminRegistrationSettings = z.infer<typeof adminRegistrationSettingsSchema>;
 export type CodeMetadata = z.infer<typeof codeMetadataSchema>;
 export type CodeListItem = z.infer<typeof codeListItemSchema>;
+export type CodeStatus = CodeListItem['status'];
 export type CodeBatch = z.infer<typeof codeBatchSchema>;
 export type CodePage = z.infer<typeof codePageSchema>;
 export type CodeBatchInput = z.infer<typeof codeBatchInputSchema>;

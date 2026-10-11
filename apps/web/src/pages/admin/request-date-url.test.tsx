@@ -82,6 +82,11 @@ function dateInputEpoch(container: HTMLElement, name: 'from' | 'to'): number | u
 }
 
 async function assertFilterKeepsDateRange(container: HTMLElement, filterName: 'model' | 'action') {
+  if (filterName === 'action') {
+    fireEvent.change(screen.getByRole('combobox', { name: '操作类型' }), {
+      target: { value: '__custom' },
+    });
+  }
   const filter = container.querySelector<HTMLInputElement>(`input[name="${filterName}"]`);
   if (!filter) throw new Error(`Missing ${filterName} filter input.`);
   fireEvent.change(filter, { target: { value: 'changed-filter' } });

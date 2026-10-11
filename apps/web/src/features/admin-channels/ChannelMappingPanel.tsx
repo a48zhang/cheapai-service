@@ -37,7 +37,7 @@ function ChannelModelMappings({
   };
 
   return (
-    <section className="space-y-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+    <section className="space-y-3 border-t border-[var(--color-border)] pt-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="break-all font-mono text-sm font-semibold">{publicModelId}</h3>
@@ -52,6 +52,7 @@ function ChannelModelMappings({
 
       <MappingTable
         rows={rows}
+        channelName={channel.name}
         loading={query.isPending}
         error={error}
         onRetry={() => {
@@ -61,10 +62,7 @@ function ChannelModelMappings({
       />
 
       {!query.isPending && !query.isError && rows.length === 0 && (
-        <p
-          role="status"
-          className="rounded-md bg-[var(--color-muted)] p-3 text-sm text-[var(--color-muted-foreground)]"
-        >
+        <p role="status" className="rounded-md bg-[var(--color-muted)] p-3 console-muted">
           渠道详情引用了此模型，但模型映射列表中没有对应记录。请重新读取或检查并发配置变化。
         </p>
       )}
@@ -99,10 +97,7 @@ export function ChannelMappingPanel({
     <section aria-label="渠道模型映射" className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-[var(--color-foreground)]">模型映射</h2>
-          <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
-            映射来自实际管理配置；配置存在不代表渠道已连通或该模型已授权给用户。
-          </p>
+          <h2 className="console-section-title text-[var(--color-foreground)]">模型映射</h2>
         </div>
         <Link
           to="/admin/models"
@@ -131,9 +126,7 @@ export function ChannelMappingPanel({
           className="rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-10 text-center"
         >
           <p className="font-medium text-[var(--color-foreground)]">此渠道尚无模型映射</p>
-          <p className="mt-2 text-sm text-[var(--color-muted-foreground)]">
-            从模型目录选择模型后，可在对应模型详情添加渠道映射。
-          </p>
+          <p className="mt-2 console-muted">从模型目录选择模型后，可在对应模型详情添加渠道映射。</p>
         </div>
       )}
     </section>

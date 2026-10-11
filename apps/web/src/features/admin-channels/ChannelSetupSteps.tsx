@@ -75,9 +75,7 @@ export function ChannelSetupSteps({
     <>
       {step === 'channel' && (
         <form id={channelFormId} className="grid gap-4" onSubmit={onSubmitChannel}>
-          <p className="text-sm text-[var(--color-muted-foreground)]">
-            新渠道默认启用，请求与并发上限不限。
-          </p>
+          <p className="console-muted">新渠道默认启用，请求与并发上限不限。</p>
           <Field label="渠道名称" required>
             <Input
               value={channelDraft.name}
@@ -87,7 +85,7 @@ export function ChannelSetupSteps({
               disabled={busy}
             />
           </Field>
-          <Field label="上游 Base URL" required>
+          <Field label="上游地址" required>
             <Input
               value={channelDraft.baseUrl}
               onChange={(event) => onChannelDraftChange('baseUrl', event.currentTarget.value)}
@@ -124,7 +122,7 @@ export function ChannelSetupSteps({
 
       {step === 'mapping' && (
         <form id={mappingFormId} className="grid gap-4" onSubmit={onSubmitMapping}>
-          <p className="text-sm text-[var(--color-muted-foreground)]">
+          <p className="console-muted">
             渠道已保存。选择已有模型目录中的公开模型，然后声明上游模型 ID 与协议。
           </p>
           <Field label="内置模型参考">
@@ -142,7 +140,7 @@ export function ChannelSetupSteps({
             />
           </Field>
           {selectedBuiltin && (
-            <div className="rounded-md bg-[var(--color-muted)] p-3 text-xs text-[var(--color-muted-foreground)]">
+            <div className="rounded-md bg-[var(--color-muted)] p-3 console-muted">
               <p>
                 {selectedBuiltin.provider} · 上下文窗口{' '}
                 {selectedBuiltin.contextWindow.toLocaleString()} · 最大输出{' '}
@@ -187,7 +185,7 @@ export function ChannelSetupSteps({
               disabled={busy}
             />
           </Field>
-          <p className="text-xs leading-5 text-[var(--color-warning)]">
+          <p className="text-sm leading-5 text-[var(--color-warning)]">
             流式、工具调用等能力需在模型详情配置。
           </p>
         </form>
@@ -195,18 +193,16 @@ export function ChannelSetupSteps({
 
       {step === 'group' && (
         <form id={groupFormId} className="grid gap-4" onSubmit={onSubmitGroup}>
-          <p className="text-sm text-[var(--color-muted-foreground)]">将新渠道加入访问组。</p>
+          <p className="console-muted">将新渠道加入访问组。</p>
           {groupsLoading && (
-            <p role="status" className="text-sm text-[var(--color-muted-foreground)]">
+            <p role="status" className="console-muted">
               正在读取访问组…
             </p>
           )}
           {groupsError && (
             <div className="grid gap-2">
               <ApiErrorNotice error={groupsError} onRetry={onRetryGroups} />
-              <p className="text-xs text-[var(--color-muted-foreground)]">
-                请重试加载访问组；渠道与映射已保存。
-              </p>
+              <p className="console-muted">请重试加载访问组；渠道与映射已保存。</p>
             </div>
           )}
           {!groupsLoading && !groupsError && groups.length === 0 && (
@@ -239,12 +235,12 @@ export function ChannelSetupSteps({
             </Field>
           )}
           {selectedGroup && (
-            <p className="rounded-md bg-[var(--color-muted)] p-3 text-xs text-[var(--color-muted-foreground)]">
+            <p className="rounded-md bg-[var(--color-muted)] p-3 console-muted">
               已有 {selectedGroup.channelIds.length} 个渠道
             </p>
           )}
           {progressError && (
-            <p className="text-xs text-[var(--color-warning)]">
+            <p className="text-sm text-[var(--color-warning)]">
               若配置已变更，请刷新并重新选择访问组。
             </p>
           )}

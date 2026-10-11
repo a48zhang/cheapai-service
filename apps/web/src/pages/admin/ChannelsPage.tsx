@@ -81,6 +81,7 @@ export function ChannelsPage() {
   const updateStatus = (value: string) => {
     if (value !== 'all' && value !== 'active' && value !== 'disabled') return;
     const next = new URLSearchParams(searchParams);
+    next.delete('cursor');
     if (value === 'all') next.delete('status');
     else next.set('status', value);
     setSearchParams(next, { replace: true });
@@ -97,9 +98,8 @@ export function ChannelsPage() {
   };
 
   return (
-    <section className="space-y-5">
+    <section className="space-y-4">
       <PageHeader
-        eyebrow="资源配置"
         heading="渠道"
         actions={
           <>
@@ -111,7 +111,7 @@ export function ChannelsPage() {
         }
       />
 
-      <FilterBar>
+      <FilterBar onReset={() => updateStatus('all')}>
         <Field label="状态">
           <Select
             aria-label="按渠道状态筛选"

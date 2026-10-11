@@ -74,26 +74,28 @@ export function VerificationCodeField({
   }
   return (
     <div className="space-y-2">
-      <Field id="email-code" label="邮箱验证码" error={error}>
-        <Input
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          disabled={disabled}
-        />
-      </Field>
-      <Button
-        size="sm"
-        variant="secondary"
-        busy={sending}
-        disabled={disabled || seconds > 0 || !z.string().email().safeParse(email.trim()).success}
-        onClick={() => void send()}
-      >
-        {seconds ? `${seconds} 秒后重发` : '发送验证码'}
-      </Button>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3">
+        <Field id="email-code" label="邮箱验证码" error={error}>
+          <Input
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            disabled={disabled}
+          />
+        </Field>
+        <Button
+          className="mt-8 whitespace-nowrap"
+          variant="secondary"
+          busy={sending}
+          disabled={disabled || seconds > 0 || !z.string().email().safeParse(email.trim()).success}
+          onClick={() => void send()}
+        >
+          {seconds ? `${seconds} 秒后重发` : '发送验证码'}
+        </Button>
+      </div>
       {message && (
-        <p role="status" className="text-xs text-[var(--color-muted-foreground)]">
+        <p role="status" className="text-sm leading-6 text-[var(--color-muted-foreground)]">
           {message}
         </p>
       )}

@@ -104,9 +104,7 @@ export function GroupForm({
           />
         </div>
       </div>
-      <div className="rounded-lg border border-[var(--color-border)] p-4">
-        <h3 className="font-medium">渠道关联</h3>
-
+      <div className="space-y-3 border-t border-[var(--color-border)] pt-5">
         <Controller
           name="channelIds"
           control={form.control}
@@ -126,9 +124,7 @@ export function GroupForm({
             />
           )}
         />
-        <p className="mt-3 text-xs text-[var(--color-muted-foreground)]">
-          已选择 {selectedChannelIds.length} 个渠道
-        </p>
+        <p className="mt-3 console-muted">已选择 {selectedChannelIds.length} 个渠道</p>
       </div>
 
       {groupError && (
@@ -180,7 +176,7 @@ export function GroupForm({
         </div>
       )}
       {feedback && (
-        <p role="status" className="text-sm text-[var(--color-muted-foreground)]">
+        <p role="status" className="console-muted">
           {feedback}
         </p>
       )}
@@ -195,7 +191,7 @@ export function GroupForm({
         </Button>
       </div>
       {!channelsComplete && !channelQuery.isError && (
-        <p role="status" className="text-xs text-[var(--color-muted-foreground)]">
+        <p role="status" className="console-muted">
           正在加载渠道，加载后可保存。
         </p>
       )}

@@ -4,7 +4,8 @@ import type {
   RequestRecord,
   RequestSource,
 } from '@cheapai/contracts/requests';
-import { formatUnitsToUsd } from '../../shared/lib/money';
+import { executionLabels } from './RequestStatus';
+import { formatConsumptionUsd } from '../../shared/lib/money';
 
 export type RequestResultTone = 'info' | 'success' | 'warning' | 'danger' | 'neutral';
 
@@ -12,14 +13,6 @@ export interface RequestResultPresentation {
   readonly label: string;
   readonly tone: RequestResultTone;
 }
-
-const resultLabels: Record<ExecutionStatus, RequestResultPresentation> = {
-  admitted: { label: '已接收', tone: 'info' },
-  succeeded: { label: '成功', tone: 'success' },
-  failed: { label: '失败', tone: 'danger' },
-  cancelled: { label: '已取消', tone: 'neutral' },
-  abandoned: { label: '已放弃', tone: 'warning' },
-};
 
 const missingCostLabels: Record<BillingStatus, string> = {
   awaiting_usage: '等待用量',
@@ -30,7 +23,7 @@ const missingCostLabels: Record<BillingStatus, string> = {
 };
 
 export function requestResultPresentation(status: ExecutionStatus): RequestResultPresentation {
-  return resultLabels[status];
+  return executionLabels[status];
 }
 
 export function requestSourceLabel(source: RequestSource): string {
@@ -43,7 +36,7 @@ export function requestCostLabel(
 ): string {
   if (item.cost_units === null) return missingCostLabels[item.billing_status];
   try {
-    return `${formatUnitsToUsd(item.cost_units)} USD`;
+    return `${formatConsumptionUsd(item.cost_units)} USD`;
   } catch {
     return '费用未知';
   }

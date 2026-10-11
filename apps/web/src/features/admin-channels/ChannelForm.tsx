@@ -63,7 +63,7 @@ export function ChannelForm({ open, channel, api, onOpenChange, onSaved }: Chann
         </>
       }
     >
-      <form id={formId} className="space-y-4" onSubmit={submit}>
+      <form id={formId} className="space-y-5" onSubmit={submit}>
         {saveError && <ApiErrorNotice error={saveError} />}
 
         {creationUncertain && (
@@ -88,7 +88,7 @@ export function ChannelForm({ open, channel, api, onOpenChange, onSaved }: Chann
           />
         </Field>
         <Field
-          label="上游 Base URL"
+          label="上游地址"
           error={errors.baseUrl}
 
           required
@@ -105,7 +105,7 @@ export function ChannelForm({ open, channel, api, onOpenChange, onSaved }: Chann
         <Field
           label={creating ? '上游凭证' : '替换上游凭证'}
           error={errors.upstreamKey}
-          description={creating ? undefined : '留空保留当前凭证。'}
+
           required={creating}
         >
           <Input
@@ -130,83 +130,94 @@ export function ChannelForm({ open, channel, api, onOpenChange, onSaved }: Chann
             required
           />
         </Field>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-3">
-            <Field label="并发规则" error={errors.concurrency}>
-              <Select
-                items={limitModeOptions}
-                value={draft.concurrencyMode}
-                onValueChange={(value) => {
-                  if (value === 'unlimited' || value === 'finite')
-                    updateDraft('concurrencyMode', value);
-                }}
-                disabled={saving}
-              />
-            </Field>
-            {draft.concurrencyMode === 'finite' && (
-              <Field label="并发上限" error={errors.concurrency} required>
-                <Input
-                  type="number"
-                  min={1}
-                  max={Number.MAX_SAFE_INTEGER - 1}
-                  step={1}
-                  value={draft.concurrencyValue}
-                  onChange={(event) => updateDraft('concurrencyValue', event.currentTarget.value)}
-                  required
-                  disabled={saving}
-                />
-              </Field>
-            )}
-          </div>
-          <div className="space-y-3">
-            <Field label="RPM 规则" error={errors.rpm}>
-              <Select
-                items={limitModeOptions}
-                value={draft.rpmMode}
-                onValueChange={(value) => {
-                  if (value === 'unlimited' || value === 'finite') updateDraft('rpmMode', value);
-                }}
-                disabled={saving}
-              />
-            </Field>
-            {draft.rpmMode === 'finite' && (
-              <Field
-                label="每分钟请求上限"
-                error={errors.rpm}
-                description="范围：1–4096。"
-                required
-              >
-                <Input
-                  type="number"
-                  min={1}
-                  max={4096}
-                  step={1}
-                  value={draft.rpmValue}
-                  onChange={(event) => updateDraft('rpmValue', event.currentTarget.value)}
-                  required
-                  disabled={saving}
-                />
-              </Field>
-            )}
-          </div>
-        </div>
-
-        <Field
-          label="调度优先级"
-          error={errors.priority}
-          description="数值越高越优先；0 为默认优先级。"
-          required
+        <details
+          className="border-t border-[var(--color-border)] pt-5"
+          open={Boolean(errors.concurrency || errors.rpm || errors.priority) || undefined}
         >
-          <Input
-            type="number"
-            min={0}
-            step={1}
-            value={draft.priority}
-            onChange={(event) => updateDraft('priority', event.currentTarget.value)}
-            required
-            disabled={saving}
-          />
-        </Field>
+          <summary className="cursor-pointer font-medium">高级调度设置</summary>
+          <fieldset className="mt-5 space-y-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-3">
+                <Field label="并发规则" error={errors.concurrency}>
+                  <Select
+                    items={limitModeOptions}
+                    value={draft.concurrencyMode}
+                    onValueChange={(value) => {
+                      if (value === 'unlimited' || value === 'finite')
+                        updateDraft('concurrencyMode', value);
+                    }}
+                    disabled={saving}
+                  />
+                </Field>
+                {draft.concurrencyMode === 'finite' && (
+                  <Field label="并发上限" error={errors.concurrency} required>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={Number.MAX_SAFE_INTEGER - 1}
+                      step={1}
+                      value={draft.concurrencyValue}
+                      onChange={(event) =>
+                        updateDraft('concurrencyValue', event.currentTarget.value)
+                      }
+                      required
+                      disabled={saving}
+                    />
+                  </Field>
+                )}
+              </div>
+              <div className="space-y-3">
+                <Field label="每分钟请求规则" error={errors.rpm}>
+                  <Select
+                    items={limitModeOptions}
+                    value={draft.rpmMode}
+                    onValueChange={(value) => {
+                      if (value === 'unlimited' || value === 'finite')
+                        updateDraft('rpmMode', value);
+                    }}
+                    disabled={saving}
+                  />
+                </Field>
+                {draft.rpmMode === 'finite' && (
+                  <Field
+                    label="每分钟请求上限"
+                    error={errors.rpm}
+                    description="范围：1–4096。"
+                    required
+                  >
+                    <Input
+                      type="number"
+                      min={1}
+                      max={4096}
+                      step={1}
+                      value={draft.rpmValue}
+                      onChange={(event) => updateDraft('rpmValue', event.currentTarget.value)}
+                      required
+                      disabled={saving}
+                    />
+                  </Field>
+                )}
+              </div>
+            </div>
+
+            <Field
+              label="调度优先级"
+              error={errors.priority}
+              description="数值越高越优先；0 为默认优先级。"
+              required
+            >
+              <Input
+                type="number"
+                min={0}
+                step={1}
+                value={draft.priority}
+                onChange={(event) => updateDraft('priority', event.currentTarget.value)}
+                required
+                disabled={saving}
+              />
+            </Field>
+          </fieldset>
+        </details>
       </form>
     </Sheet>
   );

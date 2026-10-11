@@ -1,7 +1,17 @@
 import { useMemo } from 'react';
 import { flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
-import type { ColumnDef } from '@tanstack/react-table';
+import type { ColumnDef, RowData } from '@tanstack/react-table';
 import { Button } from '../ui/Button';
+
+declare module '@tanstack/react-table' {
+  // The type parameters are required to match TanStack's merged interface.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface ColumnMeta<TData extends RowData, TValue> {
+    align?: 'left' | 'center' | 'right';
+    numeric?: boolean;
+    width?: number | string;
+  }
+}
 
 export interface CursorTableProps<T> {
   rows: readonly T[];
@@ -34,25 +44,41 @@ export function CursorTable<T>({
   caption = '记录列表',
 }: CursorTableProps<T>) {
   const data = useMemo(() => [...rows], [rows]);
+  const displayColumns = useMemo(
+    () =>
+      columns.map((column) =>
+        column.size === undefined
+          ? column
+          : {
+              ...column,
+              meta: { ...column.meta, width: column.meta?.width ?? column.size },
+            },
+      ),
+    [columns],
+  );
   const table = useReactTable({
     data,
-    columns,
+    columns: displayColumns,
     getCoreRowModel: getCoreRowModel(),
     ...(getRowId ? { getRowId } : {}),
   });
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
+        <table className="console-table w-full text-left text-sm leading-6">
           <caption className="sr-only">{caption}</caption>
-          <thead className="bg-[var(--color-surface-subtle)] text-[var(--color-muted-foreground)]">
+          <thead className="bg-[var(--color-surface-subtle)] text-[var(--color-ink-secondary)]">
             {table.getHeaderGroups().map((group) => (
               <tr key={group.id}>
                 {group.headers.map((header) => (
                   <th
                     key={header.id}
                     scope="col"
-                    className="whitespace-nowrap px-5 py-3 font-medium"
+                    className="whitespace-nowrap px-4 py-3 font-medium"
+                    style={{
+                      textAlign: header.column.columnDef.meta?.align,
+                      width: header.column.columnDef.meta?.width,
+                    }}
                   >
                     {header.isPlaceholder
                       ? null
@@ -66,11 +92,42 @@ export function CursorTable<T>({
             {table.getRowModel().rows.map((row) => (
               <tr
                 key={row.id}
-                className={`border-t border-[var(--color-border)] hover:bg-[var(--color-surface-subtle)] ${onRowClick ? 'cursor-pointer' : ''}`}
-                onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                className={`border-t border-[var(--color-border)] hover:bg-[var(--color-surface-subtle)] ${onRowClick ? 'cursor-pointer focus-visible:outline-offset-[-3px]' : ''}`}
+                onClick={
+                  onRowClick
+                    ? (event) => {
+                        if (
+                          !event.defaultPrevented &&
+                          !(event.target as Element).closest(
+                            'a, button, input, select, textarea, [role="button"]',
+                          )
+                        ) {
+                          onRowClick(row.original);
+                        }
+                      }
+                    : undefined
+                }
+                tabIndex={onRowClick ? 0 : undefined}
+                onKeyDown={
+                  onRowClick
+                    ? (event) => {
+                        if (
+                          event.target === event.currentTarget &&
+                          (event.key === 'Enter' || event.key === ' ')
+                        ) {
+                          event.preventDefault();
+                          onRowClick(row.original);
+                        }
+                      }
+                    : undefined
+                }
               >
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="px-5 py-3.5">
+                  <td
+                    key={cell.id}
+                    className={`px-4 py-3 align-middle ${cell.column.columnDef.meta?.numeric ? 'whitespace-nowrap tabular-nums' : ''}`}
+                    style={{ textAlign: cell.column.columnDef.meta?.align }}
+                  >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}
@@ -79,17 +136,17 @@ export function CursorTable<T>({
           </tbody>
         </table>
         {loading && !rows.length ? (
-          <p role="status" className="p-8 text-center text-[var(--color-muted-foreground)]">
+          <p role="status" className="p-8 text-center text-[var(--color-ink-secondary)]">
             正在读取…
           </p>
         ) : !rows.length && !error ? (
-          <p className="p-8 text-center text-[var(--color-muted-foreground)]">{emptyMessage}</p>
+          <p className="p-8 text-center text-[var(--color-ink-secondary)]">{emptyMessage}</p>
         ) : null}
       </div>
       {error ? (
         <div
           role="alert"
-          className="flex items-center justify-between gap-4 border-t border-[var(--color-border)] p-4"
+          className="flex flex-wrap items-center justify-between gap-4 border-t border-[var(--color-border)] p-4"
         >
           <span className="text-[var(--color-destructive)]">{error}</span>
           {onRetry && (

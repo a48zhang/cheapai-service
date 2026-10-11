@@ -22,13 +22,11 @@ const columns: ColumnDef<GroupView, unknown>[] = [
       <div className="grid min-w-40 gap-1">
         <Link
           to={`/admin/groups/${encodeURIComponent(row.original.id)}`}
-          className="font-medium text-[var(--color-primary)] underline-offset-4 hover:underline"
+          title={row.original.name}
+          className="block max-w-80 truncate font-medium text-[var(--color-primary)] underline-offset-4 hover:underline"
         >
           {row.original.name}
         </Link>
-        <code className="break-all text-xs text-[var(--color-muted-foreground)]">
-          {row.original.id}
-        </code>
       </div>
     ),
   },
@@ -37,7 +35,7 @@ const columns: ColumnDef<GroupView, unknown>[] = [
     header: '状态',
     cell: ({ row }) => (
       <StatusBadge tone={row.original.status === 'active' ? 'success' : 'neutral'}>
-        {row.original.status === 'active' ? '已启用' : '已停用'}
+        {row.original.status === 'active' ? '启用' : '停用'}
       </StatusBadge>
     ),
   },
@@ -51,28 +49,16 @@ const columns: ColumnDef<GroupView, unknown>[] = [
   {
     accessorKey: 'channelIds',
     header: '关联渠道',
-    cell: ({ row }) =>
-      row.original.channelIds.length > 0 ? (
-        <div className="grid max-w-sm gap-1">
-          {row.original.channelIds.slice(0, 3).map((channelId) => (
-            <code key={channelId} className="break-all text-xs">
-              {channelId}
-            </code>
-          ))}
-          {row.original.channelIds.length > 3 && (
-            <span className="text-xs text-[var(--color-muted-foreground)]">
-              另有 {row.original.channelIds.length - 3} 个渠道
-            </span>
-          )}
-        </div>
-      ) : (
-        <span className="text-xs text-[var(--color-muted-foreground)]">未关联渠道</span>
-      ),
-  },
-  {
-    accessorKey: 'version',
-    header: '配置版本',
-    cell: ({ row }) => <code className="text-xs">v{row.original.version}</code>,
+    cell: ({ row }) => (
+      <Link
+        to={`/admin/groups/${encodeURIComponent(row.original.id)}`}
+        className="text-[var(--color-primary)] hover:underline underline-offset-4"
+      >
+        {row.original.channelIds.length > 0
+          ? `${row.original.channelIds.length} 个渠道`
+          : '未关联渠道'}
+      </Link>
+    ),
   },
 ];
 
@@ -87,20 +73,18 @@ export function GroupTable({
   onLoadMore,
 }: GroupTableProps) {
   return (
-    <>
-      <CursorTable
-        rows={rows}
-        columns={columns}
-        loading={loading}
-        loadingMore={loadingMore}
-        hasMore={hasMore}
-        error={error}
-        onRetry={onRetry}
-        onLoadMore={onLoadMore}
-        getRowId={(group) => group.id}
-        emptyMessage="当前筛选条件下没有访问组。"
-        caption="访问组列表"
-      />
-    </>
+    <CursorTable
+      rows={rows}
+      columns={columns}
+      loading={loading}
+      loadingMore={loadingMore}
+      hasMore={hasMore}
+      error={error}
+      onRetry={onRetry}
+      onLoadMore={onLoadMore}
+      getRowId={(group) => group.id}
+      emptyMessage="暂无访问组，可调整筛选条件或创建访问组。"
+      caption="访问组列表"
+    />
   );
 }

@@ -93,8 +93,8 @@
 
 .conversation-message__markdown {
   /* The pinned DSH MarkdownText is styled through its public DSW tokens. */
-  --dsw-font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;
-  --ds-font-family-code: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --dsw-font-family: var(--font-sans);
+  --ds-font-family-code: var(--font-mono);
   --dsw-font-markdown-base: 1rem/1.75 var(--dsw-font-family);
   --dsw-font-markdown-base-strong: 1rem/1.5 var(--dsw-font-family);
   --dsw-font-markdown-h1: 1.75rem/1.25 var(--dsw-font-family);
@@ -196,9 +196,23 @@
   padding: var(--space-3) var(--space-4);
   font-size: var(--font-size-sm);
 }
-.conversation-tool-call summary { cursor: pointer; }
-.conversation-tool-call summary > span { margin-right: var(--space-3); }
+.conversation-tool-call summary {
+  cursor: pointer;
+}
+.conversation-tool-call summary > span {
+  margin-right: var(--space-3);
+}
 .conversation-tool-call summary > span:not(:first-child),
-.conversation-tool-call dt { color: var(--color-ink-muted); }
-.conversation-tool-call dd { margin: var(--space-2) 0 var(--space-4); }
-.conversation-tool-call pre { max-height: 24rem; overflow: auto; padding: var(--space-3); background: var(--color-code); border-radius: var(--radius-sm); }
+.conversation-tool-call dt {
+  color: var(--color-ink-muted);
+}
+.conversation-tool-call dd {
+  margin: var(--space-2) 0 var(--space-4);
+}
+.conversation-tool-call pre {
+  max-height: 24rem;
+  overflow: auto;
+  padding: var(--space-3);
+  background: var(--color-code);
+  border-radius: var(--radius-sm);
+}

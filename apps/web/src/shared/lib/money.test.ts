@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { MoneyError, formatUnitsToUsd, parseUnits, parseUsdToUnits } from './money';
+import {
+  MoneyError,
+  formatConsumptionUsd,
+  formatWalletUsd,
+  formatUnitsToUsd,
+  parseUnits,
+  parseUsdToUnits,
+} from './money';
 
 describe('exact USD amounts', () => {
   it('keeps fractional and negative values exact at the supported boundary', () => {
@@ -34,6 +41,19 @@ describe('exact USD amounts', () => {
   it('formats ledger units without passing through floating point', () => {
     expect(formatUnitsToUsd('1234567890123456')).toBe('12345678.90123456');
     expect(formatUnitsToUsd('-1')).toBe('-0.00000001');
+  });
+
+  it('distinguishes precise consumption from cents-only wallet displays', () => {
+    expect(formatConsumptionUsd('0')).toBe('0');
+    expect(formatConsumptionUsd('1')).toBe('0.00000001');
+    expect(formatConsumptionUsd('-1')).toBe('-0.00000001');
+    expect(formatConsumptionUsd('1500')).toBe('0.000015');
+    expect(formatConsumptionUsd('1230000000')).toBe('12.3');
+    expect(formatConsumptionUsd('1000000000')).toBe('10');
+    expect(formatConsumptionUsd('9007199254740991')).toBe('90071992.54740991');
+    expect(formatWalletUsd('1230000000')).toBe('12.30');
+    expect(formatWalletUsd('100500000')).toBe('1.01');
+    expect(formatWalletUsd('-1')).toBe('0.00');
   });
 
   it('rounds balance displays to cents without floating-point ties or negative zero', () => {

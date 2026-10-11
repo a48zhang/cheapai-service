@@ -9,6 +9,7 @@ import {
   parseRequestListUrl,
   serializeRequestFilters,
 } from '../../features/request-history/filters';
+import { billingLabels, executionLabels } from '../../features/request-history/RequestStatus';
 import { RequestTable } from '../../features/request-history/RequestTable';
 import { useSession } from '../../features/session/useSession';
 import { PageHeader } from '../../shared/patterns/PageHeader';
@@ -49,47 +50,16 @@ export default function RequestsPage() {
     }
   }
   return (
-    <>
+    <section className="space-y-5">
       <PageHeader heading="全局请求" />
       <form
         key={serializeRequestFilters(filters, 'admin')}
-        className="flex flex-wrap items-end gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
+        className="flex flex-wrap items-end gap-3 console-panel p-5"
         aria-label="请求筛选"
         onSubmit={applyFilters}
       >
-        <Field label="用户 ID">
-          <Input name="userId" defaultValue={filters.userId} />
-        </Field>
         <Field label="公开模型">
           <Input name="model" defaultValue={filters.model} />
-        </Field>
-        <Field label="执行状态">
-          <select
-            name="status"
-            defaultValue={filters.status ?? ''}
-            className="h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3"
-          >
-            <option value="">全部</option>
-            {executionStatusSchema.options.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="计费状态">
-          <select
-            name="billingStatus"
-            defaultValue={filters.billingStatus ?? ''}
-            className="h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3"
-          >
-            <option value="">全部</option>
-            {billingStatusSchema.options.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
-            ))}
-          </select>
         </Field>
         <Field label="开始时间">
           <Input
@@ -108,7 +78,7 @@ export default function RequestsPage() {
           />
         </Field>
         <Button type="submit" variant="secondary">
-          应用筛选
+          筛选
         </Button>
         <Button
           variant="ghost"
@@ -117,8 +87,50 @@ export default function RequestsPage() {
             setParams({});
           }}
         >
-          清除
+          重置
         </Button>
+        <details
+          className="basis-full border-t border-[var(--color-border)] pt-4"
+          open={Boolean(filters.userId || filters.status || filters.billingStatus)}
+        >
+          <summary className="cursor-pointer text-sm font-medium text-[var(--color-ink-secondary)]">
+            更多筛选
+          </summary>
+          <div className="mt-4 flex flex-wrap gap-4">
+            <Field label="用户 ID">
+              <Input name="userId" defaultValue={filters.userId} />
+            </Field>
+
+            <Field label="执行状态">
+              <select
+                name="status"
+                defaultValue={filters.status ?? ''}
+                className="h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3"
+              >
+                <option value="">全部</option>
+                {executionStatusSchema.options.map((status) => (
+                  <option key={status} value={status}>
+                    {executionLabels[status].label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="计费状态">
+              <select
+                name="billingStatus"
+                defaultValue={filters.billingStatus ?? ''}
+                className="h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3"
+              >
+                <option value="">全部</option>
+                {billingStatusSchema.options.map((status) => (
+                  <option key={status} value={status}>
+                    {billingLabels[status].label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        </details>
       </form>
       {(filterError || query.error) && (
         <ApiErrorNotice
@@ -136,6 +148,6 @@ export default function RequestsPage() {
         hasMore={query.hasNextPage}
         onLoadMore={() => void query.fetchNextPage()}
       />
-    </>
+    </section>
   );
 }

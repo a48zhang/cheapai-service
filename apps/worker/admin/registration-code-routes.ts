@@ -108,12 +108,15 @@ export function createRegistrationCodeRoutes(
       if (query.getAll('creatorFilter').length > 1) throw new ApiError('invalid_request');
       const creatorFilter = query.get('creatorFilter');
       if (creatorFilter !== null && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(creatorFilter)) throw new ApiError('invalid_request');
+      const status = query.get('status');
+      if (query.getAll('status').length > 1 || (status !== null && !['unused', 'used', 'expired', 'revoked'].includes(status))) throw new ApiError('invalid_request');
       const page = parsePagination(query);
       const result = await listRegistrationCodes(context.env.DB, {
         actorId: context.get('user').id,
         now: context.get('requestTime')!, limit: page.limit,
         ...(page.cursor === null ? {} : { cursor: page.cursor }),
         ...(creatorFilter === null ? {} : { createdBy: creatorFilter }),
+        ...(status === null ? {} : { status: status as 'unused' | 'used' | 'expired' | 'revoked' }),
       });
       return noStore(apiSuccess(result, context.get('requestId')));
     },

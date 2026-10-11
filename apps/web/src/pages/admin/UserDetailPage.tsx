@@ -7,6 +7,7 @@ import {
   invalidateAdminUsers,
   userDetailQueryOptions,
 } from '../../features/admin-users/api';
+import { groupCandidatesQueryOptions } from '../../features/admin-groups/api';
 import { BalanceAdjustmentDialog } from '../../features/admin-users/BalanceAdjustmentDialog';
 import { UserAccessPanel } from '../../features/admin-users/UserAccessPanel';
 import { UserForm } from '../../features/admin-users/UserForm';
@@ -15,13 +16,13 @@ import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { AsyncState } from '../../shared/patterns/AsyncState';
 import { PageHeader } from '../../shared/patterns/PageHeader';
 import { formatDateTime } from '../../shared/lib/datetime';
-import { formatUnitsToUsd } from '../../shared/lib/money';
+import { formatWalletUsd } from '../../shared/lib/money';
 import { Button } from '../../shared/ui/Button';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
 
 function balance(value: string): string {
   try {
-    return `${formatUnitsToUsd(value)} USD`;
+    return `${formatWalletUsd(value)} USD`;
   } catch {
     return '余额暂不可显示';
   }
@@ -41,6 +42,7 @@ export default function UserDetailPage() {
     enabled: isAdmin && userId.length > 0,
   });
   const profile = userQuery.data;
+  const groups = useQuery(groupCandidatesQueryOptions({ client, actorId }, isAdmin));
 
   async function refreshUser() {
     await Promise.all([
@@ -91,11 +93,9 @@ export default function UserDetailPage() {
     );
 
   return (
-    <section className="space-y-5">
+    <section className="space-y-6">
       <PageHeader
-        eyebrow="用户与授权"
         heading={profile.email_normalized}
-        description={`用户 ID：${profile.id}`}
         actions={
           <>
             <Button asChild variant="secondary">
@@ -108,11 +108,11 @@ export default function UserDetailPage() {
           </>
         }
       />
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.8fr)]">
-        <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+      <div>
+        <section className="console-panel">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold">账户资料</h2>
+              <h2 className="console-section-title">账户资料</h2>
             </div>
             {profile.status === 'active' ? (
               <StatusBadge tone="success">启用</StatusBadge>
@@ -122,19 +122,21 @@ export default function UserDetailPage() {
           </div>
           <dl className="mt-5 grid gap-4 sm:grid-cols-2">
             <div>
-              <dt className="text-xs text-[var(--color-muted-foreground)]">邮箱</dt>
+              <dt className="console-muted">邮箱</dt>
               <dd className="mt-1 break-all font-medium">{profile.email_normalized}</dd>
             </div>
             <div>
-              <dt className="text-xs text-[var(--color-muted-foreground)]">角色</dt>
+              <dt className="console-muted">角色</dt>
               <dd className="mt-1">{profile.role === 'admin' ? '管理员' : '普通用户'}</dd>
             </div>
             <div>
-              <dt className="text-xs text-[var(--color-muted-foreground)]">余额</dt>
-              <dd className="mt-1 font-mono tabular-nums">{balance(profile.balance_units)}</dd>
+              <dt className="console-muted">余额</dt>
+              <dd className="mt-1 console-number text-xl font-semibold">
+                {balance(profile.balance_units)}
+              </dd>
             </div>
             <div>
-              <dt className="text-xs text-[var(--color-muted-foreground)]">邮箱验证</dt>
+              <dt className="console-muted">邮箱验证</dt>
               <dd className="mt-1">
                 {profile.email_verified_at === null
                   ? '未验证'
@@ -142,54 +144,57 @@ export default function UserDetailPage() {
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-[var(--color-muted-foreground)]">账户分组</dt>
+              <dt className="console-muted">账户分组</dt>
               <dd className="mt-1">
                 {profile.group_name}{' '}
-                <span className="text-xs text-[var(--color-muted-foreground)]">
+                <span className="console-muted">
                   ({profile.group_status === 'active' ? '启用' : '停用'})
                 </span>
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-[var(--color-muted-foreground)]">创建时间</dt>
+              <dt className="console-muted">创建时间</dt>
               <dd className="mt-1">{formatDateTime(profile.created_at)}</dd>
             </div>
             <div>
-              <dt className="text-xs text-[var(--color-muted-foreground)]">最近更新</dt>
+              <dt className="console-muted">最近更新</dt>
               <dd className="mt-1">{formatDateTime(profile.updated_at)}</dd>
             </div>
-            <div>
-              <dt className="text-xs text-[var(--color-muted-foreground)]">资料版本</dt>
-              <dd className="mt-1">{profile.version}</dd>
-            </div>
           </dl>
+          <details className="mt-5 border-t border-[var(--color-border)] pt-4">
+            <summary className="cursor-pointer console-muted">技术信息</summary>
+            <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div>
+                <dt className="console-label">用户 ID</dt>
+                <dd className="mt-1 break-all font-mono text-sm select-all">{profile.id}</dd>
+              </div>
+              <div>
+                <dt className="console-label">资料版本</dt>
+                <dd className="mt-1 console-number">{profile.version}</dd>
+              </div>
+            </dl>
+          </details>
         </section>
-        <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-          <h2 className="text-lg font-semibold">相关记录</h2>
-          <div className="mt-4 grid gap-3">
-            <Button asChild variant="outline" className="justify-start">
-              <Link to={`/admin/requests?userId=${encodeURIComponent(profile.id)}`}>
-                查看该用户的请求
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="justify-start">
-              <Link to={`/admin/billing?userId=${encodeURIComponent(profile.id)}`}>
-                查看该用户的账单与余额记录
-              </Link>
-            </Button>
-          </div>
-        </section>
+        <nav
+          aria-label="用户相关记录"
+          className="mt-4 flex flex-wrap gap-5 text-[var(--color-primary)]"
+        >
+          <Link to={`/admin/requests?userId=${encodeURIComponent(profile.id)}`}>请求记录 →</Link>
+          <Link to={`/admin/billing?userId=${encodeURIComponent(profile.id)}`}>
+            账单与余额记录 →
+          </Link>
+        </nav>
       </div>
       <UserAccessPanel
         user={profile}
         api={api}
-        onEdit={() => setEditOpen(true)}
+        groupNames={Object.fromEntries((groups.data ?? []).map((group) => [group.id, group.name]))}
         onRevoked={() => {
           void invalidateAdminUsers(queryClient, actorId, epoch);
         }}
       />
       {userQuery.isFetching && (
-        <p role="status" className="text-xs text-[var(--color-muted-foreground)]">
+        <p role="status" className="console-muted">
           正在更新资料…
         </p>
       )}

@@ -37,9 +37,15 @@ export function ChannelTable({
         accessorKey: 'name',
         header: '渠道',
         cell: ({ row }) => (
-          <div className="min-w-48">
-            <p className="font-medium text-[var(--color-ink)]">{row.original.name}</p>
-            <code className="mt-1 block break-all text-xs text-[var(--color-ink-muted)]">
+          <div className="min-w-40 max-w-64">
+            <Link
+              to={`/admin/channels/${encodeURIComponent(row.original.id)}`}
+              className="block truncate font-medium text-[var(--color-primary)] hover:underline underline-offset-4"
+              title={row.original.name}
+            >
+              {row.original.name}
+            </Link>
+            <code className="mt-1 block truncate console-muted" title={row.original.baseUrl}>
               {row.original.baseUrl}
             </code>
           </div>
@@ -51,12 +57,14 @@ export function ChannelTable({
         header: '模型映射',
         cell: ({ row }) => {
           const models = row.original.models;
-          if (!models.length)
-            return <span className="text-sm text-[var(--color-ink-muted)]">尚未配置模型</span>;
+          if (!models.length) return <span className="console-muted">尚未配置模型</span>;
           return (
-            <div className="max-w-md space-y-1">
+            <div className="min-w-32 max-w-48 space-y-1">
               <p className="text-sm">{models.length} 个映射</p>
-              <p className="break-all text-xs text-[var(--color-ink-muted)]">
+              <p
+                className="truncate console-muted"
+                title={models.map((model) => model.publicModelId).join('、')}
+              >
                 {models
                   .slice(0, 3)
                   .map((model) => model.publicModelId)
@@ -71,38 +79,33 @@ export function ChannelTable({
         id: 'status',
         accessorKey: 'status',
         header: '状态',
-        cell: ({ row }) =>
-          row.original.status === 'active' ? (
-            <StatusBadge tone="success">启用</StatusBadge>
-          ) : (
-            <StatusBadge tone="neutral">停用</StatusBadge>
-          ),
+        cell: ({ row }) => (
+          <div className="space-y-1">
+            <StatusBadge tone={row.original.status === 'active' ? 'success' : 'neutral'}>
+              {row.original.status === 'active' ? '启用' : '停用'}
+            </StatusBadge>
+            {!row.original.hasCredential && (
+              <p className="whitespace-nowrap text-sm text-[var(--color-warning)]">未配置凭证</p>
+            )}
+          </div>
+        ),
       },
       {
         id: 'limits',
-        header: '限额 / 优先级',
+        header: '调度',
         cell: ({ row }) => {
           const { concurrencyLimit, rpmLimit, priority } = row.original;
           const unlimited = Number.MAX_SAFE_INTEGER;
           return (
-            <div className="space-y-1 whitespace-nowrap text-xs text-[var(--color-ink-secondary)]">
-              <p>并发 {concurrencyLimit === unlimited ? '不限' : concurrencyLimit}</p>
-              <p>RPM {rpmLimit === unlimited ? '不限' : rpmLimit}</p>
-              <p>优先级 {priority}</p>
+            <div className="space-y-1 whitespace-nowrap text-sm text-[var(--color-ink-secondary)]">
+              <p>
+                并发 {concurrencyLimit === unlimited ? '不限' : concurrencyLimit} · RPM{' '}
+                {rpmLimit === unlimited ? '不限' : rpmLimit}
+              </p>
+              <p className="console-muted">优先级 {priority}</p>
             </div>
           );
         },
-      },
-      {
-        id: 'hasCredential',
-        accessorKey: 'hasCredential',
-        header: '上游凭证',
-        cell: ({ row }) =>
-          row.original.hasCredential ? (
-            <span className="text-sm text-[var(--color-ink-secondary)]">已配置</span>
-          ) : (
-            <StatusBadge tone="warning">未配置</StatusBadge>
-          ),
       },
       {
         id: 'actions',
@@ -110,10 +113,7 @@ export function ChannelTable({
         cell: ({ row }) => {
           const channel = row.original;
           return (
-            <div className="flex min-w-48 flex-wrap items-center gap-1">
-              <Button asChild variant="ghost" size="sm">
-                <Link to={`/admin/channels/${encodeURIComponent(channel.id)}`}>查看</Link>
-              </Button>
+            <div className="flex items-center gap-1 whitespace-nowrap">
               <Button variant="ghost" size="sm" onClick={() => onEdit?.(channel)}>
                 编辑
               </Button>
@@ -145,7 +145,7 @@ export function ChannelTable({
       onRetry={onRetry}
       getRowId={(channel) => channel.id}
       caption="渠道列表"
-      emptyMessage="还没有渠道。创建渠道后可配置模型映射。"
+      emptyMessage="暂无渠道，可调整筛选条件或创建渠道。"
     />
   );
 }

@@ -27,7 +27,9 @@ test('home links into anonymous chat and preserves the login destination', async
     }),
   }));
   await page.goto('/');
-  await page.getByRole('link', { name: '开始对话', exact: true }).click();
+  await page.getByRole('main')
+    .getByRole('region', { name: /旗舰模型/ })
+    .getByRole('link', { name: '开始对话', exact: true }).click();
   await expect(page).toHaveURL(/\/chat$/);
   await expect(page.getByRole('textbox', { name: '消息内容' })).toBeEnabled();
   await page.getByRole('textbox', { name: '消息内容' }).fill('一个新想法');

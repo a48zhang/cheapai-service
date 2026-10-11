@@ -1,5 +1,5 @@
 import type { HTMLAttributes } from 'react';
-import { formatUnitsToUsd } from '../../shared/lib/money';
+import { formatConsumptionUsd } from '../../shared/lib/money';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
 import type {
   BillingStatus,
@@ -43,7 +43,7 @@ function pendingCostLabel(status: BillingStatus): {
 
 function formattedCost(value: string): string | null {
   try {
-    return `${formatUnitsToUsd(value)} USD`;
+    return `${formatConsumptionUsd(value)} USD`;
   } catch {
     return null;
   }
@@ -72,13 +72,9 @@ export function PriceSnapshot({
   return (
     <section {...sectionProps} className={['space-y-4', className].filter(Boolean).join(' ')}>
       <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-subtle)] p-4">
-        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[var(--color-ink-muted)]">
-          请求费用
-        </p>
+        <p className="mb-2 text-sm font-medium text-[var(--color-ink-muted)]">请求费用</p>
         {cost !== null ? (
-          <p className="m-0 font-mono text-lg font-semibold tabular-nums text-[var(--color-ink)]">
-            {cost}
-          </p>
+          <p className="m-0 console-number text-xl font-semibold text-[var(--color-ink)]">{cost}</p>
         ) : (
           <StatusBadge tone={pending?.tone ?? 'danger'}>{pending?.label ?? '费用未知'}</StatusBadge>
         )}
@@ -86,7 +82,6 @@ export function PriceSnapshot({
 
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="m-0 text-sm font-semibold text-[var(--color-ink)]">价格快照</h3>
           {!snapshotValid && <StatusBadge tone="danger">快照无效或不可用</StatusBadge>}
           {snapshotValid && !snapshot && <StatusBadge tone="neutral">没有快照</StatusBadge>}
         </div>
@@ -96,46 +91,46 @@ export function PriceSnapshot({
           </p>
         ) : (
           <>
-            <dl className="grid grid-cols-1 gap-x-5 gap-y-2 text-sm sm:grid-cols-2">
+            <dl className="grid grid-cols-1 gap-x-6 gap-y-4 text-[15px] sm:grid-cols-2">
               <div>
-                <dt className="text-xs text-[var(--color-ink-muted)]">公开模型</dt>
+                <dt className="console-label">公开模型</dt>
                 <dd className="m-0 break-all font-mono text-[var(--color-ink)]">
                   {snapshot.public_model_id}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-[var(--color-ink-muted)]">上游模型 / 协议</dt>
+                <dt className="console-label">上游模型 / 协议</dt>
                 <dd className="m-0 break-all font-mono text-[var(--color-ink)]">
                   {snapshot.upstream_model} · {snapshot.upstream_protocol}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-[var(--color-ink-muted)]">价格版本</dt>
+                <dt className="console-label">价格版本</dt>
                 <dd className="m-0 tabular-nums text-[var(--color-ink)]">
                   v{snapshot.price_version}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-[var(--color-ink-muted)]">访问组</dt>
+                <dt className="console-label">访问组</dt>
                 <dd className="m-0 break-all text-[var(--color-ink)]">
                   {snapshot.group_id ?? '历史快照未记录'}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-[var(--color-ink-muted)]">组版本</dt>
+                <dt className="console-label">组版本</dt>
                 <dd className="m-0 tabular-nums text-[var(--color-ink)]">
                   {snapshot.group_version ?? '历史快照未记录'}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-[var(--color-ink-muted)]">计费倍率</dt>
-                <dd className="m-0 font-mono tabular-nums text-[var(--color-ink)]">
+                <dt className="console-label">计费倍率</dt>
+                <dd className="m-0 console-number text-[var(--color-ink)]">
                   {snapshot.billing_multiplier ?? '历史快照未记录'}
                 </dd>
               </div>
             </dl>
             <div className="overflow-hidden rounded-lg border border-[var(--color-line)]">
-              <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 bg-[var(--color-surface-subtle)] px-3 py-2 text-xs font-medium text-[var(--color-ink-muted)]">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 bg-[var(--color-surface-subtle)] px-3 py-2 text-sm font-medium text-[var(--color-ink-muted)]">
                 <span>计费项</span>
                 <span className="text-right">USD / 百万 Token</span>
               </div>
@@ -143,10 +138,10 @@ export function PriceSnapshot({
                 {prices.map(([key, value]) => (
                   <div
                     key={key}
-                    className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 px-3 py-2 text-sm"
+                    className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 px-4 py-3 text-[15px]"
                   >
                     <dt className="text-[var(--color-ink-secondary)]">{priceLabels[key]}</dt>
-                    <dd className="m-0 font-mono tabular-nums text-[var(--color-ink)]">{value}</dd>
+                    <dd className="m-0 console-number text-[var(--color-ink)]">{value}</dd>
                   </div>
                 ))}
               </dl>

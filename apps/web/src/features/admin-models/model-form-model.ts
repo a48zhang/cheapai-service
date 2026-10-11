@@ -1,3 +1,4 @@
+import { formatConsumptionUsd, parseUsdToUnits } from '../../shared/lib/money';
 import { z } from 'zod';
 import type {
   ModelInput,
@@ -51,7 +52,17 @@ export const modelFormSchema = z
     publicModelId: modelInputSchema.shape.publicModelId,
     status: modelStatusSchema,
     sellPrices: priceFormSchema,
-    admissionMinBalanceUnits: modelInputSchema.shape.admissionMinBalanceUnits,
+    admissionMinBalanceUnits: z
+      .string()
+      .transform((value, ctx) => {
+        try {
+          return parseUsdToUnits(value).toString();
+        } catch {
+          ctx.addIssue({ code: 'custom', message: '请输入最多八位小数的 USD 金额。' });
+          return z.NEVER;
+        }
+      })
+      .pipe(modelInputSchema.shape.admissionMinBalanceUnits),
     maxOutputTokens: maxOutputTokensText,
   })
 
@@ -80,7 +91,7 @@ export function initialModelFormValues(model?: ModelView): ModelFormValues {
     publicModelId: model?.publicModelId ?? '',
     status: model?.status ?? 'active',
     sellPrices: priceValues(model?.sellPrices),
-    admissionMinBalanceUnits: model?.admissionMinBalanceUnits ?? '',
+    admissionMinBalanceUnits: model ? formatConsumptionUsd(model.admissionMinBalanceUnits) : '0',
     maxOutputTokens: model === undefined ? '' : String(model.maxOutputTokens),
   };
 }

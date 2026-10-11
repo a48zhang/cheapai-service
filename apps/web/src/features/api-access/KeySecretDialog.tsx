@@ -28,8 +28,8 @@ export function KeySecretDialog({ secret, onClose }: KeySecretDialogProps) {
       onOpenChange={(nextOpen) => {
         if (!nextOpen) onClose();
       }}
-      title="Key 已创建"
-      description="完整 Key 仅显示一次，请复制保存。"
+      title="密钥已创建"
+      description="完整密钥仅显示一次，请复制保存。"
       closeLabel="关闭密钥对话框"
       className="max-w-2xl"
       footer={

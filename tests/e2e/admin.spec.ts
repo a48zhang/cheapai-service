@@ -47,8 +47,13 @@ const grantReason = `browser admin grant ${suffix}`;
 
 test.beforeAll(async ({ playwright }) => {
   const port = process.env.SUB2API_E2E_PORT ?? '9789';
-  connection = JSON.parse(readFileSync(join(__dirname, `../../.wrangler/e2e/connection-${port}.json`), 'utf8')) as Connection;
-  administrator = await playwright.request.newContext({ baseURL: connection.baseURL, ignoreHTTPSErrors: true });
+  connection = JSON.parse(
+    readFileSync(join(__dirname, `../../.wrangler/e2e/connection-${port}.json`), 'utf8'),
+  ) as Connection;
+  administrator = await playwright.request.newContext({
+    baseURL: connection.baseURL,
+    ignoreHTTPSErrors: true,
+  });
   const settings = await administrator.get('/api/v1/settings/public');
   expect(settings.status()).toBe(200);
   csrf = (await settings.json()).data.csrfToken as string;
@@ -92,9 +97,9 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
   const adminIdentity = (await adminIdentityResponse.json()).data as PublicUser;
 
   await page.goto('/admin/registration/settings');
-  const registrationMode = page.getByRole('combobox', { name: '注册模式' });
+  const registrationMode = page.getByRole('combobox', { name: '注册方式' });
   await chooseRadixOption(page, registrationMode, '开放注册');
-  await page.getByRole('button', { name: '保存策略' }).click();
+  await page.getByRole('button', { name: '保存设置' }).click();
   await expect(page.getByRole('status')).toBeVisible();
   const savedSettingsResponse = await administrator.get('/api/v1/admin/registration/settings');
   expect(savedSettingsResponse.status()).toBe(200);
@@ -104,17 +109,23 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
   await page.getByRole('button', { name: '创建渠道' }).click();
   const channelDialog = page.getByRole('dialog');
   await channelDialog.getByRole('textbox', { name: '渠道名称' }).fill(channelName);
-  await channelDialog.getByRole('textbox', { name: '上游 Base URL' }).fill('https://e2e-upstream.example.invalid');
+  await channelDialog
+    .getByRole('textbox', { name: '上游地址' })
+    .fill('https://e2e-upstream.example.invalid');
   await channelDialog.getByRole('textbox', { name: '上游凭证' }).fill(upstreamKey);
+  await channelDialog.getByText('高级调度设置', { exact: true }).click();
   const concurrencyMode = channelDialog.getByRole('combobox', { name: '并发规则' });
   await chooseRadixOption(page, concurrencyMode, '设置上限');
   await channelDialog.getByRole('spinbutton', { name: '并发上限' }).fill('4');
-  const rpmMode = channelDialog.getByRole('combobox', { name: 'RPM 规则' });
+  const rpmMode = channelDialog.getByRole('combobox', { name: '每分钟请求规则' });
   await chooseRadixOption(page, rpmMode, '设置上限');
   await channelDialog.getByRole('spinbutton', { name: '每分钟请求上限' }).fill('120');
   await channelDialog.getByRole('spinbutton', { name: '调度优先级' }).fill('1');
-  const channelCreateResponsePromise = page.waitForResponse(response =>
-    new URL(response.url()).pathname === '/api/v1/admin/channels' && response.request().method() === 'POST');
+  const channelCreateResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/v1/admin/channels' &&
+      response.request().method() === 'POST',
+  );
   await channelDialog.getByRole('button', { name: '创建渠道' }).click();
   const channelCreateResponse = await channelCreateResponsePromise;
   expect(channelCreateResponse.status(), await channelCreateResponse.text()).toBe(201);
@@ -123,18 +134,21 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
   await expect(channelDialog).toHaveCount(0);
   const channelRow = page.getByRole('row').filter({ hasText: channelName });
   await expect(channelRow).toBeVisible();
-  await expect(channelRow).toContainText('已配置');
+  await expect(channelRow).not.toContainText('未配置凭证');
   await expect(channelRow).not.toContainText(upstreamKey);
 
   await page.goto('/admin/models/actions/create');
   await expect(page.getByRole('heading', { name: '新增公开模型' })).toBeVisible();
   await page.getByRole('textbox', { name: '公开模型 ID' }).fill(modelId);
-  await page.getByRole('textbox', { name: '最低余额门槛（USD 最小单位）' }).fill('0');
+  await page.getByRole('textbox', { name: '最低余额门槛（USD）' }).fill('0');
   await page.getByRole('textbox', { name: '最大输出 Token' }).fill('128');
   await page.getByRole('textbox', { name: /^输入 Token/ }).fill('1');
   await page.getByRole('textbox', { name: /^输出 Token/ }).fill('2');
-  const modelCreateResponsePromise = page.waitForResponse(response =>
-    new URL(response.url()).pathname === '/api/v1/admin/models' && response.request().method() === 'POST');
+  const modelCreateResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/v1/admin/models' &&
+      response.request().method() === 'POST',
+  );
   await page.getByRole('button', { name: '创建模型' }).click();
   const modelCreateResponse = await modelCreateResponsePromise;
   expect(modelCreateResponse.status(), await modelCreateResponse.text()).toBe(201);
@@ -149,15 +163,23 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
   const protocol = page.getByRole('combobox', { name: '协议' });
   await chooseRadixOption(page, protocol, 'Chat Completions');
   await page.getByRole('textbox', { name: '上游模型名称' }).fill('fixture-chat-model');
+  await page.getByText('能力与高级设置', { exact: true }).click();
   await page.getByRole('checkbox', { name: 'streaming' }).check();
-  const mappingResponsePromise = page.waitForResponse(response =>
-    new URL(response.url()).pathname.endsWith(`/api/v1/admin/models/${encodeURIComponent(modelId)}/mappings`)
-      && response.request().method() === 'POST');
+  const mappingResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname.endsWith(
+        `/api/v1/admin/models/${encodeURIComponent(modelId)}/mappings`,
+      ) && response.request().method() === 'POST',
+  );
   await page.getByRole('button', { name: '创建映射' }).click();
   const mappingResponse = await mappingResponsePromise;
   expect(mappingResponse.status(), await mappingResponse.text()).toBe(201);
-  const createdMapping = page.getByRole('list', { name: '现有模型映射' })
-    .getByRole('button').filter({ hasText: channel.id }).filter({ hasText: 'Chat Completions' }).filter({ hasText: 'fixture-chat-model' });
+  const createdMapping = page
+    .getByRole('list', { name: '现有模型映射' })
+    .getByRole('button')
+    .filter({ hasText: channelName })
+    .filter({ hasText: 'Chat Completions' })
+    .filter({ hasText: 'fixture-chat-model' });
   await expect(createdMapping).toBeVisible();
 
   // The local fixture's default group is linked to the new channel so the
@@ -166,12 +188,18 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
   const groupsResponse = await administrator.get('/api/v1/admin/groups?limit=100');
   expect(groupsResponse.status()).toBe(200);
   const groups = (await groupsResponse.json()).data.items as GroupView[];
-  const defaultGroup = groups.find(group => group.id === 'default' && group.status === 'active');
+  const defaultGroup = groups.find((group) => group.id === 'default' && group.status === 'active');
   expect(defaultGroup).toBeTruthy();
-  const groupUpdate = await administrator.patch(`/api/v1/admin/groups/${encodeURIComponent(defaultGroup!.id)}`, {
-    headers: { Origin: connection.baseURL, 'X-CSRF-Token': csrf },
-    data: { version: defaultGroup!.version, channelIds: [...new Set([...defaultGroup!.channelIds, channel.id])] },
-  });
+  const groupUpdate = await administrator.patch(
+    `/api/v1/admin/groups/${encodeURIComponent(defaultGroup!.id)}`,
+    {
+      headers: { Origin: connection.baseURL, 'X-CSRF-Token': csrf },
+      data: {
+        version: defaultGroup!.version,
+        channelIds: [...new Set([...defaultGroup!.channelIds, channel.id])],
+      },
+    },
+  );
   expect(groupUpdate.status(), await groupUpdate.text()).toBe(200);
 
   // Point the configured channel at a synthetic host rejected by the local
@@ -181,13 +209,20 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
   const editableChannelRow = page.getByRole('row').filter({ hasText: channelName });
   await editableChannelRow.getByRole('button', { name: '编辑' }).click();
   const channelEditDialog = page.getByRole('dialog');
-  await channelEditDialog.getByRole('textbox', { name: '上游 Base URL' }).fill('https://e2e-failing-upstream.example.invalid');
-  const channelUpdatePromise = page.waitForResponse(response =>
-    new URL(response.url()).pathname === `/api/v1/admin/channels/${channel.id}` && response.request().method() === 'PATCH');
+  await channelEditDialog
+    .getByRole('textbox', { name: '上游地址' })
+    .fill('https://e2e-failing-upstream.example.invalid');
+  const channelUpdatePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === `/api/v1/admin/channels/${channel.id}` &&
+      response.request().method() === 'PATCH',
+  );
   await channelEditDialog.getByRole('button', { name: '保存更改' }).click();
   expect((await channelUpdatePromise).status()).toBe(200);
   await expect(channelEditDialog).toHaveCount(0);
-  await expect(page.getByRole('row').filter({ hasText: channelName })).toContainText('e2e-failing-upstream.example.invalid');
+  await expect(page.getByRole('row').filter({ hasText: channelName })).toContainText(
+    'e2e-failing-upstream.example.invalid',
+  );
 
   await page.goto('/admin/users');
   await page.getByRole('button', { name: '创建普通用户' }).click();
@@ -197,8 +232,11 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
   const userGroup = createUserDialog.getByRole('combobox', { name: '初始分组' });
   await waitForEnabled(userGroup);
   await chooseRadixOption(page, userGroup, defaultGroup!.name);
-  const userCreateResponsePromise = page.waitForResponse(response =>
-    new URL(response.url()).pathname === '/api/v1/admin/users' && response.request().method() === 'POST');
+  const userCreateResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/v1/admin/users' &&
+      response.request().method() === 'POST',
+  );
   await createUserDialog.getByRole('button', { name: '创建用户' }).click();
   const userCreateResponse = await userCreateResponsePromise;
   expect(userCreateResponse.status(), await userCreateResponse.text()).toBe(201);
@@ -216,12 +254,17 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
   await expect(editUserDialog.getByText('普通用户（只读）')).toBeVisible();
   await editUserDialog.getByRole('textbox', { name: '并发请求上限' }).fill('3');
   await editUserDialog.getByRole('textbox', { name: '每分钟请求上限' }).fill('90');
-  const userUpdatePromise = page.waitForResponse(response =>
-    new URL(response.url()).pathname === `/api/v1/admin/users/${createdUser.id}` && response.request().method() === 'PATCH');
+  const userUpdatePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === `/api/v1/admin/users/${createdUser.id}` &&
+      response.request().method() === 'PATCH',
+  );
   await editUserDialog.getByRole('button', { name: '保存用户设置' }).click();
   expect((await userUpdatePromise).status()).toBe(200);
   await expect(editUserDialog).toHaveCount(0);
-  const updatedUserResponse = await administrator.get(`/api/v1/admin/users/${encodeURIComponent(createdUser.id)}`);
+  const updatedUserResponse = await administrator.get(
+    `/api/v1/admin/users/${encodeURIComponent(createdUser.id)}`,
+  );
   expect(updatedUserResponse.status()).toBe(200);
   const updatedUser = (await updatedUserResponse.json()).data as UserAdminView;
   expect(updatedUser.concurrency_limit).toBe(3);
@@ -233,25 +276,33 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
   const grantDialog = page.getByRole('dialog');
   await grantDialog.getByRole('textbox', { name: '金额（USD）' }).fill('1.00');
   await grantDialog.getByRole('textbox', { name: '调整原因' }).fill(grantReason);
-  const grantResponsePromise = page.waitForResponse(response =>
-    new URL(response.url()).pathname === `/api/v1/admin/users/${adminIdentity.id}/balance-adjustments`
-      && response.request().method() === 'POST');
+  const grantResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname ===
+        `/api/v1/admin/users/${adminIdentity.id}/balance-adjustments` &&
+      response.request().method() === 'POST',
+  );
   await grantDialog.getByRole('button', { name: '提交调整' }).click();
   const grantResponse = await grantResponsePromise;
   expect(grantResponse.status(), await grantResponse.text()).toBe(201);
   await expect(grantDialog.getByRole('status')).toBeVisible();
   await grantDialog.getByRole('button', { name: '关闭', exact: true }).click();
-  const adminBalance = page.getByRole('term').filter({ hasText: /^余额$/u }).locator('xpath=following-sibling::dd');
-  await expect(adminBalance).toHaveText('1.00000000 USD');
+  const adminBalance = page
+    .getByRole('term')
+    .filter({ hasText: /^余额$/u })
+    .locator('xpath=following-sibling::dd');
+  await expect(adminBalance).toHaveText('1.00 USD');
 
   await page.goto('/keys');
-  await page.getByRole('button', { name: '创建 Key' }).click();
+  await page.getByRole('button', { name: '创建密钥', exact: true }).click();
   const keyDialog = page.getByRole('dialog');
   await keyDialog.getByRole('textbox', { name: '名称' }).fill(`CheapAI gateway key ${suffix}`);
   await expect(keyDialog.locator('input[name="groupId"]')).toHaveValue(defaultGroup!.id);
-  const keyCreateResponsePromise = page.waitForResponse(response =>
-    new URL(response.url()).pathname === '/api/v1/keys' && response.request().method() === 'POST');
-  await keyDialog.getByRole('button', { name: '创建 Key' }).click();
+  const keyCreateResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/v1/keys' && response.request().method() === 'POST',
+  );
+  await keyDialog.getByRole('button', { name: '创建密钥', exact: true }).click();
   const keyCreateResponse = await keyCreateResponsePromise;
   expect(keyCreateResponse.status(), await keyCreateResponse.text()).toBe(201);
   const keySecret = page.getByLabel('完整 API Key');
@@ -278,12 +329,17 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
   await expect(requestRow).toBeVisible();
   await expect(requestRow).toContainText('失败');
   await expect(requestRow).toContainText('用量未知');
-  const requestLink = requestRow.getByRole('link').first();
-  await expect(requestLink).toHaveText(requestId!);
+  const requestLink = requestRow.getByRole('link', { name: modelId, exact: true });
+  await expect(requestLink).toHaveAttribute(
+    'href',
+    new RegExp(`/admin/requests/${requestId}(?:\\?|$)`),
+  );
   await requestLink.click();
   await expect(page).toHaveURL(new RegExp(`/admin/requests/${requestId}`));
   await expect(page.getByRole('heading', { name: '请求详情' })).toBeVisible();
-  await expect(page.getByText('upstream_error')).toBeVisible();
+  await expect(page.getByText('上游模型请求失败', { exact: true })).toBeVisible();
+  await page.getByText('服务返回信息', { exact: true }).click();
+  await expect(page.getByText('upstream_error', { exact: true })).toBeVisible();
   await expect(page.getByText('用量未知')).toBeVisible();
   // Unknown usage is not eligible for a settlement retry.
   await expect(page.getByRole('button', { name: '重试结算' })).toHaveCount(0);
@@ -293,13 +349,24 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
   const grantBillingRow = page.getByRole('row').filter({ hasText: grantReason });
   await expect(grantBillingRow).toBeVisible();
   await expect(grantBillingRow).toContainText('管理员授额');
-  await expect(grantBillingRow).toContainText('1.00000000 USD');
+  await expect(grantBillingRow.getByRole('cell').nth(1)).toHaveText('1');
 
   await page.goto('/admin/audit');
   await expect(page.getByRole('heading', { name: '管理审计' })).toBeVisible();
-  for (const action of ['registration.settings.update', 'channel.create', 'channel.update', 'model.create',
-    'channel_model.create', 'group.update', 'user.create', 'user.update', 'balance.grant']) {
-    await expect(page.getByRole('row').filter({ has: page.getByRole('cell', { name: action, exact: true }) })).toBeVisible();
+  for (const action of [
+    '修改注册设置',
+    '创建渠道',
+    '修改渠道',
+    '创建模型',
+    '添加模型映射',
+    '修改访问组',
+    '创建用户',
+    '修改用户',
+    '发放余额',
+  ]) {
+    await expect(
+      page.getByRole('row').filter({ has: page.getByRole('cell', { name: action, exact: true }) }),
+    ).toBeVisible();
   }
   await expect(page.locator('body')).not.toContainText(upstreamKey);
   await expect(page.locator('body')).not.toContainText(platformKey);

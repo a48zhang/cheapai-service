@@ -99,3 +99,66 @@
     }
   }
 }
+
+/* Console building blocks stay opt-in so conversation and marketing layouts retain their scale. */
+@layer components {
+  .console-panel {
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    padding: 1.5rem;
+  }
+
+  .console-section-title {
+    margin: 0;
+    color: var(--color-ink);
+    font-size: 1.125rem;
+    font-weight: 600;
+    line-height: 1.6;
+  }
+
+  .console-label,
+  .console-muted {
+    color: var(--color-ink-secondary);
+    font-size: 0.875rem;
+    line-height: 1.7;
+  }
+
+  .console-value {
+    min-width: 0;
+    color: var(--color-ink);
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+  }
+
+  .console-number {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .console-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 0.75rem;
+    padding: 0.75rem 0;
+  }
+
+  .console-filter-bar > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .console-filter-bar > form {
+    flex-wrap: wrap;
+  }
+
+  .console-filter-bar button {
+    flex-shrink: 0;
+  }
+
+  .console-table th,
+  .console-table td {
+    min-width: 0;
+  }
+}

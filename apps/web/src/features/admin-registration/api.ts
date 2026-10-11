@@ -1,5 +1,6 @@
 import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
 import { createAdminRegistrationApi } from '@cheapai/api-client/registration-admin';
+import type { CodeStatus } from '@cheapai/contracts/registration-admin';
 import type { ApiClient } from '@cheapai/api-client/types';
 import { nextPageCursor } from '../../shared/lib/pagination';
 
@@ -14,14 +15,20 @@ export function registrationSettingsQuery(client: ApiClient, userId: string) {
   });
 }
 
-export function registrationCodesQuery(client: ApiClient, userId: string, creatorFilter?: string) {
+export function registrationCodesQuery(
+  client: ApiClient,
+  userId: string,
+  creatorFilter?: string,
+  status?: CodeStatus,
+) {
   return infiniteQueryOptions({
-    queryKey: [...registrationKeys.root(userId), 'codes', creatorFilter],
+    queryKey: [...registrationKeys.root(userId), 'codes', creatorFilter, status],
     initialPageParam: null as string | null,
     queryFn: ({ pageParam, signal }) =>
       createAdminRegistrationApi(client).codes(
         {
           cursor: pageParam,
+          ...(status === undefined ? {} : { status }),
           ...(creatorFilter === undefined ? {} : { creatorFilter }),
         },
         { signal },

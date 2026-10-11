@@ -10,6 +10,7 @@ import {
   serializeRequestFilters,
   serializeRequestListUrl,
 } from '../../features/request-history/filters';
+import { billingLabels, executionLabels } from '../../features/request-history/RequestStatus';
 import { RequestTable } from '../../features/request-history/RequestTable';
 import { useSession } from '../../features/session/useSession';
 import { formatLocalDateTime, parseLocalDateRange } from '../../shared/lib/datetime';
@@ -27,20 +28,6 @@ interface FilterDraft {
 const emptyDraft: FilterDraft = { status: '', billingStatus: '', model: '', from: '', to: '' };
 const validModelId = (value: string) =>
   value.length <= 128 && /^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/u.test(value);
-const executionLabels: Record<ExecutionStatus, string> = {
-  admitted: '已接收',
-  succeeded: '成功',
-  failed: '失败',
-  cancelled: '已取消',
-  abandoned: '已放弃',
-};
-const billingLabels: Record<BillingStatus, string> = {
-  awaiting_usage: '等待用量',
-  settled: '已结算',
-  not_chargeable: '不计费',
-  settlement_pending: '待结算',
-  usage_unknown: '用量未知',
-};
 
 function draftFrom(filters: RequestFilters): FilterDraft {
   return {
@@ -131,22 +118,23 @@ export function RequestsPage() {
       <PageHeader heading="使用记录" />
       <form
         onSubmit={applyFilters}
-        className="flex flex-wrap items-end gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
+        className="flex flex-wrap items-end gap-3 console-panel p-5"
         aria-label="使用记录筛选"
       >
-        <label className="grid gap-1.5 text-xs font-medium text-[var(--color-foreground)]">
+        <label className="grid gap-2 console-label">
           模型
           <input
             value={draft.model}
             onChange={(event) =>
               setDraft((current) => ({ ...current, model: event.currentTarget.value }))
             }
+            placeholder="按模型名称筛选"
             maxLength={128}
             autoComplete="off"
-            className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
+            className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
           />
         </label>
-        <div className="grid gap-1.5 text-xs font-medium text-[var(--color-foreground)]">
+        <div className="grid gap-2 console-label">
           <span>时间范围</span>
           <div className="flex flex-wrap items-center gap-2">
             <label className="sr-only" htmlFor="request-time-from">
@@ -160,7 +148,7 @@ export function RequestsPage() {
               onChange={(event) =>
                 setDraft((current) => ({ ...current, from: event.currentTarget.value }))
               }
-              className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
+              className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
             />
             <span aria-hidden="true" className="text-[var(--color-muted-foreground)]">
               至
@@ -176,19 +164,19 @@ export function RequestsPage() {
               onChange={(event) =>
                 setDraft((current) => ({ ...current, to: event.currentTarget.value }))
               }
-              className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
+              className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
             />
           </div>
         </div>
         <button
           type="submit"
-          className="min-h-10 rounded-md bg-[var(--color-primary)] px-4 text-sm font-medium text-[var(--color-primary-foreground)]"
+          className="min-h-11 rounded-lg bg-[var(--color-primary)] px-4 text-[15px] font-medium text-[var(--color-primary-foreground)]"
         >
-          应用筛选
+          筛选
         </button>
         <button
           type="button"
-          className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-4 text-sm"
+          className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 text-[15px]"
           onClick={() => {
             setDraft(emptyDraft);
             setMoreFiltersOpen(false);
@@ -196,10 +184,10 @@ export function RequestsPage() {
             setSearchParams(new URLSearchParams());
           }}
         >
-          清除
+          重置
         </button>
         <details
-          className="basis-full rounded-lg border border-[var(--color-border)] px-3 py-2"
+          className="basis-full border-t border-[var(--color-border)] pt-4"
           open={moreFiltersOpen}
           onToggle={(event) => setMoreFiltersOpen(event.currentTarget.open)}
         >
@@ -207,36 +195,36 @@ export function RequestsPage() {
             更多筛选
           </summary>
           <div className="mt-3 flex flex-wrap items-end gap-3">
-            <label className="grid gap-1.5 text-xs font-medium text-[var(--color-foreground)]">
+            <label className="grid gap-2 console-label">
               执行状态
               <select
                 value={draft.status}
                 onChange={(event) =>
                   setDraft((current) => ({ ...current, status: event.currentTarget.value }))
                 }
-                className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
+                className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
               >
                 <option value="">全部</option>
                 {executionStatusSchema.options.map((value) => (
                   <option key={value} value={value}>
-                    {executionLabels[value]}
+                    {executionLabels[value].label}
                   </option>
                 ))}
               </select>
             </label>
-            <label className="grid gap-1.5 text-xs font-medium text-[var(--color-foreground)]">
+            <label className="grid gap-2 console-label">
               计费状态
               <select
                 value={draft.billingStatus}
                 onChange={(event) =>
                   setDraft((current) => ({ ...current, billingStatus: event.currentTarget.value }))
                 }
-                className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
+                className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
               >
                 <option value="">全部</option>
                 {billingStatusSchema.options.map((value) => (
                   <option key={value} value={value}>
-                    {billingLabels[value]}
+                    {billingLabels[value].label}
                   </option>
                 ))}
               </select>
@@ -259,7 +247,7 @@ export function RequestsPage() {
           onLoadMore={loadMore}
           emptyMessage={
             hasActiveFilters
-              ? '没有符合筛选条件的记录。点击上方“清除”查看全部。'
+              ? '没有符合筛选条件的记录。点击上方“重置”查看全部。'
               : '还没有使用记录。'
           }
         />

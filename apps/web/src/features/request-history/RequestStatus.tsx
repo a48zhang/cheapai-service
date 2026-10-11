@@ -7,7 +7,7 @@ export interface RequestStatusProps {
   readonly className?: string;
 }
 
-const executionLabels: Record<
+export const executionLabels: Record<
   ExecutionStatus,
   { label: string; tone: 'neutral' | 'info' | 'success' | 'warning' | 'danger' }
 > = {
@@ -18,7 +18,7 @@ const executionLabels: Record<
   abandoned: { label: '已放弃', tone: 'warning' },
 };
 
-const billingLabels: Record<
+export const billingLabels: Record<
   BillingStatus,
   { label: string; tone: 'neutral' | 'info' | 'success' | 'warning' | 'danger' }
 > = {

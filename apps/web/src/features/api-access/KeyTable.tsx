@@ -1,3 +1,4 @@
+import { KeyRound, MoreHorizontal, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useInfiniteQuery } from '@tanstack/react-query';
@@ -6,6 +7,7 @@ import type { KeysApi, KeyMetadata, KeyState } from '@cheapai/api-client/keys';
 import { formatDateTime } from '../../shared/lib/datetime';
 import { CursorTable } from '../../shared/patterns/CursorTable';
 import { Button } from '../../shared/ui/Button';
+import { DropdownMenu } from '../../shared/ui/DropdownMenu';
 import { ConfirmAction } from '../../shared/ui/ConfirmAction';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
 import { keyListQueryOptions } from './api';
@@ -14,7 +16,6 @@ import { mergePageItems } from '../../shared/lib/pagination';
 export interface KeyTableProps {
   readonly api: KeysApi;
   readonly userId: string;
-  readonly onCreate: () => void;
   readonly onEdit: (key: KeyMetadata) => void;
   readonly selectedKeyId: string | null;
   readonly onSelectKey: (key: KeyMetadata | null) => void;
@@ -40,19 +41,19 @@ function canUseForExamples(key: KeyMetadata): boolean {
 }
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : '暂时无法读取 Key 列表。';
+  return error instanceof Error ? error.message : '暂时无法读取密钥列表。';
 }
 
 export function KeyTable({
   api,
   userId,
-  onCreate,
   onEdit,
   selectedKeyId,
   onSelectKey,
   onChanged,
 }: KeyTableProps) {
   const [state, setState] = useState<KeyState>('all');
+  const [confirmingKey, setConfirmingKey] = useState<KeyMetadata | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [operationMessage, setOperationMessage] = useState('');
   const [operationError, setOperationError] = useState('');
@@ -89,12 +90,12 @@ export function KeyTable({
       const result = await api.revoke(key.id, key.version);
       onChanged(result.key);
       setOperationMessage(
-        result.kind === 'already_revoked' ? '该 Key 已撤销，无需重复操作。' : 'Key 已撤销。',
+        result.kind === 'already_revoked' ? '该密钥已撤销，无需重复操作。' : '密钥已撤销。',
       );
     } catch (error) {
       setOperationError(
         error instanceof ApiClientError && error.status === 409
-          ? 'Key 已发生变化。请刷新列表并核对状态后再操作。'
+          ? '密钥已发生变化。请刷新列表并核对状态后再操作。'
           : `撤销结果尚未确认。请刷新列表核对状态；不会自动重试。${error instanceof Error ? ` ${error.message}` : ''}`,
       );
       onChanged(key);
@@ -106,14 +107,23 @@ export function KeyTable({
   const columns: ColumnDef<KeyMetadata, unknown>[] = [
     {
       id: 'name',
-      header: '名称 / 掩码',
+      header: '名称',
       cell: ({ row }) => (
-        <div className="min-w-40 space-y-1">
-          <p className="font-medium text-[var(--color-foreground)]">{row.original.name}</p>
-          <code className="break-all text-xs text-[var(--color-muted-foreground)]">
-            {row.original.displayPrefix}…
-          </code>
+        <div className="flex min-w-40 items-center gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
+            <KeyRound size={19} aria-hidden="true" />
+          </span>
+          <span className="font-medium text-[var(--color-foreground)]">{row.original.name}</span>
         </div>
+      ),
+    },
+    {
+      id: 'secret',
+      header: '密钥摘要',
+      cell: ({ row }) => (
+        <code className="whitespace-nowrap text-sm text-[var(--color-muted-foreground)]">
+          {row.original.displayPrefix}…
+        </code>
       ),
     },
     {
@@ -139,36 +149,31 @@ export function KeyTable({
       id: 'actions',
       header: '操作',
       cell: ({ row }) => (
-        <div className="flex min-w-52 flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 whitespace-nowrap">
           <Button
-            variant={selectedKeyId === row.original.id ? 'secondary' : 'outline'}
+            variant="ghost"
             size="sm"
             disabled={!canUseForExamples(row.original) || selectedKeyId === row.original.id}
             onClick={() => onSelectKey(row.original)}
           >
-            {selectedKeyId === row.original.id ? '当前示例 Key' : '用于示例'}
+            {selectedKeyId === row.original.id ? '已选用' : '用于接入'}
           </Button>
           {row.original.status !== 'revoked' && (
-            <>
-              <Button variant="outline" size="sm" onClick={() => onEdit(row.original)}>
-                编辑
-              </Button>
-              <ConfirmAction
-                trigger={
-                  <Button variant="danger" size="sm">
-                    撤销
-                  </Button>
-                }
-                title="撤销 API Key"
-                description={`撤销“${row.original.name}”后，使用该 Key 的请求将无法继续。此操作不可恢复。`}
-                confirmLabel="确认撤销"
-                cancelLabel="暂不撤销"
-                busy={revokingId === row.original.id}
-                onConfirm={() => {
-                  void revoke(row.original);
-                }}
-              />
-            </>
+            <DropdownMenu
+              trigger={
+                <Button variant="ghost" size="sm" aria-label={`密钥操作：${row.original.name}`}>
+                  <MoreHorizontal size={19} aria-hidden="true" />
+                </Button>
+              }
+              items={[
+                { label: '编辑', onSelect: () => onEdit(row.original) },
+                {
+                  label: '撤销',
+                  destructive: true,
+                  onSelect: () => setConfirmingKey(row.original),
+                },
+              ]}
+            />
           )}
         </div>
       ),
@@ -176,28 +181,20 @@ export function KeyTable({
   ];
 
   return (
-    <section aria-labelledby="key-table-title" className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h2 id="key-table-title" className="text-lg font-semibold">
-            个人 Key 列表
-          </h2>
-          <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
-            密钥明文只在创建时提供；列表仅显示掩码。
-          </p>
-        </div>
-        <Button onClick={onCreate}>
-          <span aria-hidden="true">＋</span> 创建 Key
-        </Button>
-      </div>
-      <div className="flex flex-wrap items-end gap-3">
-        <label htmlFor="key-state-filter" className="grid gap-1.5 text-sm font-medium">
-          状态
+    <section
+      aria-labelledby="key-table-title"
+      className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 sm:p-6 space-y-4"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h2 id="key-table-title" className="text-xl font-semibold">
+          API 密钥
+        </h2>
+        <div className="flex items-center gap-2">
           <select
-            id="key-state-filter"
+            aria-label="密钥状态"
             value={state}
             onChange={(event) => setState(event.currentTarget.value as KeyState)}
-            className="min-h-10 min-w-36 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm font-normal outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+            className="min-h-10 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
           >
             {keyStates.map((option) => (
               <option key={option.value} value={option.value}>
@@ -205,10 +202,16 @@ export function KeyTable({
               </option>
             ))}
           </select>
-        </label>
-        <Button variant="outline" disabled={query.isFetching} onClick={() => void query.refetch()}>
-          刷新
-        </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={query.isFetching}
+            onClick={() => void query.refetch()}
+          >
+            <RefreshCw size={16} aria-hidden="true" />
+            刷新
+          </Button>
+        </div>
       </div>
       {operationMessage && (
         <p role="status" className="text-sm text-[var(--color-success)]">
@@ -235,14 +238,14 @@ export function KeyTable({
       )}
       {!rows.length && !query.isPending && !query.isError ? (
         <div className="rounded-xl border border-dashed border-[var(--color-border)] p-5 text-sm text-[var(--color-muted-foreground)]">
-          <p>还没有 API Key。</p>
+          <p>还没有 API 密钥。创建密钥后即可接入。</p>
         </div>
       ) : (
         <CursorTable
           rows={rows}
           columns={columns}
-          caption="个人 API Key 列表"
-          emptyMessage="暂无 Key"
+          caption="个人 API 密钥列表"
+          emptyMessage="暂无密钥"
           loading={query.isPending}
           error={query.isError ? errorMessage(query.error) : null}
           onRetry={() => {
@@ -256,6 +259,25 @@ export function KeyTable({
           getRowId={(key) => key.id}
         />
       )}
+      {confirmingKey && (
+        <ConfirmAction
+          open={confirmingKey !== null}
+          onOpenChange={(open) => {
+            if (!open) setConfirmingKey(null);
+          }}
+          title="撤销密钥"
+          description={`撤销“${confirmingKey.name}”后，使用该密钥的请求将无法继续。此操作不可恢复。`}
+          confirmLabel="确认撤销"
+          cancelLabel="暂不撤销"
+          busy={revokingId === confirmingKey.id}
+          onConfirm={() => {
+            void revoke(confirmingKey);
+          }}
+        />
+      )}
+      <p className="text-sm leading-6 text-[var(--color-muted-foreground)]">
+        完整密钥仅在创建时显示，列表中的摘要用于辨认。
+      </p>
     </section>
   );
 }
