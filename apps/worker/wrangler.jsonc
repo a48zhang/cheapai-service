@@ -53,9 +53,9 @@
       "workers_dev": true,
       "preview_urls": true,
       "routes": [
+        { "pattern": "pre.cheapai.dev/*", "zone_name": "cheapai.dev" },
         { "pattern": "cheapai.dev/*", "zone_name": "cheapai.dev" },
-        { "pattern": "www.cheapai.dev/*", "zone_name": "cheapai.dev" },
-        { "pattern": "pre.cheapai.dev/*", "zone_name": "cheapai.dev" }
+        { "pattern": "www.cheapai.dev/*", "zone_name": "cheapai.dev" }
       ],
       // Apply origin selection and security headers before serving static assets.
       "assets": {

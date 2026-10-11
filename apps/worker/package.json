@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "wrangler dev --config wrangler.jsonc --env= --local",
     "build": "wrangler deploy --config wrangler.jsonc --env production --dry-run --strict --outdir dist",
-    "deploy": "wrangler deploy --config wrangler.jsonc --env production --strict",
+    "deploy": "wrangler deploy --config wrangler.jsonc --env production",
     "typecheck": "tsc --project tsconfig.json --noEmit",
     "test": "vitest run --root ../.. --config ../../vitest.config.ts"
   },
