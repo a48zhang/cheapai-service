@@ -17,7 +17,6 @@ backups/
 
 # Local scratch and deployment artifacts
 /work/
-/.preview-ci/
 
 # Desktop-only local outputs
 /apps/desktop/.cache/

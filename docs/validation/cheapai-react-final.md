@@ -1,5 +1,6 @@
 # cheapai React 重构集中验证
 
+> 历史验证记录：文中的 GitHub PR 预发工作流及脚本已移除，当前预发由 Cloudflare 原生 Preview 管理，见[当前说明](../pr-previews.md)。
 **总体状态：本地模块验收通过。** 完整 workspace 检查、React 集成用例、聊天与管理端浏览器覆盖、HTTPS 代理 smoke 和本地截图检查均有通过记录。本报告不声明 GitHub CI 或真实生产环境通过。
 
 ## 结果摘要

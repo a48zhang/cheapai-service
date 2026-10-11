@@ -18,7 +18,7 @@
 2. 检查 `apps/web-next` 是否为空缺的目标。若 React 当前在 `apps/web` 且 `apps/web-next` 不存在，将 React 整目录移回 `apps/web-next`，保留其内容。若目标已有文件，停止并先保护两份内容，不覆盖或合并未知文件。
 3. 检查 `apps/web` 已空出，再将 `/workspace/cheapai-legacy-archive/react-cutover/apps-web` 整目录恢复到 `apps/web`。若归档源或目标缺失/冲突，停止并报告路径，不删除备份或目标内容。
 4. 恢复 workspace 与 app 包依赖：`pnpm-workspace.yaml` 注册 Vue `apps/web`，如保留 React 则同时注册 `apps/web-next`；Worker 及相应 preview build target 指向 Vue app；`pnpm-lock.yaml` 对应恢复后的 workspace。以当前 main 为配置基线，只还原恢复 Vue 所需的 app 路径和包依赖。保留后续 main 合入的共享 preview backend 配置与 `production:check`，不要恢复旧 `staging:check`、旧 staging 设置或整份切换前的 package/workflow 文件。
-5. 恢复测试/开发入口到旧 app：`vitest.config.ts` 的 React project 指回 `apps/web-next/vitest.config.ts`；本地浏览器启动器默认构建旧 `apps/web`。Playwright 使用旧 app 的 build。保留 `scripts/pr-preview.mjs` 与 `apps/worker/wrangler.jsonc` 的 `apps/web/dist` 资源目标。
+5. 恢复测试/开发入口到旧 app：`vitest.config.ts` 的 React project 指回 `apps/web-next/vitest.config.ts`；本地浏览器启动器默认构建旧 `apps/web`。Playwright 使用旧 app 的 build。保留 `apps/worker/wrangler.jsonc` 的 `apps/web/dist` 资源目标。
 6. 检查 Worker 本地和部署配置的 `assets.directory` 均指向旧 `apps/web/dist`。若切换期间有人改过 `../web/dist`，恢复该相对路径；不要把静态资产改到归档目录。
 7. 按恢复后的 `pnpm-lock.yaml` 使用仓库的冻结锁文件安装流程重建链接依赖。旧 app 的本地 `node_modules` 可能随归档恢复，但 workspace 链接可能需要重新生成。
 8. 保留 React 目录、Vue 归档和相关配置修改，直到根协调者决定修复后再次切换或结束迁移。集中验证由授权 runner 统一执行；本回滚预案不声称任何验证已通过。

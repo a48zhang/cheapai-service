@@ -108,7 +108,7 @@ node $deploymentWrangler dev --config $deploymentConfig --local --persist-to $de
 
 ## 3. 环境选择
 
-production 已有独立资源和域名，bindings/vars 明确位于 `env.production`；不要重新创建数据库或复用旧资源。[预发工作流](pr-previews.md)只发布每个 PR 的独立 Worker，多个 PR 固定按名称查找已有 `cheapai-preview` 并连接其 D1、KV 和 Gate，无需预发选择变量。共享环境单独使用 `apps/worker/wrangler.preview.jsonc` 维护；PR CI 不创建共享资源，这些资源与 production 分离。PR 配置使用 `--config .wrangler/pr-preview-<PR号>.json`，不使用已移除的命名 staging 环境。
+production 已有独立资源和域名，bindings/vars 明确位于 `env.production`。PR 预发改由 Cloudflare 原生 Preview 管理，详见[预发说明](pr-previews.md)。仓库 CI 不再创建分支 Worker、执行预发部署或迁移；原生 Preview 的绑定和设置以 Cloudflare Dashboard 为准。
 
 当前 Git 生产配置为 `send_email: []`、`EMAIL_VERIFICATION_READY: "true"`，通过 Resend 发信；这不证明线上 Secret 和实际投递已经通过验证。不要为消除 Wrangler 的 binding 继承提示添加虚假发件身份。
 

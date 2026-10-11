@@ -310,7 +310,7 @@ I-048 的 `CHEAPAI_E2E_REUSE_BUILD=1` 只跳过重复构建，不跳过 D1/fixtu
 | I-124 | I-123 | `pnpm-lock.yaml` | 依赖 owner 集中更新安装与锁文件，清除失去引用的 Vue 依赖；保留供应链限制，不执行构建或测试。 | 最终依赖图与清单对应，没有迁移期重复应用。 |
 | I-125 | I-123 | `vitest.config.ts`；`scripts/start-local-test-server.mjs`；`playwright.config.ts` | 根 React project、测试服务选择和报告路径归位；默认测试目标为 React，去掉只为旧 Vue 保留的构建分支。 | 正式测试入口不依赖 web-next 或 vue-tsc。 |
 | I-126 | I-125 | `tests/unit/api-client.node.test.ts`；`tests/unit/web-chat-client.test.ts`；`tests/unit/web-admin-contracts.test.ts` | 仅按清单修正归位后的应用纯逻辑 import、虚拟类型消费者路径，移除剩余 Vue 特有路径；不改业务断言。 | 旧测试文件连接最终 React/共享包位置。 |
-| I-127 | I-123 | `.github/workflows/check.yml`；`.github/workflows/preview.yml`；`scripts/pr-preview.mjs` | 更新旧包名过滤和产物路径，CI 维持单一完整检查入口；预览指向最终 React assets，清除可见旧品牌。 | CI/预览配置指向新应用；不触发远程工作流/部署。 |
+| I-127 | I-123 | `.github/workflows/check.yml` | 更新旧包名过滤和产物路径，CI 维持单一完整检查入口；PR 预发现由 Cloudflare 原生 Preview 管理。 | CI 配置指向新应用；不触发远程工作流/部署。 |
 | I-128 | I-123 | `apps/web/index.html`；`apps/web/src/shared/brand.ts`；`apps/web/src/app/navigation.ts` | 根据整合清单收口页面标题、品牌常量和导航，全部 cheapai；其余页面若残留品牌由对应小 FIX 处理，不在本任务改第四文件。 | 产品入口统一命名，保留必要协议标识。 |
 | I-129 | I-124–I-128 | `docs/development.md`；`docs/frontend-react-design.md`；`README.md` | 更新开发命令、应用目录、同源 HTTPS、环境变量/证书方式和设计实施状态；明确新增功能与仍未做的图表等范围。 | 文档描述最终代码位置和启动流程，不将未执行的验证写成已通过。 |
 | I-130 | I-129 | `docs/frontend-react-cutover-manifest.md` | 汇总回退旧前端所需源码/产物引用、包清单与锁文件、API 兼容性和部署配置；标记仅准备、未发布。 | 回退范围覆盖构建图与资源，不只是保留一张截图。 |

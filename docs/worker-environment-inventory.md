@@ -52,11 +52,10 @@ Cloudflare Workers Builds 目标应为上述 production Worker，Root directory 
 | 名称 / 设置 | 所在位置 | 是否需要 / 作用 |
 | --- | --- | --- |
 | `CLOUDFLARE_API_TOKEN` | 本地 CLI 执行环境或 CI secret / Builds 的部署认证 | 非交互 CLI/CI 访问 Cloudflare 时需要，或由 Cloudflare 托管 Builds 的部署授权提供。**不是 Worker 运行时 Secret，也不是 RESEND_API_KEY**；不要把它塞入业务 Worker vars。 |
-| `CLOUDFLARE_ACCOUNT_ID` | CLI/CI 环境、GitHub Actions variable | 生产 account_id 已写在 wrangler，普通生产脚本不另外强制读取；PR preview 脚本显式必需。需与目标 account 一致。 |
+| `CLOUDFLARE_ACCOUNT_ID` | CLI/CI 环境、GitHub Actions variable | 生产 account_id 已写在 wrangler，普通生产脚本不另外强制读取；旧 GitHub PR preview 脚本已移除。需与目标 account 一致。 |
 | `CLOUDFLARE_ENV` | CLI 进程环境 | 不必配置，production 脚本的显式 `--env production` 已固定目标；仅设它而保留旧错误命令不是建议部署方式。 |
 | Node / pnpm | Builds 运行环境 | 根 package.json 声明 Node `24.19.0`、pnpm `11.19.0`；应使用 lockfile 安装。不是 Worker runtime 参数。 |
-| `WRANGLER_SEND_METRICS` | CLI/CI 可选 | 预览 workflow 设 false，控制 Wrangler 遥测，不影响业务日志。 |
-| `GITHUB_TOKEN`、`GITHUB_REPOSITORY`、`PR_NUMBER`、`PR_HEAD_SHA`、`PR_EVENT_ACTION` | 仅 GitHub PR preview workflow | 自动提供或按事件注入；生产运行时不需要。 |
+| `WRANGLER_SEND_METRICS` | CLI/CI 可选 | 常规检查 CI 设 false，控制 Wrangler 遥测，不影响业务日志。 |
 
 **在 Builds 中填 EMAIL_HMAC_KEY/RESEND_API_KEY 不会自动变成 Worker env binding。** 应配置到指定 production Worker 的运行时 Variables and Secrets。反过来，运行时 Secret 不是给构建进程准备的部署凭据。
 
@@ -65,7 +64,7 @@ Cloudflare Workers Builds 目标应为上述 production Worker，Root directory 
 - Web 使用同源 `/api`、`/v1`，无生产 `VITE_API_BASE_URL` 必配项。`CHEAPAI_WEB_TLS_KEY_FILE`、`CHEAPAI_WEB_TLS_CERT_FILE`、`CHEAPAI_WEB_PORT`、`CHEAPAI_WORKER_PORT` 是本地开发 Vite/launcher 配置，不是线上 Worker 变量。
 - Desktop runtime 可选 `SUB2API_DESKTOP_API_BASE_URL`（默认 `https://cheapai.dev`）、`SUB2API_DESKTOP_MODEL_BASE_URL`（默认 `https://cheapai.dev/v1`）、`SUB2API_DESKTOP_MODEL_API`（默认 `openai-completions`；也支持 openai-responses / anthropic-messages）。它们属于客户端进程配置，Worker 不消费它们；当前默认生产地址无需人工补 Worker env。
 - Desktop 的 `SUB2API_DSH_*` 路径和 development-only key mode 属于本机侧，不是 Cloudflare runtime 配置。
-- PR preview 脚本生成独立 Worker 配置，ENVIRONMENT=staging，PUBLIC_BASE_URL=对应 workers.dev，EMAIL_VERIFICATION_READY=false，send_email=[]，cron=[]。多个 PR 共用专用 preview D1/KV/Gate host，与 production 资源不同；配置文件不包含固定 named staging 环境。不要把生产 Secret 复制进 preview 来“补齐”列表。
+- PR 预发改由 Cloudflare 原生 Preview 管理，环境变量、Secrets 与 D1/KV/Gate 绑定以 Dashboard 配置为准；仓库不再生成分支预发配置或在 GitHub CI 中部署。
 
 ## 5. 环境变量之外的必要上线步骤
 

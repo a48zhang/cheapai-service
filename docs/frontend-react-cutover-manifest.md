@@ -94,8 +94,8 @@ M-121/M-122 后，主 workspace、Worker 依赖和预览 build 已指向 React�
 | `package.json` | `dev:web`、`lint:web` 和 `production:check` 使用 `@cheapai/web`；主分支已移除 `staging:check`。 | 当前生产 dry-run 命令使用正式 React workspace；保留正式包名，不重新引入 `web-next` 别名。 |
 | `pnpm-workspace.yaml`、`pnpm-lock.yaml` | workspace/importer 使用 `apps/web`；锁定的 app 包为 `@cheapai/web`。 | 正式 React workspace 已归位。 |
 | `apps/worker/package.json` | Worker workspace 依赖 `@cheapai/web`。 | 正式依赖已归位。 |
-| `apps/worker/wrangler.jsonc`、`scripts/pr-preview.mjs` | 静态资源均从 `../web/dist` / `apps/web/dist` 读取。 | 路径与 React 正式目录一致；回滚 Vue 到 `apps/web` 后仍是旧资源位置。 |
-| `.github/workflows/preview.yml`、`.github/workflows/check.yml` | Preview build 与 React lint 使用 `@cheapai/web`。 | 主流程已指向正式 workspace。 |
+| `apps/worker/wrangler.jsonc` | 静态资源均从 `../web/dist` 读取。 | 路径与 React 正式目录一致；回滚 Vue 到 `apps/web` 后仍是旧资源位置。 |
+| `.github/workflows/check.yml` | React build 与 lint 使用 `@cheapai/web`；预发由 Cloudflare 原生 Preview 管理。 | 主流程已指向正式 workspace。 |
 | `scripts/start-local-test-server.mjs`、`vitest.config.ts` | 浏览器 server 使用 `apps/web`；React Vitest project 加载 `apps/web/vitest.config.ts`。 | 主入口已指向正式路径。 |
 | `scripts/start-react-dev.mjs` | 按 `@cheapai/web` 解析 app，并提示配置 `apps/web/.env.local`。 | 正式路径已归位。 |
 | `apps/web/eslint.config.js` | `@sub2api/web` 出现在 restricted-import 列表中，阻止 React 导入归档 Vue app。 | 这是有意保留的禁止导入规则，不是活跃依赖，不应删除。 |
