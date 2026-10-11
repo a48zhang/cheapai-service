@@ -266,6 +266,8 @@ export async function runChannelDiagnostic(
       issues: safeIssues(issues, secrets),
     };
   };
+  const observedResponseUrl = (): string | undefined =>
+    (observedResponseHeaders as { status: number; url: string; headers: Headers } | null)?.url;
   const setFinalResponse = (status: number, responseUrl: string, headers: Headers): void => {
     finalResponseReceived = true;
     evidence.execution = 'response_received';
@@ -378,7 +380,7 @@ export async function runChannelDiagnostic(
       upstreamKey: options.upstreamKey,
       body,
       stream: false,
-      signal: options.signal,
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
       maxDurationMs: timeoutMs,
       headersTimeoutMs: Math.min(3_000, timeoutMs),
       idleTimeoutMs: Math.min(3_000, timeoutMs),
@@ -398,7 +400,7 @@ export async function runChannelDiagnostic(
       if (!finalResponseReceived) {
         setFinalResponse(
           exchange.response.status,
-          exchange.response.url || observedResponseHeaders?.url || '[UNAVAILABLE]',
+          exchange.response.url || observedResponseUrl() || '[UNAVAILABLE]',
           responseHeaders,
         );
       } else {

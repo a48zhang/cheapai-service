@@ -278,7 +278,6 @@ export function createTestChannelRoutes<B extends Bindings = Bindings>(
       evidence.phases.push({ name: phase, durationMs: elapsed(phaseStartedAt), state: 'failed' });
       evidence.durationMs = elapsed(startedAt);
       const previousFailure = evidence.failure;
-      const auditFailure = phase === 'audit_intent' || phase === 'audit_result';
       const message =
         phase === 'audit_intent'
           ? code === 'conflict'
@@ -303,7 +302,7 @@ export function createTestChannelRoutes<B extends Bindings = Bindings>(
             ];
       evidence.failure = {
         source: 'cheapai',
-        phase: auditFailure ? 'audit' : phase,
+        phase: phase === 'audit_intent' || phase === 'audit_result' ? 'audit' : phase,
         code: configurationCode ?? code,
         message,
         issues,

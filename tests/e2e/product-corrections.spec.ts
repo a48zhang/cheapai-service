@@ -68,7 +68,7 @@ test('six-character password, unlimited concurrency, channel models and granted 
   await dialog.getByRole('button', { name: '运行诊断', exact: true }).click();
   const diagnosticResponse = await diagnosticResponsePromise;
   expect(diagnosticResponse.status()).toBe(200);
-  await expect(dialog.getByText('当前后端未提供请求与响应详情。', { exact: true })).toBeVisible();
+  await expect(dialog.getByRole('region', { name: '响应正文' }).getByRole('button')).toBeDisabled();
   expect(diagnosticPosts).toHaveLength(1);
   expect(diagnosticPosts[0]).toMatchObject({
     publicModelId: gptModel,

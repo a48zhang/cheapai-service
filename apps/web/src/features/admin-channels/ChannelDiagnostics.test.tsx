@@ -91,6 +91,52 @@ function blobDownloadMocks() {
   return { recordedBlobs, createObjectURL, revokeObjectURL, anchorClick, RecordedBlob };
 }
 
+function installRadixSelectDomStubs() {
+  const methodNames = [
+    'setPointerCapture',
+    'hasPointerCapture',
+    'releasePointerCapture',
+    'scrollIntoView',
+  ] as const;
+  const originalDescriptors = new Map(
+    methodNames.map((name) => [name, Object.getOwnPropertyDescriptor(HTMLElement.prototype, name)]),
+  );
+  const capturedPointers = new WeakMap<HTMLElement, Set<number>>();
+
+  Object.defineProperties(HTMLElement.prototype, {
+    setPointerCapture: {
+      configurable: true,
+      value(this: HTMLElement, pointerId: number) {
+        const pointers = capturedPointers.get(this) ?? new Set<number>();
+        pointers.add(pointerId);
+        capturedPointers.set(this, pointers);
+      },
+    },
+    hasPointerCapture: {
+      configurable: true,
+      value(this: HTMLElement, pointerId: number) {
+        return capturedPointers.get(this)?.has(pointerId) ?? false;
+      },
+    },
+    releasePointerCapture: {
+      configurable: true,
+      value(this: HTMLElement, pointerId: number) {
+        const pointers = capturedPointers.get(this);
+        pointers?.delete(pointerId);
+        if (pointers?.size === 0) capturedPointers.delete(this);
+      },
+    },
+    scrollIntoView: { configurable: true, value: vi.fn() },
+  });
+
+  return () => {
+    for (const [name, descriptor] of originalDescriptors) {
+      if (descriptor === undefined) Reflect.deleteProperty(HTMLElement.prototype, name);
+      else Object.defineProperty(HTMLElement.prototype, name, descriptor);
+    }
+  };
+}
+
 beforeEach(() => {
   vi.spyOn(window, 'confirm').mockReturnValue(true);
 });
@@ -151,8 +197,13 @@ describe('ChannelDiagnostics', () => {
     await user.click(screen.getByText('运行详情'));
     expect(screen.getByText('diag-fixture-001')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('combobox', { name: '选择模型映射' }));
-    await user.click(await screen.findByRole('option', { name: 'gpt-demo-b · responses' }));
+    const restoreSelectDom = installRadixSelectDomStubs();
+    try {
+      await user.click(screen.getByRole('combobox', { name: '选择模型映射' }));
+      await user.click(await screen.findByRole('option', { name: 'gpt-demo-b · responses' }));
+    } finally {
+      restoreSelectDom();
+    }
 
     expect(screen.queryByText('diag-fixture-001')).not.toBeInTheDocument();
     expect(
