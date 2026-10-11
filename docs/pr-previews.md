@@ -1,54 +1,54 @@
 # Pull request 预发
 
-`.github/workflows/preview.yml` 在同仓库 PR 的 opened、synchronize、reopened 事件部署分支 head（包括 draft），closed 时停用它的公开 URL。Fork 和 Dependabot PR 不获得部署凭据；不使用 `pull_request_target`。原有 `Local checks` 独立执行完整类型检查、测试和构建，preview 成功不能替代这些检查。
+`.github/workflows/preview.yml` 在同仓库 PR 的 opened、synchronize、reopened 事件部署分支 head（包括 draft），closed 时停用它的公开 URL。Fork 和 Dependabot PR 不获得部署凭据；不使用 `pull_request_target`。部署脚本从事件对应的 PR base SHA 检出，应用源码和迁移仍来自 PR head，旧分支中的部署脚本不会覆盖共享环境策略。原有 `Local checks` 独立执行完整类型检查、测试和构建，preview 成功不能替代这些检查。
 
-## 一次性启用
+## 连接已有预发环境
 
-1. Cloudflare 账户须已开通 workers.dev、D1、KV 和 SQLite Durable Objects，并有足够配额。建议使用专用预发账户；同账户的命名隔离不等于 API Token 权限隔离。
-2. 在 [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens) **自行创建**仅限目标账户的 CI token。所需账户权限：Workers Scripts: Edit、Workers KV Storage: Edit、D1: Edit。Worker 部署包含自身的 Durable Object migration；不操作 DNS、自定义域名、Routes、Email Routing，也不需要 Zone、用户资料或账户全局管理权限。不要使用 Global API Key 或本地 Wrangler OAuth refresh token。
-3. 在仓库 Settings → Secrets and variables → Actions：Secrets 下保存 `CLOUDFLARE_API_TOKEN`；Variables 下保存 `CLOUDFLARE_ACCOUNT_ID`。Token 直接在 GitHub 安全输入框填写，勿发送到聊天、提交 Git 或粘贴日志。当前配置使用的 Cloudflare 账户 ID 是 `4ac5221079fd3481ce2d92f1d1e049cd`；如使用独立账户，填写该账户的 ID。
-4. 推送 PR 或重跑失败的 `PR preview`。未配置时工作流明确失败并给出设置提示，不会伪报已部署。GitHub connector 不能读取 Secrets 元数据；是否已有同名 secret 以 GitHub 设置页或实际运行结果为准。
+PR CI 不创建共享 D1、KV 或 Durable Object namespace，也不部署或更新共享 Gate Worker。必须先在 PR CI 之外准备好一套预发，然后在仓库 Settings → Secrets and variables → Actions 配置：
 
-新 token 与向 GitHub 保存 token 由账户持有人完成。只有仓库写权限的可信分支能使用这条自动部署路径；这些分支内的代码可以读取该 CI token，因此不要向可信分支引入未经审核的不可信工作流。
+| 配置 | 类型 | 用途 |
+| --- | --- | --- |
+| `CLOUDFLARE_API_TOKEN` | Secret | 目标账户的 Workers Scripts: Edit、D1: Edit、Workers KV Storage: Read 权限；不需要 DNS、Routes 或 Email Routing 权限 |
+| `CLOUDFLARE_ACCOUNT_ID` | Variable | 已有预发所在的账户 ID |
+| `PREVIEW_BACKEND_WORKER` | Variable | 已部署的共享预发 Worker 名称，例如 `cheapai-preview`；这是示例名称，不会自动创建 |
+
+共享预发 Worker 必须具备以下现存绑定：
+
+- `ENVIRONMENT`：普通变量，值为 `staging`。
+- `DB`：已存在的预发 D1。
+- `CACHE`：已存在的预发 KV。
+- `GATE`：已存在的 `Gate` Durable Object namespace，可以属于共享预发 Worker 自身，也可以通过 `script_name` 指向已有 Gate host。
+
+CI 读取共享 Worker 的绑定，核实 D1、KV 和 Gate namespace 的实际存在及一致性，拒绝生产 Worker、生产环境标记及与 `sub2api-cloudflare-production` 相同的存储绑定。未配置、资源缺失或读取失败时直接失败，提供配置提示，不回退到生产，也不尝试新建。
+
+2026-10-11 已清理两套历史预发及其 PR Worker；该清理后的账户中没有可供这条工作流连接的 CheapAI 预发。只有单独准备好共享环境并设置上述 Variable 后，新 PR 才能部署成功。Token 在 GitHub 安全输入框填写，不提交 Git 或粘贴日志。只有可信的同仓库分支可以使用部署凭据；从 base 读取脚本是为了统一部署策略，并不使未经审核的 PR 应用代码变得可信。
 
 ## 一套共享预发，多个分支入口
 
-每个 PR 的代码和 URL 独立：Worker 名称为 `sub2api-<仓库名 SHA256 前10位>-pr-<PR号>`。所有 PR 共用同一套 D1、KV 和 Gate Durable Objects；共享资源统一命名为 `sub2api-<仓库名 SHA256 前10位>-preview`，本仓库为 `sub2api-13556ffb8b-preview`。这套新资源不会复用已退役 staging 或旧 PR 独立数据库，更不会引用 production bindings。
+每个 PR 的代码和 URL 独立：Worker 名称为 `sub2api-<仓库名 SHA256 前10位>-pr-<PR号>`。只有这个分支 Worker 和静态资源由 PR CI 发布；所有 PR 绑定 `PREVIEW_BACKEND_WORKER` 指定的同一套 D1、KV 和 Gate。共享资源不按仓库名推导，因此仓库改名不会创建第二套底层环境。
 
-Gate 使用现有类，部署到没有公开 URL 的共享 Worker；分支通过 `script_name` 绑定同一 Gate namespace。每次预发部署都会更新这个共享 Gate 的代码，其他分支同时生效。数据、用户、余额、缓存、限流和渠道冷却都共享，修改可能影响其他预发，这是此简化方案的预期行为。
+数据、用户、余额、缓存、限流和渠道冷却都共享。PR 代码的数据库迁移仍应用到共享 D1，因此会影响其他预发；PR 部署不会更新共享 Gate 代码。需要更改 Gate 的类实现或 namespace 时，先单独更新共享环境，并维持各分支的接口兼容。
 
-流程：构建前端 → 查询/创建共享 D1、KV → Wrangler strict dry-run → 应用共享 D1 迁移 → 更新私有 Gate Worker → 发布本 PR Worker 和静态资源 → 检查 `/healthz` 与首页 HTML。URL、确切 head SHA、分支与共享资源名显示在 Actions run Summary。分支 URL 公开可访问；没有自动配置 Cloudflare Access。
+流程：构建前端 → 只读校验已有预发绑定 → Wrangler strict dry-run → 应用已有预发 D1 的迁移 → 发布本 PR Worker 和静态资源 → 检查 `/healthz` 与首页 HTML。Actions Summary 显示分支 URL、确切 head SHA、共享 Worker、数据库及 Gate host。邮件和 cron 在 PR 环境关闭；烟测只覆盖 HTML 和存活，不覆盖真实邮件、模型、登录及账单链路。
 
-所有预发部署共用一个 concurrency group，不中断正在执行的迁移。GitHub 同组只保留一个待执行任务，多 PR 同时连续推送时，被替换的 pending run 可重跑。部署前检查当前 PR 状态和 head，过期任务跳过，已关闭任务只停用分支入口。不同分支的迁移都作用于同一个数据库；版本冲突需要修复迁移再重跑，CI 不自动清库、不回滚数据、不备份，也不复制生产数据。已应用的 migration 不会自动重放。
-
-生成配置保存在已忽略的 `.wrangler/pr-preview-<PR号>.json`；共享 Gate 的源文件和配置也只在 `.wrangler/` 下生成。
+所有预发部署共用一个 concurrency group，不中断正在执行的迁移。GitHub 同组只保留一个待执行任务，多 PR 连续推送时，被替换的 pending run 可重跑。部署前检查当前 PR 状态和 head，过期任务跳过。CI 不清库、不回滚数据、不备份、不复制生产数据。生成配置保存在已忽略的 `.wrangler/pr-preview-<PR号>.json`。
 
 ## 首次登录与真实模型测试
 
-第一次创建共享 D1 时只有仓库迁移/种子，没有管理员、余额、渠道密钥或真实上游；后续 PR 复用已初始化的数据。首页和 health check 成功只表示部署连通，不能算登录、邮件或模型调用验收。
-
-在本地可信终端使用仓库固定的 Node/pnpm 版本，安装依赖后，先为这次本地操作配置 Cloudflare token/account 环境变量（不要把 token 写入 shell 命令历史）。读取共享资源并生成对应 PR 的本地配置：
+本地使用同一账户的 `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID` 和 `PREVIEW_BACKEND_WORKER` 环境变量；如未设置 `GITHUB_REPOSITORY`，默认仓库为 `a48zhang/cheapai-service`。示例 PR 号须替换为实际 PR：
 
 ```sh
+export PREVIEW_BACKEND_WORKER=cheapai-preview
 PR_NUMBER=1 node scripts/pr-preview.mjs --config-only
 node scripts/bootstrap-admin.ts --remote --preview 1
 ```
 
-第二条命令明确显示共享预发目标并交互询问管理员邮箱/隐藏密码；只需初始化一次，所有 PR 都能用这个账号登录。它不会重置现有管理员，初始余额为 0。`--preview PR_NUMBER` 用于选择分支配置，但写入的是共享预发 D1；旧共享 staging 操作入口保持移除。
-
-如要配置真实渠道，账户持有人还需为需要使用渠道的每个分支 Worker 设置相同的预发专用 `CHANNEL_KEYRING_JSON`（版本名映射至32字节密钥的标准 base64）与 `CHANNEL_ACTIVE_KEY_VERSION`。在 Cloudflare Worker Settings → Variables and Secrets 中直接输入，或使用 Wrangler 的交互式 secret prompt：
-
-```sh
-pnpm --filter @sub2api/worker exec wrangler secret put CHANNEL_KEYRING_JSON --config ../../.wrangler/pr-preview-1.json
-pnpm --filter @sub2api/worker exec wrangler secret put CHANNEL_ACTIVE_KEY_VERSION --config ../../.wrangler/pr-preview-1.json
-```
-
-不要复用生产密钥；已有渠道加密后不要随意覆盖 keyring，否则旧密文可能不可读。D1 中的渠道密文共享，因此分支 Worker 必须使用同一个预发 keyring。CI 不自动生成、读取或复制这些密钥，也不自动创建管理员。管理员登录后按[管理员指南](admin-guide.md)配置渠道、模型映射、分组、授权和余额，再验证聊天/网关。生成配置的 `ENVIRONMENT: staging` 是非生产安全模式，不引用旧共享资源。邮件和 cron 在 PR 环境关闭；这些能力及真实模型调用不在部署 smoke test 的验收范围内。
+`--config-only` 只读取已有预发并生成本地配置，不要求该 PR 已部署，也不创建远程资源。管理员脚本再次校验当前共享环境与生成配置一致，然后交互询问管理员邮箱和隐藏密码。只需初始化一次，所有 PR 共用这个账号；脚本不重置现有管理员，初始余额为 0。管理员登录后按[管理员指南](admin-guide.md)配置预发专用渠道、模型映射、分组、授权和余额，再验证聊天及网关。
 
 ## 关闭、重试与清理
 
-PR 关闭后，workflow 只停用该分支 Worker 的 workers.dev 和 version preview URL。共享 D1、KV 和 Gate Worker 始终保留，其他预发继续使用，不随任意一个 PR 关闭而删除。共享资源仍占配额且可能有存储费用；如以后要退役整套预发，必须另行明确确认清理，不能套用旧的“删除单 PR D1/KV”操作。
+PR 关闭后只停用该分支 Worker 的 workers.dev 和 version preview URL；不会删除分支 Worker，也不会改变共享 D1、KV 或 Gate。即使共享环境尚未配置或已退役，关闭操作也能独立执行。
 
-关闭操作失败时重跑该 closed-event run。GitHub 对有合并冲突的 `pull_request` 可能不触发运行：此时在 Cloudflare 手工关闭这个确切 Worker 的 workers.dev，不要触碰共享数据。失败的部署保留已分配资源；重跑会按准确名称复用，不自动重复创建/删除。若部署成功但烟测失败，Actions 会保持失败并提供 URL 供排查。
+关闭操作失败时重跑该 closed-event run。GitHub 对有合并冲突的 `pull_request` 可能不触发运行，此时可手工关闭该 PR Worker 的 workers.dev。部署失败后修正已有环境或配置再重跑，不会分配新的共享资源；若部署成功但烟测失败，Actions 保持失败并提供 URL 供排查。
 
-官方参考：[跨 Worker 共享 Durable Objects](https://developers.cloudflare.com/durable-objects/reference/environments/)、[Cloudflare GitHub Actions](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/)、[API Token 权限](https://developers.cloudflare.com/fundamentals/api/reference/permissions/)、[GitHub pull_request 事件与 fork 限制](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request)、[Worker subdomain API](https://developers.cloudflare.com/api/resources/workers/subresources/scripts/subresources/subdomain/methods/create/)。
+官方参考：[跨 Worker 共享 Durable Objects](https://developers.cloudflare.com/durable-objects/reference/environments/)、[Cloudflare GitHub Actions](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/)、[API Token 权限](https://developers.cloudflare.com/fundamentals/api/reference/permissions/)、[GitHub pull_request 事件与 fork 限制](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request)。
