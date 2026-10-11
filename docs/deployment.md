@@ -22,6 +22,8 @@
 
 这些 Dashboard 设置不由 Git 中的 package scripts 自动覆盖。将失败的 `npx wrangler preview` 或裸命令 `npx wrangler deploy` 改为 `pnpm run deploy`，保存后重新运行失败的构建。该命令通过 Worker workspace 中已安装的 Wrangler 执行发布，使用构建步骤生成的前端产物，不重复构建。
 
+2026-10-11 已通过 Cloudflare API 只读核对真实生产配置：三个路由、workers.dev / Preview 开关、DB / CACHE / Gate、vars、日志及 cron 均与仓库一致，路由顺序按远端排列。运行时 Secrets 名称为 `EMAIL_HMAC_KEY` 和 `RESEND_API_KEY`，未读取值。Wrangler 4.129.0 的 Dashboard 差异比较会将 Gate 的 `undefined` 字段和 D1 的本地 `database_name` / `migrations_dir` 判为破坏性变化，因此实际发布命令不再使用 `--strict`，避免非交互构建因误判中断；生产账户、环境、资源及路由仍由配置明确指定。`--dry-run` 不执行这项远端比较，构建通过不能证明严格模式下能发布。
+
 CI 自动将 Worker 名称替换为 production 名称，不会同时切换 D1、KV、邮件或 vars。构建及发布日志中应确认 `ENVIRONMENT` 为 `production`、DB 为 `sub2api-cloudflare-production`、CACHE 为 `3da22af80f0946cdbb9cd85caee9810d`，且没有 local 邮件占位绑定。不能只依据 Worker 名称判断选中了生产环境。
 
 本地验证：在故意设置 `CLOUDFLARE_ENV=local` 时，`pnpm run build` 和 `pnpm run deploy --dry-run --outdir /tmp/cheapai-production-deploy` 均成功，解析为上述生产绑定。未实际发布，也未修改 Dashboard 配置。Wrangler 仍提示生产未继承顶层 `send_email`；这是 production 使用 Resend、明确设置 `send_email: []` 的现有配置，不应补入本地邮件绑定。
