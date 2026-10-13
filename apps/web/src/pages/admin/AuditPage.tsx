@@ -81,7 +81,7 @@ export default function AuditPage() {
       <PageHeader heading="管理审计" />
       <form
         key={params.toString()}
-        className="flex flex-wrap items-end gap-3 console-panel p-5"
+        className="grid items-end gap-4 console-panel sm:grid-cols-2 2xl:grid-cols-4"
         onSubmit={applyFilters}
       >
         <Field label="操作者 ID">
@@ -134,27 +134,29 @@ export default function AuditPage() {
             defaultValue={formatLocalDateTime(filters.to, true)}
           />
         </Field>
-        <Button type="submit" variant="secondary">
-          筛选
-        </Button>
-        <Button
-          variant="ghost"
-          onClick={() => {
-            setError(null);
-            setParams({});
-            setActionChoice(null);
-          }}
-        >
-          清空
-        </Button>
+        <div className="flex flex-wrap gap-2 sm:col-span-2 2xl:col-span-4">
+          <Button type="submit" variant="secondary">
+            筛选
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setError(null);
+              setParams({});
+              setActionChoice(null);
+            }}
+          >
+            清空
+          </Button>
+        </div>
         <details
-          className="basis-full border-t border-[var(--color-border)] pt-4"
+          className="sm:col-span-2 2xl:col-span-4 border-t border-[var(--color-border)] pt-4"
           open={Boolean(filters.targetType || filters.targetId || filters.operationId)}
         >
           <summary className="cursor-pointer text-sm font-medium text-[var(--color-ink-secondary)]">
             更多筛选
           </summary>
-          <div className="mt-4 flex flex-wrap gap-4">
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
             {textFields
               .filter((field) => field.key !== 'actorId' && field.key !== 'action')
               .map((field) => (
@@ -231,7 +233,11 @@ export default function AuditPage() {
             id: 'changes',
             size: 110,
             cell: (context) => (
-              <Button variant="ghost" onClick={() => setSelectedEntry(context.row.original)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedEntry(context.row.original)}
+              >
                 查看变更
               </Button>
             ),

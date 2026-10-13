@@ -1,6 +1,7 @@
 import { ArrowLeft, Menu, MessageSquare, PanelLeft, PanelLeftClose } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
+import { useDesktopNavigation } from '../../shared/patterns/NavigationState';
 import { AccountMenu } from '../../features/session/public';
 import { useSession } from '../../features/session/useSession';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
@@ -23,7 +24,7 @@ export function ConsoleLayout({
 }) {
   const { isAdmin, error } = useSession();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [desktopOpen, setDesktopOpen] = useState(true);
+  const [desktopOpen, setDesktopOpen] = useDesktopNavigation();
   const isManagement = mode === 'admin';
   const title = isManagement ? '管理控制台' : '个人控制台';
 
@@ -45,7 +46,7 @@ export function ConsoleLayout({
   }
 
   const navigation = (
-    <nav aria-label={isManagement ? '管理导航' : '个人导航'} className="space-y-6">
+    <nav aria-label={isManagement ? '管理导航' : '个人导航'} className="space-y-4">
       {isManagement ? (
         <>
           <div className="space-y-1">
@@ -61,7 +62,7 @@ export function ConsoleLayout({
           </div>
           {adminNavigation.map((group) => (
             <div key={group.title}>
-              <p className="mb-2 px-3 text-[13px] font-medium text-[var(--color-muted-foreground)]">
+              <p className="mb-2 px-3 text-sm font-medium text-[var(--color-muted-foreground)]">
                 {group.title}
               </p>
               <div className="space-y-1">{group.items.map(renderItem)}</div>
@@ -95,7 +96,7 @@ export function ConsoleLayout({
             <Button
               variant="ghost"
               size="icon"
-              className="hidden md:inline-flex"
+              className="max-md:!hidden"
               aria-label={desktopOpen ? '收起导航' : '展开导航'}
               aria-expanded={desktopOpen}
               aria-controls="desktop-console-sidebar"
@@ -113,7 +114,7 @@ export function ConsoleLayout({
               title={title}
               side="left"
               trigger={
-                <Button variant="ghost" size="icon" className="md:hidden" aria-label="打开导航">
+                <Button variant="ghost" size="icon" className="md:!hidden" aria-label="打开导航">
                   <Menu aria-hidden="true" size={21} />
                 </Button>
               }
@@ -134,7 +135,7 @@ export function ConsoleLayout({
           id="desktop-console-sidebar"
           className={
             desktopOpen
-              ? 'sticky top-16 hidden h-[calc(100dvh-4rem)] w-[236px] shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] md:flex'
+              ? 'sticky top-16 hidden h-[calc(100dvh-4rem)] w-[248px] shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] md:flex'
               : 'hidden'
           }
         >

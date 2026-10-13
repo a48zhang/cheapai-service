@@ -69,6 +69,11 @@ export function GroupsPage() {
         </label>
       </FilterBar>
       <GroupTable
+        emptyMessage={
+          status
+            ? '没有符合当前状态的访问组，可重置筛选查看全部。'
+            : '暂无访问组，创建访问组后将在这里显示。'
+        }
         rows={rows}
         loading={query.isPending && query.data === undefined}
         loadingMore={query.isFetchingNextPage}

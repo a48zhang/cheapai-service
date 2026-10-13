@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { Button } from '../../shared/ui/Button';
+import { CopyButton } from '../../shared/ui/CopyButton';
 import { Dialog } from '../../shared/ui/Dialog';
 
 export interface KeySecretDialogProps {
@@ -9,18 +10,9 @@ export interface KeySecretDialogProps {
 }
 
 /** Receives a created token only for this mounted dialog's short lifetime. */
-export function KeySecretDialog({ secret, onClose }: KeySecretDialogProps) {
+export function KeySecretDialog({ secret, keyName, onClose }: KeySecretDialogProps) {
   const inputId = useId();
   const open = secret !== null;
-
-  const copy = async () => {
-    if (secret === null) return;
-    try {
-      await navigator.clipboard.writeText(secret);
-    } catch {
-      // Keep the one-time secret visible so the user can copy it manually.
-    }
-  };
 
   return (
     <Dialog
@@ -31,12 +23,10 @@ export function KeySecretDialog({ secret, onClose }: KeySecretDialogProps) {
       title="密钥已创建"
       description="完整密钥仅显示一次，请复制保存。"
       closeLabel="关闭密钥对话框"
-      className="max-w-2xl"
+      className="!max-w-2xl"
       footer={
         <>
-          <Button variant="secondary" onClick={() => void copy()}>
-            复制
-          </Button>
+          <CopyButton key={secret} value={secret ?? ''} label="复制密钥" />
           <Button onClick={onClose}>完成</Button>
         </>
       }
@@ -44,7 +34,7 @@ export function KeySecretDialog({ secret, onClose }: KeySecretDialogProps) {
       {secret !== null && (
         <div className="space-y-3">
           <label htmlFor={inputId} className="block text-sm font-medium">
-            API Key
+            {keyName || 'API Key'}
           </label>
           <textarea
             id={inputId}

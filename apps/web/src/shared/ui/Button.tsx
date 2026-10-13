@@ -32,7 +32,7 @@ const variantStyles: Record<ButtonVariant, CSSProperties> = {
     color: 'var(--color-foreground)',
   },
   ghost: {
-    backgroundColor: 'transparent',
+    backgroundColor: 'var(--button-ghost-background, transparent)',
     borderColor: 'transparent',
     color: 'var(--color-foreground)',
   },
@@ -81,7 +81,7 @@ export function Button({
     }
     onClick?.(event as unknown as Parameters<NonNullable<typeof onClick>>[0]);
   };
-  const sharedClassName = `inline-flex items-center justify-center gap-2 rounded-md border font-medium leading-6 whitespace-nowrap outline-none transition-colors hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-surface)] disabled:pointer-events-none disabled:opacity-50 ${sizeClasses[size]} ${className ?? ''}`;
+  const sharedClassName = `inline-flex items-center justify-center gap-2 rounded-lg border font-medium leading-6 whitespace-nowrap outline-none transition-colors hover:opacity-90 data-[variant=ghost]:hover:[--button-ghost-background:var(--color-muted)] focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-surface)] disabled:pointer-events-none disabled:opacity-50 ${sizeClasses[size]} ${className ?? ''}`;
   const sharedStyle = {
     ...variantStyles[variant],
     ...(unavailable ? { opacity: 0.55 } : {}),
@@ -105,6 +105,7 @@ export function Button({
         {...props}
         aria-disabled={unavailable ? true : props['aria-disabled']}
         aria-busy={busy || undefined}
+        data-variant={variant}
         data-busy={busy ? '' : undefined}
         onClick={handleSlotClick}
         className={sharedClassName}
@@ -128,6 +129,7 @@ export function Button({
       disabled={unavailable}
       aria-disabled={props['aria-disabled']}
       aria-busy={busy || undefined}
+      data-variant={variant}
       data-busy={busy ? '' : undefined}
       onClick={handleClick}
       className={sharedClassName}

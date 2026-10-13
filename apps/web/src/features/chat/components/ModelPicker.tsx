@@ -36,7 +36,7 @@ export function ModelPicker({ selection, disabled = false }: ModelPickerProps) {
     : loading
       ? '正在加载模型…'
       : options.length === 0
-        ? '暂无可用模型，请联系管理员开通模型权限。'
+        ? '暂无可用模型，请稍后刷新重试。'
         : !selectedOption
           ? '原模型已不可用，请切换模型。'
           : null;

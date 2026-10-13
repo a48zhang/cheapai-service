@@ -10,6 +10,7 @@ import { CodeTable } from '../../features/admin-registration/CodeTable';
 import { Button } from '../../shared/ui/Button';
 import { Select } from '../../shared/ui/Select';
 import { Input } from '../../shared/ui/Input';
+import { AsyncState } from '../../shared/patterns/AsyncState';
 import { PageHeader } from '../../shared/patterns/PageHeader';
 import { FilterBar } from '../../shared/patterns/FilterBar';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
@@ -26,7 +27,6 @@ export default function RegistrationCodesPage() {
   const [selectedStatus, setSelectedStatus] = useState(status ?? 'all');
   const [creator, setCreator] = useState(creatorFilter ?? '');
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState<unknown>(null);
   const query = useInfiniteQuery(registrationCodesQuery(client, user!.id, creatorFilter, status));
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: registrationKeys.root(user!.id) });
@@ -84,16 +84,16 @@ export default function RegistrationCodesPage() {
           </Button>
         </form>
       </FilterBar>
-      {(error || query.error) && (
+      {query.error && (
         <ApiErrorNotice
-          error={error ?? query.error}
+          error={query.error}
           onRetry={() =>
             void (query.isFetchNextPageError ? query.fetchNextPage() : query.refetch())
           }
         />
       )}
       {query.isPending ? (
-        <p role="status">正在读取邀请码…</p>
+        <AsyncState status="loading" loadingLabel="正在读取邀请码…" className="p-8 text-center" />
       ) : (
         <CodeTable
           rows={rows}
@@ -102,9 +102,9 @@ export default function RegistrationCodesPage() {
           hasMore={query.hasNextPage}
           loadingMore={query.isFetchingNextPage}
           onLoadMore={() => void query.fetchNextPage()}
-          onRevoke={(id) => {
-            setError(null);
-            void createAdminRegistrationApi(client).revokeCode(id).then(refresh).catch(setError);
+          onRevoke={async (id) => {
+            await createAdminRegistrationApi(client).revokeCode(id);
+            refresh();
           }}
         />
       )}

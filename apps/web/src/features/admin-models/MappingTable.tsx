@@ -42,7 +42,7 @@ function columnsFor(
       header: '操作',
       cell: ({ row }) => (
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
           disabled={!onEdit}
           aria-label={`编辑 ${row.original.channelId} 的 ${row.original.protocol} 映射`}

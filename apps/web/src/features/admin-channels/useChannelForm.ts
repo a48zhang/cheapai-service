@@ -32,6 +32,7 @@ export function useChannelForm({
   const [errors, setErrors] = useState<ChannelFormErrors>({});
   const [saveError, setSaveError] = useState<Error | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [creationUncertain, setCreationUncertain] = useState(false);
   const creating = channel === null;
 
@@ -43,6 +44,7 @@ export function useChannelForm({
   }, [open, channel, creationUncertain]);
 
   const updateDraft = <K extends keyof ChannelDraft>(key: K, value: ChannelDraft[K]) => {
+    setSaved(false);
     setDraft((current) => ({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: undefined }));
     if (!creationUncertain) setSaveError(null);
@@ -60,6 +62,7 @@ export function useChannelForm({
     setErrors(nextErrors);
     if (Object.values(nextErrors).some(Boolean)) return;
 
+    setSaved(false);
     setSaving(true);
     setSaveError(null);
     try {
@@ -68,6 +71,7 @@ export function useChannelForm({
           ? await api.create(buildChannelInput(draft))
           : await api.update(channel.id, channel.configVersion, buildChannelPatch(draft));
       onSaved(saved);
+      setSaved(true);
     } catch (cause) {
       const conflict =
         cause instanceof ApiClientError && (cause.status === 409 || cause.code === 'conflict');
@@ -91,6 +95,7 @@ export function useChannelForm({
     errors,
     saveError,
     saving,
+    saved,
     creationUncertain,
     creating,
     updateDraft,

@@ -50,7 +50,7 @@ export function Dialog({
           style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
         >
           <div
-            className="flex items-start justify-between gap-4 border-b px-6 py-5"
+            className="flex shrink-0 items-start justify-between gap-4 border-b px-5 py-5 sm:px-6"
             style={{ borderColor: 'var(--color-border)' }}
           >
             <div className="min-w-0">
@@ -67,20 +67,20 @@ export function Dialog({
               <DialogPrimitive.Close
                 type="button"
                 aria-label={closeLabel}
-                className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-lg text-[var(--color-muted-foreground)] outline-none transition-colors hover:bg-[var(--color-muted)] hover:text-[var(--color-foreground)] focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+                className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-lg text-[var(--color-muted-foreground)] outline-none transition-colors hover:bg-[var(--color-muted)] hover:text-[var(--color-foreground)] focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
               >
                 <X size={18} aria-hidden="true" />
               </DialogPrimitive.Close>
             )}
           </div>
           {children != null && (
-            <div className="min-h-0 overflow-y-auto text-[15px] leading-6 px-6 py-5">
+            <div className="min-h-0 overflow-y-auto text-[15px] leading-6 px-5 py-5 sm:px-6">
               {children}
             </div>
           )}
           {footer && (
             <div
-              className="flex flex-wrap justify-end gap-2 border-t px-6 py-4"
+              className="flex shrink-0 flex-wrap justify-end gap-2 border-t bg-[var(--color-surface-subtle)] px-5 py-4 sm:px-6"
               style={{ borderColor: 'var(--color-border)' }}
             >
               {footer}

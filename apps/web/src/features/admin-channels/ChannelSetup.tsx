@@ -296,19 +296,17 @@ export function ChannelSetup({
           >
             <h3 className="font-semibold">渠道设置已完成</h3>
             <div className="flex flex-wrap gap-3">
-              <Link
-                to={`/admin/channels/${encodeURIComponent(progress.channel.id)}`}
-                className="font-medium underline"
-              >
-                渠道详情
-              </Link>
-              {progress.group && (
-                <Link
-                  to={`/admin/groups/${encodeURIComponent(progress.group.id)}`}
-                  className="font-medium underline"
-                >
-                  访问组详情
+              <Button asChild variant="outline" size="sm">
+                <Link to={`/admin/channels/${encodeURIComponent(progress.channel.id)}`}>
+                  渠道详情
                 </Link>
+              </Button>
+              {progress.group && (
+                <Button asChild variant="outline" size="sm">
+                  <Link to={`/admin/groups/${encodeURIComponent(progress.group.id)}`}>
+                    访问组详情
+                  </Link>
+                </Button>
               )}
             </div>
           </section>

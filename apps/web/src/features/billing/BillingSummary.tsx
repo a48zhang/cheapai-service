@@ -44,11 +44,11 @@ function Amount({ label, units, currency, loading, error, onRetry, wallet }: Amo
           </p>
           {error && (
             <p
-              className="mb-0 mt-2 flex items-center gap-2 text-sm text-[var(--color-danger)]"
+              className="mb-0 mt-2 flex flex-wrap items-center gap-2 text-sm text-[var(--color-danger)]"
               role="status"
             >
-              更新失败
-              <Button variant="ghost" size="sm" className="px-2" onClick={onRetry}>
+              更新失败，当前显示上次读取的金额
+              <Button variant="outline" size="sm" onClick={onRetry}>
                 重试
               </Button>
             </p>
@@ -60,11 +60,11 @@ function Amount({ label, units, currency, loading, error, onRetry, wallet }: Amo
         </p>
       ) : (
         <p
-          className="mb-0 mt-2 flex items-center gap-2 text-sm text-[var(--color-danger)]"
+          className="mb-0 mt-2 flex flex-wrap items-center gap-2 text-sm text-[var(--color-danger)]"
           role="alert"
         >
           {error ? '读取失败' : '暂不可用'}
-          <Button variant="ghost" size="sm" className="px-2" onClick={onRetry}>
+          <Button variant="outline" size="sm" onClick={onRetry}>
             重试
           </Button>
         </p>

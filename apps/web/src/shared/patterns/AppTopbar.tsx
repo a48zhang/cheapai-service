@@ -14,7 +14,7 @@ export function AppTopbar({
 }) {
   return (
     <header className="app-topbar sticky top-0 z-30 flex h-16 shrink-0 items-center gap-3 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-3 sm:px-4 md:gap-6">
-      <div className="flex shrink-0 items-center gap-2 md:w-[220px] md:gap-3">
+      <div className="flex shrink-0 items-center gap-2 md:w-[208px] md:gap-3">
         {sidebarToggle}
         <BrandLink className="text-lg font-semibold tracking-tight sm:text-xl" />
       </div>

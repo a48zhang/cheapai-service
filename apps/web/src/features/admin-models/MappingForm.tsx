@@ -78,23 +78,38 @@ export function MappingForm({
     <section
       className={`grid gap-5 ${showEditor ? 'xl:grid-cols-[minmax(15rem,0.8fr)_minmax(0,1.6fr)]' : ''}`}
     >
-      <aside className="grid content-start gap-3 rounded-xl bg-[var(--color-muted)]/40 p-4">
+      <aside
+        className={`grid content-start gap-4 ${showEditor ? 'xl:border-r xl:border-[var(--color-border)] xl:pr-5' : ''}`}
+      >
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h3 className="font-semibold">已配置渠道</h3>
-            <p className="mt-1 console-muted">{rows.length} 项</p>
+            <p className="console-muted">已关联 {rows.length} 个渠道</p>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={saving || mappings.isFetching}
-            onClick={() => {
-              startCreate();
-              setEditorOpen(true);
-            }}
-          >
-            新建
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {mappings.isSuccess && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={mappings.isFetching || saving}
+                onClick={() => {
+                  void retryMappings();
+                }}
+              >
+                刷新列表
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={saving || mappings.isFetching}
+              onClick={() => {
+                startCreate();
+                setEditorOpen(true);
+              }}
+            >
+              添加渠道
+            </Button>
+          </div>
         </div>
         {mappings.isPending && (
           <p role="status" className="console-muted">
@@ -151,18 +166,6 @@ export function MappingForm({
               </li>
             ))}
           </ul>
-        )}
-        {mappings.isSuccess && (
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={mappings.isFetching || saving}
-            onClick={() => {
-              void retryMappings();
-            }}
-          >
-            重新读取映射
-          </Button>
         )}
         {versionChanged && latestSelected && (
           <div

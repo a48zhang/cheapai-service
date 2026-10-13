@@ -9,6 +9,7 @@ import {
   type CodeIntent,
 } from './code-operation';
 import { Dialog } from '../../shared/ui/Dialog';
+import { CopyButton } from '../../shared/ui/CopyButton';
 import { Button } from '../../shared/ui/Button';
 import { Input } from '../../shared/ui/Input';
 import { Field } from '../../shared/ui/Field';
@@ -35,14 +36,12 @@ export function CodeBatchDialog({
   const [result, setResult] = useState<CodeBatch | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
-  const [copyStatus, setCopyStatus] = useState('');
   const busyRef = useRef(false);
   const generation = useRef(0);
   useLayoutEffect(() => {
     generation.current++;
     setResult(null);
     setError(null);
-    setCopyStatus('');
     setBusy(false);
     busyRef.current = false;
     const counter = generation;
@@ -96,14 +95,17 @@ export function CodeBatchDialog({
   return (
     <Dialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(nextOpen) => {
+        if (!busyRef.current) onOpenChange(nextOpen);
+      }}
       title="生成邀请码"
       description="生成后可复制并分享给受邀用户。"
       closeLabel="关闭"
+      closeButton={!busy}
       footer={
         <>
-          <Button variant="secondary" onClick={() => onOpenChange(false)}>
-            关闭
+          <Button variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>
+            {result ? '完成' : '取消'}
           </Button>
           {!result && (
             <Button busy={busy} onClick={() => void submit()}>
@@ -113,7 +115,7 @@ export function CodeBatchDialog({
         </>
       }
     >
-      <div className="space-y-5 p-6">
+      <div className="space-y-5">
         {result ? (
           <>
             <p
@@ -137,19 +139,11 @@ export function CodeBatchDialog({
               ))}
             </ul>
             {!result.replayed && (
-              <Button
-                variant="secondary"
-                onClick={() =>
-                  void navigator.clipboard
-                    .writeText(result.codes.map((code) => code.token).join('\n'))
-                    .then(() => setCopyStatus('已复制'))
-                    .catch(() => setCopyStatus('无法复制，请手动保存'))
-                }
-              >
-                复制全部邀请码
-              </Button>
+              <CopyButton
+                value={result.codes.map((code) => code.token).join('\n')}
+                label="复制全部邀请码"
+              />
             )}
-            {copyStatus && <p role="status">{copyStatus}</p>}
           </>
         ) : (
           <>

@@ -10,10 +10,8 @@ export default function SessionUnavailablePage() {
   const navigate = useNavigate();
   return (
     <section className="mx-auto max-w-lg space-y-5 p-8">
-      <h1 className="text-2xl font-semibold">暂时无法确认会话</h1>
-      <p className="text-[var(--color-muted-foreground)]">
-        身份服务暂时不可用。重试后可以继续之前的操作。
-      </p>
+      <h1 className="text-2xl font-semibold">暂时无法连接</h1>
+      <p className="text-[var(--color-muted-foreground)]">请重试，连接恢复后将返回之前的页面。</p>
       <ApiErrorNotice error={error} />
       <Button
         busy={pending !== null}
@@ -24,11 +22,11 @@ export default function SessionUnavailablePage() {
             .catch(() => undefined)
         }
       >
-        重试身份确认
+        重新连接
       </Button>
-      <Link className="block text-sm" to="/">
-        返回首页
-      </Link>
+      <Button asChild variant="outline" className="ml-3">
+        <Link to="/">返回首页</Link>
+      </Button>
     </section>
   );
 }

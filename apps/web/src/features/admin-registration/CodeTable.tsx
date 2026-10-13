@@ -18,7 +18,7 @@ export function CodeTable({
   hasMore?: boolean;
   loadingMore?: boolean;
   onLoadMore: () => void;
-  onRevoke: (id: string) => void;
+  onRevoke: (id: string) => Promise<void>;
   filtered?: boolean;
   onCreate?: () => void;
 }) {
@@ -106,7 +106,7 @@ export function CodeTable({
                   confirmLabel="确认撤销"
                   cancelLabel="取消"
                   trigger={
-                    <Button variant="ghost" size="sm">
+                    <Button variant="outline" size="sm">
                       撤销
                     </Button>
                   }

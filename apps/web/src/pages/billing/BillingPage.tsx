@@ -1,3 +1,4 @@
+import { Button } from '../../shared/ui/Button';
 import { useEffect, useMemo, useState } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
@@ -89,6 +90,7 @@ export function BillingPage() {
     endDate: dateRange.endDate,
   });
   const [dateError, setDateError] = useState('');
+  const [kindDraft, setKindDraft] = useState<BillingKind | ''>(kind ?? '');
 
   useEffect(() => {
     const normalized = searchParamsForFilters(dateRange, kind, requestId);
@@ -96,9 +98,10 @@ export function BillingPage() {
   }, [dateRange, kind, requestId, searchKey, setSearchParams]);
 
   useEffect(() => {
+    setKindDraft(kind ?? '');
     setDateDraft({ startDate: dateRange.startDate, endDate: dateRange.endDate });
     setDateError('');
-  }, [dateRange.endDate, dateRange.startDate, searchKey]);
+  }, [dateRange.endDate, dateRange.startDate, searchKey, kind]);
 
   const hasCustomDateRange =
     dateRange.createdFrom !== defaultMonth.createdFrom ||
@@ -109,16 +112,21 @@ export function BillingPage() {
   function updateDate(field: 'startDate' | 'endDate', value: string) {
     const nextDraft = { ...dateDraft, [field]: value };
     setDateDraft(nextDraft);
-    const bounds = billingDateBoundsFromInputs(nextDraft.startDate, nextDraft.endDate);
+    setDateError('');
+  }
+
+  function applyFilters() {
+    const bounds = billingDateBoundsFromInputs(dateDraft.startDate, dateDraft.endDate);
     if (!bounds) {
-      setDateError('请选择有效且按顺序排列的日期范围。');
+      setDateError('请选择有效的日期范围，结束日期应不早于开始日期。');
       return;
     }
     setDateError('');
-    setSearchParams(searchParamsForFilters(bounds, kind, requestId));
+    setSearchParams(searchParamsForFilters(bounds, kindDraft || undefined, requestId));
   }
 
   function clearFilters() {
+    setKindDraft('');
     setDateDraft({ startDate: defaultMonth.startDate, endDate: defaultMonth.endDate });
     setDateError('');
     setSearchParams(searchParamsForFilters(defaultMonth, undefined, undefined));
@@ -141,7 +149,14 @@ export function BillingPage() {
         summaryError={query.isFetchNextPageError ? undefined : query.error}
         onRetrySummary={retryBilling}
       />
-      <div className="flex flex-wrap items-end gap-3 console-panel p-5" aria-label="费用筛选">
+      <form
+        className="flex flex-wrap items-end gap-3 console-panel p-5"
+        aria-label="费用筛选"
+        onSubmit={(event) => {
+          event.preventDefault();
+          applyFilters();
+        }}
+      >
         <fieldset className="flex flex-wrap items-end gap-3 border-0 p-0">
           <legend className="sr-only">日期范围</legend>
           <label className="grid gap-2 console-label">
@@ -164,37 +179,25 @@ export function BillingPage() {
             />
           </label>
         </fieldset>
-        <button
-          type="button"
-          aria-pressed={!hasCustomDateRange}
-          className={`min-h-11 rounded-lg border px-3 text-[15px] font-medium ${
-            hasCustomDateRange
-              ? 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-ink-secondary)]'
-              : 'border-[var(--color-accent-line)] bg-[var(--color-accent-soft)] text-[var(--color-accent)]'
-          }`}
+        <Button
+          variant="outline"
+          aria-pressed={
+            dateDraft.startDate === defaultMonth.startDate &&
+            dateDraft.endDate === defaultMonth.endDate
+          }
           onClick={() => {
             setDateDraft({ startDate: defaultMonth.startDate, endDate: defaultMonth.endDate });
             setDateError('');
-            setSearchParams(searchParamsForFilters(defaultMonth, kind, requestId));
           }}
         >
           本月
-        </button>
+        </Button>
         <label className="grid gap-2 console-label">
           类型
           <select
-            value={kind ?? ''}
-            onChange={(event) => {
-              const value = event.currentTarget.value;
-              const nextKind = value ? billingKindSchema.safeParse(value) : null;
-              setSearchParams(
-                searchParamsForFilters(
-                  dateRange,
-                  nextKind?.success ? nextKind.data : undefined,
-                  requestId,
-                ),
-              );
-            }}
+            aria-label="费用类型"
+            value={kindDraft}
+            onChange={(event) => setKindDraft(event.currentTarget.value as BillingKind | '')}
             className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
           >
             <option value="">全部类型</option>
@@ -205,34 +208,31 @@ export function BillingPage() {
             ))}
           </select>
         </label>
+        <Button type="submit" variant="secondary">
+          筛选
+        </Button>
         {requestId && (
           <div className="flex min-h-10 items-center gap-2 rounded-md bg-[var(--color-surface-subtle)] px-3 text-[15px] text-[var(--color-ink-secondary)]">
             <span>请求 ID 筛选：{requestId}</span>
-            <button
-              type="button"
-              className="font-medium text-[var(--color-accent)] hover:underline"
+            <Button
+              variant="ghost"
+              size="sm"
               aria-label="清除请求 ID 筛选"
               onClick={() => setSearchParams(searchParamsForFilters(dateRange, kind, undefined))}
             >
               清除
-            </button>
+            </Button>
           </div>
         )}
-        {hasActiveFilters && (
-          <button
-            type="button"
-            className="min-h-11 rounded-lg px-3 text-[15px] font-medium text-[var(--color-accent)] hover:underline"
-            onClick={clearFilters}
-          >
-            清除筛选
-          </button>
-        )}
+        <Button variant="outline" onClick={clearFilters}>
+          重置筛选
+        </Button>
         {dateError && (
           <p className="m-0 basis-full text-sm text-[var(--color-destructive)]" role="alert">
             {dateError}
           </p>
         )}
-      </div>
+      </form>
       {(!query.error || rows.length > 0) && (
         <BillingTable
           rows={rows}

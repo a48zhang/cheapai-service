@@ -15,13 +15,13 @@ export interface PriceFieldsProps {
 }
 
 const labels: Record<(typeof BILLABLE_BUCKETS)[number], string> = {
-  input: '输入 Token',
-  output: '输出 Token',
+  input: '输入价格',
+  output: '输出价格',
   cacheRead: '缓存读取',
   cacheWrite: '缓存写入',
   cacheWrite5m: '缓存写入（5 分钟）',
   cacheWrite1h: '缓存写入（1 小时）',
-  reasoning: '推理 Token',
+  reasoning: '推理价格',
 };
 
 /** Price fields remain decimal strings end to end; no browser number conversion occurs. */

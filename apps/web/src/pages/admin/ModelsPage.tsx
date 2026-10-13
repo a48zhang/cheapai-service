@@ -74,6 +74,11 @@ export default function ModelsPage() {
         </label>
       </FilterBar>
       <ModelTable
+        emptyMessage={
+          status
+            ? '没有符合当前状态的模型，可重置筛选查看全部。'
+            : '暂无模型，新增模型后将在这里显示。'
+        }
         rows={rows}
         loading={query.isPending && query.data === undefined}
         loadingMore={query.isFetchingNextPage}

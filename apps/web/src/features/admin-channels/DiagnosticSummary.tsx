@@ -1,3 +1,4 @@
+import { CircleCheck, CircleAlert, CircleDashed, LoaderCircle } from 'lucide-react';
 import { Button } from '../../shared/ui/Button';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
 import type { DiagnosticRepairAction, DiagnosticResultView } from './diagnostic-result';
@@ -43,11 +44,19 @@ export function DiagnosticSummary({ view, busy = false, onAction }: DiagnosticSu
           aria-hidden="true"
           className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full border border-[var(--color-line)] text-sm font-semibold text-[var(--color-ink-secondary)]"
         >
-          {busy ? '…' : view.state === 'success' ? '✓' : view.state === 'idle' ? '·' : '!'}
+          {busy ? (
+            <LoaderCircle size={18} className="animate-spin" />
+          ) : view.state === 'success' ? (
+            <CircleCheck size={18} />
+          ) : view.state === 'idle' ? (
+            <CircleDashed size={18} />
+          ) : (
+            <CircleAlert size={18} />
+          )}
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
-            <h2 className="min-w-0 break-words text-sm font-semibold text-[var(--color-ink)]">
+            <h2 className="min-w-0 break-words text-[15px] font-semibold text-[var(--color-ink)]">
               {busy ? '正在等待诊断结果…' : view.summary}
             </h2>
             <StatusBadge tone={busy ? 'info' : view.tone}>
@@ -56,22 +65,22 @@ export function DiagnosticSummary({ view, busy = false, onAction }: DiagnosticSu
           </div>
 
           {view.providerError?.code !== null && view.providerError?.code !== undefined && (
-            <p className="mt-2 break-all font-mono text-xs text-[var(--color-ink-secondary)]">
+            <p className="mt-2 break-all font-mono text-sm text-[var(--color-ink-secondary)]">
               供应商错误码：{view.providerError.code}
             </p>
           )}
           {providerMessage !== null && (
-            <p className="mt-1 break-words whitespace-pre-wrap text-xs leading-5 text-[var(--color-ink-secondary)]">
+            <p className="mt-1 break-words whitespace-pre-wrap text-sm leading-5 text-[var(--color-ink-secondary)]">
               {providerMessage}
             </p>
           )}
           {detail !== null && (
-            <p className="mt-1 break-words whitespace-pre-wrap text-xs leading-5 text-[var(--color-ink-secondary)]">
+            <p className="mt-1 break-words whitespace-pre-wrap text-sm leading-5 text-[var(--color-ink-secondary)]">
               {detail}
             </p>
           )}
           {view.failure !== null && view.failure.issues.length > 0 && (
-            <ul className="mt-2 space-y-1 text-xs text-[var(--color-ink-secondary)]">
+            <ul className="mt-2 space-y-1 text-sm text-[var(--color-ink-secondary)]">
               {view.failure.issues.map((issue, index) => (
                 <li key={`${issue.path}-${index}`} className="break-words">
                   <code>{issue.path}</code>: {issue.message}
@@ -80,7 +89,7 @@ export function DiagnosticSummary({ view, busy = false, onAction }: DiagnosticSu
             </ul>
           )}
           {view.legacyEvidenceMessage !== null && (
-            <p className="mt-2 text-xs text-[var(--color-ink-muted)]">
+            <p className="mt-2 text-sm text-[var(--color-ink-muted)]">
               {view.legacyEvidenceMessage}
             </p>
           )}
@@ -88,7 +97,7 @@ export function DiagnosticSummary({ view, busy = false, onAction }: DiagnosticSu
           {(view.upstreamStatus !== null ||
             view.durationMs !== null ||
             view.retryAfter !== null) && (
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
               {view.upstreamStatus !== null && (
                 <StatusBadge tone={statusTone(view.upstreamStatus)}>
                   上游 HTTP {view.upstreamStatus}

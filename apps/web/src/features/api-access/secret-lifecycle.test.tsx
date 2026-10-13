@@ -368,6 +368,33 @@ describe('one-time credential lifecycle', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it('keeps the invite dialog open until the generated result is available', async () => {
+    let resolve!: (result: CodeBatch) => void;
+    mocks.createCodes.mockImplementationOnce(
+      () =>
+        new Promise<CodeBatch>((done) => {
+          resolve = done;
+        }),
+    );
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<CodeBatchDialog open onOpenChange={onOpenChange} onCreated={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText('到期时间'), {
+      target: { value: futureLocalDateTime() },
+    });
+    await user.click(screen.getByRole('button', { name: '生成邀请码' }));
+    expect(screen.getByRole('button', { name: '取消' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: '关闭' })).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(onOpenChange).not.toHaveBeenCalled();
+    await act(async () => {
+      resolve(createdCodes);
+    });
+    expect(await screen.findByText(inviteToken)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '完成' }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
   it('removes an invite batch secret on close, identity change, and unmount', async () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();
