@@ -1,3 +1,4 @@
+import { Button } from '../ui/Button';
 import type { HTMLAttributes, ReactNode } from 'react';
 
 type AsyncStateStatus = 'loading' | 'empty' | 'error' | 'ready';
@@ -45,7 +46,7 @@ export function AsyncState(props: AsyncStateProps) {
   if (status === 'loading') {
     return (
       <div {...attributes} className={wrapperClassName} role="status" aria-live="polite">
-        <span className="inline-flex items-center gap-2 text-sm text-[var(--color-ink-secondary)]">
+        <span className="inline-flex items-center gap-3 text-[15px] text-[var(--color-ink-secondary)]">
           <span
             aria-hidden="true"
             className="size-4 animate-spin rounded-full border-2 border-current border-r-transparent"
@@ -61,7 +62,7 @@ export function AsyncState(props: AsyncStateProps) {
       <div
         {...attributes}
         className={[
-          'rounded-xl border border-dashed border-[var(--color-line-strong)] bg-[var(--color-surface)] px-6 py-10 text-center',
+          'rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-10 text-center',
           wrapperClassName,
         ].join(' ')}
         role="status"
@@ -70,7 +71,7 @@ export function AsyncState(props: AsyncStateProps) {
           <h2 className="mb-2 text-base font-semibold text-[var(--color-ink)]">{heading}</h2>
         )}
         {description && (
-          <div className="mx-auto max-w-xl text-sm leading-6 text-[var(--color-ink-secondary)]">
+          <div className="mx-auto max-w-xl text-[15px] leading-7 text-[var(--color-ink-secondary)]">
             {description}
           </div>
         )}
@@ -84,21 +85,17 @@ export function AsyncState(props: AsyncStateProps) {
       <div
         {...attributes}
         className={[
-          'rounded-xl border border-[var(--color-danger-line)] bg-[var(--color-danger-soft)] px-5 py-4 text-[var(--color-danger)]',
+          'rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-subtle)] px-5 py-4 text-[var(--color-foreground)]',
           wrapperClassName,
         ].join(' ')}
         role="alert"
       >
-        {heading && <h2 className="mb-1 text-sm font-semibold">{heading}</h2>}
+        {heading && <h2 className="mb-1 text-[15px] font-semibold">{heading}</h2>}
         {description && <div className="text-sm leading-6">{description}</div>}
         {onRetry && retryLabel && (
-          <button
-            type="button"
-            className="mt-3 inline-flex min-h-9 items-center rounded-md border border-[var(--color-danger-line)] bg-[var(--color-surface)] px-3 text-sm font-medium text-[var(--color-danger)] hover:bg-[var(--color-danger-soft)]"
-            onClick={onRetry}
-          >
+          <Button variant="outline" size="sm" onClick={onRetry}>
             {retryLabel}
-          </button>
+          </Button>
         )}
       </div>
     );
@@ -125,13 +122,9 @@ export function AsyncState(props: AsyncStateProps) {
           {refreshing && refreshLabel && <span>{refreshLabel}</span>}
           {refreshError && <span>{refreshError}</span>}
           {refreshError && onRetry && retryLabel && (
-            <button
-              type="button"
-              className="rounded px-2 py-1 font-medium text-[var(--color-accent)] underline underline-offset-2 hover:text-[var(--color-accent)]"
-              onClick={onRetry}
-            >
+            <Button variant="outline" size="sm" onClick={onRetry}>
               {retryLabel}
-            </button>
+            </Button>
           )}
         </div>
       )}

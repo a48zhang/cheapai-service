@@ -1,3 +1,4 @@
+import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import type { ChannelView } from '@cheapai/api-client/channels';
@@ -117,14 +118,14 @@ export function ChannelPicker({
           >
             <span className="min-w-0 truncate">{summary}</span>
             <span aria-hidden="true" className="shrink-0 text-[var(--color-muted-foreground)]">
-              ⌄
+              <ChevronDown size={18} />
             </span>
           </Button>
         }
         title="选择渠道"
         description={maxSelected === 1 ? '为此映射选择一个渠道。' : '选择要关联到此组的渠道。'}
         closeLabel="关闭渠道选择"
-        className="max-w-2xl"
+        className="!max-w-2xl"
         footer={
           <>
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
@@ -159,17 +160,17 @@ export function ChannelPicker({
               role="alert"
               className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[var(--color-destructive)] bg-[var(--color-destructive-soft)] p-3 text-sm"
             >
-              <span>渠道候选加载失败：{errorMessage}</span>
+              <span>渠道列表加载失败：{errorMessage}</span>
               {onRetry && (
                 <Button type="button" variant="outline" size="sm" onClick={onRetry}>
-                  重试候选加载
+                  重新加载
                 </Button>
               )}
             </div>
           )}
           {!loading && errorMessage == null && !candidates && (
             <p role="status" className="text-sm text-[var(--color-muted-foreground)]">
-              渠道候选尚未就绪。
+              正在准备渠道列表…
             </p>
           )}
           <div
@@ -194,14 +195,14 @@ export function ChannelPicker({
                     onChange={() => toggle(channel.id)}
                     className="size-4 accent-[var(--color-primary)]"
                   />
-                  <span className="min-w-0 flex-1 truncate text-[var(--color-foreground)]">
+                  <span
+                    title={`${channel.name} · ${channel.id}`}
+                    className="min-w-0 flex-1 truncate text-[15px] text-[var(--color-foreground)]"
+                  >
                     {channel.name}
                   </span>
-                  <span className="shrink-0 text-xs text-[var(--color-muted-foreground)]">
-                    {channel.id}
-                  </span>
                   {channel.status === 'disabled' && (
-                    <span className="shrink-0 rounded bg-[var(--color-muted)] px-2 py-0.5 text-xs text-[var(--color-muted-foreground)]">
+                    <span className="shrink-0 rounded bg-[var(--color-muted)] px-2 py-0.5 text-sm text-[var(--color-muted-foreground)]">
                       已停用
                     </span>
                   )}
@@ -226,7 +227,10 @@ export function ChannelPicker({
                   <span className="min-w-0 flex-1 truncate text-[var(--color-muted-foreground)]">
                     未知渠道（保留当前 ID）
                   </span>
-                  <span className="shrink-0 text-xs text-[var(--color-muted-foreground)]">
+                  <span
+                    className="max-w-40 truncate text-sm text-[var(--color-muted-foreground)]"
+                    title={id}
+                  >
                     {id}
                   </span>
                 </label>
@@ -242,12 +246,12 @@ export function ChannelPicker({
             )}
           </div>
           {maxSelected !== undefined && (
-            <p className="text-xs text-[var(--color-muted-foreground)]">
+            <p className="text-sm text-[var(--color-muted-foreground)]">
               最多选择 {maxSelected} 个渠道。
             </p>
           )}
           {!complete && !loading && errorMessage == null && (
-            <p className="text-xs text-[var(--color-muted-foreground)]">
+            <p className="text-sm text-[var(--color-muted-foreground)]">
               请先加载全部渠道，再更改选择。
             </p>
           )}

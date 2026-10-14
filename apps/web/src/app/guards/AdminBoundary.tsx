@@ -1,3 +1,4 @@
+import { Button } from '../../shared/ui/Button';
 import type { ReactNode } from 'react';
 import { Link, Outlet } from 'react-router-dom';
 import { useSession } from '../../features/session/useSession';
@@ -9,7 +10,9 @@ export function AdminBoundary({ children }: { children?: ReactNode }) {
       <section className="p-8">
         <h1 className="text-2xl font-semibold">没有访问权限</h1>
         <p className="my-3 text-[var(--color-muted-foreground)]">此页面需要管理员权限。</p>
-        <Link to="/chat">返回聊天</Link>
+        <Button asChild>
+          <Link to="/chat">返回聊天</Link>
+        </Button>
       </section>
     );
   return children ?? <Outlet />;

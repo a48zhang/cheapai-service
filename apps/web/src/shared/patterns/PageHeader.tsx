@@ -19,15 +19,15 @@ export function PageHeader({
   return (
     <header
       {...headerProps}
-      className={['mb-6 flex flex-wrap items-center justify-between gap-4', className]
+      className={['mb-6 flex flex-wrap items-start justify-between gap-4', className]
         .filter(Boolean)
         .join(' ')}
     >
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1 basis-64">
         {eyebrow && (
           <p className="mb-2 text-sm font-medium text-[var(--color-ink-muted)]">{eyebrow}</p>
         )}
-        <h1 className="m-0 text-2xl font-semibold leading-9 text-[var(--color-ink)] sm:text-[28px]">
+        <h1 className="m-0 break-words text-2xl font-semibold leading-9 text-[var(--color-ink)] sm:text-[28px]">
           {heading}
         </h1>
         {description && (

@@ -175,14 +175,15 @@ export default function UserDetailPage() {
             </dl>
           </details>
         </section>
-        <nav
-          aria-label="用户相关记录"
-          className="mt-4 flex flex-wrap gap-5 text-[var(--color-primary)]"
-        >
-          <Link to={`/admin/requests?userId=${encodeURIComponent(profile.id)}`}>请求记录 →</Link>
-          <Link to={`/admin/billing?userId=${encodeURIComponent(profile.id)}`}>
-            账单与余额记录 →
-          </Link>
+        <nav aria-label="用户相关记录" className="mt-4 flex flex-wrap gap-3">
+          <Button asChild variant="outline">
+            <Link to={`/admin/requests?userId=${encodeURIComponent(profile.id)}`}>请求记录</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link to={`/admin/billing?userId=${encodeURIComponent(profile.id)}`}>
+              账单与余额记录
+            </Link>
+          </Button>
         </nav>
       </div>
       <UserAccessPanel

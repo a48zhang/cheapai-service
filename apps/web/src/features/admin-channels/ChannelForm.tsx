@@ -1,4 +1,5 @@
 import { useEffect, useId } from 'react';
+import { createPortal } from 'react-dom';
 import type { ChannelView } from '@cheapai/api-client/channels';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { Button } from '../../shared/ui/Button';
@@ -16,6 +17,7 @@ export interface ChannelFormProps {
   onOpenChange: (open: boolean) => void;
   onSaved: (channel: ChannelView) => void;
   embedded?: boolean;
+  footerContainer?: HTMLElement | null;
   onBusyChange?: (busy: boolean) => void;
 }
 
@@ -36,6 +38,7 @@ export function ChannelForm({
   onOpenChange,
   onSaved,
   embedded = false,
+  footerContainer,
   onBusyChange,
 }: ChannelFormProps) {
   const generatedId = useId().replace(/:/gu, '');
@@ -45,6 +48,7 @@ export function ChannelForm({
     errors,
     saveError,
     saving,
+    saved,
     creationUncertain,
     creating,
     updateDraft,
@@ -58,6 +62,11 @@ export function ChannelForm({
 
   const footer = (
     <>
+      {saved && (
+        <p role="status" className="mr-auto text-sm text-[var(--color-success)]">
+          更改已保存
+        </p>
+      )}
       <Button
         variant="outline"
         disabled={saving || creationUncertain}
@@ -75,15 +84,18 @@ export function ChannelForm({
       {saveError && <ApiErrorNotice error={saveError} />}
 
       {creationUncertain && (
-        <p className="text-sm">
-          <a href="/admin/channels" target="_blank" rel="noreferrer" className="underline">
-            在新标签页核对渠道
-          </a>
-          {' · '}
-          <a href="/admin/audit" target="_blank" rel="noreferrer" className="underline">
-            查看审计记录
-          </a>
-        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm">
+            <a href="/admin/channels" target="_blank" rel="noreferrer">
+              在新标签页核对渠道
+            </a>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <a href="/admin/audit" target="_blank" rel="noreferrer">
+              查看审计记录
+            </a>
+          </Button>
+        </div>
       )}
 
       <Field label="渠道名称" error={errors.name} required>
@@ -230,9 +242,7 @@ export function ChannelForm({
     return (
       <div className="space-y-6">
         {body}
-        <div className="flex justify-end gap-2 border-t border-[var(--color-border)] pt-5">
-          {footer}
-        </div>
+        {footerContainer && createPortal(footer, footerContainer)}
       </div>
     );
 

@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { PanelLeft, PanelLeftClose, SquarePen } from 'lucide-react';
+import { useDesktopNavigation } from '../../../shared/patterns/NavigationState';
 import { AccountMenu } from '../../session/public';
 import { Button } from '../../../shared/ui/Button';
 import { AppTopbar } from '../../../shared/patterns/AppTopbar';
@@ -14,7 +15,7 @@ export interface ChatLayoutProps {
 }
 export function ChatLayout({ sidebar, children, controls, onNew }: ChatLayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [desktopOpen, setDesktopOpen] = useState(true);
+  const [desktopOpen, setDesktopOpen] = useDesktopNavigation();
   return (
     <div className="chat-theme chat-workspace">
       <a
@@ -29,7 +30,7 @@ export function ChatLayout({ sidebar, children, controls, onNew }: ChatLayoutPro
             <Button
               variant="ghost"
               size="icon"
-              className="hidden md:inline-flex"
+              className="max-md:!hidden"
               aria-label={desktopOpen ? '收起侧栏' : '展开侧栏'}
               aria-expanded={desktopOpen}
               aria-controls="desktop-chat-sidebar"
@@ -40,7 +41,7 @@ export function ChatLayout({ sidebar, children, controls, onNew }: ChatLayoutPro
             <Button
               variant="ghost"
               size="icon"
-              className="md:hidden"
+              className="md:!hidden"
               aria-label="打开聊天记录"
               onClick={() => setMobileOpen(true)}
             >

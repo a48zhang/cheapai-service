@@ -1,10 +1,12 @@
 import type { ColumnDef } from '@tanstack/react-table';
+import { Button } from '../../shared/ui/Button';
 import { Link } from 'react-router-dom';
 import type { ModelView } from '@cheapai/api-client/models';
 import { CursorTable } from '../../shared/patterns/CursorTable';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
 
 export interface ModelTableProps {
+  readonly emptyMessage?: string;
   readonly rows: readonly ModelView[];
   readonly loading?: boolean;
   readonly loadingMore?: boolean;
@@ -43,7 +45,7 @@ const columns: ColumnDef<ModelView, unknown>[] = [
     accessorFn: (model) => model.sellPrices.input,
     header: () => (
       <div className="text-right">
-        输入价格<span className="block text-xs font-normal">USD / 百万 Token</span>
+        输入价格<span className="block text-sm font-normal">USD / 百万 Token</span>
       </div>
     ),
     cell: ({ row }) => (
@@ -56,7 +58,7 @@ const columns: ColumnDef<ModelView, unknown>[] = [
     accessorFn: (model) => model.sellPrices.output,
     header: () => (
       <div className="text-right">
-        输出价格<span className="block text-xs font-normal">USD / 百万 Token</span>
+        输出价格<span className="block text-sm font-normal">USD / 百万 Token</span>
       </div>
     ),
     cell: ({ row }) => (
@@ -77,13 +79,14 @@ const columns: ColumnDef<ModelView, unknown>[] = [
     id: 'channelMappings',
     header: '渠道映射',
     cell: ({ row }) => (
-      <Link
-        to={`/admin/models/${encodeURIComponent(row.original.publicModelId)}`}
-        aria-label={`查看 ${row.original.publicModelId} 的渠道映射`}
-        className="whitespace-nowrap text-sm font-medium text-[var(--color-primary)] underline-offset-4 hover:underline"
-      >
-        查看映射
-      </Link>
+      <Button asChild variant="outline" size="sm">
+        <Link
+          to={`/admin/models/${encodeURIComponent(row.original.publicModelId)}`}
+          aria-label={`查看 ${row.original.publicModelId} 的渠道映射`}
+        >
+          查看映射
+        </Link>
+      </Button>
     ),
   },
 ];
@@ -91,6 +94,7 @@ const columns: ColumnDef<ModelView, unknown>[] = [
 /** The catalog status and channel mappings are separate configuration states. */
 export function ModelTable({
   rows,
+  emptyMessage,
   loading = false,
   loadingMore = false,
   hasMore = false,
@@ -109,7 +113,7 @@ export function ModelTable({
       onRetry={onRetry}
       onLoadMore={onLoadMore}
       getRowId={(model) => model.publicModelId}
-      emptyMessage="暂无模型，可调整筛选条件或新增模型。"
+      emptyMessage={emptyMessage ?? '暂无模型，新增模型后将在这里显示。'}
       caption="模型目录，输入与输出价格单位为 USD / 百万 Token"
     />
   );

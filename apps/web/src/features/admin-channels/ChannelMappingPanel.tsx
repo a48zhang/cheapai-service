@@ -274,7 +274,7 @@ export function ChannelMappingPanel({
     <section aria-label="渠道模型映射" className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <h2 className="console-section-title">
-          模型管理{' '}
+          已关联模型{' '}
           <span className="ml-2 text-sm font-normal text-[var(--color-muted-foreground)]">
             {channel.models.length}
           </span>

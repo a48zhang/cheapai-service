@@ -42,6 +42,15 @@ export function ModelForm({ client, model, onSaved, onCancel }: ModelFormProps) 
             maxLength={128}
           />
         </Field>
+        <Field label="目录状态" required error={errors.status?.message}>
+          <select
+            {...form.register('status')}
+            className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
+          >
+            <option value="active">已启用</option>
+            <option value="disabled">已停用</option>
+          </select>
+        </Field>
         {reference && (
           <details className="rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)]/30 p-4 sm:col-span-2">
             <summary className="cursor-pointer text-sm font-medium">
@@ -78,15 +87,6 @@ export function ModelForm({ client, model, onSaved, onCancel }: ModelFormProps) 
             </dl>
           </details>
         )}
-        <Field label="目录状态" required error={errors.status?.message}>
-          <select
-            {...form.register('status')}
-            className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
-          >
-            <option value="active">已启用</option>
-            <option value="disabled">已停用</option>
-          </select>
-        </Field>
         <Controller
           name="sellPrices"
           control={form.control}

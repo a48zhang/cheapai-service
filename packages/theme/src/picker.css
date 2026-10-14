@@ -8,22 +8,22 @@
   align-items: center;
   justify-content: center;
   gap: 9px;
-  min-height: 36px;
+  min-height: 40px;
   padding: 7px 12px;
   border: 1px solid var(--color-line);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--color-surface);
   color: var(--color-ink-secondary);
   cursor: pointer;
   font: inherit;
-  font-size: 14px;
+  font-size: 15px;
   transition:
     background 120ms,
     color 120ms;
 }
 .appearance-picker--compact {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   border-color: transparent;
   background: transparent;
@@ -40,13 +40,13 @@
 .appearance-menu {
   position: absolute;
   right: 0;
-  top: calc(100% + 8px);
+  top: calc(100% + 6px);
   z-index: 100;
-  width: 180px;
-  padding: 6px;
+  width: 192px;
+  padding: 4px;
   border: 1px solid var(--color-line);
-  border-radius: 13px;
-  background: var(--color-surface-raised);
+  border-radius: 8px;
+  background: var(--color-surface);
   box-shadow: var(--shadow-md);
 }
 .appearance-option {
@@ -55,14 +55,14 @@
   gap: 10px;
   width: 100%;
   min-height: 40px;
-  padding: 9px 10px;
+  padding: 8px 12px;
   border: 0;
   border-radius: 8px;
   background: transparent;
   color: var(--color-ink-secondary);
   cursor: pointer;
   font: inherit;
-  font-size: 14px;
+  font-size: 15px;
   text-align: left;
 }
 .appearance-option:hover,
@@ -87,8 +87,8 @@
   padding: 8px 12px;
   border: 1px solid var(--color-line);
   border-radius: 8px;
-  background: var(--color-surface-raised);
+  background: var(--color-surface);
   color: var(--color-ink);
-  font-size: 12px;
+  font-size: 14px;
   box-shadow: var(--shadow-md);
 }

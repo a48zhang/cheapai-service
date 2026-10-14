@@ -139,6 +139,11 @@ export function ChannelsPage() {
       )}
 
       <ChannelTable
+        emptyMessage={
+          status
+            ? '没有符合当前状态的渠道，可重置筛选查看全部。'
+            : '暂无渠道，创建渠道后将在这里显示。'
+        }
         rows={rows}
         hasMore={channels.hasNextPage}
         loading={channels.isPending && isAdmin}

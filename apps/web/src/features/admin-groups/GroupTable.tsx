@@ -5,6 +5,7 @@ import { CursorTable } from '../../shared/patterns/CursorTable';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
 
 export interface GroupTableProps {
+  readonly emptyMessage?: string;
   readonly rows: readonly GroupView[];
   readonly loading?: boolean;
   readonly loadingMore?: boolean;
@@ -65,6 +66,7 @@ const columns: ColumnDef<GroupView, unknown>[] = [
 /** The table shows saved group/channel links without claiming an authorization preview. */
 export function GroupTable({
   rows,
+  emptyMessage,
   loading = false,
   loadingMore = false,
   hasMore = false,
@@ -83,7 +85,7 @@ export function GroupTable({
       onRetry={onRetry}
       onLoadMore={onLoadMore}
       getRowId={(group) => group.id}
-      emptyMessage="暂无访问组，可调整筛选条件或创建访问组。"
+      emptyMessage={emptyMessage ?? '暂无访问组，创建访问组后将在这里显示。'}
       caption="访问组列表"
     />
   );

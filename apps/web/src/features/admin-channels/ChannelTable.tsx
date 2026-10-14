@@ -7,6 +7,7 @@ import { Button } from '../../shared/ui/Button';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
 
 export interface ChannelTableProps {
+  emptyMessage?: string;
   rows: readonly ChannelView[];
   hasMore?: boolean;
   loading?: boolean;
@@ -21,6 +22,7 @@ export interface ChannelTableProps {
 /** Resource inventory with server cursor controls and explicit edit/diagnostic entry points. */
 export function ChannelTable({
   rows,
+  emptyMessage,
   hasMore,
   loading,
   loadingMore,
@@ -114,15 +116,10 @@ export function ChannelTable({
           const channel = row.original;
           return (
             <div className="flex items-center gap-1 whitespace-nowrap">
-              <Button variant="ghost" size="sm" onClick={() => onEdit?.(channel)}>
+              <Button variant="outline" size="sm" onClick={() => onEdit?.(channel)}>
                 管理渠道
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={channel.status !== 'active' || channel.models.length === 0}
-                onClick={() => onDiagnose?.(channel)}
-              >
+              <Button variant="outline" size="sm" onClick={() => onDiagnose?.(channel)}>
                 诊断
               </Button>
             </div>
@@ -145,7 +142,7 @@ export function ChannelTable({
       onRetry={onRetry}
       getRowId={(channel) => channel.id}
       caption="渠道列表"
-      emptyMessage="暂无渠道，可调整筛选条件或创建渠道。"
+      emptyMessage={emptyMessage ?? '暂无渠道，创建渠道后将在这里显示。'}
     />
   );
 }

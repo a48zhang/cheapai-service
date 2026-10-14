@@ -6,6 +6,7 @@ export interface TabItem {
   label: ReactNode;
   content: ReactNode;
   disabled?: boolean;
+  keepMounted?: boolean;
 }
 
 export interface TabsProps {
@@ -66,7 +67,8 @@ export function Tabs({
         <TabsPrimitive.Content
           key={item.value}
           value={item.value}
-          className={`outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] ${contentClassName ?? ''}`}
+          {...(item.keepMounted ? { forceMount: true } : {})}
+          className={`data-[state=inactive]:hidden outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] ${contentClassName ?? ''}`}
         >
           {item.content}
         </TabsPrimitive.Content>

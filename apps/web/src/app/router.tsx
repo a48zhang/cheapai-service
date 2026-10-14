@@ -1,3 +1,4 @@
+import { AsyncState } from '../shared/patterns/AsyncState';
 import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthLayout } from './layouts/AuthLayout';
@@ -43,9 +44,11 @@ export function AppRoutes() {
   return (
     <Suspense
       fallback={
-        <p role="status" className="p-8">
-          正在加载…
-        </p>
+        <AsyncState
+          status="loading"
+          loadingLabel="正在加载…"
+          className="flex min-h-60 items-center justify-center p-8"
+        />
       }
     >
       <Routes>

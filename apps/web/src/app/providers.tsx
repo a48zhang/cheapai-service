@@ -1,3 +1,4 @@
+import { NavigationProvider } from '../shared/patterns/NavigationState';
 import type { ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { SessionProvider } from '../features/session/SessionProvider';
@@ -13,7 +14,9 @@ export function AppProviders({
 }) {
   return (
     <QueryClientProvider client={runtime.queryClient}>
-      <SessionProvider runtime={runtime}>{children}</SessionProvider>
+      <SessionProvider runtime={runtime}>
+        <NavigationProvider>{children}</NavigationProvider>
+      </SessionProvider>
     </QueryClientProvider>
   );
 }

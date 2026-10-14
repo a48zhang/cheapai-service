@@ -10,6 +10,7 @@ import { Button } from '../../shared/ui/Button';
 import { DropdownMenu } from '../../shared/ui/DropdownMenu';
 import { ConfirmAction } from '../../shared/ui/ConfirmAction';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
+import { withErrorContext } from '../../shared/lib/api-error';
 import { keyListQueryOptions } from './api';
 import { mergePageItems } from '../../shared/lib/pagination';
 
@@ -56,7 +57,6 @@ export function KeyTable({
   const [confirmingKey, setConfirmingKey] = useState<KeyMetadata | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [operationMessage, setOperationMessage] = useState('');
-  const [operationError, setOperationError] = useState('');
   const query = useInfiniteQuery({
     ...keyListQueryOptions(api, userId, state),
     enabled: userId !== 'anonymous',
@@ -85,7 +85,6 @@ export function KeyTable({
     if (revokingId !== null) return;
     setRevokingId(key.id);
     setOperationMessage('');
-    setOperationError('');
     try {
       const result = await api.revoke(key.id, key.version);
       onChanged(result.key);
@@ -93,12 +92,12 @@ export function KeyTable({
         result.kind === 'already_revoked' ? '该密钥已撤销，无需重复操作。' : '密钥已撤销。',
       );
     } catch (error) {
-      setOperationError(
+      const message =
         error instanceof ApiClientError && error.status === 409
-          ? '密钥已发生变化。请刷新列表并核对状态后再操作。'
-          : `撤销结果尚未确认。请刷新列表核对状态；不会自动重试。${error instanceof Error ? ` ${error.message}` : ''}`,
-      );
+          ? '密钥已更新，请核对列表中的最新状态后重试。'
+          : `未能确认撤销结果，可重试或关闭后核对列表。${error instanceof Error ? ` ${error.message}` : ''}`;
       onChanged(key);
+      throw withErrorContext(error, message);
     } finally {
       setRevokingId(null);
     }
@@ -151,7 +150,7 @@ export function KeyTable({
       cell: ({ row }) => (
         <div className="flex items-center gap-2 whitespace-nowrap">
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             disabled={!canUseForExamples(row.original) || selectedKeyId === row.original.id}
             onClick={() => onSelectKey(row.original)}
@@ -170,7 +169,9 @@ export function KeyTable({
                 {
                   label: '撤销',
                   destructive: true,
-                  onSelect: () => setConfirmingKey(row.original),
+                  onSelect: () => {
+                    setConfirmingKey(row.original);
+                  },
                 },
               ]}
             />
@@ -218,27 +219,16 @@ export function KeyTable({
           {operationMessage}
         </p>
       )}
-      {operationError && (
-        <div
-          role="alert"
-          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--color-danger-line)] bg-[var(--color-danger-soft)] p-3 text-sm text-[var(--color-danger)]"
-        >
-          <span>{operationError}</span>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              setOperationError('');
-              void query.refetch();
-            }}
-          >
-            重新读取
-          </Button>
-        </div>
-      )}
       {!rows.length && !query.isPending && !query.isError ? (
         <div className="rounded-xl border border-dashed border-[var(--color-border)] p-5 text-sm text-[var(--color-muted-foreground)]">
-          <p>还没有 API 密钥。创建密钥后即可接入。</p>
+          <p>
+            {state === 'all' ? '还没有 API 密钥。创建密钥后即可接入。' : '没有符合当前状态的密钥。'}
+          </p>
+          {state !== 'all' && (
+            <Button variant="outline" size="sm" className="mt-3" onClick={() => setState('all')}>
+              查看全部密钥
+            </Button>
+          )}
         </div>
       ) : (
         <CursorTable
@@ -270,9 +260,7 @@ export function KeyTable({
           confirmLabel="确认撤销"
           cancelLabel="暂不撤销"
           busy={revokingId === confirmingKey.id}
-          onConfirm={() => {
-            void revoke(confirmingKey);
-          }}
+          onConfirm={() => revoke(rows.find((key) => key.id === confirmingKey.id) ?? confirmingKey)}
         />
       )}
       <p className="text-sm leading-6 text-[var(--color-muted-foreground)]">

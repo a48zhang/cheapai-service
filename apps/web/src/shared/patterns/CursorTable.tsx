@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import type { ColumnDef, RowData } from '@tanstack/react-table';
+import { AsyncState } from './AsyncState';
 import { Button } from '../ui/Button';
 
 declare module '@tanstack/react-table' {
@@ -136,9 +137,7 @@ export function CursorTable<T>({
           </tbody>
         </table>
         {loading && !rows.length ? (
-          <p role="status" className="p-8 text-center text-[var(--color-ink-secondary)]">
-            正在读取…
-          </p>
+          <AsyncState status="loading" loadingLabel="正在读取…" className="p-8 text-center" />
         ) : !rows.length && !error ? (
           <p className="p-8 text-center text-[var(--color-ink-secondary)]">{emptyMessage}</p>
         ) : null}

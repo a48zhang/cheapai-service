@@ -1,3 +1,4 @@
+import { Button } from '../../shared/ui/Button';
 import { Link } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { BillingEntry, BillingKind } from '@cheapai/contracts/billing';
@@ -88,13 +89,14 @@ export function BillingTable({
       header: '相关请求',
       cell: ({ row }) =>
         row.original.requestId ? (
-          <Link
-            className="whitespace-nowrap text-[var(--color-accent)] hover:underline"
-            title={row.original.requestId}
-            to={`${scope === 'admin' ? '/admin/requests' : '/requests'}/${encodeURIComponent(row.original.requestId)}`}
-          >
-            查看请求
-          </Link>
+          <Button asChild variant="outline" size="sm">
+            <Link
+              title={row.original.requestId}
+              to={`${scope === 'admin' ? '/admin/requests' : '/requests'}/${encodeURIComponent(row.original.requestId)}`}
+            >
+              查看请求
+            </Link>
+          </Button>
         ) : (
           <span className="text-[var(--color-ink-muted)]">—</span>
         ),
@@ -185,12 +187,9 @@ export function BillingTable({
       header: '记录',
       cell: ({ row }) =>
         row.original.requestId ? (
-          <Link
-            className="whitespace-nowrap text-[var(--color-accent)] hover:underline"
-            to={`/requests/${encodeURIComponent(row.original.requestId)}`}
-          >
-            查看记录
-          </Link>
+          <Button asChild variant="outline" size="sm">
+            <Link to={`/requests/${encodeURIComponent(row.original.requestId)}`}>查看记录</Link>
+          </Button>
         ) : (
           <span className="text-[var(--color-ink-muted)]">—</span>
         ),

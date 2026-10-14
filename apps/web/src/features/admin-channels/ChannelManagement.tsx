@@ -42,6 +42,7 @@ export function ChannelManagement({
   const [tab, setTab] = useState<string>(initialTab);
   const [settingsChannel, setSettingsChannel] = useState(initialChannel);
   const [busy, setBusy] = useState(false);
+  const [footerContainer, setFooterContainer] = useState<HTMLDivElement | null>(null);
   const close = (open: boolean) => {
     if (!busy) onOpenChange(open);
   };
@@ -61,6 +62,14 @@ export function ChannelManagement({
       }
       closeButton={!busy}
       className="md:!w-[min(52rem,92vw)]"
+      footer={
+        tab === 'settings' ? (
+          <div
+            ref={setFooterContainer}
+            className="flex w-full flex-wrap items-center justify-end gap-2"
+          />
+        ) : undefined
+      }
     >
       <div
         className="mb-5 truncate text-sm text-[var(--color-muted-foreground)]"
@@ -82,7 +91,6 @@ export function ChannelManagement({
         value={tab}
         onValueChange={(value) => {
           if (!busy) {
-            if (value === 'settings') setSettingsChannel(channel);
             setTab(value);
           }
         }}
@@ -92,6 +100,7 @@ export function ChannelManagement({
           {
             value: 'models',
             label: '模型管理',
+            keepMounted: true,
             disabled: busy && tab !== 'models',
             content: (
               <ChannelMappingPanel
@@ -106,10 +115,12 @@ export function ChannelManagement({
           {
             value: 'settings',
             label: '渠道配置',
+            keepMounted: true,
             disabled: busy && tab !== 'settings',
             content: (
               <ChannelForm
                 embedded
+                footerContainer={footerContainer}
                 open
                 channel={settingsChannel}
                 api={api}

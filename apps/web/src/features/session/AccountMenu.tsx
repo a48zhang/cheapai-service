@@ -1,3 +1,7 @@
+import { useState } from 'react';
+import { Button } from '../../shared/ui/Button';
+import { Dialog } from '../../shared/ui/Dialog';
+import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { ThemePicker } from '@cheapai/theme';
 import { ArrowUpRight, ChevronsUpDown } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -17,11 +21,22 @@ export function AccountMenu({
   showTheme?: boolean;
   showShortcut?: boolean;
 }) {
+  const [logoutError, setLogoutError] = useState<unknown>(null);
   const isSidebar = layout === 'sidebar';
   const { user, isAdmin, session, pending } = useSession();
   const location = useLocation();
   const navigate = useNavigate();
   const returnTo = safeReturnPath(location.pathname + location.search);
+
+  const logout = async () => {
+    setLogoutError(null);
+    try {
+      await session.logout();
+      navigate('/login', { replace: true });
+    } catch (error) {
+      setLogoutError(error);
+    }
+  };
 
   return (
     <nav
@@ -49,7 +64,7 @@ export function AccountMenu({
               className={
                 isSidebar
                   ? 'flex min-h-12 w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-[14px] hover:bg-[var(--color-surface-subtle)]'
-                  : 'flex min-h-9 items-center gap-2 text-sm'
+                  : 'flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm outline-none hover:bg-[var(--color-muted)] focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]'
               }
             >
               <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--color-accent-soft)] font-semibold text-[var(--color-accent)]">
@@ -64,33 +79,26 @@ export function AccountMenu({
                   {user.email_normalized}
                 </span>
               )}
-              {isSidebar && (
-                <ChevronsUpDown
-                  aria-hidden="true"
-                  size={16}
-                  className="shrink-0 text-[var(--color-muted-foreground)]"
-                />
-              )}
+              <ChevronsUpDown
+                aria-hidden="true"
+                size={16}
+                className="shrink-0 text-[var(--color-muted-foreground)]"
+              />
             </button>
           }
           side={isSidebar ? 'top' : 'bottom'}
           align={isSidebar ? 'start' : 'end'}
           items={[
-            ...(!showShortcut ? [{ label: 'API 接入', onSelect: () => navigate('/keys') }] : []),
-            { label: '费用', onSelect: () => navigate('/billing') },
-            { label: '使用记录', onSelect: () => navigate('/requests') },
-            ...(isAdmin
-              ? [{ label: '管理控制台', onSelect: () => navigate('/admin/channels') }]
-              : []),
+            ...(!showShortcut ? [{ label: 'API 接入', to: '/keys' }] : []),
+            { label: '费用', to: '/billing' },
+            { label: '请求记录', to: '/requests' },
+            ...(isAdmin ? [{ label: '管理控制台', to: '/admin/channels' }] : []),
             { type: 'separator' },
             {
               label: '退出登录',
               disabled: pending !== null,
               onSelect: () => {
-                void session
-                  .logout()
-                  .then(() => navigate('/login', { replace: true }))
-                  .catch(() => undefined);
+                void logout();
               },
             },
           ]}
@@ -103,6 +111,21 @@ export function AccountMenu({
           登录
         </Link>
       )}
+      <Dialog
+        open={logoutError !== null}
+        onOpenChange={(open) => {
+          if (!open) setLogoutError(null);
+        }}
+        title="退出登录未完成"
+        description="你仍处于登录状态，可以重试。"
+        footer={
+          <Button busy={pending !== null} onClick={() => void logout()}>
+            重新退出
+          </Button>
+        }
+      >
+        <ApiErrorNotice error={logoutError} />
+      </Dialog>
     </nav>
   );
 }

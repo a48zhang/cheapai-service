@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { ArrowUpRight, CircleAlert } from 'lucide-react';
 import type { ChatState } from '../model/state';
 import { Button } from '../../../shared/ui/Button';
 
@@ -15,32 +16,58 @@ export function ChatNotice({
   const uncertain = state.phase === 'interrupted';
   const insufficientBalance = state.failure.code === 'insufficient_balance';
   const message = uncertain
-    ? '结果尚未确认。'
+    ? '请求结果待确认'
     : insufficientBalance
-      ? '余额不足，无法继续生成。'
+      ? '账户余额不足'
       : state.failure.kind === 'rejected'
-        ? '请求未能提交。'
-        : '生成失败。';
+        ? '消息未能发送'
+        : '本次生成未完成';
+  const description = uncertain
+    ? '请先确认本次请求的结果，再继续对话。'
+    : insufficientBalance
+      ? '请查看账户余额后继续对话。'
+      : '请稍后再试，或重新加载当前对话。';
   return (
     <div
       role="alert"
-      className="mx-auto w-full max-w-[52rem] rounded-xl border border-[var(--color-warning-line)] bg-[var(--color-warning-soft)] px-4 py-3 text-sm text-[var(--color-warning)]"
+      className="mx-auto flex w-full max-w-[52rem] items-start gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-subtle)] p-4 sm:items-center"
     >
-      <p>{message}</p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {uncertain && (
-          <Button variant="secondary" size="sm" onClick={onRetry}>
-            重试确认
-          </Button>
-        )}
-        <Button variant="ghost" size="sm" onClick={onReload}>
-          刷新会话
-        </Button>
-        {insufficientBalance && (
-          <Link className="px-2 py-1 text-[var(--color-accent)]" to="/billing">
-            查看费用
-          </Link>
-        )}
+      <span
+        className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[var(--color-accent-soft)] text-[var(--color-accent)]"
+        aria-hidden="true"
+      >
+        <CircleAlert size={19} />
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="min-w-0">
+          <p className="m-0 text-[15px] font-medium leading-6 text-[var(--color-foreground)]">
+            {message}
+          </p>
+          <p className="m-0 mt-0.5 text-sm leading-6 text-[var(--color-muted-foreground)]">
+            {description}
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {insufficientBalance ? (
+            <Button asChild size="sm">
+              <Link to="/billing">
+                查看余额
+                <ArrowUpRight size={16} aria-hidden="true" />
+              </Link>
+            </Button>
+          ) : (
+            <>
+              {uncertain && (
+                <Button size="sm" onClick={onRetry}>
+                  确认结果
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={onReload}>
+                重新加载
+              </Button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

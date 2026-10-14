@@ -5,7 +5,7 @@ import { ApiClientError } from '@cheapai/api-client/errors';
 import { Button } from '../../shared/ui/Button';
 import { Field } from '../../shared/ui/Field';
 import { Select } from '../../shared/ui/Select';
-import { Sheet } from '../../shared/ui/Sheet';
+import { Dialog } from '../../shared/ui/Dialog';
 import { Tabs } from '../../shared/ui/Tabs';
 import type { AdminChannelsApi } from './api';
 import { DiagnosticDetails } from './DiagnosticDetails';
@@ -92,14 +92,15 @@ export function ChannelDiagnostics({
   const contextKey = `${channel.id}:${channel.configVersion}:${sessionIdentity?.userId ?? ''}:${sessionIdentity?.epoch ?? ''}:${diagnostic.selection}`;
 
   return (
-    <Sheet
+    <Dialog
+      className="!max-w-3xl"
       open={open}
       onOpenChange={changeOpen}
       title="渠道诊断"
       description={channel.name}
       footer={
         <>
-          <p className="w-full text-xs text-[var(--color-ink-muted)]">
+          <p className="w-full text-sm text-[var(--color-ink-muted)]">
             可能产生上游费用，不扣用户余额
           </p>
           <Button variant="outline" onClick={() => changeOpen(false)}>
@@ -183,7 +184,7 @@ export function ChannelDiagnostics({
                   {error instanceof ApiClientError &&
                     view.evidence === null &&
                     error.request_id && (
-                      <p className="break-all text-xs text-[var(--color-ink-muted)]">
+                      <p className="break-all text-sm text-[var(--color-ink-muted)]">
                         请求编号：<code>{error.request_id}</code>
                       </p>
                     )}
@@ -238,6 +239,6 @@ export function ChannelDiagnostics({
           ]}
         />
       </div>
-    </Sheet>
+    </Dialog>
   );
 }

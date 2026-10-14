@@ -51,7 +51,7 @@ export function Field({
   });
 
   return (
-    <div className={`grid gap-2 ${className ?? ''}`}>
+    <div className={`grid min-w-0 content-start gap-2 [&>select]:min-h-[42px] ${className ?? ''}`}>
       <Label.Root
         htmlFor={controlId}
         className="text-[15px] font-medium leading-6 text-[var(--color-foreground)]"
