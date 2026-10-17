@@ -32,3 +32,26 @@ The failing Cloudflare Workers Builds branch trigger was removed on 2026-10-17.
 Automatic previews are disabled pending maintainer reconfiguration. GitHub Actions
 checks and desktop builds remain enabled. Repository workflows do not manage
 Cloudflare's Dashboard build triggers. See [PR previews](pr-previews.md).
+
+
+## Production release entrypoint
+
+`pnpm run deploy:ci` is the production CI release command. It builds the cloud
+workspaces, applies pending remote D1 migrations to `DB`, deploys the Worker and
+its assets, then checks `https://cheapai.dev/healthz` for a successful JSON health
+response. Wrangler runs through `@sub2api/worker` with `--config wrangler.jsonc
+--env production`; D1 additionally uses `--remote`. Each command must succeed
+before the next runs. A failed migration stops publication, and a failed health
+check fails the release without an automatic rollback.
+
+Configure this command only on the intended production release trigger, with
+Cloudflare credentials available to Wrangler. This entrypoint does not enable a
+GitHub Actions deployment job or change Dashboard build triggers. The existing
+`pnpm run deploy` remains a manual Worker-only publication command and does not
+apply migrations. PR checks continue to build without applying remote migrations.
+
+`pnpm run deploy:ci --dry-run` builds and bundles the production Worker locally;
+it skips remote migrations, publication and live health requests. It does not
+verify remote authorization or the database migration state. Back up the database
+and review the incompatible schema window before a real release, especially
+migration 0029. See [deployment and failure recovery](deployment.md).

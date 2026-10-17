@@ -14,6 +14,7 @@
     "typecheck:cloud": "pnpm -r --filter \"@cheapai/*\" --filter @sub2api/worker --filter @sub2api/apicompat run typecheck",
     "build": "pnpm run build:cloud",
     "deploy": "pnpm --filter @sub2api/worker run deploy",
+    "deploy:ci": "node scripts/release-production.mjs",
     "typecheck": "pnpm run typecheck:cloud",
     "build:desktop": "pnpm -r --filter @sub2api/desktop --filter @sub2api/desktop-runtime --filter @sub2api/desktop-contracts run build",
     "dev:desktop": "node scripts/desktop/dev-desktop.mjs dev",

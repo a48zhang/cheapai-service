@@ -11,18 +11,22 @@ import type { ModelFormOutput, ModelFormValues } from './model-form-model';
 
 export interface UseModelFormProps {
   readonly client: ApiClient;
+  readonly initialPublicModelId?: string | undefined;
   readonly model?: ModelView | undefined;
   readonly onSaved: (model: ModelView) => void;
 }
 
 /** Model write lock, priceVersion conflict handling, and create/update lifecycle. */
-export function useModelForm({ client, model, onSaved }: UseModelFormProps) {
+export function useModelForm({ client, model, initialPublicModelId, onSaved }: UseModelFormProps) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<Error | null>(null);
   const api = useMemo(() => createAdminModelsApi(client), [client]);
   const form = useForm<ModelFormValues, unknown, ModelFormOutput>({
     resolver: zodResolver<ModelFormValues, unknown, ModelFormOutput>(modelFormSchema),
-    defaultValues: initialModelFormValues(model),
+    defaultValues: {
+      ...initialModelFormValues(model),
+      ...(!model && initialPublicModelId ? { publicModelId: initialPublicModelId } : {}),
+    },
   });
 
   async function submit(value: ModelFormOutput) {

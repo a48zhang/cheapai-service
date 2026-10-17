@@ -205,6 +205,8 @@ export function ChannelsPage() {
       )}
 
       <ChannelSetup
+        client={client}
+        actorId={userId}
         key={`${userId}:${epoch}`}
         open={setupOpen}
         onOpenChange={setSetupOpen}
