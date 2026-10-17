@@ -1,5 +1,4 @@
 name: One-off chat diagnostic
-# Same temporary account; authorized internal USD 0.01 ledger grant.
 on:
   push:
     branches: [diagnostics/chat-20261017]
@@ -29,7 +28,8 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile --strict-peer-dependencies --registry=https://registry.npmjs.org
-      - name: Create temporary ordinary account and diagnose chat once
+      - name: Read exact failed-request Worker logs only
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: node --experimental-strip-types scripts/one-off-chat-diagnostic.ts
+          DIAGNOSTIC_REQUEST_IDS: '["8e07136a-d5e0-4118-9730-ff14d57882df","b99ede31-2664-4d19-a2bf-76bf8b534c28"]'
+        run: node scripts/one-off-chat-log-query.mjs
