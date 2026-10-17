@@ -28,9 +28,7 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile --strict-peer-dependencies --registry=https://registry.npmjs.org
-      - name: Read only production diagnostic prerequisites
+      - name: Create temporary ordinary account and diagnose chat once
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        working-directory: apps/worker
-        run: |
-          pnpm exec wrangler d1 execute DB --config wrangler.jsonc --env production --remote --json --command "SELECT g.id AS group_id,g.status AS group_status,cm.public_model_id,cm.protocol,c.id AS channel_id,c.status AS channel_status,CASE WHEN c.upstream_key IS NOT NULL AND length(c.upstream_key)>0 THEN 1 ELSE 0 END AS has_credential FROM groups g JOIN channel_groups cg ON cg.group_id=g.id JOIN channels c ON c.id=cg.channel_id JOIN channel_models cm ON cm.channel_id=c.id JOIN models m ON m.public_model_id=cm.public_model_id WHERE g.status='active' AND c.status='active' AND m.status='active' ORDER BY g.id,cm.public_model_id LIMIT 20;"
+        run: node --experimental-strip-types scripts/one-off-chat-diagnostic.ts
