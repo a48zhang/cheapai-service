@@ -1,4 +1,5 @@
 name: One-off chat diagnostic
+# Query-mode correction; never import or deploy.
 on:
   push:
     branches: [diagnostics/chat-20261017]
