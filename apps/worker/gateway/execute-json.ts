@@ -1,3 +1,5 @@
+import { logExecutionFailure } from './execution-diagnostics';
+import type { ExecutionDiagnostic } from './execution-diagnostics';
 import { logError } from '../logging';
 import type { JsonResponseAdapter, RequestAdapter } from '@sub2api/apicompat/types/adapter';
 import type { UsageSnapshot } from '@sub2api/apicompat/types/shared';
@@ -80,18 +82,22 @@ function nativeId(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() === value && value.length > 0 && value.length <= 128
     && /^[A-Za-z0-9_-]+$/.test(value) ? value : undefined;
 }
+class JsonResponseReadError extends Error {
+  constructor(readonly code: string) { super(code); }
+}
 async function readJson(response: Response, maxBytes: number): Promise<unknown> {
-  if (!response.body) throw new Error();
+  if (!response.body) throw new JsonResponseReadError('missing_body');
   const reader = response.body.getReader(); const chunks: Uint8Array[] = []; let length = 0;
   try {
     while (true) {
       const part = await reader.read(); if (part.done) break;
-      if (part.value.byteLength > maxBytes - length) { void reader.cancel().catch(() => undefined); throw new Error(); }
+      if (part.value.byteLength > maxBytes - length) { void reader.cancel().catch(() => undefined); throw new JsonResponseReadError('response_size_limit'); }
       chunks.push(part.value); length += part.value.byteLength;
     }
     const bytes = new Uint8Array(length); let offset = 0;
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-    return JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes)) as unknown;
+    try { return JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes)) as unknown; }
+    catch { throw new JsonResponseReadError('invalid_json_or_encoding'); }
   } finally { reader.releaseLock(); }
 }
 
@@ -108,6 +114,8 @@ export async function executeJson<Input, Wire, Upstream, Output>(dependencies: J
   const lifecycle = createRequestLifecycle(admission.lease, { ...(options.signal === undefined ? {} : { signal: options.signal }),
     clock, ...(options.transport?.maxDurationMs === undefined ? {} : { maxDurationMs: options.transport.maxDurationMs }) });
   let request: RequestRecord | null = null;
+  let diagnostic: ExecutionDiagnostic | undefined;
+  let diagnosticSecrets: string[] = [];
   let claimed = false; let cleanupAllowed = true; let dispatched = false; let terminalSaved = false;
   let exchange: UpstreamExchange | undefined;
   let usage: UsageSnapshot = { quality: 'missing', protocol: admission.request.upstream_protocol };
@@ -149,7 +157,7 @@ export async function executeJson<Input, Wire, Upstream, Output>(dependencies: J
         || adapters.response.from !== request.upstream_protocol || adapters.response.to !== request.downstream_protocol) { failure = 'service_failure'; throw new Error(); }
     failure = 'service_failure';
     const converted = adapters.request.convert(JSON.parse(JSON.stringify(admission.requestForAdapter.request)) as Input, { targetModel: request.upstream_model });
-    if (!converted.ok) { failure = 'conversion_failed'; throw new Error(converted.error.message, { cause: converted.error }); }
+    if (!converted.ok) { diagnostic = { stage: 'json_execution', source: 'adapter', code: converted.error.code, error: converted.error }; failure = 'conversion_failed'; throw new Error(converted.error.message, { cause: converted.error }); }
     if (converted.value === null || typeof converted.value !== 'object' || Array.isArray(converted.value)) throw new Error();
     const wire = { ...converted.value, model: request.upstream_model, stream: false } as Record<string, unknown>;
     if (request.upstream_protocol === 'chat') delete wire.stream_options;
@@ -157,6 +165,7 @@ export async function executeJson<Input, Wire, Upstream, Output>(dependencies: J
     failure = 'service_failure';
     const upstream = await lifecycle.active(readChannelForForwarding(dependencies.database, request.channel_id));
     if (!upstream || upstream.configVersion !== selected.channel.configVersion || upstream.status !== 'active') throw new Error();
+    diagnosticSecrets = [upstream.upstreamKey];
     const maxBytes = options.maxResponseBytes ?? DEFAULT_CONFIG.gatewayBodyMaxBytes;
     if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) throw new Error();
     failure = 'upstream_failed';
@@ -164,17 +173,20 @@ export async function executeJson<Input, Wire, Upstream, Output>(dependencies: J
       // Conservatively assume dispatch unless G02 explicitly proves not_started.
       dispatched = true;
       exchange = await sendUpstream({ ...options.transport, baseUrl: upstream.baseUrl, upstreamProtocol: request.upstream_protocol,
-        upstreamKey: upstream.upstreamKey, stream: false, body, signal: lifecycle.signal }, dependencies.fetch ? { fetch: dependencies.fetch } : {});
+        upstreamKey: upstream.upstreamKey, stream: false, body, signal: lifecycle.signal },
+        // Observer mode suppresses raw fetch exceptions that may contain provider content.
+        { ...(dependencies.fetch ? { fetch: dependencies.fetch } : {}), observer: { onEvent() {} } });
     } catch (error) {
       if (error instanceof UpstreamTransportError && error.execution === 'not_started') dispatched = false;
       throw error;
     }
     lifecycle.attachUpstream(() => exchange!.cancel());
     await observeUpstreamResponse(options.onUpstreamResponse, request.channel_id, exchange.response, lifecycle.signal);
+    if (!exchange.response.ok) diagnostic = { stage: 'json_response', source: 'provider_http', code: 'http_error', response: exchange.response };
     const raw = await lifecycle.active(readJson(exchange.response, maxBytes));
-    if (!exchange.response.ok) console.error('Upstream rejected request', {
-      request_id: requestId, channel_id: request.channel_id, status: exchange.response.status,
-    }, raw);
+    if (exchange.response.ok && raw !== null && typeof raw === 'object' && Object.hasOwn(raw, 'error')) {
+      diagnostic = { stage: 'json_response', source: 'provider_response', code: 'upstream_error', response: exchange.response };
+    }
     const completion = await lifecycle.active(exchange.done);
     if (!completion.ok) throw completion.error;
     upstreamRequestId = nativeId(exchange.response.headers.get('request-id') ?? exchange.response.headers.get('x-request-id'));
@@ -201,15 +213,25 @@ export async function executeJson<Input, Wire, Upstream, Output>(dependencies: J
     if (!ids.ok) throw new Error();
     const output = adapters.response.convert(raw as Upstream, { identity: ids.value.identity, idFor: ids.value.idFor,
       targetModel: request.public_model_id, createdAt: Math.floor(request.created_at / 1000) });
-    if (!output.ok) throw new Error(output.error.message, { cause: output.error });
+    if (!output.ok) { diagnostic ??= { stage: 'json_response', source: 'adapter', code: output.error.code, error: output.error, response: exchange.response }; throw new Error('Response conversion failed'); }
     if (output.value.identity.responseId !== ids.value.identity.responseId || output.value.body === undefined) throw new Error();
-    if (output.value.terminal.status === 'failed' || output.value.terminal.status === 'cancelled') throw new Error();
+    if (output.value.terminal.status === 'failed' || output.value.terminal.status === 'cancelled') {
+      const terminal = output.value.terminal;
+      diagnostic ??= { stage: 'json_response', source: terminal.status === 'failed' && terminal.error.code === 'upstream_error' ? 'provider_response' : 'adapter',
+        code: terminal.status === 'failed' ? terminal.error.code : 'cancelled',
+        ...(terminal.status === 'failed' ? { error: terminal.error } : {}), response: exchange.response };
+      throw new Error('Response terminal failed');
+    }
     resultBody = output.value.body;
     if (!await lifecycle.persist(() => finishRequest(dependencies.database, requestId, request!.user_id, { status: 'succeeded',
       ...(upstreamResponseId === undefined ? {} : { responseId: upstreamResponseId }), ...(upstreamRequestId === undefined ? {} : { upstreamRequestId }) }, clock()))) throw new Error();
     terminalSaved = true; failure = undefined;
   } catch (error) {
-    logError('Gateway JSON execution failed', error, { request_id: requestId, phase: failure });
+    logExecutionFailure(request ?? admission.request, diagnostic ?? {
+      stage: 'json_execution', source: error instanceof UpstreamTransportError ? 'transport' : error instanceof JsonResponseReadError ? 'response_format' : lifecycle.reason ? 'lifecycle' : 'internal',
+      code: error instanceof UpstreamTransportError ? error.reason : error instanceof JsonResponseReadError ? error.code : lifecycle.reason ?? failure ?? 'service_failure',
+      ...(exchange ? { response: exchange.response } : {}),
+    }, diagnosticSecrets);
     failure = lifecycle.reason === 'lease_lost' ? 'lease_lost' : lifecycle.reason === 'cancelled' || options.signal?.aborted ? 'cancelled' : failure ?? 'service_failure';
     lifecycle.beginFinalization(false);
     lifecycle.stop('failed');

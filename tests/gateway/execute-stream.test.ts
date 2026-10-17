@@ -351,3 +351,39 @@ describe('G10 cancellation and bounded completion', () => {
     expect(await active('user:g08-user')).toBe(0);
   });
 });
+
+
+describe('gateway failure metadata without upstream content', () => {
+  it.each([
+    { name: 'HTTP rejection', status: 503, type: 'application/json', body: 'PRIVATE RESPONSE synthetic-upstream-secret', source: 'provider_http', code: 'http_error', startup: true },
+    { name: 'wrong MIME', status: 200, type: 'application/json', body: 'PRIVATE RESPONSE', source: 'response_format', code: 'invalid_sse_content_type', startup: true },
+    { name: 'missing body', status: 204, type: 'text/event-stream', body: null, source: 'response_format', code: 'missing_body', startup: true },
+    { name: 'provider SSE error', status: 200, type: 'text/event-stream', body: 'event: error\ndata: {"error":{"message":"PRIVATE RESPONSE synthetic-upstream-secret"}}\n\n', source: 'provider_stream', code: 'upstream_error', startup: false },
+    { name: 'invalid JSON frame', status: 200, type: 'text/event-stream', body: 'data: PRIVATE RESPONSE synthetic-upstream-secret\n\n', source: 'adapter', code: 'invalid_or_oversized_chunk', startup: false },
+    { name: 'invalid chunk shape', status: 200, type: 'text/event-stream', body: 'data: {"private":"PRIVATE RESPONSE"}\n\n', source: 'adapter', code: 'invalid_chunk', startup: false },
+  ])('classifies $name and retains correlation without leaking content', async scenario => {
+    const logs = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const fetcher = vi.fn(async () => new Response(scenario.body, { status: scenario.status, headers: {
+      'content-type': scenario.type, 'request-id': 'provider-req-123', 'x-private': 'PRIVATE RESPONSE',
+    } }));
+    if (scenario.startup) await expect(executeStream(dependencies(fetcher), admission, adapters)).rejects.toBeInstanceOf(StreamExecutionError);
+    else {
+      const execution = await executeStream(dependencies(fetcher), admission, adapters);
+      await execution.response.text();
+      expect((await execution.completion).terminal.status).toBe('failed');
+    }
+    const events = logs.mock.calls.flatMap(([value]) => {
+      if (typeof value !== 'string') return [];
+      try { const event = JSON.parse(value); return event.event === 'gateway_execution_failure' ? [event] : []; } catch { return []; }
+    });
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ request_id: admission.request.id, channel_id: 'g08-channel', public_model_id: 'g08-model',
+      upstream_model: 'provider-model', upstream_protocol: 'chat', downstream_protocol: 'chat',
+      stage: scenario.startup ? 'stream_start' : 'stream_terminal', failure_source: scenario.source, failure_code: scenario.code,
+      upstream_status: scenario.status, upstream_content_type: scenario.type, upstream_request_id: 'provider-req-123' });
+    if (!scenario.startup) expect(events[0].terminal_error_code).toBe(scenario.code);
+    expect(JSON.stringify(logs.mock.calls)).not.toMatch(/PRIVATE RESPONSE|synthetic-upstream-secret|synthetic prompt/);
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(await active('user:g08-user')).toBe(0);
+  });
+});
