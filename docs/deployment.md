@@ -2,7 +2,7 @@
 
 更新：2026-10-03；配置基线为 main `fd6ce3d37de87239a7474a04ab85b83c96f7df11`，本次清理移除共享 staging 的可执行入口。共享 staging 已于 2026-10-03 完成永久退役，相关 Worker、D1、KV 和 Gate DO 已删除并回读确认；这次文档更新不是删除或发布成功证明。历史资源与证据见[退役记录](staging-resources.md)。
 
-先读[管理员配置顺序](admin-guide.md)。正式入口为 https://cheapai.dev 和 https://www.cheapai.dev；站内导航保留当前 host，两个入口分别使用 host-only 会话和 CSRF Cookie。自动预发待维护者重新配置，当前状态见[PR 预发](pr-previews.md)；不要重建旧共享 staging，也不要以历史验证结果代替本次验收。
+先读[管理员配置顺序](admin-guide.md)。正式入口为 https://cheapai.dev 和 https://www.cheapai.dev；站内导航保留当前 host，两个入口分别使用 host-only 会话和 CSRF Cookie。自动预发已停用，当前状态见[PR 预发](pr-previews.md)；不要重建旧共享 staging，也不要以历史验证结果代替本次验收。
 
 ## 发布前准备
 
@@ -10,7 +10,7 @@
 
 ### Cloudflare 自动构建与手动发布
 
-2026-10-17 移除失效的 Cloudflare Workers Builds 分支触发器，自动构建与预发暂不启用，后续由维护者重新配置。GitHub Actions 的代码检查与 Desktop 安装包构建继续保留；修改仓库工作流不会自动修改 Dashboard 的 Builds 设置。
+2026-10-17 已关闭 Cloudflare 原生 Preview 总开关并移除 production Worker 的 Builds 配置，父配置及 12 个分支构建配置均回读确认不存在。自动预发停用；合并 main 后由下文的 GitHub Production release 工作流执行正式迁移与发布。GitHub 代码检查与 Desktop 安装包构建保留。
 
 `pnpm run build` 只构建前端并对 Worker 执行 dry-run。`pnpm run deploy` 明确选择 `apps/worker/wrangler.jsonc` 的 `production` 环境，会执行正式发布，不能用作 PR Preview 的替代命令。Wrangler 安装在 Worker workspace；后续配置原生 Preview 时，需要从该 workspace 执行命令，并明确目标 Worker、配置文件和预发绑定。
 
@@ -91,7 +91,7 @@ pnpm --filter @sub2api/worker exec wrangler d1 migrations list DB --config wrang
 | DO | `GATE` → `Gate`，`migrations` 的 `v1` 使用 `new_sqlite_classes: ["Gate"]` |
 | 邮件 | `EMAIL` / `send_email`；所有 `.invalid` 发件人和收件人都是占位符 |
 | 定时任务 | 顶层本地配置和 production 显式配置每五分钟一次；PR previews 无 cron |
-| 公网入口 | local 为 `workers_dev: false`；production 与 Dashboard 同步为 `workers_dev: true`、`preview_urls: true`，保留 cheapai.dev、www.cheapai.dev 和 pre.cheapai.dev 路由；自动预发待重新配置 |
+| 公网入口 | local 为 `workers_dev: false`；production 与 Dashboard 同步为 `workers_dev: true`、`preview_urls: true`，保留 cheapai.dev、www.cheapai.dev 和 pre.cheapai.dev 路由；自动预发已停用 |
 
 `remote: false` 描述本地开发 binding 行为，不会让发布后的 Worker 使用本地数据库。远程 D1 操作仍必须明确 `--remote --env ...`。这与已安装 Wrangler schema 及[开发 binding 模式](https://developers.cloudflare.com/workers/local-development/bindings-per-env/)一致。
 
@@ -133,7 +133,7 @@ node $deploymentWrangler dev --config $deploymentConfig --local --persist-to $de
 
 ## 3. 环境选择
 
-production 已有独立资源和域名，bindings/vars 明确位于 `env.production`。Cloudflare 自动预发触发器已移除，待维护者重新配置，详见[预发说明](pr-previews.md)。仓库 CI 不创建分支 Worker、执行预发部署或迁移。
+production 已有独立资源和域名，bindings/vars 明确位于 `env.production`。Cloudflare 自动构建与预发已停用，详见[预发说明](pr-previews.md)。仓库 CI 不创建分支 Worker、执行预发部署或迁移。
 
 当前 Git 生产配置为 `send_email: []`、`EMAIL_VERIFICATION_READY: "true"`，通过 Resend 发信；这不证明线上 Secret 和实际投递已经通过验证。不要为消除 Wrangler 的 binding 继承提示添加虚假发件身份。
 

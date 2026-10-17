@@ -28,10 +28,12 @@ checks. PR comparisons cover the entire proposed change, so a PR that changes
 desktop code continues to validate desktop on subsequent revisions.
 
 Run detector regressions with `node --test scripts/ci/desktop-changes.test.mjs`.
-The failing Cloudflare Workers Builds branch trigger was removed on 2026-10-17.
-Automatic previews are disabled pending maintainer reconfiguration. GitHub Actions
-checks and desktop builds remain enabled. Repository workflows do not manage
-Cloudflare's Dashboard build triggers. See [PR previews](pr-previews.md).
+Cloudflare automatic builds and previews are disabled. On 2026-10-17, the
+production Worker's native Preview switch was disabled and its Builds config
+removed. The parent and all 12 generated branch build configs were confirmed
+absent; deleting an individual branch trigger alone had left the parent enabled.
+GitHub Actions checks and desktop builds remain enabled. Main merges use the
+production release workflow below. See [PR previews](pr-previews.md).
 
 
 ## Production release entrypoint
