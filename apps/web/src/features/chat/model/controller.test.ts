@@ -96,6 +96,81 @@ function regenerateCommand() {
 }
 
 describe('chat controller command lifecycle', () => {
+  it.each(['send', 'regenerate'] as const)(
+    'refreshes the saved conversation after a rejected %s before the next attempt',
+    async (kind) => {
+      const initial = makeDetail('rejected-after-write-' + kind);
+      const failed = makeMessage('assistant-rejected', 'assistant', kind === 'send' ? 1 : 0, {
+        conversationId: initial.conversation.id,
+        status: 'failed',
+        variant: kind === 'send' ? 1 : 2,
+        selected: kind === 'send',
+        content: '',
+      });
+      const accepted = generatedDetail(initial, failed);
+      if (kind === 'send') {
+        accepted.messages.splice(
+          2,
+          0,
+          makeMessage('user-rejected', 'user', 1, {
+            conversationId: initial.conversation.id,
+          }),
+        );
+      }
+      let detail = initial;
+      const nextVersions: number[] = [];
+      const write = vi.fn(async (_id: string, input: ChatSendInput | ChatRegenerateInput) => {
+        nextVersions.push(input.conversationVersion);
+        if (nextVersions.length === 1) {
+          detail = accepted;
+          throw new ApiClientError('api', 'No eligible channel', {
+            status: 400,
+            code: 'invalid_request',
+            request_id: 'rejected-gateway-request',
+          });
+        }
+        const message = makeMessage(
+          'assistant-after-rejection',
+          'assistant',
+          kind === 'send' ? 2 : 0,
+          { conversationId: initial.conversation.id },
+        );
+        detail = generatedDetail(accepted, message);
+        return { kind: 'stream' as const, message };
+      });
+      const confirmed = vi.fn();
+      let sequence = 0;
+      const controller = createChatController({
+        api: makeApi({
+          getConversation: vi.fn(async () => detail),
+          sendMessage: write,
+          regenerate: write,
+        }),
+        getOwner: () => ({ userId: 'rejected-user-' + kind, epoch: 1 }),
+        initialDetail: initial,
+        conversationId: initial.conversation.id,
+        idFactory: () => 'rejected-operation-' + ++sequence,
+        onDetailConfirmed: confirmed,
+      });
+      const perform = () =>
+        kind === 'send'
+          ? controller.send(sendCommand())
+          : controller.regenerate(regenerateCommand());
+
+      await expect(perform()).resolves.toBe('rejected');
+      expect(controller.getSnapshot()).toMatchObject({
+        phase: 'failed',
+        detail: accepted,
+        failure: { code: 'invalid_request', requestId: 'rejected-gateway-request' },
+      });
+      expect(confirmed).toHaveBeenCalledWith(accepted);
+      await expect(perform()).resolves.toBe('completed');
+      expect(nextVersions).toEqual([1, 2]);
+      expect(write).toHaveBeenCalledTimes(2);
+      controller.dispose();
+    },
+  );
+
   it('takes the synchronous send lock before the stream can yield', async () => {
     const initial = makeDetail('controller-lock');
     const assistant = makeMessage('assistant-new', 'assistant', 1, {

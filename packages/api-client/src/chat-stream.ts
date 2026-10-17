@@ -131,8 +131,9 @@ async function readSse(
     if (signal?.aborted || (cause instanceof Error && cause.name === 'AbortError')) {
       throw transportError(cause, signal);
     }
-    throw cause;
+    throw transportError(cause, signal);
   } finally {
+    void reader.cancel().catch(() => undefined);
     reader.releaseLock();
   }
 }
@@ -228,6 +229,27 @@ export async function sendChatStream(
       // Session/navigation errors must not replace the response failure.
     }
   }
+  const parsedRequestId = requestIdSchema.safeParse(response.headers.get('X-Request-Id'));
+  try {
+    return await readChatResponse(response, options);
+  } catch (cause) {
+    if (cause instanceof ApiClientError && cause.request_id === null && parsedRequestId.success) {
+      throw new ApiClientError(cause.kind, cause.message, {
+        ...(cause.status === null ? {} : { status: cause.status }),
+        code: cause.code,
+        request_id: parsedRequestId.data,
+        details: cause.details,
+        cause,
+      });
+    }
+    throw cause;
+  }
+}
+
+async function readChatResponse(
+  response: Response,
+  options: ChatStreamOptions,
+): Promise<ChatSendResult> {
   if (!response.ok) return responseError(response);
 
   const mediaType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() ?? '';

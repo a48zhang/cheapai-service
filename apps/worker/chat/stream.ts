@@ -1,3 +1,4 @@
+import { logError } from '../logging';
 import type { ChatMessage } from './service';
 
 export interface ChatGatewayDelta { readonly type: 'delta'; readonly text: string }
@@ -233,6 +234,8 @@ export function createChatSseStream(meta: ChatSseMeta, execution: ChatGatewayExe
   let queuedText = '';
   let lastPersist = Date.now();
   const iterator = sourceEvents(execution.source, controller.signal)[Symbol.asyncIterator]();
+  const logContext = { request_id: execution.requestId, conversation_id: meta.assistantMessage.conversationId,
+    message_id: meta.assistantMessage.id, model_id: meta.assistantMessage.modelId };
 
   const schedule = (work: Promise<unknown>): void => {
     const observed = work.then(() => undefined, () => undefined);
@@ -276,13 +279,17 @@ export function createChatSseStream(meta: ChatSseMeta, execution: ChatGatewayExe
         if (kind !== 'completed') await cancelExecution();
         // Give the final write its own budget even if a checkpoint is stuck.
         // onDelta incorporates the text before awaiting its checkpoint write.
-        try { await flushQueued(1500); } catch { persistenceError = true; await cancelExecution(); }
+        try { await flushQueued(1500); } catch (error) {
+          logError('Chat final checkpoint failed', error, logContext);
+          persistenceError = true; await cancelExecution();
+        }
         const savingCompleted = kind === 'completed' && !persistenceError;
         const saveDeadline = Date.now() + 3500;
         const save = Promise.resolve().then(() => kind === 'completed'
           ? persistenceError ? callbacks.onFailed('persistence_error', 'The chat answer could not be saved.') : callbacks.onDone(billingStatus)
           : kind === 'cancelled' ? callbacks.onCancelled() : callbacks.onFailed(safeCode, safeMessage));
         try { final = await boundedChatWork(save, 3500); } catch (error) {
+          logError('Chat terminal persistence failed', error, logContext);
           persistenceError = true;
           await cancelExecution();
           // A rejected write may be repaired. A timed-out write is unknown;
@@ -291,7 +298,7 @@ export function createChatSseStream(meta: ChatSseMeta, execution: ChatGatewayExe
             try {
               final = await boundedChatWork(Promise.resolve().then(() => callbacks.onFailed('persistence_error', 'The chat answer could not be saved.')),
                 Math.max(1, saveDeadline - Date.now()));
-            } catch { /* The persistence error remains visible. */ }
+            } catch (error) { logError('Chat failed-state persistence failed', error, logContext); }
           }
         }
         if (persistenceError) {
@@ -339,6 +346,7 @@ export function createChatSseStream(meta: ChatSseMeta, execution: ChatGatewayExe
                 lastPersist = now;
                 try { await flushQueued(5000, controller.signal); } catch (error) {
                   if (state !== 'open') return;
+                  logError('Chat checkpoint failed', error, logContext);
                   await finish('failed', 'persistence_error', 'The chat answer could not be saved.');
                   return;
                 }
@@ -362,6 +370,7 @@ export function createChatSseStream(meta: ChatSseMeta, execution: ChatGatewayExe
         } catch (error) {
           if (state !== 'open') return;
           if (options.signal?.aborted) { await finish('cancelled'); return; }
+          logError('Chat stream failed', error, logContext);
           await finish('failed', error instanceof ChatGatewayStreamError ? error.code : 'gateway_error',
             error instanceof ChatGatewayStreamError ? error.safeMessage : 'The chat request failed.');
         }

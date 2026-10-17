@@ -22,7 +22,12 @@ const prompt = {
 
 test('chat UI locks a new send before conversation creation and renders the stream', async ({ page }) => {
   const calls = {conversationCreates: 0, messagePosts: 0, operationIds: [] as string[]};
-  await page.context().addCookies([{ name: '__Host-sub2api_csrf', value: 'ui-csrf-token', url: 'https://127.0.0.1/' }]);
+  // Restored login sessions can outlive the CSRF cookie. The first write must bootstrap it.
+  await page.route('**/api/v1/settings/public', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ data: { registrationMode: 'open', emailVerificationEnabled: false,
+      csrfToken: 'a'.repeat(42) + 'A' }, request_id: requestId }),
+  }));
   await page.route('**/api/v1/auth/me', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: user, request_id: requestId }) }));
   await page.route('**/api/v1/chat/models', route => route.fulfill({
     status: 200, contentType: 'application/json',
@@ -46,6 +51,7 @@ test('chat UI locks a new send before conversation creation and renders the stre
   });
   await page.route('**/api/v1/chat/conversations/conv-ui/messages', async route => {
     calls.messagePosts += 1;
+    expect(route.request().headers()['x-csrf-token']).toBe('a'.repeat(42) + 'A');
     const body = JSON.parse(route.request().postData() ?? '{}') as { operationId?: string };
     if (body.operationId) calls.operationIds.push(body.operationId);
     await route.fulfill({
@@ -206,4 +212,38 @@ test('FE-V02 history first-page failure is distinct from empty and supports retr
   await expect(page.getByText('还没有对话', { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: '重试', exact: true }).click();
   await expect(page.getByText('还没有对话', { exact: true })).toBeVisible();
+});
+
+test('chat displays rejection details and sends again with the refreshed conversation version', async ({ page }) => {
+  const fixture = await mockedChat(page);
+  const versions: number[] = [];
+  const failed = { ...answer, id: 'failed-answer', turnIndex: 1, content: '', status: 'failed' };
+  const nextPrompt = { ...prompt, id: 'next-prompt', turnIndex: 1, content: 'first attempt' };
+  await page.route('**/api/v1/chat/conversations/conv-ui/messages', async route => {
+    versions.push(route.request().postDataJSON().conversationVersion);
+    if (versions.length === 1) {
+      fixture.setDetail({ conversation: { ...conversation, version: 2 }, messages: [prompt, answer, nextPrompt, failed] });
+      return route.fulfill({ status: 400, contentType: 'application/json',
+        headers: { 'X-Request-Id': 'rejected-chat-request' },
+        body: JSON.stringify({ error: { code: 'invalid_request', message: 'No eligible channel' } }) });
+    }
+    const completed = { ...answer, id: 'recovered-answer', turnIndex: 2, content: 'Recovered after rejection' };
+    const latest = { conversation: { ...conversation, version: 3 }, messages: [prompt, answer, nextPrompt, failed, completed] };
+    fixture.setDetail(latest);
+    return route.fulfill({ status: 200, contentType: 'text/event-stream', body:
+      sse('meta', { conversation: latest.conversation, userMessage: null, assistantMessage: { ...completed, status: 'generating', content: '' } })
+      + sse('done', { message: completed }) });
+  });
+  await page.goto('/chat/conv-ui');
+  const composer = page.getByRole('textbox', { name: '消息内容' });
+  await composer.fill('first attempt');
+  await page.getByRole('button', { name: '发送', exact: true }).click();
+  const notice = page.getByRole('alert').filter({ hasText: '消息未能发送' });
+  await expect(notice).toContainText('No eligible channel');
+  await notice.getByText('查看请求信息', { exact: true }).click();
+  await expect(notice.getByText('rejected-chat-request', { exact: true })).toBeVisible();
+  await composer.fill('next attempt');
+  await page.getByRole('button', { name: '发送', exact: true }).click();
+  await expect(page.getByRole('log', { name: '对话消息' })).toContainText('Recovered after rejection');
+  expect(versions).toEqual([1, 2]);
 });

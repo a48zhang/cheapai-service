@@ -135,7 +135,7 @@ export async function admitRequest(bindings: AdmissionBindings, subject: Interna
       : selection.reason === 'model_not_allowed' || selection.reason === 'scope_mismatch' ? 'forbidden'
       : selection.reason === 'refresh_required' ? 'conflict'
       : selection.reason === 'adapter_unavailable' ? 'service_unavailable' : 'invalid_request';
-    throw new ApiError(code);
+    throw new ApiError(code, { cause: new Error(`No eligible channel: ${selection.reason}`) });
   }
   let model: Awaited<ReturnType<typeof getModelById>>;
   try { model = await getModelById(bindings.DB, modelId); } catch (error) { throw new ApiError('service_unavailable', { cause: error }); }

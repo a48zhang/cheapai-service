@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { ArrowUpRight, CircleAlert } from 'lucide-react';
 import type { ChatState } from '../model/state';
 import { Button } from '../../../shared/ui/Button';
+import { CopyButton } from '../../../shared/ui/CopyButton';
 
 export function ChatNotice({
   state,
@@ -22,11 +23,7 @@ export function ChatNotice({
       : state.failure.kind === 'rejected'
         ? '消息未能发送'
         : '本次生成未完成';
-  const description = uncertain
-    ? '请先确认本次请求的结果，再继续对话。'
-    : insufficientBalance
-      ? '请查看账户余额后继续对话。'
-      : '请稍后再试，或重新加载当前对话。';
+  const description = insufficientBalance ? '请查看账户余额后继续对话。' : state.failure.message;
   return (
     <div
       role="alert"
@@ -43,9 +40,26 @@ export function ChatNotice({
           <p className="m-0 text-[15px] font-medium leading-6 text-[var(--color-foreground)]">
             {message}
           </p>
-          <p className="m-0 mt-0.5 text-sm leading-6 text-[var(--color-muted-foreground)]">
+          <p className="m-0 mt-0.5 break-words text-sm leading-6 text-[var(--color-muted-foreground)]">
             {description}
           </p>
+          {(state.failure.code || state.failure.requestId) && (
+            <details className="mt-2 text-sm text-[var(--color-muted-foreground)]">
+              <summary className="w-fit cursor-pointer rounded focus-visible:outline-2 focus-visible:outline-[var(--color-ring)]">
+                查看请求信息
+              </summary>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {state.failure.code && <code className="break-all">{state.failure.code}</code>}
+                {state.failure.requestId && (
+                  <>
+                    <span>请求编号</span>
+                    <code className="break-all">{state.failure.requestId}</code>
+                    <CopyButton value={state.failure.requestId} label="复制编号" />
+                  </>
+                )}
+              </div>
+            </details>
+          )}
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           {insufficientBalance ? (

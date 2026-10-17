@@ -184,6 +184,39 @@ describe('web chat HTTP contract and accounting boundaries', () => {
     }
   });
 
+  it('records an admission failure after saving the prompt and allows the next send at the refreshed version', async () => {
+    await seedChatFixtures();
+    const user = await createIdentity('chat-admission-recovery');
+    const created = await request('/api/v1/chat/conversations', {
+      method: 'POST', headers: jsonHeaders(user, true),
+      body: JSON.stringify({ groupId: 'chat-full', modelId: model }),
+    });
+    const conversation = (await body(created)).data;
+    await testEnv.DB.prepare('UPDATE users SET balance_units=0 WHERE id=?').bind(user.id).run();
+    const upstream = vi.fn(async () => streamResponse(answer, 'upstream-full'));
+    vi.stubGlobal('fetch', upstream);
+    const send = (operationId: string, conversationVersion: number) => request(
+      `/api/v1/chat/conversations/${conversation.id}/messages`, {
+        method: 'POST', headers: jsonHeaders(user, true),
+        body: JSON.stringify({ operationId, conversationVersion, groupId: 'chat-full', modelId: model, content: 'hello' }),
+      });
+    const rejected = await send('admission-rejected', conversation.version);
+    expect(rejected.response.status, rejected.text).toBe(402);
+    expect(upstream).not.toHaveBeenCalled();
+    const refreshed = (await body(await request(`/api/v1/chat/conversations/${conversation.id}`, {
+      headers: jsonHeaders(user),
+    }))).data;
+    expect(refreshed.conversation.version).toBe(conversation.version + 1);
+    expect(refreshed.messages).toContainEqual(expect.objectContaining({ role: 'assistant', status: 'failed' }));
+    await testEnv.DB.prepare('UPDATE users SET balance_units=10000000 WHERE id=?').bind(user.id).run();
+    const sent = await send('admission-recovered', refreshed.conversation.version);
+    expect(sent.response.status, sent.text).toBe(200);
+    expect(events(sent.text).some(event => event.event === 'done')).toBe(true);
+    expect(upstream).toHaveBeenCalledOnce();
+    expect(events(sent.text).find(event => event.event === 'meta')?.data.assistantMessage.requestId)
+      .toBe(sent.response.headers.get('X-Request-Id'));
+  });
+
   it('requires a session and CSRF, then returns authorized groups with exact multipliers', async () => {
     expect(await chatContractReady()).toBe(true);
     await seedChatFixtures();
@@ -449,9 +482,43 @@ describe('web chat HTTP contract and accounting boundaries', () => {
     expect(await testEnv.DB.prepare('SELECT execution_status FROM requests').first('execution_status')).toBe('cancelled');
   }, 30_000);
 
+  it('returns an HTTP error and preserves the failed request when a channel credential is missing', async () => {
+    await seedChatFixtures();
+    const user = await createIdentity('chat-missing-credential-user');
+    const channelId = `chat-full-channel-${sequence}`;
+    await testEnv.DB.prepare('UPDATE channels SET upstream_key=NULL WHERE id=?').bind(channelId).run();
+    const upstream = vi.fn(async () => streamResponse());
+    vi.stubGlobal('fetch', upstream);
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const created = await request('/api/v1/chat/conversations', {
+        method: 'POST', headers: jsonHeaders(user, true), body: JSON.stringify({ groupId: 'chat-full', modelId: model }),
+      });
+      const conversation = (await body(created)).data;
+      const sent = await request(`/api/v1/chat/conversations/${conversation.id}/messages`, {
+        method: 'POST', headers: jsonHeaders(user, true), body: JSON.stringify({
+          operationId: 'missing-credential', conversationVersion: conversation.version,
+          groupId: 'chat-full', modelId: model, content: 'hi',
+        }),
+      });
+      expect(sent.response.status).toBe(503);
+      expect(sent.response.headers.get('content-type')).toContain('application/json');
+      expect(await body(sent)).toMatchObject({ error: { code: 'service_unavailable' }, request_id: expect.any(String) });
+      expect(sent.text).not.toContain('event: meta');
+      expect(upstream).not.toHaveBeenCalled();
+      const view = await request(`/api/v1/chat/conversations/${conversation.id}`, { headers: jsonHeaders(user) });
+      const detail = (await body(view)).data;
+      expect(detail.conversation.version).toBe(conversation.version + 1);
+      expect(detail.messages.at(-1)).toMatchObject({ role: 'assistant', status: 'failed', requestId: expect.any(String) });
+      expect(JSON.stringify(errors.mock.calls)).toContain('Channel upstream key is missing');
+      expect(await testEnv.DB.prepare('SELECT COUNT(*) AS n FROM billing_entries').first('n')).toBe(0);
+    } finally { errors.mockRestore(); }
+  }, 30_000);
+
   it('web Chat shares the real gateway cooldown and skips the failed channel on the next conversation', async () => {
     await seedChatFixtures();
     const user = await createIdentity('chat-cooldown-user');
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const upstream = vi.fn(async () => new Response('not-json', { status: 401 }));
     vi.stubGlobal('fetch', upstream);
     for (const operationId of ['cooldown-first', 'cooldown-next']) {
@@ -463,11 +530,25 @@ describe('web chat HTTP contract and accounting boundaries', () => {
         method: 'POST', headers: jsonHeaders(user, true), body: JSON.stringify({ operationId, conversationVersion: conversation.version,
           groupId: 'chat-full', modelId: model, content: 'cooldown route probe' }),
       });
-      expect(sent.response.status >= 400 || events(sent.text).some(event => event.event === 'error')).toBe(true);
+      expect(sent.response.status).toBe(503);
+      expect(sent.response.headers.get('content-type')).toContain('application/json');
+      expect(await body(sent)).toMatchObject({ error: { code: 'service_unavailable' }, request_id: expect.any(String) });
+      expect(sent.text).not.toContain('event: meta');
+      const view = await request(`/api/v1/chat/conversations/${conversation.id}`, { headers: jsonHeaders(user) });
+      expect((await body(view)).data.messages.at(-1)).toMatchObject({
+        role: 'assistant', status: 'failed',
+        requestId: operationId === 'cooldown-first' ? expect.any(String) : null,
+      });
     }
     expect(upstream).toHaveBeenCalledOnce();
     expect(await testEnv.GATE.get(testEnv.GATE.idFromName(`channel:chat-full-channel-${sequence}`)).getCooldown())
       .toMatchObject({ active: true, errorClass: 'auth_rejected' });
+    expect(errors).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'Upstream rejected streaming request', upstream_status: 401,
+      response_body: 'not-json', response_body_complete: true, request_id: expect.any(String),
+      channel_id: `chat-full-channel-${sequence}`,
+    }));
+    errors.mockRestore();
     expect(await testEnv.DB.prepare('SELECT COUNT(*) AS n FROM billing_entries').first('n')).toBe(0);
   }, 30_000);
 

@@ -111,19 +111,32 @@ describe('React chat API stream client', () => {
     };
     const http = createChatApi({
       ...options,
-      fetch: async () => new Response('<html>no</html>', { status: 401 }),
+      fetch: async () => new Response('<html>no</html>', { status: 401, headers: { 'X-Request-Id': 'http-request' } }),
     });
-    await expect(http.sendMessage(conversation.id, input)).rejects.toMatchObject({ status: 401 });
+    await expect(http.sendMessage(conversation.id, input)).rejects.toMatchObject({ status: 401, request_id: 'http-request' });
 
     const onError = vi.fn();
     const provider = createChatApi({
       ...options,
-      fetch: async () => streamResponse(['event: error\ndata: {"code":"unauthorized","message":"provider rejected the key"}\n\n']),
+      fetch: async () => {
+        const response = streamResponse(['event: error\ndata: {"code":"unauthorized","message":"provider rejected the key"}\n\n']);
+        response.headers.set('X-Request-Id', 'provider-request');
+        return response;
+      },
     });
     await expect(provider.sendMessage(conversation.id, input, { onError })).rejects.toMatchObject({
-      kind: 'api', status: 200, code: 'unauthorized',
+      kind: 'api', status: 200, code: 'unauthorized', request_id: 'provider-request',
     });
     expect(onError).toHaveBeenCalledWith({ code: 'unauthorized', message: 'provider rejected the key' });
+    const interrupted = createChatApi({
+      ...options,
+      fetch: async () => new Response(new ReadableStream({
+        start(controller) { controller.error(new TypeError('connection reset')); },
+      }), { headers: { 'Content-Type': 'text/event-stream', 'X-Request-Id': 'interrupted-request' } }),
+    });
+    await expect(interrupted.sendMessage(conversation.id, input)).rejects.toMatchObject({
+      kind: 'network', request_id: 'interrupted-request',
+    });
     expect(notices).toEqual([{ ...identity, path: '/api/v1/chat/conversations/conversation-1/messages' }]);
   });
 });
