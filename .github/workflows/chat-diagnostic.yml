@@ -1,4 +1,5 @@
 name: One-off chat diagnostic
+# Read exact constraint and invocation markers after log permission grant.
 on:
   push:
     branches: [diagnostics/chat-20261017]
