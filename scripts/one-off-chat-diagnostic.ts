@@ -41,7 +41,7 @@ try {
   const hash=await hashPassword(password);const now=Date.now();
   sql("INSERT INTO users (id,email_normalized,password_hash,role,status,email_verified_at,group_id,balance_units,concurrency_limit,rpm_limit,created_via,created_at,updated_at) VALUES ("+[uid,email,hash,'user','active'].map(quote).join(',')+","+now+","+quote(group.id)+",0,1,10,'bootstrap',"+now+","+now+");");
   created=true;out('test_user_created',{userId:uid,role:'user',balanceUnits:0,groupId:group.id});
-  await jsonResponse('bootstrap',await request('/api/v1/public/settings'));
+  await jsonResponse('bootstrap',await request('/api/v1/settings/public'));
   const login=await request('/api/v1/auth/login',{email,password});await jsonResponse('login',login);
   if(!login.ok) throw new Error('Test login failed');
   const modelsResponse=await request('/api/v1/chat/models');const models=await jsonResponse('models',modelsResponse);
