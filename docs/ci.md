@@ -28,6 +28,7 @@ checks. PR comparisons cover the entire proposed change, so a PR that changes
 desktop code continues to validate desktop on subsequent revisions.
 
 Run detector regressions with `node --test scripts/ci/desktop-changes.test.mjs`.
-PR previews are handled by Cloudflare's native Preview configuration. GitHub
-Actions does not deploy previews; changing repository workflows does not change
-Cloudflare's build configuration.
+The failing Cloudflare Workers Builds branch trigger was removed on 2026-10-17.
+Automatic previews are disabled pending maintainer reconfiguration. GitHub Actions
+checks and desktop builds remain enabled. Repository workflows do not manage
+Cloudflare's Dashboard build triggers. See [PR previews](pr-previews.md).
