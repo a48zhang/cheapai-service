@@ -23,10 +23,7 @@ function invalid(code: string, param: string): never {
 }
 
 /** Parse once at ingress; channel selection reuses the identified features. */
-export async function parseChatInput(input: Request, options: { maxBodyBytes?: number; maxOutputTokens?: number } = {}): Promise<ParsedChatInput> {
-  if (options.maxOutputTokens !== undefined && (!Number.isSafeInteger(options.maxOutputTokens) || options.maxOutputTokens < 1)) {
-    throw new ApiError('service_unavailable');
-  }
+export async function parseChatInput(input: Request, options: { maxBodyBytes?: number } = {}): Promise<ParsedChatInput> {
   const raw = await readGatewayJson(input, options.maxBodyBytes);
   const parsed = parseChatRequest(raw, { unknownFields: 'preserve', native: true });
   if (!parsed.ok) throw new ChatInputError(parsed.error);
@@ -36,8 +33,5 @@ export async function parseChatInput(input: Request, options: { maxBodyBytes?: n
   }
   const features = identifyRequestFeatures({ protocol: 'chat', request });
   if (!features.ok) throw new ChatInputError(features.error);
-  if (options.maxOutputTokens !== undefined && features.value.outputTokenLimit !== undefined && features.value.outputTokenLimit > options.maxOutputTokens) {
-    invalid('output_limit_exceeded', '$.max_completion_tokens');
-  }
   return { protocol: 'chat', request, model: request.model, stream: request.stream === true, features: features.value };
 }

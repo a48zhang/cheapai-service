@@ -48,7 +48,7 @@
 | V04 | `apps/worker/http.ts:75`；`admin/channel-repository.ts:151`；`billing/entry-queries.ts`；`gateway/request-query-routes.ts` | limit1–100、cursor长度/base64url规范、解码版本/排序键/筛选和owner绑定 | 范围/owner建议保留；过度 canonical 编码回环检查可审；cursor无加密无签名，编码不是加密。 |
 | V05 | `apps/worker/auth/password.ts:31,69,82`；`auth/login-core.ts:36`；`auth/register.ts:49`；`admin/create-user.ts:24` | 密码6–128 Unicode标量/512bytes、拒孤立surrogate；PHC固定算法参数；KDF并发1、登录前/后用户身份状态一致 | 哈希不可替代；重复输入validate可合并。并发=1可能导致登录503，需容量决策，非数据库不通。 |
 | V06 | `apps/worker/auth/email-proof.ts:20`；`auth/send-code.ts:61`；`auth/register.ts:99`；`auth/challenge-repository.ts` | 邮箱trim/lowercase、Unicode/domain/length；验证码6位、代次、TTL、重发间隔、剩余尝试、使用一次、邮件HMAC准备度 | 邮箱语法为自定义子集，有拒合法但特殊地址可能；次数/TTL是产品规则；原子消费建议保留。 |
-| V07 | `apps/worker/auth/registration-codes.ts:8,24,48`；`auth/registration-settings.ts` | closed/open/invite策略；邀请码hash、过期/已使用；一批1–100、有效≤30天；同opId批次一致 | 功能政策待定；会直接影响管理员操作。 |
+| V07 | `apps/worker/auth/registration-codes.ts:8,24,48`；`auth/registration-settings.ts` | closed/open/invite策略；邀请码hash、过期/已使用；批次数量为正整数，无业务上限；可不设到期时间；同opId批次一致 | 功能政策待定；会直接影响管理员操作。 |
 | V08 | `apps/worker/auth/tokens.ts:14,21,63`；`auth/api-key-auth.ts:25,53` | Token用途/长度/规范编码、Bearer/x-api-key双头一致、D1 active/expiry/user/group查验 | 真正认证边界建议保留；重复格式层可合并。 |
 | V09 | `apps/worker/auth/sessions.ts`；`auth/session-repository.ts:35`；`auth/middleware.ts:25`；`auth/roles.ts:9`；`auth/desktop/authenticate.ts` | Web cookie/Desktop bearer、token hash、session过期/吊销、账号active、角色admin；Cookie重复/格式 | 认证与角色授权，删除会改变谁能读写；等待用户决定，建议保留。 |
 | V10 | `apps/worker/auth/csrf.ts:21,54,71`；所有管理写路由 | 精确HTTPS Origin、__Host cookie、header匹配；cookie8KiB限制、重复值/非规范nonce拒绝 | 主认证不能替代CSRF。exactOrigin需与线上域名一致，误配会403；严格cookie解析可简化但不能去掉源检查不说明。 |

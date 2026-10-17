@@ -162,8 +162,7 @@ export function GroupForm({
           role="alert"
         >
           <p>
-            服务端已将访问组更新到 v{latestGroup.version}
-            ；表单保留当前输入。明确采用新版本后才能保存，请先检查渠道和倍率的变更。
+            访问组已被其他操作更新。表单保留当前输入，请核对渠道和倍率的变更后采用最新配置。
           </p>
           <Button
             size="sm"
@@ -171,7 +170,7 @@ export function GroupForm({
             disabled={saving || groupQuery.isFetching}
             onClick={adoptLatestVersion}
           >
-            采用 v{latestGroup.version}，保留输入
+            采用最新配置，保留输入
           </Button>
         </div>
       )}

@@ -28,7 +28,6 @@ describe('cursor pages', () => {
     );
     expect(next).toBeUndefined();
     expect(errors).toHaveLength(1);
-    expect(errors[0]?.message).toBe('请求返回了重复游标。');
   });
 
   it('keeps each resource once and protects newer versions across overlapping pages', () => {

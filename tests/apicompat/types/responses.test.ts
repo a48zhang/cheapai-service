@@ -46,7 +46,7 @@ describe('Responses ingress wire structure', () => {
   });
 
   it.each([
-    [null, '$'], [[], '$'], [{ input: 'x' }, 'model'], [{ model: ' ' , input: 'x' }, 'model'],
+    [null, '$'], [[], '$'], [{ input: 'x' }, 'model'],
     [{ model: 'm' }, 'input'], [{ model: 'm', input: null }, 'input'],
     [{ model: 'm', input: [{ role: 'tool', content: 'x' }] }, 'input[0].role'],
     [{ model: 'm', input: [{ role: ['user'], content: 'x' }] }, 'input[0].role'],

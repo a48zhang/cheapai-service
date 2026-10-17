@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import type { Protocol } from '@sub2api/apicompat/types/shared';
-import type { ChannelCapabilities } from '@sub2api/apicompat/capabilities/check';
 import { requireSession } from '../auth/middleware';
 import type { AuthVariables } from '../auth/middleware';
 import { requireAdmin } from '../auth/roles';
@@ -82,7 +81,6 @@ export function createMappingRoutes<B extends Bindings = Bindings>(dependencies:
     const result = await createModelMapping(context.env.DB, {
       publicModelId: context.req.param('publicModelId'), channelId: body.channelId as string,
       protocol: body.protocol as Protocol, upstreamModel: body.upstreamModel as string,
-      ...(body.capabilities === undefined ? {} : { capabilities: body.capabilities as ChannelCapabilities }),
     }, { actorId: context.get('user').id, operationId: crypto.randomUUID(), now: context.get('mappingNow') });
     return apiSuccess(result, context.get('requestId'), 201);
   });

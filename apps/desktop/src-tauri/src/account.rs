@@ -213,15 +213,6 @@ impl AccountHost {
                 current.public_state.clone(),
             )
         };
-        if email.is_empty()
-            || email.len() > 320
-            || password.len() > 256
-            || has_control_characters(&email)
-            || has_control_characters(&password)
-        {
-            return Err(invalid_account_request());
-        }
-
         let value = match runtime
             .request_account("login", json!({ "email": email, "password": password }))
             .await
@@ -1280,13 +1271,6 @@ fn account_storage_error() -> NativeHostError {
     NativeHostError::new(
         "account-storage-failed",
         "Desktop credentials could not be stored",
-    )
-}
-
-fn invalid_account_request() -> NativeHostError {
-    NativeHostError::new(
-        "invalid-account-request",
-        "The desktop account request is invalid",
     )
 }
 

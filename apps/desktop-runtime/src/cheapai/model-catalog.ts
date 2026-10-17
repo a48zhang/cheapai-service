@@ -30,12 +30,7 @@ interface ModelListingEntry extends Record<string, unknown> {
   context_window?: unknown
   context_length?: unknown
   max_input_tokens?: unknown
-  maxOutputTokens?: unknown
-  max_output_tokens?: unknown
-  maxTokens?: unknown
-  max_tokens?: unknown
-  limit?: { context?: unknown; output?: unknown } | null
-  top_provider?: { max_completion_tokens?: unknown } | null
+  limit?: { context?: unknown } | null
 }
 
 function record(value: unknown): Record<string, unknown> | undefined {
@@ -136,19 +131,10 @@ function parseModels(body: unknown): CheapAiModelProfile[] {
       entry?.max_input_tokens,
       entry?.limit?.context,
     )
-    const maxTokens = positiveInteger(
-      entry?.maxOutputTokens,
-      entry?.max_output_tokens,
-      entry?.maxTokens,
-      entry?.max_tokens,
-      entry?.limit?.output,
-      entry?.top_provider?.max_completion_tokens,
-    )
     result.push({
       id,
       name,
       ...(contextWindow === undefined ? {} : { contextWindow }),
-      ...(maxTokens === undefined ? {} : { maxTokens }),
     })
   }
   return result

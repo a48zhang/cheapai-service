@@ -174,7 +174,7 @@ describe('B06 administrator adjustments with native D1', () => {
     const credential = 'synthetic';
     await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
       VALUES('b06-channel','Synthetic','https://example.invalid',?,'active',0,1,1,1,0,0)`).bind(credential).run();
-    await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('b06-model','active','{}',1,0,10,0,0)`).run();
+    await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,created_at,updated_at) VALUES ('b06-model','active','{}',1,0,0)`).run();
     await testEnv.DB.prepare(`INSERT INTO requests(id,user_id,api_key_id,channel_id,public_model_id,upstream_model,downstream_protocol,upstream_protocol,price_snapshot,created_at,updated_at)
       VALUES('b06-request','b06-user','b06-key','b06-channel','b06-model','model','chat','chat','{}',0,0)`).run();
     const original = await testEnv.DB.prepare("SELECT * FROM requests WHERE id='b06-request'").first();

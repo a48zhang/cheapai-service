@@ -124,8 +124,8 @@ async function seedChatFixtures(): Promise<void> {
     await testEnv.DB.prepare(`INSERT INTO groups(id,name,status,version,created_at,updated_at,billing_multiplier)
       VALUES(?,?, 'active',1,?,?,?)`).bind(id, `${name} ${sequence}`, now, now, multiplier).run();
   }
-  await testEnv.DB.prepare(`INSERT INTO models(public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at)
-    VALUES(?,'active','{"input":"1","output":"1","cacheRead":"0.5"}',1,0,64,?,?)`).bind(model, now, now).run();
+  await testEnv.DB.prepare(`INSERT INTO models(public_model_id,status,sell_prices_json,price_version,created_at,updated_at)
+    VALUES(?,'active','{"input":"1","output":"1","cacheRead":"0.5"}',1,?,?)`).bind(model, now, now).run();
   for (const [groupId, channelId, upstream] of [
     ['chat-full', `chat-full-channel-${sequence}`, 'upstream-full'],
     ['chat-discount', `chat-discount-channel-${sequence}`, 'upstream-discount'],
@@ -136,8 +136,8 @@ async function seedChatFixtures(): Promise<void> {
       VALUES(?,?,?,?,'active',1,2,60,1,?,?)`)
       .bind(channelId, channelId, 'https://e2e-upstream.example.invalid/v1', credential, now, now).run();
     await testEnv.DB.prepare('INSERT INTO channel_groups(channel_id,group_id) VALUES(?,?)').bind(channelId, groupId).run();
-    await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,capabilities_json,config_version)
-      VALUES(?,?, 'chat',?,'{"protocol":"chat","features":["streaming","stream_usage"],"maxOutputTokens":64}',1)`)
+    await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,config_version)
+      VALUES(?,?, 'chat',?,1)`)
       .bind(channelId, model, upstream).run();
   }
 }
@@ -162,11 +162,10 @@ describe('web chat HTTP contract and accounting boundaries', () => {
       body: JSON.stringify({ channelId, protocol, upstreamModel: 'upstream-full' }),
     });
     expect(mapping.response.status, mapping.text).toBe(201);
-    expect((await body(mapping)).data.capabilities.features).toEqual([]);
     const catalog = await request('/api/v1/chat/models', { headers: jsonHeaders(user) });
     expect(catalog.response.status).toBe(200);
     expect((await body(catalog)).data.items.find((group: { id: string }) => group.id === 'chat-full').models)
-      .toContainEqual({ publicModelId: model, maxOutputTokens: 64, sellPrices: { input: '1', output: '1', cacheRead: '0.5' } });
+      .toContainEqual({publicModelId: model, sellPrices: { input: '1', output: '1', cacheRead: '0.5' }});
     const created = await request('/api/v1/chat/conversations', {
       method: 'POST', headers: jsonHeaders(user, true),
       body: JSON.stringify({ groupId: 'chat-full', modelId: model }),
@@ -200,15 +199,6 @@ describe('web chat HTTP contract and accounting boundaries', () => {
     expect(discountGroup?.billingMultiplier).toBe('0.2');
     expect(fullGroup?.models.some(item => item.publicModelId === model)).toBe(true);
     expect(discountGroup?.models.some(item => item.publicModelId === model)).toBe(true);
-    // A smaller alternate channel must not reduce the model limit offered by
-    // another eligible channel. The gateway filters candidates per request.
-    await testEnv.DB.prepare("UPDATE channel_models SET capabilities_json=json_set(capabilities_json,'$.maxOutputTokens',8) WHERE channel_id=?")
-      .bind(`chat-discount-channel-${sequence}`).run();
-    await testEnv.DB.prepare("INSERT INTO channel_groups(channel_id,group_id) VALUES(?,'chat-full')")
-      .bind(`chat-discount-channel-${sequence}`).run();
-    const mixed = await body(await request('/api/v1/chat/models', { headers: jsonHeaders(user) }));
-    expect(mixed.data.items.find((group: { id: string }) => group.id === 'chat-full').models)
-      .toContainEqual({ publicModelId: model, maxOutputTokens: 64, sellPrices: { input: '1', output: '1', cacheRead: '0.5' } });
     await testEnv.DB.prepare("UPDATE user_group_access SET created_at=? WHERE user_id=? AND group_id='chat-discount'")
       .bind(Date.now() + 60_000, user.id).run();
     const beforeGrant = await body(await request('/api/v1/chat/models', { headers: jsonHeaders(user) }));

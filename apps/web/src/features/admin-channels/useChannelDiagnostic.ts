@@ -1,3 +1,4 @@
+import type { ChannelProbeInput } from '@cheapai/contracts/channels';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChannelModel, ChannelProbeResult, ChannelView } from '@cheapai/api-client/channels';
 import type { SessionIdentity } from '@cheapai/api-client/types';
@@ -21,7 +22,7 @@ export interface UseChannelDiagnosticState {
   readonly error: unknown | null;
   readonly view: DiagnosticResultView;
   readonly selectMapping: (selection: string) => void;
-  readonly run: () => Promise<void>;
+  readonly run: (params?: ChannelProbeInput['params']) => Promise<void>;
 }
 
 interface DiagnosticState {
@@ -129,7 +130,7 @@ export function useChannelDiagnostic({
     [channel.models, contextKey, open, operation],
   );
 
-  const run = useCallback(async () => {
+  const run = useCallback(async (params?: ChannelProbeInput['params']) => {
     if (!open || !selectedModel || busy || busyRef.current) return;
 
     const controller = new AbortController();
@@ -158,7 +159,7 @@ export function useChannelDiagnostic({
       !controller.signal.aborted;
 
     try {
-      const completed = await operation.run(channel, selectedModel, controller.signal);
+      const completed = await operation.run(channel, selectedModel, controller.signal, params);
       if (isCurrentRun()) {
         setState((current) => {
           if (current.contextKey !== contextKey || current.operation !== operation) return current;

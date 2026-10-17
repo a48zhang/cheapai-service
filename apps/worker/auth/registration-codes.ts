@@ -5,15 +5,14 @@ import { ApiError } from '../http';
 import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '../http';
 import { generateToken, getTokenDisplayPrefix, hashToken } from './tokens';
 
-export const REGISTRATION_CODE_LIMITS = Object.freeze({ quantity: 100, lifetimeMs: 30 * 86_400_000 });
 export interface GenerateRegistrationCodesInput {
   /** Trusted authenticated actor and server time, never copied from request body. */
   actorId: string;
   now: number;
   operationId: string;
   quantity: number;
-  /** Explicit absolute expiry keeps the retry fingerprint stable across time. */
-  expiresAt: number;
+  /** Omitted or null expiry creates a code with no expiry. */
+  expiresAt?: number | null;
 }
 export interface RegistrationCodeMetadata { id: string; displayPrefix: string; ordinal: number; expiresAt: number | null }
 export type RegistrationCodeBatchResult =
@@ -25,7 +24,7 @@ function validId(value: unknown): value is string {
   return typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(value)
     && !/s2a_(?:invite|key|session)_/.test(value);
 }
-async function fingerprint(quantity: number, expiresAt: number): Promise<string> {
+async function fingerprint(quantity: number, expiresAt: number | null): Promise<string> {
   const data = new TextEncoder().encode(JSON.stringify(['registration-codes/v1', quantity, expiresAt]));
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', data));
   return Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('');
@@ -48,21 +47,19 @@ async function replay(database: D1Database, row: BatchRow, expected: string): Pr
 /** Atomic batch claim + generated hashes + O01 audit. No balances or secrets stored. */
 export async function generateRegistrationCodes(database: D1Database, input: GenerateRegistrationCodesInput): Promise<RegistrationCodeBatchResult> {
   if (!validId(input.actorId) || !validId(input.operationId) || !Number.isSafeInteger(input.now) || input.now < 0
-    || !Number.isSafeInteger(input.quantity) || input.quantity < 1 || input.quantity > REGISTRATION_CODE_LIMITS.quantity
-    || !Number.isSafeInteger(input.expiresAt) || input.expiresAt < 0) throw new ApiError('invalid_request');
+    || !Number.isSafeInteger(input.quantity) || input.quantity < 1
+    || (input.expiresAt != null && (!Number.isSafeInteger(input.expiresAt) || input.expiresAt < 0))) throw new ApiError('invalid_request');
   const actor = await prepare(database, "SELECT id FROM users WHERE id=? AND role='admin' AND status='active'", [input.actorId]).first();
   if (!actor) throw new ApiError('forbidden');
-  const payloadFingerprint = await fingerprint(input.quantity, input.expiresAt);
+  const expiresAt = input.expiresAt ?? null;
+  const payloadFingerprint = await fingerprint(input.quantity, expiresAt);
   const existing = await findBatch(database, input);
   if (existing) return replay(database, existing, payloadFingerprint);
-  // An expired retry may still read a committed batch above; only new issuance
-  // requires a future expiry bounded by the maximum lifetime.
-  if (input.expiresAt <= input.now || input.expiresAt - input.now > REGISTRATION_CODE_LIMITS.lifetimeMs) throw new ApiError('invalid_request');
   const batchId = crypto.randomUUID();
   const generated = await Promise.all(Array.from({ length: input.quantity }, async (_, ordinal) => {
     const token = generateToken('invitation');
     return { id: crypto.randomUUID(), ordinal, token, hash: await hashToken('invitation', token),
-      displayPrefix: getTokenDisplayPrefix('invitation', token), expiresAt: input.expiresAt };
+      displayPrefix: getTokenDisplayPrefix('invitation', token), expiresAt };
   }));
   try {
     await batch(database, [
@@ -70,7 +67,7 @@ export async function generateRegistrationCodes(database: D1Database, input: Gen
       // Recheck actor permissions inside the same SQL transaction as issuance.
       prepare(database, `INSERT INTO registration_code_batches (id,actor_id,operation_id,fingerprint,quantity,expires_at,created_at)
         SELECT ?,id,?,?,?,?,? FROM users WHERE id=? AND role='admin' AND status='active'`,
-        [batchId, input.operationId, payloadFingerprint, input.quantity, input.expiresAt, input.now, input.actorId]),
+        [batchId, input.operationId, payloadFingerprint, input.quantity, expiresAt, input.now, input.actorId]),
       prepare(database, 'SELECT CASE WHEN changes()=1 THEN 1 ELSE abs(-9223372036854775808) END AS actor_guard'),
       ...generated.map((code) => prepare(database, `INSERT INTO registration_codes
         (id,code_hash,display_prefix,expires_at,created_by,created_at,operation_id,ordinal) VALUES (?,?,?,?,?,?,?,?)`,
@@ -78,7 +75,7 @@ export async function generateRegistrationCodes(database: D1Database, input: Gen
       buildAuditStatement(database, {
         actor_id: input.actorId, action: 'registration_codes.generate', target_type: 'registration_code_batch',
         target_id: batchId, operation_id: batchId, created_at: input.now,
-        changes: { quantity: input.quantity, expires_at: input.expiresAt },
+        changes: { quantity: input.quantity, expires_at: expiresAt },
       }),
     ]);
   } catch (error) {

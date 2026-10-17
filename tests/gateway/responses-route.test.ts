@@ -20,9 +20,9 @@ beforeEach(async () => {
   await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
     VALUES('route-channel','Fixture','https://provider.example',?,'active',1,1,60,1,0,0)`).bind(credential).run();
   await testEnv.DB.prepare("INSERT INTO channel_groups(channel_id,group_id) VALUES('route-channel','route-group')").run();
-  await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('route-model','active','{"input":"1","output":"2"}',1,0,64,0,0)`).run();
-  await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,upstream_model,protocol,capabilities_json,config_version)
-    VALUES('route-channel','route-model','provider','responses','{"protocol":"responses","features":["streaming"],"maxOutputTokens":64}',1)`).run();
+  await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,created_at,updated_at) VALUES ('route-model','active','{"input":"1","output":"2"}',1,0,0)`).run();
+  await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,upstream_model,protocol,config_version)
+    VALUES('route-channel','route-model','provider','responses',1)`).run();
 });
 const post = (value: unknown, auth = true) => new Request(`https://local.test${RESPONSES_PATH}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(value) });
 

@@ -165,7 +165,7 @@ describe('CM-S5 original Chat usage evidence and target display', () => {
     const observed = stream.push(usageOnly(finalUsage));
     expect(observed.events).toEqual([]); expect(observed.usageUpdates).toMatchObject([{ final: true, counts: { inputTokens: 10, outputTokens: 3 } }]);
     const done = stream.push({ data: '[DONE]' });
-    
+
     expect(done.usage).toMatchObject({ quality: 'complete', protocol: 'chat', counts: { inputTokens: 10, outputTokens: 3, cacheReadTokens: 2, cacheWriteTokens: 3 } });
     expect(JSON.parse(done.events[1]!.data).usage).toEqual({ output_tokens: 3, cache_read_input_tokens: 2, cache_creation_input_tokens: 3, output_tokens_details: { thinking_tokens: 1 }, input_tokens: 5 });
   });

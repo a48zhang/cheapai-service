@@ -26,7 +26,7 @@ interface Item { id: string; type: string; closed: boolean; parts: Map<number, P
 function makeSession(context: ResponseContext, options: StreamOptions, budget: ByteBudget): ConversionResult<ResponsesStreamSession> {
   const max = options.maxBufferedBytes;
   if (!Number.isSafeInteger(max) || max < 1 || !['ignore', 'reject', 'preserve'].includes(options.unknownEventPolicy) ||
-    !text(context.targetModel) || !context.targetModel.trim() || context.targetModel.length > 512 || /[\u0000-\u001f\u007f]/u.test(context.targetModel) ||
+    !text(context.targetModel) ||
     !text(context.identity.responseId) || !context.identity.responseId || context.identity.responseId.length > 128 || /[\u0000-\u0020\u007f]/u.test(context.identity.responseId)) {
     return { ok: false, error: error('invalid_stream_configuration') };
   }

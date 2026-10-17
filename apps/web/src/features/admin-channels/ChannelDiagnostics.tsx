@@ -1,3 +1,4 @@
+import type { ChannelProbeInput } from '@cheapai/contracts/channels';
 import { useRef, useState } from 'react';
 import type { ChannelModel, ChannelView } from '@cheapai/api-client/channels';
 import type { SessionIdentity } from '@cheapai/api-client/types';
@@ -38,7 +39,25 @@ export function ChannelDiagnostics({
   const { selectedModel, busy, result, error, view } = diagnostic;
   const detailsRef = useRef<HTMLDivElement>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
-  const preview = selectedModel === null ? null : createDiagnosticPreview(channel, selectedModel);
+  const example = selectedModel === null ? null : createDiagnosticPreview(channel, selectedModel);
+  const draftKey = JSON.stringify([channel.id, diagnostic.selection]);
+  const [requestDraft, setRequestDraft] = useState<{ selection: string; body: string } | null>(null);
+  const requestBody = requestDraft?.selection === draftKey ? requestDraft.body : example?.body ?? '{}';
+  let params: ChannelProbeInput['params'] | null = null;
+  let paramsError: string | null = null;
+  try {
+    const parsed: unknown = JSON.parse(requestBody);
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      paramsError = '请求正文需要是 JSON 对象。';
+    } else {
+      params = parsed as NonNullable<ChannelProbeInput['params']>;
+    }
+  } catch {
+    paramsError = '请求正文不是有效的 JSON。';
+  }
+  const preview = selectedModel === null || params === null
+    ? null
+    : createDiagnosticPreview(channel, selectedModel, params);
   const state = busy
     ? 'running'
     : view.state === 'idle'
@@ -46,7 +65,7 @@ export function ChannelDiagnostics({
       : view.state === 'unconfirmed'
         ? 'unconfirmed'
         : 'complete';
-  const runnable = channel.status === 'active' && channel.hasCredential && selectedModel !== null;
+  const runnable = channel.hasCredential && selectedModel !== null;
   const changeOpen = (next: boolean) => {
     if (!next && busy && !window.confirm('诊断仍在进行，关闭后无法确认本次结果。仍要关闭？'))
       return;
@@ -108,10 +127,10 @@ export function ChannelDiagnostics({
           </Button>
           <Button
             busy={busy}
-            disabled={!runnable}
+            disabled={!runnable || paramsError !== null}
             onClick={() => {
               setDownloadError(null);
-              void diagnostic.run();
+              if (params !== null) void diagnostic.run(params);
             }}
           >
             运行诊断
@@ -138,11 +157,7 @@ export function ChannelDiagnostics({
         {!runnable && !busy && (
           <div className="flex items-center justify-between gap-3 text-sm">
             <p>
-              {channel.status !== 'active'
-                ? '渠道已停用。'
-                : !channel.hasCredential
-                  ? '渠道缺少上游凭据。'
-                  : '此渠道尚无模型映射。'}
+              {!channel.hasCredential ? '渠道缺少上游凭据。' : '此渠道尚无模型映射。'}
             </p>
             {onRepair && (
               <Button
@@ -150,20 +165,31 @@ export function ChannelDiagnostics({
                 size="sm"
                 onClick={() =>
                   onRepair(
-                    channel.status !== 'active' || !channel.hasCredential
+                    !channel.hasCredential
                       ? 'credentials'
                       : 'mapping',
                     selectedModel,
                   )
                 }
               >
-                {channel.status !== 'active' || !channel.hasCredential
+                {!channel.hasCredential
                   ? '编辑渠道'
                   : '配置模型映射'}
               </Button>
             )}
           </div>
         )}
+        <Field label="探测请求正文（JSON）">
+          <textarea
+            className="w-full rounded border p-3 font-mono text-sm"
+            rows={8}
+            value={requestBody}
+            disabled={busy}
+            onChange={(event) => setRequestDraft({ selection: draftKey, body: event.target.value })}
+          />
+        </Field>
+        <p className="text-sm text-[var(--color-ink-muted)]">示例可自由修改；上游协议要求的字段（如 Messages 的 max_tokens）请自行填写。模型使用所选映射。</p>
+        {paramsError && <p role="alert">{paramsError}</p>}
         <Tabs
           key={contextKey}
           defaultValue="result"

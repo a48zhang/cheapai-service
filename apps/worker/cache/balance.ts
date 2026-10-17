@@ -19,7 +19,7 @@ export interface BalanceRead {
   /** This result never replaces final D1 authorization/request registration. */
   readonly requiresAuthoritativeAdmission: true;
 }
-export type BalanceCacheConfig = Pick<RuntimeConfig, 'balanceCacheEnabled' | 'balanceCacheTtlMs' | 'admissionMinBalanceUnits'>;
+export type BalanceCacheConfig = Pick<RuntimeConfig, 'balanceCacheEnabled' | 'balanceCacheTtlMs'>;
 
 export function balanceCacheKey(userId: string): string {
   if (typeof userId !== 'string' || !userId.trim() || userId.length > 128 || /[\u0000-\u001f\u007f]/.test(userId)) throw new ApiError('invalid_request');
@@ -47,9 +47,7 @@ export async function readBalance(
   now: () => number = Date.now,
 ): Promise<BalanceRead | null> {
   const key = balanceCacheKey(userId);
-  let threshold: bigint;
-  try { threshold = parseUnits(config.admissionMinBalanceUnits); } catch { throw new ApiError('invalid_request'); }
-  if (threshold < 0n || typeof config.balanceCacheEnabled !== 'boolean' ||
+  if (typeof config.balanceCacheEnabled !== 'boolean' ||
       !Number.isSafeInteger(config.balanceCacheTtlMs) || config.balanceCacheTtlMs <= 0) throw new ApiError('invalid_request');
   const maxAgeMs = Math.min(config.balanceCacheTtlMs, MAX_BALANCE_SNAPSHOT_AGE_MS);
   const clock = now;
@@ -60,7 +58,7 @@ export async function readBalance(
       // Recheck after the asynchronous read so KV latency cannot extend freshness.
       const age = clock() - cached.observed_at;
       const balance = parseUnits(cached.data.balance_units);
-      if (age >= 0 && age < maxAgeMs && balance > 0n && balance >= threshold) {
+      if (age >= 0 && age < maxAgeMs && balance > 0n) {
         return { snapshot: cached, source: 'cache', requiresAuthoritativeAdmission: true };
       }
     }

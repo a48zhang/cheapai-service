@@ -77,7 +77,7 @@ function jsonBoundary(value: unknown): void {
 }
 function contextIdentity(context: ResponseContext, upstreamId?: unknown): void {
   if (!context || !isRepresentableWireId(context.identity?.responseId) || (upstreamId !== undefined && !isRepresentableWireId(upstreamId))
-    || typeof context.targetModel !== 'string' || !context.targetModel.trim() || typeof context.idFor !== 'function'
+    || typeof context.targetModel !== 'string' || typeof context.idFor !== 'function'
     || !Number.isSafeInteger(context.createdAt) || context.createdAt < 0
     || (context.identity.upstreamResponseId !== undefined && (!isRepresentableWireId(context.identity.upstreamResponseId)
       || (upstreamId !== undefined && context.identity.upstreamResponseId !== upstreamId)))) invalid('context', 'invalid_response_context');
@@ -208,7 +208,7 @@ function convert(input: unknown, context: ResponseContext): ConversionResult<Out
   const errorEnvelope = nativeError(input, context);
   if (errorEnvelope !== undefined) return errorEnvelope;
   const source = record(input, '$', ['id', 'object', 'created_at', 'model', 'status', 'output'], ['usage', 'error', 'incomplete_details', ...RESPONSE_METADATA_KEYS]);
-  if (source.object !== 'response' || typeof source.model !== 'string' || !source.model.trim()
+  if (source.object !== 'response' || typeof source.model !== 'string'
     || !Number.isSafeInteger(source.created_at) || (source.created_at as number) < 0 || !Array.isArray(source.output)) invalid('$');
   contextIdentity(context, source.id);
   if (typeof source.status !== 'string') invalid('$.status');

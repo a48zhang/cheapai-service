@@ -11,7 +11,7 @@ const ordinary = 'c17-user';
 let env: Env;
 const cookies = new Map<string, string>();
 const channelInput = { name: 'C17 Channel', baseUrl: 'https://provider.example.invalid', upstreamKey: 'c17-local-upstream-secret', concurrencyLimit: 2, rpmLimit: 60 };
-const modelInput = { publicModelId: 'c17-model', sellPrices: { input: '1', output: '2' }, admissionMinBalanceUnits: '0', maxOutputTokens: 4096 };
+const modelInput = {publicModelId: 'c17-model', sellPrices: { input: '1', output: '2' }};
 function call(path: string, options: { method?: string; body?: unknown; actor?: string; bindings?: Env; headers?: Record<string, string> } = {}) {
   const method = options.method ?? 'GET';
   const csrf = issueCsrfToken();
@@ -47,9 +47,7 @@ describe('configuration CRUD through the real app entry', () => {
     const model = await data<{ priceVersion: number; sellPrices: { input: string } }>(await call('/api/v1/admin/models', { method: 'POST', body: modelInput }), 201);
     expect(model.priceVersion).toBe(1); expect(model.sellPrices.input).toBe('1');
     const mappingPath = '/api/v1/admin/models/c17-model/mappings';
-    const mapping = await data<{ configVersion: number }>(await call(mappingPath, { method: 'POST', body: {
-      channelId: createdChannel.id, protocol: 'chat', upstreamModel: 'upstream-model', capabilities: { protocol: 'chat', features: [], maxOutputTokens: 4096 },
-    } }), 201);
+    const mapping = await data<{ configVersion: number }>(await call(mappingPath, { method: 'POST', body: {channelId: createdChannel.id, protocol: 'chat', upstreamModel: 'upstream-model'} }), 201);
     expect(mapping.configVersion).toBe(1);
     await data(await call(`${mappingPath}/${createdChannel.id}/chat`, { method: 'PATCH', body: { version: 1, upstreamModel: 'changed-upstream' } }));
     expect((await call(`${mappingPath}/${createdChannel.id}/chat`, { method: 'PATCH', body: { version: 1, upstreamModel: 'stale' } })).status).toBe(409);

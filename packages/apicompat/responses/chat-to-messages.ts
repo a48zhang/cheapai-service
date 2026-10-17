@@ -74,7 +74,7 @@ function nativeError(input: unknown, context: ResponseContext): ConversionResult
     return failure('invalid_response', 'invalid_chat_error');
   }
   if (!context || !isRepresentableWireId(context.identity?.responseId) || typeof context.targetModel !== 'string'
-    || !context.targetModel.trim() || typeof context.idFor !== 'function' || !Number.isSafeInteger(context.createdAt) || context.createdAt < 0) {
+    || typeof context.idFor !== 'function' || !Number.isSafeInteger(context.createdAt) || context.createdAt < 0) {
     return failure('invalid_response', 'invalid_response_context');
   }
   const safe: ProtocolError = { kind: 'upstream_error', code: 'upstream_error', message: 'The upstream Chat request failed.' };
@@ -137,7 +137,7 @@ function convert(input: unknown, context: ResponseContext): ConversionResult<Out
   if (!parsed.ok) return parsed;
   const source = parsed.value;
   if (!context || !isRepresentableWireId(context.identity?.responseId) || !isRepresentableWireId(source.id)
-    || typeof context.targetModel !== 'string' || !context.targetModel.trim() || typeof context.idFor !== 'function'
+    || typeof context.targetModel !== 'string' || typeof context.idFor !== 'function'
     || !Number.isSafeInteger(context.createdAt) || context.createdAt < 0
     || (context.identity.upstreamResponseId !== undefined && context.identity.upstreamResponseId !== source.id)) return failure('invalid_response', 'invalid_response_context');
   const extra = extraKey(source, ['id', 'object', 'created', 'model', 'choices', 'usage', 'system_fingerprint', 'service_tier']);

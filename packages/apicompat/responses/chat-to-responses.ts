@@ -50,7 +50,7 @@ function isResponsesServiceTier(value: unknown): value is ResponsesServiceTier {
 }
 
 function validContext(context: ResponseContext, upstreamId?: string): boolean {
-  return !!context && typeof context.targetModel === 'string' && context.targetModel.trim().length > 0
+  return !!context && typeof context.targetModel === 'string'
     && Number.isSafeInteger(context.createdAt) && context.createdAt >= 0 && typeof context.idFor === 'function'
     && isRepresentableWireId(context.identity?.responseId)
     && (upstreamId === undefined || isRepresentableWireId(upstreamId))

@@ -66,7 +66,7 @@ for (const mode of ['closed', 'open', 'invite'] as const) {
       await fillRegistration(page, email, mode === 'invite' ? await invitation() : undefined);
       if (verify) {
         await page.getByRole('button', { name: '发送验证码', exact: true }).click();
-        await expect(page.getByText(/验证码发送请求已受理/)).toBeVisible();
+        await page.getByRole('status').waitFor({ state: 'visible' });
         await page.getByLabel('邮箱验证码', { exact: true }).fill((await mail(email)).code);
       } else await expect(page.locator('#email-code')).toHaveCount(0);
       await page.getByRole('button', { name: '创建账户', exact: true }).click();
@@ -78,12 +78,12 @@ for (const mode of ['closed', 'open', 'invite'] as const) {
       expect(user.email_verified_at === null).toBe(!verify);
 
       await page.goto('/keys');
-      await page.getByRole('button', { name: '创建 Key', exact: true }).click();
+      await page.getByRole('button', { name: '创建密钥', exact: true }).click();
       const dialog = page.getByRole('dialog');
       await dialog.getByLabel('名称', { exact: true }).fill('Browser fixture key');
       await expect(dialog.locator('input[name="groupId"]')).toHaveValue('default');
       await expect(dialog.getByRole('combobox', { name: '分组', exact: true })).toHaveCount(0);
-      await dialog.getByRole('button', { name: '创建 Key', exact: true }).click();
+      await dialog.getByRole('button', { name: '创建密钥', exact: true }).click();
       const secret = dialog.getByLabel('完整 API Key', { exact: true });
       await expect(secret).toBeVisible();
       expect((await secret.inputValue()).startsWith('s2a_key_')).toBe(true);
@@ -109,7 +109,7 @@ test('resend advances generation and the first verification code cannot register
   const email = `q03-resend-${randomUUID()}@example.invalid`;
   await fillRegistration(page, email);
   await page.getByRole('button', { name: '发送验证码', exact: true }).click();
-  await expect(page.getByText(/验证码发送请求已受理/)).toBeVisible();
+  await page.getByRole('status').waitFor({ state: 'visible' });
   const old = await mail(email);
   await expect(page.getByRole('button', { name: /秒后重发/ })).toBeDisabled();
   const aged = await administrator.post('/__test__/age-challenge', { headers: { 'X-E2E-Control': connection.token }, data: { email } });
@@ -135,9 +135,9 @@ test('a session outage offers recovery without treating it as logout', async ({ 
   await page.route('**/api/v1/auth/me', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'service_unavailable', message: 'Unavailable' }, request_id: 'identity-outage' }) }));
   await page.goto('/dashboard');
   await expect(page).toHaveURL(url => url.pathname === '/session-unavailable' && url.searchParams.get('returnTo') === '/dashboard');
-  await expect(page.getByRole('button', { name: /重试|恢复/ })).toBeVisible();
+  await expect(page.getByRole('main').getByRole('button')).toBeVisible();
   await page.unroute('**/api/v1/auth/me');
-  await page.getByRole('button', { name: /重试|恢复/ }).click();
+  await page.getByRole('main').getByRole('button').click();
   await expect(page).toHaveURL(url => url.pathname === '/login' && url.searchParams.get('returnTo') === '/dashboard');
 });
 
@@ -160,10 +160,11 @@ test('login rejects an external return target and mobile navigation remains oper
   await expect(page).toHaveURL(url => url.origin === connection.baseURL && url.pathname === '/');
   await page.goto('/dashboard');
   await expect(page).toHaveURL(url => url.pathname === '/billing');
-  await page.getByRole('link', { name: 'API 接入', exact: true }).click();
+  await page.getByRole('button', { name: '打开导航', exact: true }).click();
+  await page.getByRole('dialog').locator('a[href="/keys"]').click();
   await expect(page).toHaveURL(url => url.pathname === '/keys');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByRole('button', { name: '账户菜单', exact: true }).click();
-  await page.getByRole('menuitem', { name: '使用记录', exact: true }).click();
+  await page.locator('[role="menuitem"][href="/requests"]').click();
   await expect(page).toHaveURL(url => url.pathname === '/requests');
 });

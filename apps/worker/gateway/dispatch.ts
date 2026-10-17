@@ -190,7 +190,7 @@ export async function dispatchGatewayRequest(dependencies: GatewayDispatchDepend
     observer.mark('admitted');
     const upstream = admission.request.upstream_protocol;
     const resolved = registry.lookup({ from: downstream, to: upstream, streaming: parsed.stream }, {
-      capabilities: admission.selected.candidate.mapping.capabilities, ...(admission.outputTokenLimit === undefined ? {} : { outputTokenLimit: admission.outputTokenLimit }) });
+      capabilities: { protocol: admission.selected.candidate.mapping.protocol }, ...(admission.outputTokenLimit === undefined ? {} : { outputTokenLimit: admission.outputTokenLimit }) });
     if (!resolved.ok) throw new ApiError('service_unavailable');
     const transport = { ...dependencies.transport, downstreamHeaders: request.headers,
       ...(dependencies.messagesPolicy === undefined ? {} : { messages: dependencies.messagesPolicy }) };

@@ -173,7 +173,7 @@ function summaryFor(
   if (failure?.source === 'protocol' || failure?.phase === 'validation') {
     return '上游响应不符合所选协议。';
   }
-  if (result?.outcome === 'responded') return '上游响应通过协议校验。';
+  if (result?.outcome === 'responded') return '已收到上游成功响应。';
   if (result?.outcome === 'http_error') {
     return upstreamStatus === null ? '上游返回 HTTP 错误。' : `上游返回 HTTP ${upstreamStatus}。`;
   }

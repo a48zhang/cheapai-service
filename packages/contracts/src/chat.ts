@@ -22,7 +22,6 @@ export const chatMessageStatusSchema = z.enum(['generating', 'completed', 'stopp
 
 export const chatModelSchema = z.object({
   publicModelId: nonEmptyTextSchema(256),
-  maxOutputTokens: positiveSchema.optional(),
   /** Price snapshot is display-only; missing values remain unavailable, never free. */
   sellPrices: sellPricesSchema.optional(),
 });

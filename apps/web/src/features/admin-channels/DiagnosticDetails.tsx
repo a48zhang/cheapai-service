@@ -56,16 +56,7 @@ function formatDuration(durationMs: number | null): string {
 export function DiagnosticDetails({
   evidence,
   diagnosticId = null,
-  channelVersion = null,
-  mappingVersion = null,
-  priceVersion = null,
 }: DiagnosticDetailsProps) {
-  const versions = [
-    channelVersion === null ? null : `渠道 ${channelVersion}`,
-    mappingVersion === null ? null : `映射 ${mappingVersion}`,
-    priceVersion === null ? null : `价格 ${priceVersion}`,
-  ].filter((version): version is string => version !== null);
-
   return (
     <section aria-label="诊断详细信息" className="space-y-2">
       <details className="overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
@@ -154,12 +145,6 @@ export function DiagnosticDetails({
                 </div>
               </>
             )}
-            <div className="min-w-0">
-              <dt className="text-xs text-[var(--color-muted-foreground)]">配置版本</dt>
-              <dd className="mt-1 break-words text-xs text-[var(--color-foreground)]">
-                {versions.length === 0 ? '未提供' : versions.join(' · ')}
-              </dd>
-            </div>
           </dl>
 
           {evidence !== null && (

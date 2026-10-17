@@ -7,6 +7,7 @@ import type { SetupChannelDraft, SetupMappingDraft } from './setup-form-model';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { Field } from '../../shared/ui/Field';
 import { Input } from '../../shared/ui/Input';
+import { ModelIdentity } from '../../shared/ui/ModelIdentity';
 import { Select } from '../../shared/ui/Select';
 import { Link } from 'react-router-dom';
 
@@ -131,7 +132,7 @@ export function ChannelSetupSteps({
                 { value: '', label: '不使用内置参考' },
                 ...BUILTIN_MODELS.map((model) => ({
                   value: model.id,
-                  label: `${model.id} · ${model.provider}`,
+                  label: <ModelIdentity modelId={model.id} secondary={model.provider} />,
                 })),
               ]}
               value={mappingDraft.builtinId}
@@ -141,11 +142,7 @@ export function ChannelSetupSteps({
           </Field>
           {selectedBuiltin && (
             <div className="rounded-md bg-[var(--color-muted)] p-3 console-muted">
-              <p>
-                {selectedBuiltin.provider} · 上下文窗口{' '}
-                {selectedBuiltin.contextWindow.toLocaleString()} · 最大输出{' '}
-                {selectedBuiltin.maxOutputTokens.toLocaleString()}
-              </p>
+              <ModelIdentity modelId={selectedBuiltin.id} secondary={selectedBuiltin.provider} />
               <a
                 href={selectedBuiltin.source}
                 target="_blank"
@@ -176,12 +173,10 @@ export function ChannelSetupSteps({
               disabled={busy}
             />
           </Field>
-          <Field label="上游模型 ID" required>
+          <Field label="上游模型 ID">
             <Input
               value={mappingDraft.upstreamModel}
               onChange={(event) => onMappingDraftChange('upstreamModel', event.currentTarget.value)}
-              maxLength={128}
-              required
               disabled={busy}
             />
           </Field>
@@ -221,7 +216,7 @@ export function ChannelSetupSteps({
               <Select
                 items={groups.map((group) => ({
                   value: group.id,
-                  label: `${group.name} · ${group.status === 'active' ? '启用' : '停用'} · v${group.version}`,
+                  label: `${group.name} · ${group.status === 'active' ? '启用' : '停用'}`,
                 }))}
                 value={groupId}
                 onValueChange={onGroupIdChange}

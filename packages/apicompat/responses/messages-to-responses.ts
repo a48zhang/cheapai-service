@@ -51,7 +51,7 @@ const extraKey = (value: object, allowed: readonly string[]) => Object.keys(valu
 function validContext(context: ResponseContext, upstreamId?: string): boolean {
   return !!context && isRepresentableWireId(context.identity?.responseId)
     && (upstreamId === undefined || isRepresentableWireId(upstreamId))
-    && typeof context.targetModel === 'string' && context.targetModel.trim().length > 0
+    && typeof context.targetModel === 'string'
     && typeof context.idFor === 'function' && Number.isSafeInteger(context.createdAt) && context.createdAt >= 0
     && (context.identity.upstreamResponseId === undefined || (isRepresentableWireId(context.identity.upstreamResponseId)
       && (upstreamId === undefined || context.identity.upstreamResponseId === upstreamId)));

@@ -59,8 +59,8 @@ async function addChannel(protocol: Protocol, channelId = `channel-${protocol}`,
     VALUES(?,'Fixture',?,?,'active',?,1,60,1,0,0)`).bind(channelId, `https://${channelId}.example`, credential, priority).run();
   await testEnv.DB.prepare("INSERT INTO channel_groups(channel_id,group_id) VALUES(?,'g14-group')").bind(channelId).run();
   const features = ['streaming', ...(protocol === 'chat' ? ['stream_usage'] : []), ...(protocol === 'responses' ? ['response_history'] : [])];
-  await testEnv.DB.prepare('INSERT INTO channel_models(channel_id,public_model_id,upstream_model,protocol,capabilities_json,config_version) VALUES(?,?,?, ?,?,1)')
-    .bind(channelId, `model-${protocol}`, 'provider', protocol, JSON.stringify({ protocol, features, maxOutputTokens: 64 })).run();
+  await testEnv.DB.prepare('INSERT INTO channel_models(channel_id,public_model_id,upstream_model,protocol,config_version) VALUES(?,?,?, ?,1)')
+    .bind(channelId, `model-${protocol}`, 'provider', protocol).run();
 }
 async function call(protocol: Protocol, payload: unknown, fetcher: GatewayDispatchDependencies['fetch'], extra: Partial<GatewayDispatchDependencies> = {}, headers: HeadersInit = {}) {
   const context = createExecutionContext();
@@ -77,7 +77,7 @@ beforeEach(async () => {
   await testEnv.DB.prepare("INSERT INTO api_keys(id,user_id,key_hash,display_prefix,name,status,created_at,updated_at) VALUES('g14-key','g14-user',?,'s2a_key_ABCDEFGH','Fixture','active',0,0)").bind(await hashToken('apiKey', token)).run();
 
   for (const protocol of protocols) {
-    await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES (?,'active','{"input":"1","output":"2"}',1,0,64,0,0)`).bind(`model-${protocol}`).run();
+    await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,created_at,updated_at) VALUES (?,'active','{"input":"1","output":"2"}',1,0,0)`).bind(`model-${protocol}`).run();
     await addChannel(protocol);
   }
 });
@@ -85,8 +85,8 @@ beforeEach(async () => {
 describe('G14-BASE real native assembly, mock providers only', () => {
   it.each((['chat', 'responses'] as const).flatMap(from => (['chat', 'responses'] as const).flatMap(to => [false, true].map(stream => ({ from, to, stream })))))
   ('$from -> $to stream=$stream leaves omitted client output limits absent on the wire', async ({ from, to, stream }) => {
-    await testEnv.DB.prepare('UPDATE channel_models SET protocol=?,capabilities_json=? WHERE public_model_id=?')
-      .bind(to, JSON.stringify({ protocol: to, features: ['streaming', 'stream_usage'], maxOutputTokens: 64 }), `model-${from}`).run();
+    await testEnv.DB.prepare('UPDATE channel_models SET protocol=? WHERE public_model_id=?')
+      .bind(to, `model-${from}`).run();
     const body: Record<string, unknown> = { ...input(from, stream) };
     delete body.max_tokens; delete body.max_output_tokens; delete body.max_completion_tokens;
     const provider = vi.fn(async (_url: string, init: RequestInit) => {
@@ -130,7 +130,6 @@ describe('G14-BASE real native assembly, mock providers only', () => {
   });
 
   it('bills actual Chat stream usage even when stream_usage was not declared', async () => {
-    await testEnv.DB.prepare("UPDATE channel_models SET capabilities_json=? WHERE public_model_id='model-chat'").bind(JSON.stringify({ protocol: 'chat', features: ['streaming'], maxOutputTokens: 64 })).run();
     const provider = vi.fn(async () => sse('chat'));
     const result = await call('chat', { ...input('chat', true), stream_options: { include_usage: false } }, provider);
     expect(result.response.status).toBe(200); expect(provider).toHaveBeenCalledOnce();
@@ -153,7 +152,7 @@ describe('G14-BASE real native assembly, mock providers only', () => {
     await testEnv.DB.prepare("UPDATE api_keys SET allowed_models_json='[]' WHERE id='g14-key'").run();
     expect((await call('chat', input('chat'), provider)).response.status).toBe(403);
     await testEnv.DB.prepare("UPDATE api_keys SET allowed_models_json=NULL WHERE id='g14-key'").run();
-    await testEnv.DB.prepare("UPDATE channel_models SET protocol='responses',capabilities_json=? WHERE public_model_id='model-chat'").bind(JSON.stringify({ protocol: 'responses', features: [], maxOutputTokens: 64 })).run();
+    await testEnv.DB.prepare("UPDATE channel_models SET protocol='responses' WHERE public_model_id='model-chat'").run();
     const cross = await call('chat', input('chat'), provider); expect(cross.response.status).toBe(200);
     expect(JSON.parse(cross.text)).toMatchObject({ object: 'chat.completion', choices: [{ message: { content: 'hello' } }] });
     expect(JSON.parse(cross.text)).not.toHaveProperty('request_id'); expect(provider).toHaveBeenCalledOnce();

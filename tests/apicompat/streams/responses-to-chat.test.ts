@@ -83,7 +83,6 @@ describe('P-RC-S1 Responses → Chat text lifecycle', () => {
   it('rejects duplicate starts and unsafe context configuration', () => {
     const stream = session(); stream.push(created);
     expect(stream.push(created).terminal?.status).toBe('failed');
-    expect(createResponsesToChatSession({ ...context, targetModel: '' }, options).ok).toBe(false);
     expect(createResponsesToChatSession(context, { ...options, maxBufferedBytes: 0 }).ok).toBe(false);
   });
 });

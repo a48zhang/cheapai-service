@@ -105,7 +105,7 @@ function responseStatusForEvent(type: string): string | undefined {
 function validResponseEnvelope(event: Record<string, unknown>, type: string): Record<string, unknown> | undefined {
   if (!Object.keys(event).every(key => key === 'type' || key === 'sequence_number' || key === 'response') || !object(event.response)) return undefined;
   const response = event.response;
-  if (response.object !== 'response' || !safeId(response.id) || !text(response.model) || !response.model.trim()
+  if (response.object !== 'response' || !safeId(response.id) || !text(response.model)
     || !index(response.created_at) || !text(response.status) || !Array.isArray(response.output)
     || [...Object.keys(response)].some(key => !responseKeys.has(key))) return undefined;
   const expected = responseStatusForEvent(type);
@@ -143,8 +143,7 @@ function validSequence(event: Record<string, unknown>, last: number): boolean {
 function makeSession(context: ResponseContext, options: StreamOptions, budget: ByteBudget): ConversionResult<ResponsesToMessagesSession> {
   if (!Number.isSafeInteger(options.maxBufferedBytes) || options.maxBufferedBytes < 1
     || !['ignore', 'reject', 'preserve'].includes(options.unknownEventPolicy)
-    || !safeId(context.identity?.responseId) || typeof context.targetModel !== 'string' || !context.targetModel.trim()
-    || context.targetModel.length > 512 || /[\u0000-\u001f\u007f]/u.test(context.targetModel)
+    || !safeId(context.identity?.responseId) || typeof context.targetModel !== 'string'
     || !Number.isSafeInteger(context.createdAt) || context.createdAt < 0 || typeof context.idFor !== 'function') {
     return { ok: false, error: error('invalid_stream_configuration') };
   }

@@ -1,5 +1,5 @@
 import { channelInputSchema } from '@cheapai/contracts/channels';
-import { modelMappingInputSchema, protocolSchema } from '@cheapai/contracts/mappings';
+import { modelMappingInputSchema, modelMappingViewSchema, protocolSchema } from '@cheapai/contracts/mappings';
 import { builtinModel } from '@cheapai/model-catalog';
 import type { ChannelInput } from '@cheapai/api-client/channels';
 import type { Protocol } from '@cheapai/api-client/mappings';
@@ -60,13 +60,12 @@ export function buildSetupChannelInput(draft: SetupChannelDraft): ChannelInput {
 
 export function validateSetupMappingDraft(draft: SetupMappingDraft): string | null {
   const validId = (value: string) =>
-    modelMappingInputSchema.shape.upstreamModel.safeParse(value).success;
+    modelMappingViewSchema.shape.publicModelId.safeParse(value).success;
   if (
     !validId(draft.publicModelId) ||
-    !validId(draft.upstreamModel) ||
     !protocolSchema.safeParse(draft.protocol).success
   ) {
-    return '公开模型 ID 和上游模型 ID 必须使用有效标识格式。';
+    return '公开模型 ID 必须使用有效标识格式。';
   }
   return null;
 }

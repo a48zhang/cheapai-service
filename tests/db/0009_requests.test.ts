@@ -60,7 +60,6 @@ describe('0009 execution and billing request records in native D1', () => {
       await expect(insert({ [column]: null })).rejects.toThrow();
     }
     await expect(insert({ id: ' ' })).rejects.toThrow();
-    await expect(insert({ upstream_model: ' ' })).rejects.toThrow();
     for (const json of ['broken', 'null', '[]', '1', '"value"']) await expect(insert({ price_snapshot: json })).rejects.toThrow();
     await expect(insert({ usage_json: '{broken' })).rejects.toThrow();
     await expect(insert({ usage_quality: 'estimated' })).rejects.toThrow();

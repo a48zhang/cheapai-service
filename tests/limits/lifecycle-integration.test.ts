@@ -106,10 +106,10 @@ beforeEach(async () => {
   const credential = 'PRIVATE-UPSTREAM-KEY';
   await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
     VALUES('q06-channel','Q06 Channel','https://provider.example.com',?,'active',1,2,60,1,0,0)`, [credential]).run();
-  await prepare(testEnv.DB, `INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('q06-model','active',?,1,10,4096,0,0)`, [JSON.stringify({ input: '1', output: '2' })]).run();
+  await prepare(testEnv.DB, `INSERT INTO models (public_model_id,status,sell_prices_json,price_version,created_at,updated_at) VALUES ('q06-model','active',?,1,0,0)`, [JSON.stringify({ input: '1', output: '2' })]).run();
   await prepare(testEnv.DB, "INSERT INTO channel_groups(channel_id,group_id) VALUES('q06-channel','q06-group')").run();
-  await prepare(testEnv.DB, `INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,capabilities_json,config_version)
-    VALUES('q06-channel','q06-model','chat','provider-model',?,1)`, [JSON.stringify({ protocol: 'chat', features: [], maxOutputTokens: 4096 })]).run();
+  await prepare(testEnv.DB, `INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,config_version)
+    VALUES('q06-channel','q06-model','chat','provider-model',1)`, []).run();
   subjectA = await authFor(tokenA);
   subjectB = await authFor(tokenB);
 });

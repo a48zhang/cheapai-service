@@ -3,7 +3,6 @@ export interface BuiltinModel {
   id: string;
   provider: 'OpenAI' | 'Anthropic';
   contextWindow: number;
-  maxOutputTokens: number;
   protocol: 'responses' | 'messages';
   prices: Record<string, string>;
   source: string;
@@ -11,13 +10,13 @@ export interface BuiltinModel {
 }
 
 const openai = (id: string, input: string, output: string, cacheRead: string, contextWindow = 400_000, cacheWrite?: string): BuiltinModel => ({
-  id, provider: 'OpenAI', contextWindow, maxOutputTokens: 128_000, protocol: 'responses',
+  id, provider: 'OpenAI', contextWindow, protocol: 'responses',
   prices: { input, output, cacheRead, ...(cacheWrite ? { cacheWrite } : {}) },
   source: `https://developers.openai.com/api/docs/models/${id === 'gpt-5.6' ? 'gpt-5.6-sol' : id}`,
   pricingNote: contextWindow > 400_000 ? '标准档参考价格；长上下文、服务档位及地区加价不自动计入本站售价。' : '标准档参考价格；服务档位及地区加价不自动计入本站售价。',
 });
 const claude = (id: string, input: string, output: string, cacheRead: string, cacheWrite5m: string, cacheWrite1h: string): BuiltinModel => ({
-  id, provider: 'Anthropic', contextWindow: 1_000_000, maxOutputTokens: 128_000, protocol: 'messages',
+  id, provider: 'Anthropic', contextWindow: 1_000_000, protocol: 'messages',
   // Untagged cache creation uses the provider's default five-minute cache rate.
   prices: { input, output, cacheRead, cacheWrite: cacheWrite5m, cacheWrite5m, cacheWrite1h },
   source: 'https://platform.claude.com/docs/en/about-claude/pricing',

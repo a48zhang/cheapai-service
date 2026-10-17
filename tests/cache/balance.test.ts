@@ -7,7 +7,7 @@ import { testEnv } from '../helpers/database';
 
 const userId = 'c15-user';
 const now = 1_788_619_000_000;
-const enabled = { balanceCacheEnabled: true, balanceCacheTtlMs: 15_000, admissionMinBalanceUnits: '100' };
+const enabled = { balanceCacheEnabled: true, balanceCacheTtlMs: 15_000 };
 const cached = (balance = '500', user = userId, observed = now) => ({ schema_version: 1 as const, observed_at: observed,
   data: { user_id: user, balance_units: balance, user_version: 1 } });
 
@@ -39,16 +39,11 @@ describe('optional balance snapshots on native D1/KV', () => {
     expect(database.prepare).not.toHaveBeenCalled();
   });
 
-  it.each(['-100', '0', '99'])('rechecks old low balance %s after a credit', async balance => {
+  it.each(['-100', '0'])('rechecks old low balance %s after a credit', async balance => {
     await testEnv.CACHE.put(balanceCacheKey(userId), encodeSnapshot(cached(balance))!);
     const result = await readBalance(testEnv.DB, testEnv.CACHE, userId, enabled, () => now);
     expect(result?.source).toBe('d1');
     expect(result?.snapshot.data.balance_units).toBe('500');
-  });
-
-  it('allows equality at a positive threshold only as a soft cache hit', async () => {
-    await testEnv.CACHE.put(balanceCacheKey(userId), encodeSnapshot(cached('100'))!);
-    expect((await readBalance(testEnv.DB, testEnv.CACHE, userId, enabled, () => now))?.source).toBe('cache');
   });
 
   it('caps application age at 15 seconds even if configuration asks for more', async () => {

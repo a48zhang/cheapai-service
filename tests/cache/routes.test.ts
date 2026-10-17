@@ -9,15 +9,15 @@ const now = 1_788_619_000_000;
 beforeEach(async () => {
   await prepare(testEnv.DB, 'INSERT INTO groups(id,name,status,version,created_at,updated_at) VALUES(?,?,?,?,?,?)',
     [groupId, 'C13 Group', 'active', 4, now, now]).run();
-  await prepare(testEnv.DB, `INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES (?,'active',?,5,0,4096,?,?)`, [modelId, JSON.stringify({ input: '1', output: '2' }), now, now]).run();
+  await prepare(testEnv.DB, `INSERT INTO models (public_model_id,status,sell_prices_json,price_version,created_at,updated_at) VALUES (?,'active',?,5,?,?)`, [modelId, JSON.stringify({ input: '1', output: '2' }), now, now]).run();
   for (const channel of ['c13-member', 'c13-outsider']) {
     const credential = 'test-upstream-key';
     await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
       VALUES(?,?,?,?,'active',2,3,90,6,?,?)`,
       [channel, channel, 'https://provider.example.com/v1', credential, now, now]).run();
     for (const protocol of ['chat', 'messages']) {
-      await prepare(testEnv.DB, `INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,capabilities_json,config_version) VALUES(?,?,?,?,?,7)`,
-        [channel, modelId, protocol, `upstream-${protocol}`, JSON.stringify({ protocol, features: ['streaming'] })]).run();
+      await prepare(testEnv.DB, `INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,config_version) VALUES(?,?,?,?,7)`,
+        [channel, modelId, protocol, `upstream-${protocol}`]).run();
     }
   }
   await prepare(testEnv.DB, 'INSERT INTO channel_groups(channel_id,group_id) VALUES(?,?)', ['c13-member', groupId]).run();
@@ -36,7 +36,6 @@ describe('route configuration snapshots on native D1/KV', () => {
       expect(candidate.channel.configVersion).toBe(6);
       expect(candidate.mapping.configVersion).toBe(7);
       expect(candidate.mapping.channelId).toBe(candidate.channel.id);
-      expect(candidate.mapping.capabilities.protocol).toBe(candidate.mapping.protocol);
     }
     const serialized = (await testEnv.CACHE.get(routesCacheKey(groupId, modelId)))!;
     expect(serialized).not.toMatch(/secret|upstream_key|test-upstream-key|upstreamKey|c13-outsider/);
@@ -69,11 +68,10 @@ describe('route configuration snapshots on native D1/KV', () => {
     expect((await readRoutes(testEnv.DB, testEnv.CACHE, groupId, modelId, { now: () => now, forceRefresh: true }))?.snapshot.data.candidates).toEqual([]);
   });
 
-  it.each(['scope', 'protocol', 'duplicate'])('rejects corrupted cached %s', async corruption => {
+  it.each(['scope', 'duplicate'])('rejects corrupted cached %s', async corruption => {
     const result = await readRoutes(testEnv.DB, testEnv.CACHE, groupId, modelId, { now: () => now });
     const snapshot = JSON.parse(JSON.stringify(result!.snapshot));
     if (corruption === 'scope') snapshot.data.group.id = 'other-group';
-    if (corruption === 'protocol') snapshot.data.candidates[0].mapping.capabilities.protocol = 'responses';
     if (corruption === 'duplicate') snapshot.data.candidates.push(snapshot.data.candidates[0]);
     const kv = { get: async () => JSON.stringify(snapshot), put: async () => {} } as unknown as KVNamespace;
     const reloaded = await readRoutes(testEnv.DB, kv, groupId, modelId, { now: () => now });

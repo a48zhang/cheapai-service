@@ -1,3 +1,4 @@
+import { ModelIdentity } from '../../shared/ui/ModelIdentity';
 import { useEffect, useId, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
@@ -92,14 +93,14 @@ export function ChannelMappingPanel({
           ? await api.createMapping(modelId, {
               channelId: channel.id,
               protocol,
-              upstreamModel: upstreamModel.trim(),
+              upstreamModel,
             })
           : await api.updateMapping(
               editor.publicModelId,
               channel.id,
               editor.protocol,
               editor.mappingVersion,
-              { upstreamModel: upstreamModel.trim() },
+              { upstreamModel },
             );
       await Promise.all([
         recordMappingSaved(queryClient, actorId, saved),
@@ -244,12 +245,10 @@ export function ChannelMappingPanel({
         modelOptions.length === 0 && (
           <p className="console-muted">模型目录为空，请先在模型目录创建对外模型。</p>
         )}
-      <Field label="上游模型名称" required>
+      <Field label="上游模型名称">
         <Input
           value={upstreamModel}
           onChange={(event) => setUpstreamModel(event.currentTarget.value)}
-          required
-          maxLength={128}
           disabled={saving}
           placeholder="例如 gpt-5"
           autoComplete="off"
@@ -259,11 +258,7 @@ export function ChannelMappingPanel({
         <Button variant="outline" disabled={saving} onClick={() => setEditor(null)}>
           取消
         </Button>
-        <Button
-          type="submit"
-          busy={saving}
-          disabled={conflict || !modelId || !upstreamModel.trim()}
-        >
+        <Button type="submit" busy={saving} disabled={conflict || !modelId}>
           {editor === 'new' ? '添加模型' : '保存更改'}
         </Button>
       </div>
@@ -299,9 +294,7 @@ export function ChannelMappingPanel({
               className="border-t border-[var(--color-border)] first:border-t-0"
             >
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_8rem_4rem]">
-                <span className="truncate font-medium" title={mapping.publicModelId}>
-                  {mapping.publicModelId}
-                </span>
+                <ModelIdentity modelId={mapping.publicModelId} />
                 <span
                   className="truncate text-sm text-[var(--color-muted-foreground)]"
                   title={mapping.upstreamModel}

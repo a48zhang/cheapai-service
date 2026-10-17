@@ -332,13 +332,13 @@ function checks(options: MessagesValidationOptions) {
   }
   function stopDetails(value: unknown): boolean {
     return object(value) && value.type === 'refusal' && nullable(string)(value.category) && nullable(string)(value.explanation)
-      && optional(value, 'recommended_model', nullable(nonempty)) && keys(value, ['type', 'category', 'explanation', 'recommended_model']);
+      && optional(value, 'recommended_model', nullable(string)) && keys(value, ['type', 'category', 'explanation', 'recommended_model']);
   }
 
   const stopReason = nullable(options.native ? string : oneOf("end_turn", "max_tokens", "stop_sequence", "tool_use", "pause_turn", "refusal", "model_context_window_exceeded"));
 
   function response(value: unknown): boolean {
-    return object(value) && value.type === "message" && value.role === "assistant" && nonempty(value.id) && nonempty(value.model)
+    return object(value) && value.type === "message" && value.role === "assistant" && nonempty(value.id) && string(value.model)
       && list(outputBlock)(value.content) && stopReason(value.stop_reason) && nullable(string)(value.stop_sequence)
       && optional(value, "usage", entry => usage(entry, false))
       && optional(value, 'container', nullable(container)) && optional(value, 'stop_details', nullable(stopDetails))
@@ -380,7 +380,7 @@ function checks(options: MessagesValidationOptions) {
 
   function request(value: unknown): ConversionResult<MessagesRequest> {
     if (!json(value) || !object(value)) return failure("invalid_request", "body");
-    if (!nonempty(value.model)) return failure("invalid_request", "model");
+    if (!string(value.model)) return failure("invalid_request", "model");
     if (!positive(value.max_tokens)) return failure("invalid_request", "max_tokens");
     if (!Array.isArray(value.messages) || value.messages.length === 0 || !value.messages.every(message => object(message)
       && oneOf("user", "assistant")(message.role) && (string(message.content) || list(contentBlock)(message.content)) && keys(message, ["role", "content"]))) return failure("invalid_request", "messages");

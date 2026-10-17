@@ -57,7 +57,7 @@ describe('atomic consumption repository in native D1', () => {
     await testEnv.DB.prepare(`INSERT INTO channels (id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
       VALUES ('b04-channel','Synthetic channel','https://example.invalid',?,'active',0,2,60,1,0,0)`).bind(credential).run();
     // Today's prices deliberately differ from the already admitted snapshot.
-    await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('b04-model','active','{"input":"1","output":"2"}',2,0,4096,0,0)`).run();
+    await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,created_at,updated_at) VALUES ('b04-model','active','{"input":"1","output":"2"}',2,0,0)`).run();
     await request();
   });
 

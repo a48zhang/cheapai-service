@@ -8,7 +8,7 @@ describe('Messages entry parsing and version boundary', () => {
     const value = { ...valid, stream: true, system: [{ type: 'text', text: 'first' }, { type: 'text', text: 'second' }],
       messages: [...valid.messages, { role: 'assistant', content: [{ type: 'tool_use', id: 'call-1', name: 'lookup', input: { n: 1 } }] },
         { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'call-1', content: 'result' }] }] };
-    const parsed = await parseMessagesInput(input(value), { maxOutputTokens: 2048 });
+    const parsed = await parseMessagesInput(input(value));
     expect(parsed).toMatchObject({ protocol: 'messages', model: valid.model, stream: true, version: '2023-06-01', request: value });
     expect(parsed.features.outputTokenLimit).toBe(2048);
   });
@@ -28,8 +28,7 @@ describe('Messages entry parsing and version boundary', () => {
   ])('rejects malformed blocks or conflicting output/thinking limits %#', async value => {
     await expect(parseMessagesInput(input(value))).rejects.toMatchObject({ code: 'invalid_request', status: 400 });
   });
-  it('rejects oversized input/output instead of truncating', async () => {
-    await expect(parseMessagesInput(input(valid), { maxOutputTokens: 100 })).rejects.toMatchObject({ protocolError: { code: 'output_limit_exceeded' } });
+  it('rejects input exceeding the shared byte bound', async () => {
     await expect(parseMessagesInput(input(valid), { maxBodyBytes: 10 })).rejects.toMatchObject({ status: 413 });
   });
 });

@@ -71,7 +71,6 @@ describe('P-RC-J1 direct text/model/ID mapping', () => {
 
   it('rejects duplicate item IDs, malformed context', () => {
     expect(responsesToChatResponse({ ...basic(), output: [message(), message()] }, context()).ok).toBe(false);
-    expect(responsesToChatResponse(basic(), { ...context(), targetModel: '' }).ok).toBe(false);
   });
 });
 

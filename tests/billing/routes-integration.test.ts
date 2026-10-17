@@ -58,7 +58,7 @@ beforeEach(async () => {
   await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
     VALUES('b20-channel','B20','https://provider.example',?,'active',1,1,60,1,0,0)`,
   ['test-upstream-key']).run();
-  await prepare(testEnv.DB, `INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('b20-model','active','{"input":"1","output":"2"}',1,0,4096,0,0)`).run();
+  await prepare(testEnv.DB, `INSERT INTO models (public_model_id,status,sell_prices_json,price_version,created_at,updated_at) VALUES ('b20-model','active','{"input":"1","output":"2"}',1,0,0)`).run();
   await insertRequest('b20-owner-request'); await insertRequest('b20-other-request', other, 1001);
 });
 

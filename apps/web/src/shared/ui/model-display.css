@@ -1,0 +1,66 @@
+.model-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+  max-width: 100%;
+  vertical-align: middle;
+}
+.model-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 1.875rem;
+  width: 1.875rem;
+  height: 1.875rem;
+  border-radius: 0.5rem;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+.model-logo-glyph {
+  display: block;
+  width: 1.125rem;
+  height: 1.125rem;
+  background: currentColor;
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
+}
+.model-identity-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0.125rem;
+}
+.model-identity-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  line-height: 1.45;
+}
+.model-identity-secondary {
+  display: block;
+  color: var(--color-ink-muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.4;
+}
+.model-price {
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+  color: var(--color-ink-secondary);
+}
+
+.model-identity-compact .model-logo {
+  flex-basis: 1.375rem;
+  width: 1.375rem;
+  height: 1.375rem;
+  border-radius: 0.375rem;
+}
+.model-identity-compact .model-logo-glyph {
+  width: 1rem;
+  height: 1rem;
+}

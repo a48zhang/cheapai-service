@@ -36,9 +36,9 @@ async function accessibleModel(modelId: string, groupId = 'a25-group') {
     VALUES (?,?,'https://example.invalid',?,'active',0,2,60,1,?,?)`)
     .bind(channelId, channelId, envelope, now, now).run();
   await testEnv.DB.prepare('INSERT INTO channel_groups(channel_id,group_id) VALUES (?,?)').bind(channelId, groupId).run();
-  await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES (?,'active','{}',1,0,1024,?,?)`).bind(modelId, now, now).run();
-  await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,upstream_model,protocol,capabilities_json,config_version)
-    VALUES (?,?,'upstream','chat','{}',1)`).bind(channelId, modelId).run();
+  await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,created_at,updated_at) VALUES (?,'active','{}',1,?,?)`).bind(modelId, now, now).run();
+  await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,upstream_model,protocol,config_version)
+    VALUES (?,?,'upstream','chat',1)`).bind(channelId, modelId).run();
 }
 
 beforeEach(async () => {
@@ -361,10 +361,10 @@ describe('platform Key creation on native D1', () => {
   it('creates and updates permitted model selections above the old 100-item cap', async () => {
     await accessibleModel('model-0');
     await testEnv.DB.prepare(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<100)
-      INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at)
-      SELECT 'model-'||i,'active','{}',1,0,1024,?,? FROM n`).bind(now, now).run();
-    await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,upstream_model,protocol,capabilities_json,config_version)
-      SELECT 'channel-model-0',public_model_id,'upstream','chat','{}',1 FROM models WHERE public_model_id<>'model-0'`).run();
+      INSERT INTO models (public_model_id,status,sell_prices_json,price_version,created_at,updated_at)
+      SELECT 'model-'||i,'active','{}',1,?,? FROM n`).bind(now, now).run();
+    await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,upstream_model,protocol,config_version)
+      SELECT 'channel-model-0',public_model_id,'upstream','chat',1 FROM models WHERE public_model_id<>'model-0'`).run();
     const models = Array.from({ length: 101 }, (_, index) => `model-${index}`);
     const created = await createPlatformKey(testEnv.DB, owner, { name: 'All models', allowedModels: models }, now);
     expect(created.key.allowedModels).toHaveLength(101);

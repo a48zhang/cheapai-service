@@ -49,7 +49,7 @@ export function createChatToMessagesRequestAdapter(options: ChatToMessagesReques
   return { ok: true, value: {
     from: 'chat', to: 'messages',
     convert(input, context) {
-      if (typeof context.targetModel !== 'string' || context.targetModel.trim().length === 0) return {
+      if (typeof context.targetModel !== 'string') return {
         ok: false, error: { kind: 'invalid_request', code: 'invalid_target_model', message: 'A target model is required.', param: 'targetModel' },
       };
       // Preserve here only to diagnose unsupported extensions explicitly below.
@@ -72,7 +72,7 @@ export function createChatToMessagesRequestAdapter(options: ChatToMessagesReques
       const outputLimit = request.max_completion_tokens ?? request.max_tokens ?? maxTokens;
       if (outputLimit == null) return unsupported('max_tokens', 'output_limit_required');
       const { stream_options: _streamOptions, ...capabilityRequest } = request;
-      const checked = checkRequestCapabilities({ protocol: 'chat', request: { ...capabilityRequest, max_completion_tokens: outputLimit } }, channel ?? { protocol: 'messages', features: [] });
+      const checked = checkRequestCapabilities({ protocol: 'chat', request: { ...capabilityRequest, max_completion_tokens: outputLimit } }, channel ?? { protocol: 'messages' });
       if (!checked.supported) return unsupported(checked.reasons[0]?.path ?? 'messages', checked.reasons[0]?.code);
       for (const key of Object.keys(request)) if (!['model', 'messages', 'tools', 'tool_choice', 'parallel_tool_calls',
         'max_tokens', 'max_completion_tokens', 'temperature', 'top_p', 'stop', 'stream', 'stream_options', 'n', 'response_format', 'reasoning_effort', 'cache_control'].includes(key)) return unsupported(key);

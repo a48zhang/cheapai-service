@@ -2,29 +2,21 @@
 
 更新：2026-10-03；配置基线为 main `fd6ce3d37de87239a7474a04ab85b83c96f7df11`，本次清理移除共享 staging 的可执行入口。共享 staging 已于 2026-10-03 完成永久退役，相关 Worker、D1、KV 和 Gate DO 已删除并回读确认；这次文档更新不是删除或发布成功证明。历史资源与证据见[退役记录](staging-resources.md)。
 
-先读[管理员配置顺序](admin-guide.md)。正式入口为 https://cheapai.dev 和 https://www.cheapai.dev；站内导航保留当前 host，两个入口分别使用 host-only 会话和 CSRF Cookie。分支验证使用[每个 PR 独立的预发](pr-previews.md)；不要重建旧共享 staging，也不要以历史验证结果代替本次验收。
+先读[管理员配置顺序](admin-guide.md)。正式入口为 https://cheapai.dev 和 https://www.cheapai.dev；站内导航保留当前 host，两个入口分别使用 host-only 会话和 CSRF Cookie。自动预发待维护者重新配置，当前状态见[PR 预发](pr-previews.md)；不要重建旧共享 staging，也不要以历史验证结果代替本次验收。
 
 ## 发布前准备
 
 从仓库根目录执行 `pnpm run production:check`（Windows 可用 `pnpm.cmd`）。它先构建前端，再对 **production** 执行 `deploy --dry-run --strict`，输出到忽略提交的 `.wrangler/build-production`；不会上传、应用远程迁移、配置 Secrets 或发布。此检查只验证打包和配置，不证明线上功能可用。
 
-### Cloudflare Workers Builds 设置
+### Cloudflare 自动构建与手动发布
 
-2026-10-05 修正：Worker 的 `build` 和 `deploy` 脚本均显式指定配置文件及 `--env production`，本地 `dev` 显式指定顶层环境和 `--local`。顶层配置仍是本地占位资源，不作为生产默认值。
+2026-10-17 移除失效的 Cloudflare Workers Builds 分支触发器，自动构建与预发暂不启用，后续由维护者重新配置。GitHub Actions 的代码检查与 Desktop 安装包构建继续保留；修改仓库工作流不会自动修改 Dashboard 的 Builds 设置。
 
-在 `sub2api-cloudflare-production` 的 Settings → Builds 中使用以下设置：
-
-| 设置 | 值 |
-| --- | --- |
-| Root directory | 仓库根目录 `/` |
-| Build command | `pnpm run build` |
-| Deploy command | `pnpm run deploy` |
-
-这些 Dashboard 设置不由 Git 中的 package scripts 自动覆盖。将失败的 `npx wrangler preview` 或裸命令 `npx wrangler deploy` 改为 `pnpm run deploy`，保存后重新运行失败的构建。该命令通过 Worker workspace 中已安装的 Wrangler 执行发布，使用构建步骤生成的前端产物，不重复构建。
+`pnpm run build` 只构建前端并对 Worker 执行 dry-run。`pnpm run deploy` 明确选择 `apps/worker/wrangler.jsonc` 的 `production` 环境，会执行正式发布，不能用作 PR Preview 的替代命令。Wrangler 安装在 Worker workspace；后续配置原生 Preview 时，需要从该 workspace 执行命令，并明确目标 Worker、配置文件和预发绑定。
 
 2026-10-11 已通过 Cloudflare API 只读核对真实生产配置：三个路由、workers.dev / Preview 开关、DB / CACHE / Gate、vars、日志及 cron 均与仓库一致，路由顺序按远端排列。运行时 Secrets 名称为 `EMAIL_HMAC_KEY` 和 `RESEND_API_KEY`，未读取值。Wrangler 4.129.0 的 Dashboard 差异比较会将 Gate 的 `undefined` 字段和 D1 的本地 `database_name` / `migrations_dir` 判为破坏性变化，因此实际发布命令不再使用 `--strict`，避免非交互构建因误判中断；生产账户、环境、资源及路由仍由配置明确指定。`--dry-run` 不执行这项远端比较，构建通过不能证明严格模式下能发布。
 
-CI 自动将 Worker 名称替换为 production 名称，不会同时切换 D1、KV、邮件或 vars。构建及发布日志中应确认 `ENVIRONMENT` 为 `production`、DB 为 `sub2api-cloudflare-production`、CACHE 为 `3da22af80f0946cdbb9cd85caee9810d`，且没有 local 邮件占位绑定。不能只依据 Worker 名称判断选中了生产环境。
+重新配置 CI 时，不能仅靠替换 Worker 名称选择环境；名称变化不会同时切换 D1、KV、邮件或 vars。正式构建及发布日志中应确认 `ENVIRONMENT` 为 `production`、DB 为 `sub2api-cloudflare-production`、CACHE 为 `3da22af80f0946cdbb9cd85caee9810d`，且没有 local 邮件占位绑定。不能只依据 Worker 名称判断选中了生产环境。
 
 本地验证：在故意设置 `CLOUDFLARE_ENV=local` 时，`pnpm run build` 和 `pnpm run deploy --dry-run --outdir /tmp/cheapai-production-deploy` 均成功，解析为上述生产绑定。未实际发布，也未修改 Dashboard 配置。Wrangler 仍提示生产未继承顶层 `send_email`；这是 production 使用 Resend、明确设置 `send_email: []` 的现有配置，不应补入本地邮件绑定。
 
@@ -68,7 +60,7 @@ pnpm --filter @sub2api/worker exec wrangler deployments list --env production
 | DO | `GATE` → `Gate`，`migrations` 的 `v1` 使用 `new_sqlite_classes: ["Gate"]` |
 | 邮件 | `EMAIL` / `send_email`；所有 `.invalid` 发件人和收件人都是占位符 |
 | 定时任务 | 顶层本地配置和 production 显式配置每五分钟一次；PR previews 无 cron |
-| 公网入口 | local 为 `workers_dev: false`；production 与 Dashboard 同步为 `workers_dev: true`、`preview_urls: true`，保留 cheapai.dev、www.cheapai.dev 和 pre.cheapai.dev 路由；原生 Preview 由 Cloudflare 管理 |
+| 公网入口 | local 为 `workers_dev: false`；production 与 Dashboard 同步为 `workers_dev: true`、`preview_urls: true`，保留 cheapai.dev、www.cheapai.dev 和 pre.cheapai.dev 路由；自动预发待重新配置 |
 
 `remote: false` 描述本地开发 binding 行为，不会让发布后的 Worker 使用本地数据库。远程 D1 操作仍必须明确 `--remote --env ...`。这与已安装 Wrangler schema 及[开发 binding 模式](https://developers.cloudflare.com/workers/local-development/bindings-per-env/)一致。
 
@@ -110,7 +102,7 @@ node $deploymentWrangler dev --config $deploymentConfig --local --persist-to $de
 
 ## 3. 环境选择
 
-production 已有独立资源和域名，bindings/vars 明确位于 `env.production`。PR 预发改由 Cloudflare 原生 Preview 管理，详见[预发说明](pr-previews.md)。仓库 CI 不再创建分支 Worker、执行预发部署或迁移；原生 Preview 的绑定和设置以 Cloudflare Dashboard 为准。
+production 已有独立资源和域名，bindings/vars 明确位于 `env.production`。Cloudflare 自动预发触发器已移除，待维护者重新配置，详见[预发说明](pr-previews.md)。仓库 CI 不创建分支 Worker、执行预发部署或迁移。
 
 当前 Git 生产配置为 `send_email: []`、`EMAIL_VERIFICATION_READY: "true"`，通过 Resend 发信；这不证明线上 Secret 和实际投递已经通过验证。不要为消除 Wrangler 的 binding 继承提示添加虚假发件身份。
 

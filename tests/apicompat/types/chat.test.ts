@@ -60,7 +60,7 @@ describe('Chat request wire boundary', () => {
   });
 
   it.each([
-    null, [], {}, { ...basic(), model: '' }, { ...basic(), messages: [] },
+    null, [], {}, { ...basic(), messages: [] },
     { ...basic(), messages: [{ role: 'alien', content: 'x' }] },
     { ...basic(), messages: [{ role: 'user', content: null }] },
     { ...basic(), messages: [{ role: 'assistant' }] },

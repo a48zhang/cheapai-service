@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ConfigError, DEFAULT_CONFIG, parseAdmissionMinBalanceUnits,
-  parseChannelLimits, parseModelLimits, parseRuntimeConfig,
+  ConfigError, DEFAULT_CONFIG,
+  parseChannelLimits, parseRuntimeConfig,
 } from '../../apps/worker/config';
 
 describe('runtime configuration', () => {
@@ -9,9 +9,6 @@ describe('runtime configuration', () => {
     const config = parseRuntimeConfig();
     expect(config).toMatchObject({ registrationMode: 'closed', emailVerificationEnabled: true, balanceCacheEnabled: false });
     expect(config.gateRenewIntervalMs).toBeLessThan(config.gateLeaseTtlMs);
-    expect(config.requestMaxDurationMs + config.abandonedRequestGraceMs).toBe(20 * 60_000);
-    expect(config.admissionMinBalanceUnits).toBe('0');
-    expect(Object.isFrozen(config)).toBe(true);
   });
 
   it('applies overrides without changing defaults or retaining the input object', () => {
@@ -79,18 +76,7 @@ describe('runtime configuration', () => {
   });
 });
 
-describe('explicit channel/model limits and integer admission units', () => {
-  it.each(['0', '1', '100000000', '9007199254740991'])('preserves exact units %s', (value) => {
-    expect(parseAdmissionMinBalanceUnits(value)).toBe(value);
-    expect(parseRuntimeConfig({ admissionMinBalanceUnits: value }).admissionMinBalanceUnits).toBe(value);
-  });
-
-  it.each([0, 0.01, 1n, '-1', '01', '+1', '1.0', '1e8', ' 1', '1 ', '\t1', '1\t', '\n1', '1\n', '1\r\n', '\u00a01', '1\u00a0', '9007199254740992', '', null, undefined])('rejects invalid units %s', (value) => {
-    expect(() => parseAdmissionMinBalanceUnits(value)).toThrow(ConfigError);
-    expect(() => parseRuntimeConfig({ admissionMinBalanceUnits: value })).toThrow(ConfigError);
-    expect(() => parseModelLimits({ maxOutputTokens: 4, admissionMinBalanceUnits: value })).toThrow(ConfigError);
-  });
-
+describe('explicit channel limits', () => {
   it('defaults concurrency and RPM to unlimited and preserves explicit finite limits', () => {
     expect(parseChannelLimits({})).toEqual({ concurrencyLimit: Number.MAX_SAFE_INTEGER, rpmLimit: Number.MAX_SAFE_INTEGER });
     expect(parseChannelLimits({ rpmLimit: 0 }).rpmLimit).toBe(Number.MAX_SAFE_INTEGER);
@@ -103,11 +89,5 @@ describe('explicit channel/model limits and integer admission units', () => {
     }
   });
 
-  it('requires an output maximum without a platform output default', () => {
-    expect(parseModelLimits({ maxOutputTokens: 4096 })).toEqual({ maxOutputTokens: 4096, admissionMinBalanceUnits: '0' });
-    expect(parseModelLimits({ maxOutputTokens: 4096, admissionMinBalanceUnits: '50000000' }).admissionMinBalanceUnits).toBe('50000000');
-    for (const input of [{}, { maxOutputTokens: -1 }, { maxOutputTokens: 4, admissionMinBalanceUnits: undefined }]) {
-      expect(() => parseModelLimits(input)).toThrow(ConfigError);
-    }
-  });
+
 });

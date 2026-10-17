@@ -21,7 +21,7 @@ beforeEach(async () => {
   const credential = 'synthetic';
   await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
     VALUES('b15-channel','Fixture','https://example.invalid',?,'active',0,1,60,1,0,0)`).bind(credential).run();
-  await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('b15-model','active','{"input":"1","output":"2"}',1,0,10,0,0)`).run();
+  await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,created_at,updated_at) VALUES ('b15-model','active','{"input":"1","output":"2"}',1,0,0)`).run();
   price = createPriceSnapshot({ publicModelId: 'b15-model', upstreamModel: 'provider', upstreamProtocol: 'chat', priceVersion: 1, sellPrices: { input: '1', output: '2' } }).json;
   await pending('b15-request');
 });

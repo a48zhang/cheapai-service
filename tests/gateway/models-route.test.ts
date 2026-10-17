@@ -10,9 +10,9 @@ function get(query = '', headers: Record<string, string> = { Authorization: `Bea
   return app().request('https://gateway.example' + MODELS_PATH + query, { headers }, { DB: testEnv.DB });
 }
 async function model(id: string, channel = 'g15-channel', status = 'active', protocol = 'chat') {
-  await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES (?,?,'{"input":"1","output":"2"}',1,0,100,0,0)`).bind(id, status).run();
-  await testEnv.DB.prepare('INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,capabilities_json,config_version) VALUES(?,?,?,?,?,1)')
-    .bind(channel, id, protocol, 'private-upstream-model', JSON.stringify({ protocol, features: [] })).run();
+  await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,created_at,updated_at) VALUES (?,?,'{"input":"1","output":"2"}',1,0,0)`).bind(id, status).run();
+  await testEnv.DB.prepare('INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,config_version) VALUES(?,?,?,?,1)')
+    .bind(channel, id, protocol, 'private-upstream-model').run();
 }
 beforeEach(async () => {
   for (const id of ['g15-group', 'g15-other']) await testEnv.DB.prepare("INSERT INTO groups(id,name,status,version,created_at,updated_at) VALUES(?,?,'active',1,0,0)").bind(id, id).run();
@@ -27,7 +27,7 @@ beforeEach(async () => {
   }
   await model('visible-a'); await model('visible-b'); await model('foreign-group', 'g15-other-channel');
   await model('disabled-model', 'g15-channel', 'disabled'); await model('disabled-channel', 'g15-disabled-channel');
-  await testEnv.DB.prepare("INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,capabilities_json,config_version) VALUES('g15-channel','visible-a','responses','private-second-upstream','{}',1)").run();
+  await testEnv.DB.prepare("INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,config_version) VALUES('g15-channel','visible-a','responses','private-second-upstream',1)").run();
 });
 
 describe('native authenticated model catalog', () => {

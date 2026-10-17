@@ -11,7 +11,7 @@ export interface MessagesPassthroughOptions {
   readonly responseAllowedExtensions?: readonly string[];
 }
 
-const safeModel = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0 && value.length <= 512 && !/[\u0000-\u001f\u007f]/u.test(value);
+const safeModel = (value: unknown): value is string => typeof value === 'string';
 const safeId = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 128 && !/[\u0000-\u0020\u007f]/u.test(value);
 
 function fail<T>(kind: ProtocolError['kind'], code: string, param: string): ConversionResult<T> {

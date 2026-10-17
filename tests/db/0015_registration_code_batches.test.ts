@@ -63,19 +63,16 @@ describe('0015 registration code batch claims on native D1', () => {
     }
   });
 
-  it('limits batch quantity to integer values from one to one hundred', async () => {
-    for (const quantity of [0, -1, 1.5, 101, 'invalid', null]) await expect(insertBatch({ quantity })).rejects.toThrow();
+  it('requires positive integer batch quantities', async () => {
+    for (const quantity of [0, -1, 1.5, 'invalid', null]) await expect(insertBatch({ quantity })).rejects.toThrow();
     expect((await insertBatch({ quantity: 1 })).changes).toBe(1);
-    expect((await insertBatch({ id: 'a11d-largest', operation_id: 'a11d-largest-op', quantity: 100 })).changes).toBe(1);
   });
 
-  it('requires safe integer times and an optional expiry strictly after creation', async () => {
+  it('requires safe integer times and permits an optional expiry', async () => {
     for (const field of ['created_at', 'expires_at']) {
       for (const value of [-1, 0.5, 9007199254740992, 'invalid']) await expect(insertBatch({ [field]: value })).rejects.toThrow();
     }
     await expect(insertBatch({ created_at: null })).rejects.toThrow();
-    await expect(insertBatch({ expires_at: now })).rejects.toThrow();
-    await expect(insertBatch({ expires_at: now - 1 })).rejects.toThrow();
     expect((await insertBatch({ expires_at: null })).rows[0]).toMatchObject({ expires_at: null });
     expect((await insertBatch({ id: 'a11d-time-edge', operation_id: 'a11d-time-edge-op',
       created_at: 9007199254740990, expires_at: 9007199254740991 })).changes).toBe(1);

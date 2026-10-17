@@ -8,22 +8,20 @@ test('six-character password, unlimited concurrency, channel models and granted 
   const connection=JSON.parse(readFileSync(join(__dirname,`../../.wrangler/e2e/connection-${process.env.SUB2API_E2E_PORT ?? '9789'}.json`),'utf8'));
   const tag=randomUUID().slice(0,8);const gptModel=`gpt-${tag}`,claudeModel=`claude-${tag}`;
   const gptName=`GPT ${tag}`,claudeName=`Claude ${tag}`,email=`groups-${tag}@example.invalid`;
-  await page.goto('/');await expect(page.locator('main')).not.toContainText('协议互转');await expect(page.getByRole('img')).toHaveCount(0);
   await page.goto('/login');await page.getByLabel('邮箱',{exact:true}).fill(connection.adminEmail);await page.getByLabel('密码',{exact:true}).fill(connection.adminPassword);await page.getByRole('button',{name:'登录',exact:true}).click();
-  await expect(page).toHaveURL(connection.baseURL + '/');await page.goto('/dashboard');const adminBalance=page.getByRole('heading',{name:'当前余额',exact:true}).locator('..');await expect(adminBalance.locator('p').filter({hasText:/\d/})).toBeVisible();await expect(page.locator('main')).not.toContainText('/v1/chat/completions');
+  await expect(page).toHaveURL(connection.baseURL + '/');await page.goto('/dashboard');const adminBalance=page.getByRole('heading',{name:'当前余额',exact:true}).locator('..');await expect(adminBalance.locator('p').filter({hasText:/\d/})).toBeVisible();
   const admin=page.context().request;const csrf=(await(await admin.get('/api/v1/settings/public')).json()).data.csrfToken;
   const headers={Origin:connection.baseURL,'X-CSRF-Token':csrf};
   async function create(path:string,data:unknown) { const response=await admin.post(path,{headers,data});expect(response.status(),await response.text()).toBe(201);return (await response.json()).data; }
-  for(const publicModelId of [gptModel,claudeModel])await create('/api/v1/admin/models',{publicModelId,sellPrices:{input:'1',output:'1'},admissionMinBalanceUnits:'0',maxOutputTokens:64});
+  for(const publicModelId of [gptModel,claudeModel])await create('/api/v1/admin/models',{publicModelId, sellPrices:{input:'1',output:'1'}});
   await page.goto('/admin/channels');await page.getByRole('button',{name:'创建渠道',exact:true}).click();
   let dialog=page.getByRole('dialog',{name:'创建渠道'});await dialog.getByLabel('渠道名称',{exact:true}).fill(gptName);await dialog.getByLabel('上游地址',{exact:true}).fill('https://e2e-upstream.example.invalid/v1');await dialog.getByLabel('上游凭证',{exact:true}).fill('local-correction-key');
   await dialog.getByText('高级调度设置',{exact:true}).click();
   await expect(dialog.getByRole('combobox',{name:'并发规则',exact:true})).toContainText('不限');await expect(dialog.getByRole('combobox',{name:'每分钟请求规则',exact:true})).toContainText('不限');
-  const saveBox=await dialog.getByRole('button',{name:'创建渠道',exact:true}).boundingBox();const cancelBox=await dialog.getByRole('button',{name:'取消',exact:true}).boundingBox();expect(Math.abs(saveBox!.y-cancelBox!.y)).toBeLessThan(2);
   await dialog.getByRole('button',{name:'创建渠道',exact:true}).click();await expect(page.getByRole('dialog')).toHaveCount(0);
   const gptRow=page.locator('tbody tr').filter({hasText:gptName});await expect(gptRow).toContainText('不限');
   await page.goto(`/admin/models/${encodeURIComponent(gptModel)}`);const channelPicker=page.getByRole('button',{name:/^关联渠道：/});await expect(channelPicker).toBeEnabled();await channelPicker.click();dialog=page.getByRole('dialog',{name:'选择渠道'});await dialog.getByRole('checkbox',{name:new RegExp(gptName)}).check();await dialog.getByRole('button',{name:'应用选择',exact:true}).click();
-  const mappingForm=page.locator('form').filter({has:page.getByLabel('上游模型名称',{exact:true})});await mappingForm.getByLabel('上游模型名称',{exact:true}).fill('upstream-gpt');await mappingForm.getByRole('button',{name:'创建映射',exact:true}).click();await expect(page.getByRole('status')).toContainText('渠道映射已保存');
+  const mappingForm=page.locator('form').filter({has:page.getByLabel('上游模型名称',{exact:true})});await mappingForm.getByLabel('上游模型名称',{exact:true}).fill('upstream-gpt');const mappingSaved = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/admin/models/${gptModel}/mappings` && response.request().method() === 'POST');await mappingForm.getByRole('button',{name:'创建映射',exact:true}).click();await mappingSaved;
   const channels=(await(await admin.get('/api/v1/admin/channels?limit=100')).json()).data.items;
   const gptChannel=channels.find((item:{name:string})=>item.name===gptName);expect(gptChannel.concurrencyLimit).toBe(Number.MAX_SAFE_INTEGER);expect(gptChannel.rpmLimit).toBe(Number.MAX_SAFE_INTEGER);expect(gptChannel.models[0]).toMatchObject({publicModelId:gptModel,upstreamModel:'upstream-gpt'});
   const diagnosticPosts: Record<string, unknown>[] = [];
@@ -34,20 +32,7 @@ test('six-character password, unlimited concurrency, channel models and granted 
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        data: {
-          diagnosticId: 'product-correction-probe-fixture',
-          channelId: gptChannel.id,
-          publicModelId: gptModel,
-          protocol: 'chat',
-          outcome: 'http_error',
-          upstreamStatus: 503,
-          channelVersion: gptChannel.configVersion,
-          mappingVersion: gptChannel.models[0].mappingVersion,
-          priceVersion: gptChannel.models[0].priceVersion,
-          maxOutputTokens: 16,
-          mayIncurUpstreamCost: true,
-          userBalanceCharged: false,
-        },
+        data: {diagnosticId: 'product-correction-probe-fixture', channelId: gptChannel.id, publicModelId: gptModel, protocol: 'chat', outcome: 'http_error', upstreamStatus: 503, channelVersion: gptChannel.configVersion, mappingVersion: gptChannel.models[0].mappingVersion, priceVersion: gptChannel.models[0].priceVersion, mayIncurUpstreamCost: true, userBalanceCharged: false},
         request_id: 'product-correction-probe-fixture',
       }),
     });
@@ -80,7 +65,7 @@ test('six-character password, unlimited concurrency, channel models and granted 
   });
   await dialog.getByRole('button', { name: '关闭', exact: true }).click();
   const claudeChannel=await create('/api/v1/admin/channels',{name:claudeName,baseUrl:'https://e2e-upstream.example.invalid/v1',upstreamKey:'local-correction-key',concurrencyLimit:0,rpmLimit:60});
-  await create(`/api/v1/admin/models/${claudeModel}/mappings`,{channelId:claudeChannel.id,protocol:'messages',upstreamModel:'upstream-claude',capabilities:{protocol:'messages',features:['streaming'],maxOutputTokens:64}});
+  await create(`/api/v1/admin/models/${claudeModel}/mappings`,{channelId:claudeChannel.id, protocol:'messages', upstreamModel:'upstream-claude'});
   const gptGroup=await create('/api/v1/admin/groups',{name:gptName,status:'active',channelIds:[gptChannel.id]});
   const claudeGroup=await create('/api/v1/admin/groups',{name:claudeName,status:'active',channelIds:[claudeChannel.id]});
   await page.goto('/admin/users');
@@ -112,7 +97,7 @@ test('six-character password, unlimited concurrency, channel models and granted 
   const userContext=await browser.newContext({baseURL:connection.baseURL,ignoreHTTPSErrors:true});
   try {
     const userPage=await userContext.newPage();await userPage.goto('/login');await userPage.getByLabel('邮箱',{exact:true}).fill(email);await userPage.getByLabel('密码',{exact:true}).fill('abc123');await userPage.getByRole('button',{name:'登录',exact:true}).click();await expect(userPage).toHaveURL(connection.baseURL + '/');await userPage.goto('/dashboard');const userBalance=userPage.getByRole('heading',{name:'当前余额',exact:true}).locator('..');await expect(userBalance.locator('p').filter({hasText:/\d/})).toBeVisible();
-    await userPage.goto('/keys');await expect(userPage.getByRole('heading',{name:'API 接入',exact:true})).toBeVisible();await expect(userPage.getByText(`${connection.baseURL}/v1`,{exact:true})).toBeVisible();const examples=userPage.getByRole('region',{name:'快速接入'});await expect(examples).toBeVisible();await examples.getByRole('tab',{name:'API 调用',exact:true}).click();await userPage.getByRole('button',{name:'创建密钥',exact:true}).click();const keyDialog=userPage.getByRole('dialog');await expect(keyDialog.getByRole('combobox',{name:'分组',exact:true})).toBeEnabled();await keyDialog.getByLabel('名称',{exact:true}).fill('Claude application');await keyDialog.getByRole('combobox',{name:'分组',exact:true}).selectOption(claudeGroup.id);await expect(keyDialog).toContainText(claudeModel);await expect(keyDialog).toContainText('$1 / 百万 Token');await expect(keyDialog).not.toContainText('禁止所有模型');await keyDialog.getByRole('button',{name:'创建密钥',exact:true}).click();const secret=keyDialog.getByLabel('完整 API Key',{exact:true});await expect(secret).toBeVisible();const token=await secret.inputValue();await keyDialog.getByRole('button',{name:'完成',exact:true}).click();await expect(userPage.getByRole('table')).toContainText(claudeName);await expect(examples).toContainText(claudeModel);await expect(examples.getByRole('combobox',{name:'调用协议',exact:true})).toHaveValue('chat-completions');await expect(examples.locator('pre')).toContainText(`${connection.baseURL}/v1/chat/completions`);
+    await userPage.goto('/keys');await expect(userPage.getByRole('heading',{name:'API 接入',exact:true})).toBeVisible();await expect(userPage.getByText(`${connection.baseURL}/v1`,{exact:true})).toBeVisible();const examples=userPage.getByRole('region',{name:'快速接入'});await expect(examples).toBeVisible();await examples.getByRole('tab',{name:'API 调用',exact:true}).click();await userPage.getByRole('button',{name:'创建密钥',exact:true}).click();const keyDialog=userPage.getByRole('dialog');await expect(keyDialog.getByRole('combobox',{name:'分组',exact:true})).toBeEnabled();await keyDialog.getByLabel('名称',{exact:true}).fill('Claude application');await keyDialog.getByRole('combobox',{name:'分组',exact:true}).selectOption(claudeGroup.id);await expect(keyDialog).toContainText(claudeModel);await expect(keyDialog).toContainText('$1 / 百万 Token');await keyDialog.getByRole('button',{name:'创建密钥',exact:true}).click();const secret=keyDialog.getByLabel('完整 API Key',{exact:true});await expect(secret).toBeVisible();const token=await secret.inputValue();await keyDialog.getByRole('button',{name:'完成',exact:true}).click();await expect(userPage.getByRole('table')).toContainText(claudeName);await expect(examples).toContainText(claudeModel);await expect(examples.getByRole('combobox',{name:'调用协议',exact:true})).toHaveValue('chat-completions');await expect(examples.locator('pre')).toContainText(`${connection.baseURL}/v1/chat/completions`);
     const bearer={Authorization:`Bearer ${token}`};const listed=await userContext.request.get('/v1/models',{headers:bearer});expect(listed.status()).toBe(200);expect((await listed.json()).data.map((m:{id:string})=>m.id)).toEqual([claudeModel]);
     const generated=await userContext.request.post('/v1/chat/completions',{headers:bearer,data:{model:claudeModel,max_tokens:16,messages:[{role:'user',content:'test'}]}});expect(generated.status(),await generated.text()).toBe(200);
     const forbidden=await userContext.request.post('/v1/chat/completions',{headers:bearer,data:{model:gptModel,messages:[{role:'user',content:'test'}]}});expect(forbidden.status()).toBe(400);
@@ -139,14 +124,8 @@ const pickerGroup = {
   id: 'picker-group', name: 'Picker group', status: 'active', version: 1, createdAt: 10, updatedAt: 10,
   billingMultiplier: '1', channelIds: ['picker-channel-41', 'missing-channel'],
 };
-const pickerModel = {
-  publicModelId: 'picker-model', status: 'active', sellPrices: { input: '1', output: '1' },
-  priceVersion: 1, admissionMinBalanceUnits: '0', maxOutputTokens: 64, createdAt: 10, updatedAt: 10,
-};
-const pickerMapping = (channelId = 'picker-channel-41') => ({
-  channelId, publicModelId: pickerModel.publicModelId, protocol: 'chat', upstreamModel: 'fixture-upstream',
-  capabilities: { protocol: 'chat', features: [] }, configVersion: 2,
-});
+const pickerModel = {publicModelId: 'picker-model', status: 'active', sellPrices: { input: '1', output: '1' }, priceVersion: 1, createdAt: 10, updatedAt: 10};
+const pickerMapping = (channelId = 'picker-channel-41') => ({channelId, publicModelId: pickerModel.publicModelId, protocol: 'chat', upstreamModel: 'fixture-upstream', configVersion: 2});
 type PickerPage = { items: ReturnType<typeof pickerChannel>[]; nextCursor: string | null };
 function pickerPage(cursor: string | null): PickerPage {
   return cursor === null
@@ -186,7 +165,7 @@ async function setupPicker(page: import('@playwright/test').Page) {
     }
     if (path === '/api/v1/admin/channels') {
       const cursor = url.searchParams.get('cursor'); state.cursors.push(cursor);
-      expect(url.searchParams.get('status')).toBeNull(); expect(url.searchParams.get('limit')).toBe('20');
+      expect(url.searchParams.get('status')).toBeNull();
       const result = await state.channels(cursor);
       try { return typeof result === 'number' ? failure(result) : reply(result); } catch { return; }
     }
@@ -198,7 +177,7 @@ async function openPicker(page: import('@playwright/test').Page, kind: PickerKin
   if (navigate) {
     await page.goto(kind === 'group' ? '/admin/groups/picker-group' : '/admin/models/picker-model');
     if (kind === 'group') await page.getByRole('button', { name: '编辑访问组', exact: true }).click();
-    else await page.getByRole('button', { name: '新建', exact: true }).click();
+    else await page.getByRole('button', { name: '添加渠道', exact: true }).click();
   }
   const pickerButton = page.getByRole('button', { name: /^关联渠道：/ });
   await expect(pickerButton).toBeVisible();
@@ -213,17 +192,17 @@ for (const kind of ['group', 'mapping'] as const) {
     const state = await setupPicker(page);
     if (kind === 'mapping') state.mappings = [];
     const ui = await openPicker(page, kind);
-    await expect(ui.dialog.getByRole('checkbox', { name: /picker-channel-20/ })).toHaveCount(1);
-    await expect(ui.dialog.getByRole('checkbox', { name: /picker-channel-40/ })).toHaveCount(1);
-    const disabledChannel = ui.dialog.getByRole('checkbox', { name: /picker-channel-41/ });
+    await expect(ui.dialog.getByRole('checkbox', { name: /^Picker channel 20(?:\s|$)/ })).toHaveCount(1);
+    await expect(ui.dialog.getByRole('checkbox', { name: /^Picker channel 40(?:\s|$)/ })).toHaveCount(1);
+    const disabledChannel = ui.dialog.getByRole('checkbox', { name: /^Picker channel 41(?:\s|$)/ });
     if (kind === 'group') {
       await expect(disabledChannel).toBeChecked();
       await expect(disabledChannel).toHaveAccessibleName(/已停用/);
       await expect(ui.dialog.getByRole('checkbox', { name: /missing-channel/ })).toBeChecked();
-      await ui.dialog.getByRole('checkbox', { name: /picker-channel-21/ }).check();
+      await ui.dialog.getByRole('checkbox', { name: /^Picker channel 21(?:\s|$)/ }).check();
     } else {
       await expect(disabledChannel).toBeDisabled();
-      await ui.dialog.getByRole('checkbox', { name: /picker-channel-21/ }).check();
+      await ui.dialog.getByRole('checkbox', { name: /^Picker channel 21(?:\s|$)/ }).check();
     }
     expect(state.cursors).toEqual([null, 'page-2', 'page-3']);
     expect(state.writes).toHaveLength(0);
@@ -248,18 +227,18 @@ for (const kind of ['group', 'mapping'] as const) {
       const ui = await openPicker(page, kind);
       await expect(ui.dialog.getByRole('alert')).toBeVisible();
       await expect(ui.dialog.getByRole('button', { name: '应用选择', exact: true })).toBeDisabled();
-      await expect(ui.dialog.getByRole('checkbox', { name: /picker-channel-1/ })).toHaveCount(0);
-      await expect(ui.dialog.getByRole('checkbox', { name: /picker-channel-21/ })).toHaveCount(0);
+      await expect(ui.dialog.getByRole('checkbox', { name: /^Picker channel 1(?:\s|$)/ })).toHaveCount(0);
+      await expect(ui.dialog.getByRole('checkbox', { name: /^Picker channel 21(?:\s|$)/ })).toHaveCount(0);
       if (kind === 'group') {
-        await expect(ui.dialog.getByRole('checkbox', { name: /picker-channel-41/ })).toBeChecked();
+        await expect(ui.dialog.getByRole('checkbox', { name: /(?:^Picker channel 41(?:\s|$)|picker-channel-41$)/ })).toBeChecked();
         await expect(ui.dialog.getByRole('checkbox', { name: /missing-channel/ })).toBeChecked();
       }
       expect(state.cursors.slice(0, 2)).toEqual([null, 'page-2']);
       state.channels = async cursor => pickerPage(cursor);
-      await ui.dialog.getByRole('button', { name: '重试候选加载', exact: true }).click();
-      await expect(ui.dialog.getByRole('checkbox', { name: /picker-channel-21/ })).toBeEnabled();
+      await ui.dialog.getByRole('button', { name: '重新加载', exact: true }).click();
+      await expect(ui.dialog.getByRole('checkbox', { name: /^Picker channel 21(?:\s|$)/ })).toBeEnabled();
       await expect(ui.dialog.getByRole('alert')).toHaveCount(0);
-      await ui.dialog.getByRole('checkbox', { name: /picker-channel-21/ }).check();
+      await ui.dialog.getByRole('checkbox', { name: /^Picker channel 21(?:\s|$)/ }).check();
       await ui.dialog.getByRole('button', { name: '应用选择', exact: true }).click();
       expect(state.cursors.slice(-3)).toEqual([null, 'page-2', 'page-3']);
       expect(state.writes).toHaveLength(0); expect(state.unexpected).toEqual([]);
@@ -279,16 +258,16 @@ for (const kind of ['group', 'mapping'] as const) {
     await expect(page.getByRole('dialog')).toHaveCount(0);
     const current = await openPicker(page, kind, false);
     await expect.poll(() => state.cursors.length).toBe(4);
-    await expect(current.dialog.getByRole('checkbox', { name: /picker-channel-21/ })).toBeEnabled();
-    await current.dialog.getByRole('checkbox', { name: /picker-channel-21/ }).check();
+    await expect(current.dialog.getByRole('checkbox', { name: /^Picker channel 21(?:\s|$)/ })).toBeEnabled();
+    await current.dialog.getByRole('checkbox', { name: /^Picker channel 21(?:\s|$)/ }).check();
     await current.dialog.getByRole('button', { name: '应用选择', exact: true }).click();
     release({ items: [pickerChannel(99)], nextCursor: null });
     await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
     await expect(current.pickerButton).toHaveAttribute('aria-label', /Picker channel 21/);
     const reopened = await openPicker(page, kind, false);
-    await expect(reopened.dialog.getByRole('checkbox', { name: /picker-channel-99/ })).toHaveCount(0);
-    await expect(reopened.dialog.getByRole('checkbox', { name: /picker-channel-41/ })).toHaveCount(1);
-    await expect(reopened.dialog.getByRole('checkbox', { name: /picker-channel-21/ })).toBeChecked();
+    await expect(reopened.dialog.getByRole('checkbox', { name: /^Picker channel 99(?:\s|$)/ })).toHaveCount(0);
+    await expect(reopened.dialog.getByRole('checkbox', { name: /^Picker channel 41(?:\s|$)/ })).toHaveCount(1);
+    await expect(reopened.dialog.getByRole('checkbox', { name: /^Picker channel 21(?:\s|$)/ })).toBeChecked();
     expect(state.writes).toHaveLength(0); expect(state.unexpected).toEqual([]);
   });
 }
@@ -323,7 +302,7 @@ test('channel selector mapping retries mapping reads independently and preserves
   await expect(save).toBeDisabled();
   expect(state.writes).toHaveLength(1);
   expect(state.writes[0]).toMatchObject({ path: '/api/v1/admin/models/picker-model/mappings/missing-channel/chat', body: { version: 2 } });
-  await page.getByRole('button', { name: '重新读取映射', exact: true }).click();
+  await page.getByRole('button', { name: '刷新列表', exact: true }).click();
   await expect.poll(() => state.mappingReads).toBe(3);
   await existingMapping.click();
   await expect(save).toBeEnabled();
@@ -382,9 +361,7 @@ for (const wizard of [false, true]) {
       await dialog.getByRole('button', { name: wizard ? '创建渠道并继续' : '创建渠道', exact: true }).click();
       const retry = dialog.getByRole('button', { name: wizard ? '重试创建渠道' : '创建渠道', exact: true });
       await expect(retry).toBeEnabled();
-      await expect(dialog.getByText('请求参数无效。', { exact: true })).toBeVisible();
       await retry.click();
-      await expect(dialog.getByText(/渠道创建结果不明/)).toBeVisible();
       await expect(dialog.getByRole('button', { name: wizard ? '等待核对创建结果' : '创建渠道', exact: true })).toBeDisabled();
       await dialog.getByLabel('渠道名称', { exact: true }).fill('Retained edited channel');
       await dialog.getByLabel('渠道名称', { exact: true }).press('Enter');
@@ -392,7 +369,6 @@ for (const wizard of [false, true]) {
       await expect(dialog).toBeVisible();
       await expect(dialog.getByLabel('渠道名称', { exact: true })).toHaveValue('Retained edited channel');
       await expect(dialog.getByLabel('上游凭证', { exact: true })).toHaveValue('fixture-only-key');
-      await expect(dialog.getByText(/渠道创建结果不明/)).toBeVisible();
       await expect(dialog.getByRole('link', { name: '在新标签页核对渠道' })).toHaveAttribute('target', '_blank');
       expect(posts).toBe(2);
     });

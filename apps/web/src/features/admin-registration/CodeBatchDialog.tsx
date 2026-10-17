@@ -26,12 +26,7 @@ export function CodeBatchDialog({
 }) {
   const { client, user, epoch } = useSession();
   const [quantity, setQuantity] = useState('1');
-  const [expires, setExpires] = useState(() => {
-    const deadline = new Date(Date.now() + 7 * 86_400_000);
-    return new Date(deadline.getTime() - deadline.getTimezoneOffset() * 60_000)
-      .toISOString()
-      .slice(0, 16);
-  });
+  const [expires, setExpires] = useState('');
   const [intent, setIntent] = useState<CodeIntent | null>(null);
   const [result, setResult] = useState<CodeBatch | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -57,17 +52,7 @@ export function CodeBatchDialog({
     let current = intent;
     if (!current) {
       const amount = Number(quantity);
-      const deadline = new Date(expires).getTime();
-      if (
-        !Number.isInteger(amount) ||
-        amount < 1 ||
-        amount > 100 ||
-        !Number.isSafeInteger(deadline) ||
-        deadline <= Date.now()
-      ) {
-        setError(new Error('数量须为 1–100，有效期须晚于当前时间。'));
-        return;
-      }
+      const deadline = expires ? new Date(expires).getTime() : null;
       current = createCodeIntent({ quantity: amount, expiresAt: deadline });
       setIntent(current);
     }
@@ -147,17 +132,16 @@ export function CodeBatchDialog({
           </>
         ) : (
           <>
-            <Field label="生成数量" description="每批最多 100 个">
+            <Field label="生成数量">
               <Input
                 type="number"
                 min={1}
-                max={100}
                 value={quantity}
                 onChange={(event) => setQuantity(event.target.value)}
                 disabled={busy || !!intent}
               />
             </Field>
-            <Field label="到期时间" description="最长有效期为 30 天">
+            <Field label="到期时间" description="留空表示永不过期">
               <Input
                 type="datetime-local"
                 value={expires}

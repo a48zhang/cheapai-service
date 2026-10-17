@@ -245,7 +245,7 @@ export function validateResponsesRequest(value: unknown, options: ResponsesValid
       default: if (options.native && nonempty(v.type)) return undefined; unsupported = true; return `${p}.type`;
     }
   };
-  if (!nonempty(value.model)) return invalid('model');
+  if (typeof value.model !== 'string') return invalid('model');
   if ('input' in value && typeof value.input !== 'string') {
     if (!Array.isArray(value.input)) return invalid('input');
     for (const [i, entry] of value.input.entries()) { const bad = item(entry, `input[${i}]`); if (bad) return invalid(bad, unsupported); }

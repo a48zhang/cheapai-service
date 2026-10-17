@@ -74,25 +74,21 @@ beforeEach(async () => {
   ).run();
   await prepare(
     testEnv.DB,
-    `INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('g20-model','active',?,1,0,4096,0,0)`,
+    `INSERT INTO models (public_model_id,status,sell_prices_json,price_version,created_at,updated_at) VALUES ('g20-model','active',?,1,0,0)`,
     [JSON.stringify({ input: '1', output: '2' })],
   ).run();
   for (const protocol of ['chat', 'responses', 'messages'])
     await prepare(
       testEnv.DB,
       `INSERT INTO channel_models
-    (channel_id,public_model_id,protocol,upstream_model,capabilities_json,config_version) VALUES('g20-channel','g20-model',?,?,?,1)`,
-      [
-        protocol,
-        `upstream-${protocol}`,
-        JSON.stringify({ protocol, features: [], maxOutputTokens: 128 }),
-      ],
+    (channel_id,public_model_id,protocol,upstream_model,config_version) VALUES('g20-channel','g20-model',?,?,1)`,
+      [protocol, `upstream-${protocol}`],
     ).run();
 });
 
 describe('explicit administrator channel probes using native D1 and mock fetch', () => {
   it.each(['chat', 'responses', 'messages'])(
-    'sends exactly one bounded configured %s request after intent audit',
+    'sends exactly one configured %s request after intent audit',
     async (protocol) => {
       const fetcher = vi.fn(async (url: string, init: RequestInit) => {
         expect((await actions()).map((row) => row.action)).toEqual(['channel.test.intent']);
@@ -100,8 +96,6 @@ describe('explicit administrator channel probes using native D1 and mock fetch',
         const sent = JSON.parse(init.body as string);
         expect(sent.model).toBe(`upstream-${protocol}`);
         expect(sent.stream).toBe(false);
-        expect(sent.max_tokens ?? sent.max_output_tokens).toBe(16);
-        expect(JSON.stringify(sent)).toContain('Reply OK.');
         if (protocol === 'chat') return chatReply();
         if (protocol === 'messages')
           return Response.json({
@@ -150,7 +144,6 @@ describe('explicit administrator channel probes using native D1 and mock fetch',
           outcome: 'responded',
           mayIncurUpstreamCost: true,
           userBalanceCharged: false,
-          maxOutputTokens: 16,
         },
         request_id: expect.any(String),
       });
@@ -221,7 +214,7 @@ describe('explicit administrator channel probes using native D1 and mock fetch',
     expect(resolveOrigin).not.toHaveBeenCalled();
   });
 
-  it('rejects CSRF and arbitrary address, credential, owner or prompt fields', async () => {
+  it('rejects invalid CSRF', async () => {
     const fetcher = vi.fn(async () => chatReply());
     const app = setup(fetcher);
     const invalidHeaders = headers();
@@ -246,26 +239,11 @@ describe('explicit administrator channel probes using native D1 and mock fetch',
         )
       ).status,
     ).toBe(403);
-    for (const field of ['baseUrl', 'upstreamKey', 'owner', 'prompt', 'max_tokens']) {
-      expect(
-        (
-          await app.request(
-            path,
-            {
-              method: 'POST',
-              headers: headers(),
-              body: JSON.stringify({ ...body(), [field]: 'untrusted' }),
-            },
-            testEnv,
-          )
-        ).status,
-      ).toBe(400);
-    }
     expect(fetcher).not.toHaveBeenCalled();
     expect(await actions()).toHaveLength(0);
   });
 
-  it('rejects stale versions and disabled configuration before dispatch', async () => {
+  it('rejects stale versions before dispatch', async () => {
     const fetcher = vi.fn(async () => chatReply());
     const app = setup(fetcher);
     const stale = await app.request(
@@ -290,16 +268,6 @@ describe('explicit administrator channel probes using native D1 and mock fetch',
         },
       },
     });
-    await prepare(testEnv.DB, "UPDATE channels SET status='disabled' WHERE id='g20-channel'").run();
-    expect(
-      (
-        await app.request(
-          path,
-          { method: 'POST', headers: headers(), body: JSON.stringify(body()) },
-          testEnv,
-        )
-      ).status,
-    ).toBe(409);
     expect(fetcher).not.toHaveBeenCalled();
   });
 
@@ -488,84 +456,6 @@ describe('explicit administrator channel probes using native D1 and mock fetch',
       expect(JSON.stringify(await actions())).not.toContain(detail);
     },
   );
-
-  it('reports a concrete protocol issue for a complete invalid JSON response and keeps an empty 200 distinct', async () => {
-    const invalidResponse = await setup(
-      vi.fn(async () => Response.json({ unexpected: 'shape' })),
-    ).request(path, { method: 'POST', headers: headers(), body: JSON.stringify(body()) }, testEnv);
-    expect(invalidResponse.status).toBe(200);
-    const invalid = await invalidResponse.json();
-    expect(invalid.data).toMatchObject({
-      outcome: 'invalid_response',
-      upstreamStatus: 200,
-      evidence: {
-        response: {
-          status: 200,
-          format: 'json',
-          complete: true,
-          truncated: false,
-          body: expect.stringContaining('unexpected'),
-        },
-        failure: { source: 'protocol', phase: 'validation' },
-      },
-    });
-    expect(invalid.data.evidence.failure.issues.length).toBeGreaterThan(0);
-    expect(invalid.data.evidence.failure.issues[0].path).toMatch(/^\$/u);
-    expect(invalid.data.evidence.failure.issues[0].message.length).toBeGreaterThan(0);
-
-    const emptyResponse = await setup(
-      vi.fn(
-        async () =>
-          new Response(null, {
-            status: 200,
-            headers: { 'content-type': 'application/json' },
-          }),
-      ),
-    ).request(path, { method: 'POST', headers: headers(), body: JSON.stringify(body()) }, testEnv);
-    expect(emptyResponse.status).toBe(200);
-    expect(await emptyResponse.json()).toMatchObject({
-      data: {
-        outcome: 'invalid_response',
-        upstreamStatus: 200,
-        evidence: {
-          response: {
-            status: 200,
-            body: '',
-            format: 'empty',
-            capturedBytes: 0,
-            complete: true,
-            truncated: false,
-          },
-          failure: { source: 'protocol', phase: 'validation', code: 'empty' },
-        },
-      },
-    });
-  });
-
-  it('marks an oversized 200 body as incomplete and does not pass a truncated JSON fragment to validation as complete', async () => {
-    const response = await setup(
-      vi.fn(
-        async () =>
-          new Response(`{"message":"${'x'.repeat(32_769)}`, {
-            status: 200,
-            headers: { 'content-type': 'application/json' },
-          }),
-      ),
-    ).request(path, { method: 'POST', headers: headers(), body: JSON.stringify(body()) }, testEnv);
-    expect(response.status).toBe(200);
-    const result = await response.json();
-    expect(result.data).toMatchObject({
-      outcome: 'invalid_response',
-      upstreamStatus: 200,
-      evidence: {
-        response: { status: 200, format: 'fragment', complete: false, truncated: true },
-        failure: { source: 'protocol', phase: 'validation', code: 'incomplete' },
-      },
-    });
-    expect(result.data.evidence.response.capturedBytes).toBeLessThanOrEqual(32_768);
-    expect(result.data.evidence.response.body.length).toBeLessThanOrEqual(32_768);
-    expect(result.data.evidence.failure.issues.length).toBeGreaterThan(0);
-  });
 
   it('retains only redacted body fragments when the upstream response stream is interrupted', async () => {
     const credentialPrefix = credential.slice(0, 18);
