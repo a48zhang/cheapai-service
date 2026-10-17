@@ -23,11 +23,7 @@ export function ChatNotice({
       : state.failure.kind === 'rejected'
         ? '消息未能发送'
         : '本次生成未完成';
-  const description = uncertain
-    ? '请先确认本次请求的结果，再继续对话。'
-    : insufficientBalance
-      ? '请查看账户余额后继续对话。'
-      : state.failure.message;
+  const description = insufficientBalance ? '请查看账户余额后继续对话。' : state.failure.message;
   return (
     <div
       role="alert"

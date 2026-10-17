@@ -22,7 +22,12 @@ const prompt = {
 
 test('chat UI locks a new send before conversation creation and renders the stream', async ({ page }) => {
   const calls = { conversationCreates: 0, messagePosts: 0, operationIds: [] as string[], maxOutputTokens: [] as number[] };
-  await page.context().addCookies([{ name: '__Host-sub2api_csrf', value: 'ui-csrf-token', url: 'https://127.0.0.1/' }]);
+  // Restored login sessions can outlive the CSRF cookie. The first write must bootstrap it.
+  await page.route('**/api/v1/settings/public', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ data: { registrationMode: 'open', emailVerificationEnabled: false,
+      csrfToken: 'a'.repeat(42) + 'A' }, request_id: requestId }),
+  }));
   await page.route('**/api/v1/auth/me', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: user, request_id: requestId }) }));
   await page.route('**/api/v1/chat/models', route => route.fulfill({
     status: 200, contentType: 'application/json',
@@ -46,6 +51,7 @@ test('chat UI locks a new send before conversation creation and renders the stre
   });
   await page.route('**/api/v1/chat/conversations/conv-ui/messages', async route => {
     calls.messagePosts += 1;
+    expect(route.request().headers()['x-csrf-token']).toBe('a'.repeat(42) + 'A');
     const body = JSON.parse(route.request().postData() ?? '{}') as { operationId?: string; maxOutputTokens?: number };
     if (body.operationId) calls.operationIds.push(body.operationId);
     if (body.maxOutputTokens !== undefined) calls.maxOutputTokens.push(body.maxOutputTokens);
