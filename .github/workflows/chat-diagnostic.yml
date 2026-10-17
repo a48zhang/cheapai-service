@@ -1,5 +1,4 @@
 name: One-off chat diagnostic
-# Read exact constraint and invocation markers after log permission grant.
 on:
   push:
     branches: [diagnostics/chat-20261017]
@@ -21,16 +20,11 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11.19.0
       - uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile --strict-peer-dependencies --registry=https://registry.npmjs.org
       - name: Read exact failed-request Worker logs only
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          DIAGNOSTIC_REQUEST_IDS: '["8e07136a-d5e0-4118-9730-ff14d57882df","b99ede31-2664-4d19-a2bf-76bf8b534c28"]'
+          DIAGNOSTIC_REQUEST_IDS: '["223f172339512d6e662e6534c07d8c4a","43a4489fa077da352474c2f0e07bf8cb"]'
         run: node scripts/one-off-chat-log-query.mjs
