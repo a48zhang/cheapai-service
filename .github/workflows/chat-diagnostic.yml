@@ -23,8 +23,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
-      - name: Read only failed-request channel endpoint and mapping
+      - name: Read only recent gpt-5.5 failures and successes
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          DIAGNOSTIC_REQUEST_IDS: '["223f172339512d6e662e6534c07d8c4a","43a4489fa077da352474c2f0e07bf8cb"]'
-        run: node --experimental-transform-types scripts/one-off-channel-metadata.ts
+        run: node scripts/one-off-gpt55-investigation.mjs
