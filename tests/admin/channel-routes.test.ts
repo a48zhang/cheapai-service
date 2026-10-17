@@ -198,3 +198,21 @@ describe('administrator channel update HTTP', () => {
     expect(await testEnv.DB.prepare('SELECT status,config_version FROM channels WHERE id=?').bind(channelIds[0]).first()).toEqual({ status: 'active', config_version: 1 });
   });
 });
+
+it('deletes only with administrator, CSRF and matching version, then hides the channel', async () => {
+  const route = createChannelRoutes({ now: () => now, trustedOrigin: origin });
+  const target = origin + ADMIN_CHANNELS_PATH + '/' + channelIds[0];
+  const csrf = issueCsrfToken();
+  const headers = { Cookie: `${adminCookie}; ${csrf.setCookie.split(';')[0]}`, Origin: origin, 'Content-Type': 'application/json', 'X-CSRF-Token': csrf.token };
+  for (const [cookie, status] of [['', 401], [userCookie, 403], [adminCookie, 403]] as const) {
+    expect((await route.request(target, { method: 'DELETE', headers: { Cookie: cookie } }, { DB: testEnv.DB })).status).toBe(status);
+  }
+  for (const [version, status] of [[0, 400], [2, 409], [1, 200], [1, 404]]) {
+    expect((await route.request(target, { method: 'DELETE', headers, body: JSON.stringify({ version }) }, { DB: testEnv.DB })).status).toBe(status);
+  }
+  expect((await get('/' + channelIds[0])).status).toBe(404);
+  expect(await readChannelForForwarding(testEnv.DB, channelIds[0]!)).toBeNull();
+  const body = await (await get()).json() as { data: { items: { id: string }[] } };
+  expect(body.data.items.map(item => item.id)).not.toContain(channelIds[0]);
+  expect(await testEnv.DB.prepare("SELECT count(*) AS n FROM admin_audit WHERE action='channel.delete'").first('n')).toBe(1);
+});

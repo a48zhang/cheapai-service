@@ -79,5 +79,16 @@ export function createMappingsApi(api: ApiClient) {
     listMappings,
     createMapping,
     updateMapping,
+    async deleteMapping(
+      publicModelId: string,
+      channelId: string,
+      protocol: Protocol,
+      version: number,
+    ): Promise<void> {
+      await api.delete(
+        `${mappingPath(publicModelId)}/${encodeURIComponent(channelId)}/${protocol}`,
+        { version },
+      );
+    },
   });
 }

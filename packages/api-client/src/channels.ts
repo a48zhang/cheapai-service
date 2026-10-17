@@ -121,6 +121,9 @@ export function createChannelsApi(api: ApiClient) {
     create,
     update,
     probe,
+    async delete(id: string, version: number): Promise<void> {
+      await api.delete(pathFor(id), { version });
+    },
   });
 }
 

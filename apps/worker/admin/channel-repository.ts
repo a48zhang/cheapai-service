@@ -110,7 +110,7 @@ export async function updateChannel(database: D1Database, id: string, expectedVe
   params.push(id, expectedVersion);
   try {
     const results = await batch(database, [
-      prepare<ChannelRow>(database, `UPDATE channels SET ${assignments.join(',')} WHERE id=? AND config_version=? RETURNING ${projection}`, params),
+      prepare<ChannelRow>(database, `UPDATE channels SET ${assignments.join(',')} WHERE id=? AND config_version=? AND deleted_at IS NULL RETURNING ${projection}`, params),
       requireOneChange(database),
       buildAuditStatement(database, { actor_id: audit.actorId, operation_id: audit.operationId, created_at: audit.now,
         action: 'channel.update', target_type: 'channel', target_id: id,
@@ -143,11 +143,36 @@ export async function listChannels(database: D1Database, options: ChannelPageOpt
     } catch { throw new ApiError('invalid_request'); }
   }
   const result = await prepare<ChannelRow>(database, `SELECT ${projection} FROM channels
-    WHERE (? IS NULL OR status=?) AND (? IS NULL OR created_at<? OR (created_at=? AND id<?))
+    WHERE deleted_at IS NULL AND (? IS NULL OR status=?) AND (? IS NULL OR created_at<? OR (created_at=? AND id<?))
     ORDER BY created_at DESC,id DESC LIMIT ?`, [filter, filter, time, time, time, id, limit + 1]).all();
   const rows = result.rows.slice(0, limit);
   const last = rows.at(-1);
   const nextCursor = result.rows.length > limit && last
     ? btoa(JSON.stringify([1, last.created_at, last.id, filter])).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') : null;
   return { items: rows.map(view), nextCursor };
+}
+
+/** Retain the channel row for historical requests; remove only routing configuration. */
+export async function deleteChannel(database: D1Database, id: string, expectedVersion: number, context: ChannelAuditContext): Promise<void> {
+  idValue(id); integer(expectedVersion, 1);
+  if (expectedVersion >= Number.MAX_SAFE_INTEGER) throw new ApiError('conflict');
+  const audit = auditContext(context);
+  const current = await getChannelById(database, id);
+  if (!current) throw new ApiError('not_found');
+  if (current.configVersion !== expectedVersion) throw new ApiError('conflict');
+  try {
+    await batch(database, [
+      prepare(database, `UPDATE channels SET deleted_at=?,status='disabled',config_version=config_version+1,
+        updated_at=max(updated_at,?)
+        WHERE id=? AND config_version=? AND deleted_at IS NULL`, [audit.now, audit.now, id, expectedVersion]),
+      requireOneChange(database),
+      prepare(database, `UPDATE groups SET version=version+1,updated_at=max(updated_at,?)
+        WHERE id IN (SELECT group_id FROM channel_groups WHERE channel_id=?)`, [audit.now, id]),
+      prepare(database, 'DELETE FROM channel_groups WHERE channel_id=?', [id]),
+      prepare(database, 'DELETE FROM channel_models WHERE channel_id=?', [id]),
+      buildAuditStatement(database, { actor_id: audit.actorId, operation_id: audit.operationId, created_at: audit.now,
+        action: 'channel.delete', target_type: 'channel', target_id: id,
+        changes: { config_version: { before: expectedVersion, after: expectedVersion + 1 }, deleted_at: audit.now } }),
+    ]);
+  } catch (error) { return writeError(error); }
 }
