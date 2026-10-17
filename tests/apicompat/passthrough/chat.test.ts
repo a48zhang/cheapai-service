@@ -58,10 +58,9 @@ describe('Chat same-protocol request passthrough', () => {
     const before = structuredClone(body); expect(chatRequestAdapter.convert(body, { targetModel: 'u' }).ok).toBe(false); expect(body).toEqual(before);
   });
 
-  it('rejects non-JSON extension values and invalid target model', () => {
+  it('rejects non-JSON extension values', () => {
     const adapters = createChatPassthrough({ requestAllowedExtensions: ['extension'] });
     expect(adapters.request.convert({ model: 'm', messages: [{ role: 'user', content: 'x' }], extension: () => 1 }, { targetModel: 'u' }).ok).toBe(false);
-    expect(chatRequestAdapter.convert({ model: 'm', messages: [{ role: 'user', content: 'x' }] }, { targetModel: '' }).ok).toBe(false);
   });
 });
 

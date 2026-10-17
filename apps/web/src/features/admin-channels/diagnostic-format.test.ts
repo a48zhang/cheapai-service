@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  CHANNEL_PROBE_MAX_OUTPUT_TOKENS,
-  CHANNEL_PROBE_PROMPT,
-} from '@cheapai/contracts/channel-probe';
-import type { ChannelProbeResult, ChannelProtocol } from '@cheapai/api-client/channels';
+
+import type { ChannelProbeResult } from '@cheapai/api-client/channels';
 import {
   createDiagnosticPreview,
   formatDiagnosticCurl,
@@ -94,34 +91,6 @@ function parsePreviewArguments(command: string): string[] {
 }
 
 describe('diagnostic formatting', () => {
-  it.each(['chat', 'responses', 'messages'] as const)(
-    'builds a labeled, redacted preview from the fixed %s probe template',
-    (protocol: ChannelProtocol) => {
-      const preview = createDiagnosticPreview(makeChannel(), {
-        ...diagnosticModelA,
-        protocol,
-      });
-      const body = JSON.parse(preview.body) as Record<string, unknown>;
-
-      expect(preview.kind).toBe('preview');
-      expect(preview.maxOutputTokens).toBe(CHANNEL_PROBE_MAX_OUTPUT_TOKENS);
-      expect(preview.url).toContain('/v1/');
-      expect(body.model).toBe(diagnosticModelA.upstreamModel);
-      expect(body.stream).toBe(false);
-      expect(
-        body.input ?? (body.messages as Array<{ content: string }> | undefined)?.[0]?.content,
-      ).toBe(CHANNEL_PROBE_PROMPT);
-      if (protocol === 'responses') {
-        expect(body.max_output_tokens).toBe(CHANNEL_PROBE_MAX_OUTPUT_TOKENS);
-      } else {
-        expect(body.max_tokens).toBe(CHANNEL_PROBE_MAX_OUTPUT_TOKENS);
-      }
-      expect(preview.headers.Authorization ?? preview.headers['x-api-key']).toMatch(
-        /\[REDACTED\]/u,
-      );
-    },
-  );
-
   it('redacts query values from both displayed preview URLs', () => {
     const secret = 'PRIVATE_QUERY_SECRET_SENTINEL';
     const channel = makeChannel({

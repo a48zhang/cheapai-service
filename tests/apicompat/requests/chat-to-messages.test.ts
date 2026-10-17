@@ -1,5 +1,4 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
-import type { CapabilityFeature } from '../../../packages/apicompat/capabilities/check.js';
 import { createChatToMessagesRequestAdapter } from '../../../packages/apicompat/requests/chat-to-messages.js';
 import type { RequestAdapter } from '../../../packages/apicompat/types/adapter.js';
 import type { ChatMessage, ChatRequest } from '../../../packages/apicompat/types/chat.js';
@@ -107,7 +106,6 @@ describe('Chat→Messages text request milestone', () => {
     const result = make().convert(invalid, context);
     expect(result).toMatchObject({ ok: false, error: { kind: 'invalid_request' } });
     expect(JSON.stringify(result)).not.toContain('private-input');
-    expect(make().convert(basic(), { targetModel: ' ' })).toMatchObject({ ok: false, error: { code: 'invalid_target_model' } });
   });
 
   it.each([0, -1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])('requires an explicit valid output budget %s', maxTokens => {
@@ -129,7 +127,7 @@ describe('Chat→Messages text request milestone', () => {
 
 describe('P-CM-Q6 reviewed cache markers and extensions', () => {
   const configured = () => value(createChatToMessagesRequestAdapter({ maxTokens: 512, channelCapabilities: {
-    protocol: 'messages', features: ['cache_control', 'tools', 'strict_tools', 'image_url'], cacheTtls: ['1h', '5m'], maxOutputTokens: 1024,
+    protocol: 'messages',
   } }));
   it('maps request, tool and system/user block cache markers into native positions', () => {
     const input: ChatRequest = { model: 'm', cache_control: { type: 'ephemeral', ttl: '5m' },
@@ -162,7 +160,7 @@ describe('P-CM-Q6 reviewed cache markers and extensions', () => {
   it('preserves requested cache TTL without administrator declarations', () => {
     const input = { ...basic(), cache_control: { type: 'ephemeral', ttl: '1h' } };
     expect(make().convert(input, context).ok).toBe(true);
-    const onlyShort = value(createChatToMessagesRequestAdapter({ maxTokens: 512, channelCapabilities: { protocol: 'messages', features: ['cache_control'], cacheTtls: ['5m'] } }));
+    const onlyShort = value(createChatToMessagesRequestAdapter({ maxTokens: 512, channelCapabilities: { protocol: 'messages', } }));
     expect(onlyShort.convert(input, context).ok).toBe(true);
   });
   it('rejects unknown cache fields without reflecting their values', () => {
@@ -196,7 +194,7 @@ describe('P-CM-Q6 reviewed cache markers and extensions', () => {
 
 describe('P-CM-Q5 qualitative effort', () => {
   const adapter = () => value(createChatToMessagesRequestAdapter({ maxTokens: 512, channelCapabilities: {
-    protocol: 'messages', features: ['reasoning_effort', 'json_schema'], reasoningEfforts: ['low', 'medium', 'high'], maxOutputTokens: 1024,
+    protocol: 'messages',
   } }));
   it('preserves configured effort without invented thinking budget/mode', () => {
     const reasoning_effort = 'high';
@@ -224,7 +222,7 @@ describe('P-CM-Q5 qualitative effort', () => {
 });
 
 describe('P-CM-Q4-O native output schema', () => {
-  const adapter = () => value(createChatToMessagesRequestAdapter({ maxTokens: 128, channelCapabilities: { protocol: 'messages', features: ['json_schema'], maxOutputTokens: 256 } }));
+  const adapter = () => value(createChatToMessagesRequestAdapter({ maxTokens: 128, channelCapabilities: { protocol: 'messages', } }));
   const schema = () => ({ type: 'object', properties: { value: { type: ['string', 'null'] } }, required: ['value'], additionalProperties: false });
   it('maps strict JSON schema directly to output_config.format and preserves description', () => {
     const input = { ...basic(), response_format: { type: 'json_schema' as const, json_schema: { name: 'label', schema: schema(), strict: true, description: 'Requested output' } } };
@@ -249,11 +247,10 @@ describe('P-CM-Q4-O native output schema', () => {
 
 describe('P-CM-Q4 generation controls', () => {
   const configured = () => value(createChatToMessagesRequestAdapter({ maxTokens: 100, channelCapabilities: {
-    protocol: 'messages', features: ['temperature', 'top_p', 'stop_sequences', 'streaming'], maxOutputTokens: 200,
+    protocol: 'messages',
   } }));
   it.each(['max_tokens', 'max_completion_tokens'])('maps %s exactly without clamping or replacing the explicit limit', field => {
     expect(configured().convert({ ...basic(), [field]: 150 }, context)).toMatchObject({ ok: true, value: { max_tokens: 150 } });
-    expect(configured().convert({ ...basic(), [field]: 201 }, context).ok).toBe(false);
   });
   it('uses configured fallback only for missing/null limits and rejects two explicit limits', () => {
     expect(configured().convert({ ...basic(), max_tokens: null, max_completion_tokens: null }, context)).toMatchObject({ ok: true, value: { max_tokens: 100 } });
@@ -274,7 +271,7 @@ describe('P-CM-Q4 generation controls', () => {
 
 describe('CM-STREAM-OPTIONS downstream usage preference', () => {
   const configured = () => value(createChatToMessagesRequestAdapter({ maxTokens: 128, channelCapabilities: {
-    protocol: 'messages', features: ['streaming'], maxOutputTokens: 256,
+    protocol: 'messages',
   } }));
   it.each([true, false])('accepts include_usage=%s while omitting stream_options upstream', include_usage => {
     const result = configured().convert({ ...basic(), stream: true, stream_options: { include_usage } }, context);
@@ -292,8 +289,8 @@ describe('P-CM-Q3 image conversion with explicit model capabilities', () => {
   const imageRequest = (url: string, detail?: 'auto' | 'low' | 'high'): ChatRequest => ({ model: 'public', messages: [
     { role: 'user', content: [{ type: 'text', text: 'before' }, { type: 'image_url', image_url: { url, ...(detail === undefined ? {} : { detail }) } }, { type: 'text', text: 'after' }] },
   ] });
-  const images = (features: readonly CapabilityFeature[] = ['image_url', 'image_base64']) => value(createChatToMessagesRequestAdapter({
-    maxTokens: 512, channelCapabilities: { protocol: 'messages', features, maxOutputTokens: 1024 },
+  const images = () => value(createChatToMessagesRequestAdapter({
+    maxTokens: 512, channelCapabilities: { protocol: 'messages', },
   }));
 
   it('preserves HTTPS URL and text order without fetching or guessing a media type', () => {
@@ -320,17 +317,15 @@ describe('P-CM-Q3 image conversion with explicit model capabilities', () => {
 
   it('allows automatic detail but refuses fixed low/high detail even if flagged by the channel', () => {
     expect(images().convert(imageRequest('https://image.example/p.png', 'auto'), context).ok).toBe(true);
-    for (const detail of ['low', 'high'] as const) expect(images(['image_url', 'image_detail']).convert(imageRequest('https://image.example/p.png', detail), context))
+    for (const detail of ['low', 'high'] as const) expect(images().convert(imageRequest('https://image.example/p.png', detail), context))
       .toMatchObject({ ok: false, error: { kind: 'unsupported_feature' } });
   });
 
-  it('allows undeclared image transports while enforcing the configured output budget', () => {
+  it('allows undeclared image transports', () => {
     expect(make().convert(imageRequest('https://image.example/p.png'), context)).toMatchObject({ ok: true });
-    expect(images(['image_base64']).convert(imageRequest('https://image.example/p.png'), context)).toMatchObject({ ok: true });
-    expect(images(['image_url']).convert(imageRequest('data:image/png;base64,AQID'), context)).toMatchObject({ ok: true });
-    const capped = value(createChatToMessagesRequestAdapter({ maxTokens: 512, channelCapabilities: { protocol: 'messages', features: ['image_url'], maxOutputTokens: 100 } }));
-    expect(capped.convert(imageRequest('https://image.example/p.png'), context)).toMatchObject({ ok: false, error: { code: 'output_limit_exceeded' } });
-    expect(createChatToMessagesRequestAdapter({ maxTokens: 512, channelCapabilities: { protocol: 'chat', features: ['image_url'] } }).ok).toBe(false);
+    expect(images().convert(imageRequest('https://image.example/p.png'), context)).toMatchObject({ ok: true });
+    expect(images().convert(imageRequest('data:image/png;base64,AQID'), context)).toMatchObject({ ok: true });
+    expect(createChatToMessagesRequestAdapter({ maxTokens: 512, channelCapabilities: { protocol: 'chat' } }).ok).toBe(false);
   });
 
   it.each(['data:image/svg+xml;base64,AQID', 'data:application/pdf;base64,AQID', 'data:image/png;base64,', 'data:image/png;base64,AQ',
@@ -356,7 +351,7 @@ describe('P-CM-Q3 image conversion with explicit model capabilities', () => {
       { role: 'assistant', tool_calls: [{ id: 'call_image', type: 'function', function: { name: 'describe', arguments: '{}' } }] },
       { role: 'tool', tool_call_id: 'call_image', content: 'image result' },
     ] };
-    const output = value(images(['image_url', 'tools']).convert(request, context));
+    const output = value(images().convert(request, context));
     expect(output.messages[0]?.content[1]).toMatchObject({ type: 'image' });
     expect(output.messages[1]?.content[0]).toMatchObject({ type: 'tool_use', id: 'call_image' });
     expect(output.messages[2]?.content[0]).toMatchObject({ type: 'tool_result', tool_use_id: 'call_image' });

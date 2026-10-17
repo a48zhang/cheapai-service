@@ -1,9 +1,6 @@
 import type { ChannelProbeResult } from '@cheapai/contracts/channels';
 import type { ProbeEvidence } from '@cheapai/contracts/channel-diagnostics';
-import {
-  CHANNEL_PROBE_MAX_OUTPUT_TOKENS,
-  createChannelProbeBody,
-} from '@cheapai/contracts/channel-probe';
+import { createChannelProbeBody } from '@cheapai/contracts/channel-probe';
 import type { ChannelProbeProtocol } from '@cheapai/contracts/channel-probe';
 import { readDiagnosticBody, DIAGNOSTIC_RESPONSE_MAX_BYTES } from './diagnostic-body';
 import type { DiagnosticBodyCapture } from './diagnostic-body';
@@ -14,8 +11,6 @@ import {
   redactDiagnosticText,
   redactDiagnosticUrl,
 } from './diagnostic-redaction';
-import { validateDiagnosticResponse } from './diagnostic-validation';
-import type { DiagnosticValidationIssue } from './diagnostic-validation';
 import { sendUpstream, UpstreamTransportError } from './transport';
 import type {
   UpstreamFetch,
@@ -23,7 +18,10 @@ import type {
   UpstreamTransportRequestSnapshot,
 } from './transport';
 
-const MAX_DIAGNOSTIC_DURATION_MS = 10_000;
+interface DiagnosticValidationIssue {
+  path: string;
+  message: string;
+}
 
 export interface RunChannelDiagnosticOptions {
   baseUrl: string;
@@ -34,8 +32,8 @@ export interface RunChannelDiagnosticOptions {
   diagnosticId: string;
   requestId: string;
   startedAt: number;
-  timeoutMs: number;
-  maxOutputTokens: number;
+  timeoutMs?: number;
+  params?: Record<string, unknown>;
   signal?: AbortSignal;
   now?: () => number;
   fetch?: UpstreamFetch;
@@ -148,7 +146,7 @@ function requestEvidence(
     headers: headers.headers,
     body: body.body,
     publicModelId: cleanText(options.publicModelId, 128, secrets, 'unknown-model'),
-    upstreamModel: cleanText(options.upstreamModel, 128, secrets, '[REDACTED MODEL]'),
+    upstreamModel: redactDiagnosticText(options.upstreamModel, secrets).text,
   };
 }
 
@@ -201,7 +199,7 @@ function transportFailure(
   };
 }
 
-/** Run one fixed, bounded channel probe and return only redacted evidence. */
+/** Run the caller-supplied channel request and return redacted evidence. */
 export async function runChannelDiagnostic(
   options: RunChannelDiagnosticOptions,
 ): Promise<ChannelDiagnosticRunResult> {
@@ -361,29 +359,16 @@ export async function runChannelDiagnostic(
 
   beginPhase('probe_configuration');
   try {
-    const timeoutMs =
-      Number.isSafeInteger(options.timeoutMs) && options.timeoutMs >= 1
-        ? Math.min(options.timeoutMs, MAX_DIAGNOSTIC_DURATION_MS)
-        : 0;
-    const maxOutputTokens =
-      Number.isSafeInteger(options.maxOutputTokens) && options.maxOutputTokens >= 1
-        ? Math.min(options.maxOutputTokens, CHANNEL_PROBE_MAX_OUTPUT_TOKENS)
-        : 0;
-    if (timeoutMs < 1 || maxOutputTokens < 1) throw new RangeError('Invalid diagnostic limits.');
-
-    const body = JSON.stringify(
-      createChannelProbeBody(options.protocol, options.upstreamModel, maxOutputTokens),
-    );
+    const probeBody = createChannelProbeBody(options.protocol, options.upstreamModel, options.params);
+    const body = JSON.stringify(probeBody);
     const sendOptions = {
       baseUrl: options.baseUrl,
       upstreamProtocol: options.protocol,
       upstreamKey: options.upstreamKey,
       body,
-      stream: false,
+      stream: probeBody.stream === true,
       ...(options.signal === undefined ? {} : { signal: options.signal }),
-      maxDurationMs: timeoutMs,
-      headersTimeoutMs: Math.min(3_000, timeoutMs),
-      idleTimeoutMs: Math.min(3_000, timeoutMs),
+      ...(options.timeoutMs === undefined ? {} : { maxDurationMs: options.timeoutMs }),
     };
     const dependencies =
       options.fetch === undefined
@@ -473,35 +458,9 @@ export async function runChannelDiagnostic(
         const failure = provider ?? redactDiagnosticError({ message: fallbackMessage }, secrets);
         setFailure('upstream', 'headers', failure.code, failure.message);
       } else {
-        beginPhase('validation');
-        const validation = validateDiagnosticResponse({
-          protocol: options.protocol,
-          contentType: responseContentType,
-          bytes: capture.bytes,
-          complete: capture.complete,
-          truncated: capture.truncated,
-          diagnosticId: options.diagnosticId,
-          model: options.upstreamModel,
-        });
-        if (validation.valid) {
-          outcome = 'responded';
-          evidence.failure = null;
-          endPhase('validation', 'completed');
-        } else {
-          outcome = 'invalid_response';
-          endPhase('validation', 'failed');
-          const provider = providerError(safeBody.body ?? '', secrets);
-          const firstIssue = validation.issues[0];
-          setFailure(
-            provider ? 'upstream' : 'protocol',
-            'validation',
-            provider?.code ?? validation.kind,
-            provider?.message ??
-              firstIssue?.message ??
-              'The upstream response did not match the configured protocol.',
-            validation.issues,
-          );
-        }
+        outcome = 'responded';
+        evidence.failure = null;
+        endPhase('validation', 'skipped');
       }
     } else {
       const error =

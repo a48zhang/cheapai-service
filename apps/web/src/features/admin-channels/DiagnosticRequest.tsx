@@ -132,11 +132,7 @@ export function DiagnosticRequest({
           ) : (
             <StatusBadge tone="neutral">请求预览</StatusBadge>
           )}
-          {!actualSnapshot && preview !== null && (
-            <span className="text-xs text-[var(--color-ink-muted)]">
-              最多 {preview.maxOutputTokens} tokens
-            </span>
-          )}
+
         </div>
 
         {requestMethod !== null && (

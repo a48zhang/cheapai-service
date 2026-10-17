@@ -1,3 +1,4 @@
+import type { ChannelProbeInput } from '@cheapai/contracts/channels';
 import type { ChannelModel, ChannelView } from '@cheapai/api-client/channels';
 import type { ChannelProbeResult } from '@cheapai/api-client/channels';
 import type { AdminChannelsApi } from './api';
@@ -15,9 +16,9 @@ export function createDiagnosticOperation(api: AdminChannelsApi) {
       channel: ChannelView,
       model: ChannelModel,
       signal?: AbortSignal,
+      params?: ChannelProbeInput['params'],
     ): Promise<ChannelProbeResult> {
       if (active) throw new Error('A channel diagnostic is already running.');
-      if (channel.status !== 'active') throw new Error('Only active channels can be diagnosed.');
       const currentMapping = channel.models.find(
         (candidate) =>
           candidate.publicModelId === model.publicModelId &&
@@ -38,6 +39,7 @@ export function createDiagnosticOperation(api: AdminChannelsApi) {
             channelVersion: channel.configVersion,
             mappingVersion: currentMapping.mappingVersion,
             priceVersion: currentMapping.priceVersion,
+            ...(params === undefined ? {} : { params }),
           },
           signal === undefined ? undefined : { signal },
         );

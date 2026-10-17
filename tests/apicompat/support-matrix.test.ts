@@ -22,7 +22,7 @@ const basicResponses: Record<P, unknown> = {
   messages: { id: 'native_messages', type: 'message', role: 'assistant', model: 'provider-messages', content: [{ type: 'text', text: 'Hi' }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 2, output_tokens: 3, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } },
 };
 function channel(protocol: P): ChannelCapabilities {
-  return { protocol, features: ['streaming'], maxOutputTokens: 64, ...(protocol === 'messages' ? { defaultOutputTokens: 16 } : {}), reasoningEfforts: ['low', 'medium', 'high'], cacheTtls: ['5m', '1h'] };
+  return { protocol };
 }
 function factoryContext(protocol: P): RegistryFactoryContext {
   return { capabilities: channel(protocol), outputTokenLimit: 16 };

@@ -24,10 +24,7 @@ function invalid(code: string, param: string): never {
 
 /** Full client history stays in native form. Reference ownership is a separate
  * G13/D1 step; a syntactically valid reference never grants a history binding. */
-export async function parseResponsesInput(input: Request, options: { maxBodyBytes?: number; maxOutputTokens?: number } = {}): Promise<ParsedResponsesInput> {
-  if (options.maxOutputTokens !== undefined && (!Number.isSafeInteger(options.maxOutputTokens) || options.maxOutputTokens < 1)) {
-    throw new ApiError('service_unavailable');
-  }
+export async function parseResponsesInput(input: Request, options: { maxBodyBytes?: number } = {}): Promise<ParsedResponsesInput> {
   const raw = await readGatewayJson(input, options.maxBodyBytes);
   const parsed = validateResponsesRequest(raw, { unknownFields: 'preserve', native: true });
   if (!parsed.ok) throw new ResponsesInputError(parsed.error);
@@ -37,8 +34,5 @@ export async function parseResponsesInput(input: Request, options: { maxBodyByte
   }
   const features = identifyRequestFeatures({ protocol: 'responses', request });
   if (!features.ok) throw new ResponsesInputError(features.error);
-  if (options.maxOutputTokens !== undefined && features.value.outputTokenLimit !== undefined && features.value.outputTokenLimit > options.maxOutputTokens) {
-    invalid('output_limit_exceeded', '$.max_output_tokens');
-  }
   return { protocol: 'responses', request, model: request.model, stream: request.stream === true, features: features.value };
 }

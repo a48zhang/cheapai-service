@@ -97,12 +97,11 @@ describe('Responses→Chat text request milestone', () => {
       .toMatchObject({ ok: false, error: { kind: 'unsupported_feature' } });
   });
 
-  it('requires valid source structure and targetModel without reflecting contents', () => {
+  it('requires valid source structure without reflecting contents', () => {
     const malformed = { model: 'm', input: [{ role: 'user', content: { secret: 'private-history' } }] } as unknown as ResponsesRequest;
     const result = convertResponsesToChatRequest(malformed, context);
     expect(result).toMatchObject({ ok: false, error: { kind: 'invalid_request' } });
     expect(JSON.stringify(result)).not.toContain('private-history');
-    expect(convertResponsesToChatRequest(basic(), { targetModel: '' })).toMatchObject({ ok: false, error: { code: 'invalid_target_model' } });
   });
 
   it('copies text blocks without mutating input or retaining response-to-response state', () => {
@@ -119,7 +118,7 @@ describe('Responses→Chat text request milestone', () => {
 });
 
 describe('P-RC-Q5 effort without private-history invention', () => {
-  const options = { channelCapabilities: { protocol: 'chat' as const, features: ['reasoning_effort'] as const, reasoningEfforts: ['none', 'low', 'medium', 'high'] } };
+  const options = { channelCapabilities: { protocol: 'chat' as const, } };
   it.each(['none', 'low', 'medium', 'high'])('maps approved effort %s literally', effort => {
     const output = value(convertResponsesToChatRequest({ ...basic(), reasoning: { effort } }, context, options));
     expect(output.reasoning_effort).toBe(effort); expect(output).not.toHaveProperty('thinking');
@@ -140,7 +139,7 @@ describe('P-RC-Q5 effort without private-history invention', () => {
 });
 
 describe('P-RC-Q4-O output format', () => {
-  const options = { channelCapabilities: { protocol: 'chat' as const, features: ['json_object', 'json_schema'] as const } };
+  const options = { channelCapabilities: { protocol: 'chat' as const } };
   it.each(['text', 'json_object'])('maps text.format %s', type => {
     expect(convertResponsesToChatRequest({ ...basic(), text: { format: { type } } }, context, options)).toMatchObject({ ok: true, value: { response_format: { type } } });
   });
@@ -160,11 +159,10 @@ describe('P-RC-Q4-O output format', () => {
 });
 
 describe('P-RC-Q4 output controls', () => {
-  const options = { channelCapabilities: { protocol: 'chat' as const, features: ['temperature', 'top_p', 'streaming', 'stream_usage'] as const, maxOutputTokens: 256 } };
+  const options = { channelCapabilities: { protocol: 'chat' as const, } };
   it('maps limit/sampling/stream without modifying literal values', () => {
     expect(convertResponsesToChatRequest({ ...basic(), max_output_tokens: 200, temperature: 0, top_p: 1, stream: true }, context, options))
       .toMatchObject({ ok: true, value: { max_completion_tokens: 200, temperature: 0, top_p: 1, stream: true } });
-    expect(convertResponsesToChatRequest({ ...basic(), max_output_tokens: 257 }, context, options).ok).toBe(false);
   });
   it('retains false stream and omits null controls without inventing defaults', () => {
     const result = value(convertResponsesToChatRequest({ ...basic(), stream: false, max_output_tokens: null, temperature: null, top_p: null }, context));
@@ -172,16 +170,16 @@ describe('P-RC-Q4 output controls', () => {
   });
   it('accepts undeclared sampling but rejects malformed controls or stop extensions', () => {
     expect(convertResponsesToChatRequest({ ...basic(), top_p: 0.5 }, context).ok).toBe(true);
-    expect(convertResponsesToChatRequest({ ...basic(), top_p: 0.5 }, context, { channelCapabilities: { protocol: 'chat', features: [] } }).ok).toBe(true);
+    expect(convertResponsesToChatRequest({ ...basic(), top_p: 0.5 }, context, { channelCapabilities: { protocol: 'chat' } }).ok).toBe(true);
     for (const patch of [{ max_output_tokens: 0 }, { temperature: 3 }, { top_p: -1 }, { stop: ['END'] }, { max_tokens: 10 }]) expect(convertResponsesToChatRequest({ ...basic(), ...patch }, context, options).ok).toBe(false);
   });
 });
 
 describe('P-RC-Q6 completed history and known options', () => {
-  const options = { channelCapabilities: { protocol: 'chat' as const, features: ['streaming', 'stream_usage', 'tools', 'strict_tools', 'refusal_history'] as const } };
+  const options = { channelCapabilities: { protocol: 'chat' as const } };
   it('requests Chat usage explicitly for Responses streams', () => {
     expect(convertResponsesToChatRequest({ ...basic(), stream: true }, context, options)).toMatchObject({ ok: true, value: { stream: true, stream_options: { include_usage: true } } });
-    expect(convertResponsesToChatRequest({ ...basic(), stream: true }, context, { channelCapabilities: { protocol: 'chat', features: ['streaming'] } }).ok).toBe(true);
+    expect(convertResponsesToChatRequest({ ...basic(), stream: true }, context, { channelCapabilities: { protocol: 'chat' } }).ok).toBe(true);
   });
   it('keeps call_id rather than source item IDs and accepts complete native items', () => {
     const result = value(convertResponsesToChatRequest({ model: 'm', input: [
@@ -204,13 +202,13 @@ describe('P-RC-Q6 completed history and known options', () => {
   });
   it('preserves generated strict-tool semantics without capability declarations', () => {
     const request: ResponsesRequest = { ...basic(), tools: [{ type: 'function', name: 'f', parameters: { type: 'object', properties: {} } }] };
-    expect(convertResponsesToChatRequest(request, context, { channelCapabilities: { protocol: 'chat', features: ['tools'] } }).ok).toBe(true);
+    expect(convertResponsesToChatRequest(request, context, { channelCapabilities: { protocol: 'chat' } }).ok).toBe(true);
     expect(convertResponsesToChatRequest(request, context, options).ok).toBe(true);
   });
 });
 
 describe('P-RC-Q3 images', () => {
-  const options = { channelCapabilities: { protocol: 'chat' as const, features: ['image_url', 'image_base64', 'image_detail'] as const } };
+  const options = { channelCapabilities: { protocol: 'chat' as const } };
   const request = (image_url: string, detail?: 'auto' | 'low' | 'high' | 'original'): ResponsesRequest => ({ model: 'm', input: [{ role: 'user', content: [
     { type: 'input_text', text: 'before' }, { type: 'input_image', image_url, ...(detail ? { detail } : {}) }, { type: 'input_text', text: 'after' },
   ] }] });

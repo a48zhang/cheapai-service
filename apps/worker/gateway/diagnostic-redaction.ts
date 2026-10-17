@@ -532,7 +532,7 @@ export function redactDiagnosticEvidence(
             headers: headers.headers,
             body: body.body === null ? null : cleanText(body.body, MAX_BODY_CHARS),
             publicModelId: cleanText(evidence.request!.publicModelId, 128),
-            upstreamModel: cleanText(evidence.request!.upstreamModel, 128),
+            upstreamModel: redactDiagnosticText(evidence.request!.upstreamModel, safeSecrets).text,
           };
         })();
   const redirects = evidence.redirects.slice(0, 20).map((redirect) => ({

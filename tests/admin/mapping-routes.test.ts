@@ -12,7 +12,7 @@ const listUrl = `${origin}/api/v1/admin/models/c11-public/mappings`;
 let channelId: string; let adminCookie: string; let userCookie: string;
 function app() { return createMappingRoutes({ now: () => now, trustedOrigin: origin }); }
 function headers(cookie = adminCookie) { const csrf = issueCsrfToken(); return { Cookie: `${cookie}; ${csrf.setCookie.split(';')[0]}`, Origin: origin, 'Content-Type': 'application/json', 'X-CSRF-Token': csrf.token, 'X-Actor-Id': 'c11-user' }; }
-function input(protocol = 'chat') { return { channelId, protocol, upstreamModel: `upstream-${protocol}`, capabilities: { protocol, features: [], maxOutputTokens: 4096 } }; }
+function input(protocol = 'chat') { return { channelId, protocol, upstreamModel: `upstream-${protocol}` }; }
 async function create(protocol = 'chat') { return app().request(listUrl, { method: 'POST', headers: headers(), body: JSON.stringify(input(protocol)) }, { DB: testEnv.DB }); }
 
 describe('typed administrator model mapping HTTP', () => {
@@ -24,7 +24,7 @@ describe('typed administrator model mapping HTTP', () => {
     userCookie = (await createCookieSession(testEnv.DB, 'c11-user', now)).setCookie.split(';')[0]!;
     const audit = { actorId: 'c11-admin', operationId: 'setup', now };
     channelId = (await createChannel(testEnv.DB, { name: 'C11 channel', baseUrl: 'https://provider.example.com', upstreamKey: 'private-channel-key', concurrencyLimit: 2, rpmLimit: 60 }, audit)).id;
-    await createModel(testEnv.DB, { publicModelId: 'c11-public', sellPrices: { input: '1', output: '2' }, admissionMinBalanceUnits: '0', maxOutputTokens: 4096 }, audit);
+    await createModel(testEnv.DB, { publicModelId: 'c11-public', sellPrices: { input: '1', output: '2' } }, audit);
   });
   it('creates separate protocol mappings and lists them without credential leakage or write config', async () => {
     for (const protocol of ['chat', 'responses', 'messages']) expect((await create(protocol)).status).toBe(201);
@@ -37,24 +37,21 @@ describe('typed administrator model mapping HTTP', () => {
     const filtered = await route.request(listUrl + '?protocol=responses', { headers: { Cookie: adminCookie } }, { DB: testEnv.DB });
     expect(await filtered.json()).toMatchObject({ data: { items: [{ protocol: 'responses', upstreamModel: 'upstream-responses' }] } });
   });
-  it('creates mappings without capability configuration and preserves legacy metadata on name edits', async () => {
+  it('creates mappings and edits upstream names', async () => {
     const response = await app().request(listUrl, { method: 'POST', headers: headers(),
       body: JSON.stringify({ channelId, protocol: 'responses', upstreamModel: 'codex-upstream' }) }, { DB: testEnv.DB });
     expect(response.status).toBe(201);
-    expect(await response.json()).toMatchObject({ data: { capabilities: { protocol: 'responses', features: [] } } });
     await create();
     const edited = await app().request(`${listUrl}/${channelId}/chat`, { method: 'PATCH', headers: headers(),
       body: JSON.stringify({ version: 1, upstreamModel: 'renamed-upstream' }) }, { DB: testEnv.DB });
     expect(edited.status).toBe(200);
-    expect(await edited.json()).toMatchObject({ data: { upstreamModel: 'renamed-upstream',
-      capabilities: { protocol: 'chat', features: [], maxOutputTokens: 4096 } } });
+    expect(await edited.json()).toMatchObject({ data: { upstreamModel: 'renamed-upstream' } });
   });
-  it('requires session/admin and CSRF, rejecting identity/group/capability injection', async () => {
+  it('requires session/admin and CSRF, rejecting identity/group injection', async () => {
     expect((await app().request(listUrl, {}, { DB: testEnv.DB })).status).toBe(401);
     expect((await app().request(listUrl, { headers: { Cookie: userCookie } }, { DB: testEnv.DB })).status).toBe(403);
     expect((await app().request(listUrl, { method: 'POST', headers: { Cookie: adminCookie } }, { DB: testEnv.DB })).status).toBe(403);
-    for (const extra of [{ protocol: 'invalid' },
-      { capabilities: { protocol: 'messages', features: [] } }]) {
+    for (const extra of [{ protocol: 'invalid' }]) {
       expect((await app().request(listUrl, { method: 'POST', headers: headers(), body: JSON.stringify({ ...input(), ...extra }) }, { DB: testEnv.DB })).status).toBe(400);
     }
   });

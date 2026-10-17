@@ -27,7 +27,7 @@ const models = {
       id: 'group-1',
       name: 'primary',
       billingMultiplier: '0.5',
-      models: [{ publicModelId: 'model-1' }, { publicModelId: 'model-2', maxOutputTokens: 4096 }],
+      models: [{ publicModelId: 'model-1' }, { publicModelId: 'model-2' }],
     },
   ],
 };

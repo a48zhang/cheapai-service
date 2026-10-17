@@ -324,20 +324,7 @@ describe('channel diagnostic API errors and cancellation', () => {
     const identity = { userId: 'admin-1', epoch: 3 };
     const notices: string[] = [];
     const requests: { url: string; signal: AbortSignal | null | undefined }[] = [];
-    const probeData = {
-      diagnosticId: 'diagnostic-1',
-      channelId: 'channel-1',
-      publicModelId: 'public-model',
-      protocol: 'chat',
-      outcome: 'http_error',
-      upstreamStatus: 401,
-      channelVersion: 1,
-      mappingVersion: 2,
-      priceVersion: 3,
-      maxOutputTokens: 16,
-      mayIncurUpstreamCost: true,
-      userBalanceCharged: false,
-    };
+    const probeData = {diagnosticId: 'diagnostic-1', channelId: 'channel-1', publicModelId: 'public-model', protocol: 'chat', outcome: 'http_error', upstreamStatus: 401, channelVersion: 1, mappingVersion: 2, priceVersion: 3, mayIncurUpstreamCost: true, userBalanceCharged: false};
     const client = createApiClient({
       getCsrfToken: () => csrf,
       captureIdentity: () => identity,

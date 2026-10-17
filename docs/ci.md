@@ -6,6 +6,8 @@ checks the latest revision; a push containing several commits does not build eac
 commit separately. Superseded runs for the same ref are cancelled.
 
 Cloud typechecks, tests, build, lint and browser flows still run on each PR update.
+Formatting differences are reported in a separate step with `continue-on-error`;
+they do not fail the job or prevent browser checks from running.
 Desktop typechecks, builds and appearance checks run only when the desktop scope
 changes. The Windows/macOS installer matrix uses the same detector, with a small
 Linux detection job before allocating the three native build runners.

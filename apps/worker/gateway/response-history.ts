@@ -109,6 +109,6 @@ export function rewriteResponseHistoryRequest(input: ProtocolRequest, binding: R
 export function matchesResponseHistoryBinding(binding: ResponseHistoryBinding, candidate: RouteCandidate): boolean {
   return candidate.channel.id === binding.channelId && candidate.mapping.channelId === binding.channelId
     && candidate.mapping.publicModelId === binding.publicModelId && candidate.mapping.upstreamModel === binding.upstreamModel
-    && candidate.mapping.protocol === binding.upstreamProtocol && candidate.mapping.capabilities.protocol === binding.upstreamProtocol
+    && candidate.mapping.protocol === binding.upstreamProtocol
     && candidate.mapping.configVersion === binding.mappingVersion;
 }

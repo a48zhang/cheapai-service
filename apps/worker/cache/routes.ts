@@ -4,7 +4,7 @@ import { getChannelById } from '../catalog/channels';
 import type { ChannelView } from '../catalog/channels';
 import { getModelById } from '../catalog/models';
 import type { ModelView } from '../catalog/models';
-import { listModelMappings, validateMappingCapabilities } from '../catalog/model-mappings';
+import { listModelMappings } from '../catalog/model-mappings';
 import type { ModelMappingView } from '../catalog/model-mappings';
 import { validateUpstreamBaseUrl } from '../gateway/upstream-url';
 import { DEFAULT_CONFIG } from '../config';
@@ -47,15 +47,14 @@ function validRoutes(value: unknown, groupId: string, modelId: string): value is
     for (const candidate of value.candidates) {
       if (!object(candidate, ['channel', 'mapping']) ||
           !object(candidate.channel, ['id', 'baseUrl', 'priority', 'concurrencyLimit', 'rpmLimit', 'configVersion']) ||
-          !object(candidate.mapping, ['channelId', 'publicModelId', 'protocol', 'upstreamModel', 'capabilities', 'configVersion'])) return false;
+          !object(candidate.mapping, ['channelId', 'publicModelId', 'protocol', 'upstreamModel', 'configVersion'])) return false;
       const channel = candidate.channel;
       const mapping = candidate.mapping;
       if (!identifier(channel.id) || typeof channel.baseUrl !== 'string' || !integer(channel.priority, 0) ||
           !integer(channel.concurrencyLimit, 1) || !integer(channel.rpmLimit, 1) || !integer(channel.configVersion, 1) ||
-          mapping.channelId !== channel.id || mapping.publicModelId !== modelId || !identifier(mapping.upstreamModel) ||
+          mapping.channelId !== channel.id || mapping.publicModelId !== modelId || typeof mapping.upstreamModel !== 'string' ||
           !integer(mapping.configVersion, 1) || !['chat', 'responses', 'messages'].includes(mapping.protocol as string)) return false;
       validateUpstreamBaseUrl(channel.baseUrl);
-      validateMappingCapabilities(mapping.capabilities, mapping.protocol as ModelMappingView['protocol']);
       const identity = JSON.stringify([channel.id, mapping.protocol]);
       if (seen.has(identity)) return false;
       seen.add(identity);
@@ -103,7 +102,7 @@ export async function readRoutes(database: D1Database, kv: KVNamespace, groupId:
       candidates.push({ channel: { id: channel.id, baseUrl: channel.baseUrl, priority: channel.priority,
         concurrencyLimit: channel.concurrencyLimit, rpmLimit: channel.rpmLimit, configVersion: channel.configVersion },
       mapping: { channelId: mapping.channelId, publicModelId: mapping.publicModelId, protocol: mapping.protocol,
-        upstreamModel: mapping.upstreamModel, capabilities: mapping.capabilities, configVersion: mapping.configVersion } });
+        upstreamModel: mapping.upstreamModel, configVersion: mapping.configVersion } });
     }
     data = { group: { id: group.id, version: group.version }, model: { publicModelId: model.publicModelId, priceVersion: model.priceVersion }, candidates };
   } catch (error) { throw new ApiError('service_unavailable', { cause: error }); }

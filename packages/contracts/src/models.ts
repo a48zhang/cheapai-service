@@ -36,11 +36,6 @@ export const sellPricesSchema = z.object({
   reasoning: priceStringSchema.optional(),
 });
 
-/** Integer USD smallest units are represented as decimal strings, never floats. */
-const admissionUnitsSchema = z
-  .string()
-  .max(128)
-  .regex(/^(?:0|[1-9][0-9]*)$/u);
 const modelIdSchema = z
   .string()
   .min(1)
@@ -53,8 +48,6 @@ export const modelViewSchema = z
     status: modelStatusSchema,
     sellPrices: sellPricesSchema,
     priceVersion: positiveCountSchema,
-    admissionMinBalanceUnits: admissionUnitsSchema,
-    maxOutputTokens: positiveCountSchema,
     createdAt: safeCountSchema,
     updatedAt: safeCountSchema,
   })
@@ -69,16 +62,12 @@ export const modelInputSchema = z.object({
   publicModelId: modelIdSchema,
   status: modelStatusSchema.optional(),
   sellPrices: sellPricesSchema,
-  admissionMinBalanceUnits: admissionUnitsSchema,
-  maxOutputTokens: positiveCountSchema,
 });
 
 export const modelPatchSchema = z
   .object({
     status: modelStatusSchema.optional(),
     sellPrices: sellPricesSchema.optional(),
-    admissionMinBalanceUnits: admissionUnitsSchema.optional(),
-    maxOutputTokens: positiveCountSchema.optional(),
   })
 
   .refine((value) => Object.keys(value).length > 0);

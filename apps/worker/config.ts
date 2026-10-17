@@ -35,8 +35,6 @@ export interface RuntimeConfig {
   defaultUserRpm: number;
   gateLeaseTtlMs: number;
   gateRenewIntervalMs: number;
-  /** Decimal integer units (1 USD = 100,000,000 units), never floating USD. */
-  admissionMinBalanceUnits: string;
   balanceCacheEnabled: boolean;
   balanceCacheTtlMs: number;
   routingCacheTtlMs: number;
@@ -76,7 +74,6 @@ export const DEFAULT_CONFIG: Readonly<RuntimeConfig> = Object.freeze({
   defaultUserRpm: UNLIMITED_RPM,
   gateLeaseTtlMs: 90_000,
   gateRenewIntervalMs: 30_000,
-  admissionMinBalanceUnits: '0',
   balanceCacheEnabled: false,
   balanceCacheTtlMs: 15_000,
   routingCacheTtlMs: 60_000,
@@ -116,19 +113,9 @@ function positiveInteger(value: unknown, field: string): number {
   return value;
 }
 
-/** Canonical nonnegative units, limited to D1/JS safe integer round trips. */
-export function parseAdmissionMinBalanceUnits(value: unknown): string {
-  if (typeof value !== 'string' || value.trim() !== value || !/^(0|[1-9][0-9]*)$/.test(value)
-      || value.length > 16 || BigInt(value) > BigInt(Number.MAX_SAFE_INTEGER)) {
-    throw new ConfigError('admissionMinBalanceUnits', 'must be a nonnegative safe integer units string');
-  }
-  return value;
-}
-
 /** Accepts partial overrides. Omitted fields default; explicit undefined is invalid.
  * Email availability is supplied by the caller, never discovered by sending mail.
- * Cron scheduling, data retention, and balance admission still require consumers;
- * a zero threshold never authorizes a zero/negative balance (balance must be > 0).
+ * Cron scheduling and data retention still require consumers.
  */
 export function parseRuntimeConfig(
   input: unknown = {},
@@ -147,8 +134,7 @@ export function parseRuntimeConfig(
     } else if (key === 'emailVerificationEnabled' || key === 'balanceCacheEnabled') {
       if (typeof value !== 'boolean') throw new ConfigError(key, 'must be a boolean');
       config[key] = value;
-    } else if (key === 'admissionMinBalanceUnits') {
-      config[key] = parseAdmissionMinBalanceUnits(value);
+
     } else if (key === 'defaultUserConcurrency') {
       if (value === undefined) throw new ConfigError(key, 'must not be explicitly undefined');
       config[key] = parseConcurrencyLimit(value);
@@ -194,21 +180,4 @@ export function parseChannelLimits(input: unknown): Readonly<ChannelLimits> {
     concurrencyLimit: parseConcurrencyLimit(values.concurrencyLimit),
     rpmLimit: parseRpmLimit(values.rpmLimit),
   });
-}
-
-export interface ModelLimits {
-  maxOutputTokens: number;
-  admissionMinBalanceUnits: string;
-}
-
-/** Model maximum must be explicit; requests have no platform output default. Price validation belongs to pricing. */
-export function parseModelLimits(input: unknown): Readonly<ModelLimits> {
-  const values = objectInput(input);
-  const limits = {
-    maxOutputTokens: positiveInteger(values.maxOutputTokens, 'maxOutputTokens'),
-    admissionMinBalanceUnits: parseAdmissionMinBalanceUnits(
-      Object.hasOwn(values, 'admissionMinBalanceUnits') ? values.admissionMinBalanceUnits : DEFAULT_CONFIG.admissionMinBalanceUnits,
-    ),
-  };
-  return Object.freeze(limits);
 }

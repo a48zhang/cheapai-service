@@ -15,12 +15,10 @@ import type { ProbeEvidence } from '@cheapai/contracts/channel-diagnostics';
 import { ChannelDiagnosticApiError, channelDiagnosticApiError } from './diagnostic-errors';
 import { redactDiagnosticEvidence } from './diagnostic-redaction';
 import { readGatewayJson } from './read-json';
-import { CHANNEL_PROBE_MAX_OUTPUT_TOKENS } from '@cheapai/contracts/channel-probe';
 import { runChannelDiagnostic } from './channel-probe';
 import type { UpstreamFetch } from './transport';
 
 export const TEST_CHANNEL_PATH = '/api/v1/admin/channels/:id/test';
-export const PROBE_MAX_OUTPUT_TOKENS = CHANNEL_PROBE_MAX_OUTPUT_TOKENS;
 type Bindings = { DB: D1Database };
 type RouteEnv<B extends Bindings> = { Bindings: B; Variables: AuthVariables };
 type Resolver<B, T> = T | ((env: B, request: Request) => T | Promise<T>);
@@ -28,7 +26,7 @@ export interface TestChannelDependencies<B extends Bindings = Bindings> {
   now?: () => number;
   trustedOrigin?: Resolver<B, string>;
   fetch?: UpstreamFetch;
-  /** Trusted server test policy; cannot exceed ten seconds. */
+  /** Optional transport deadline override. */
   timeoutMs?: number;
 }
 interface ProbeInput {
@@ -37,6 +35,7 @@ interface ProbeInput {
   channelVersion: number;
   mappingVersion: number;
   priceVersion: number;
+  params?: Record<string, unknown>;
 }
 async function resolve<B, T>(
   value: Resolver<B, T> | undefined,
@@ -54,13 +53,11 @@ function input(value: unknown): ProbeInput {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new ApiError('invalid_request');
   const fields = value as Record<string, unknown>;
-  const allowed = ['publicModelId', 'protocol', 'channelVersion', 'mappingVersion', 'priceVersion'];
   if (
-    Object.keys(fields).length !== allowed.length ||
-    !allowed.every((field) => Object.hasOwn(fields, field)) ||
     typeof fields.publicModelId !== 'string' ||
     fields.publicModelId.length > 128 ||
     !/^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/.test(fields.publicModelId) ||
+    (fields.params !== undefined && (!fields.params || typeof fields.params !== 'object' || Array.isArray(fields.params))) ||
     !['chat', 'responses', 'messages'].includes(fields.protocol as string) ||
     ![fields.channelVersion, fields.mappingVersion, fields.priceVersion].every(
       (version) => typeof version === 'number' && Number.isSafeInteger(version) && version >= 1,
@@ -98,7 +95,7 @@ export function createTestChannelRoutes<B extends Bindings = Bindings>(
       context.req.raw,
       await resolve(dependencies.trustedOrigin, context.env, context.req.raw),
     );
-    const body = input(await readGatewayJson(context.req.raw, 4096));
+    const body = input(await readGatewayJson(context.req.raw));
     const channelId = context.req.param('id');
     const diagnosticId = crypto.randomUUID();
     const startedAt = now();
@@ -131,8 +128,6 @@ export function createTestChannelRoutes<B extends Bindings = Bindings>(
       ]);
       if (!channel || !model || !mapping) throw new ApiError('not_found');
       if (
-        channel.status !== 'active' ||
-        model.status !== 'active' ||
         channel.configVersion !== body.channelVersion ||
         model.priceVersion !== body.priceVersion ||
         mapping.configVersion !== body.mappingVersion
@@ -146,18 +141,9 @@ export function createTestChannelRoutes<B extends Bindings = Bindings>(
       const forwarding = await readChannelForForwarding(context.env.DB, channelId);
       if (
         !forwarding ||
-        forwarding.status !== 'active' ||
         forwarding.configVersion !== channel.configVersion
       )
         throw new ApiError('conflict');
-      const timeoutMs = dependencies.timeoutMs ?? 10_000;
-      if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 10_000)
-        throw new ApiError('service_unavailable');
-      const outputLimit = Math.min(
-        PROBE_MAX_OUTPUT_TOKENS,
-        model.maxOutputTokens,
-        mapping.capabilities.maxOutputTokens ?? PROBE_MAX_OUTPUT_TOKENS,
-      );
       upstreamKey = forwarding.upstreamKey;
       evidence.phases.push({
         name: 'configuration',
@@ -182,7 +168,6 @@ export function createTestChannelRoutes<B extends Bindings = Bindings>(
             config_version: channel.configVersion,
             version: mapping.configVersion,
             price_version: model.priceVersion,
-            max_output_tokens: outputLimit,
             quantity: 1,
           },
         });
@@ -196,7 +181,7 @@ export function createTestChannelRoutes<B extends Bindings = Bindings>(
         JOIN models m ON m.public_model_id=cm.public_model_id
         WHERE u.id=? AND u.role='admin' AND u.status='active' AND g.status='active'
           AND s.id=? AND s.revoked_at IS NULL AND s.expires_at>?
-          AND c.status='active' AND c.config_version=? AND m.status='active' AND m.public_model_id=? AND m.price_version=?
+          AND c.config_version=? AND m.public_model_id=? AND m.price_version=?
           AND cm.protocol=? AND cm.config_version=? AND cm.upstream_model=?
         ) THEN 1 ELSE json_extract('{}','channel_probe_conflict') END`,
             [
@@ -235,8 +220,8 @@ export function createTestChannelRoutes<B extends Bindings = Bindings>(
         diagnosticId,
         requestId: context.get('requestId'),
         startedAt,
-        timeoutMs,
-        maxOutputTokens: outputLimit,
+        ...(dependencies.timeoutMs === undefined ? {} : { timeoutMs: dependencies.timeoutMs }),
+        ...(body.params === undefined ? {} : { params: body.params }),
         signal: context.req.raw.signal,
         now,
         ...(dependencies.fetch === undefined ? {} : { fetch: dependencies.fetch }),
@@ -266,7 +251,6 @@ export function createTestChannelRoutes<B extends Bindings = Bindings>(
           channelVersion: channel.configVersion,
           mappingVersion: mapping.configVersion,
           priceVersion: model.priceVersion,
-          maxOutputTokens: outputLimit,
           mayIncurUpstreamCost: true,
           userBalanceCharged: false,
           evidence,

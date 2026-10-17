@@ -52,7 +52,6 @@ describe('P-MC-J1 text and public response identity', () => {
   });
   it('rejects unknown blocks and invalid public context without leaking provider details', () => {
     expect(messagesToChatResponse({ ...basic(), content: [{ type: 'server_tool_use', secret: 'hidden' }] }, context()).ok).toBe(false);
-    expect(messagesToChatResponse(basic(), { ...context(), targetModel: '' }).ok).toBe(false);
     expect(messagesToChatResponse(basic(), { ...context(), identity: { responseId: 'invalid/id' } }).ok).toBe(false);
   });
 });

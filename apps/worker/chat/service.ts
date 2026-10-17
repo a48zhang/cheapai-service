@@ -214,7 +214,7 @@ export class ChatService {
     if (input.modelId !== undefined && input.modelId !== null) id(input.modelId);
     if ((input.groupId === null) !== (input.modelId === null) && (input.groupId === null || input.modelId === null)) invalid();
     if (input.groupId !== undefined && input.groupId !== null && input.modelId !== undefined && input.modelId !== null) {
-      await authorizeChatSelection(this.database, owner, input.groupId, input.modelId, undefined, this.clock());
+      await authorizeChatSelection(this.database, owner, input.groupId, input.modelId, this.clock());
     }
     return this.storage.createConversation(owner, { ...input, now: this.clock() });
   }
@@ -228,7 +228,7 @@ export class ChatService {
     if (Object.hasOwn(patch, 'groupId') !== Object.hasOwn(patch, 'modelId')) invalid();
     if (Object.hasOwn(patch, 'groupId') && ((patch.groupId === null) !== (patch.modelId === null))) invalid();
     if (patch.groupId !== undefined && patch.groupId !== null && patch.modelId !== undefined && patch.modelId !== null) {
-      await authorizeChatSelection(this.database, owner, patch.groupId, patch.modelId, undefined, this.clock());
+      await authorizeChatSelection(this.database, owner, patch.groupId, patch.modelId, this.clock());
     }
     return this.storage.updateConversation(owner, conversation, expected, patch, this.clock());
   }
@@ -259,7 +259,7 @@ export class ChatService {
     // different multiplier or channel set.
     if ((current.conversation.groupId !== null && current.conversation.groupId !== groupId)
       || (current.conversation.modelId !== null && current.conversation.modelId !== modelId)) throw new ApiError('forbidden');
-    const selection: AuthorizedChatSelection = await authorizeChatSelection(this.database, userId, groupId, modelId, maxTokens, this.clock());
+    const selection: AuthorizedChatSelection = await authorizeChatSelection(this.database, userId, groupId, modelId, this.clock());
     // Internal virtual-key authentication is scoped to this request's selected
     // group. The browser never supplies a key ID or credential.
     const auth = await this.authenticateKey(this.database, userId, selection.group.id, this.clock());

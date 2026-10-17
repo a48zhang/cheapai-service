@@ -10,7 +10,7 @@ describe('Chat gateway input -> wire parser -> capability requirements', () => {
       tools: [{ type: 'function', function: { name: 'lookup', parameters: { type: 'object', properties: {} } } }],
       messages: [...valid.messages, { role: 'assistant', content: null, tool_calls: [{ id: 'call-1', type: 'function', function: { name: 'lookup', arguments: '{}' } }] },
         { role: 'tool', tool_call_id: 'call-1', content: 'result' }] };
-    const parsed = await parseChatInput(input(payload), { maxOutputTokens: 128 });
+    const parsed = await parseChatInput(input(payload));
     expect(parsed).toMatchObject({ protocol: 'chat', request: payload, model: valid.model, stream: true });
     expect(parsed.features.outputTokenLimit).toBe(128);
     expect(parsed.features.required.map(r => r.feature)).toEqual(expect.arrayContaining(['streaming', 'stream_usage', 'tools']));
@@ -26,10 +26,6 @@ describe('Chat gateway input -> wire parser -> capability requirements', () => {
     { ...valid, messages: [] }, { ...valid, max_tokens: 10, max_completion_tokens: 11 },
   ])('rejects invalid wire/feature constraints %#', async payload => {
     await expect(parseChatInput(input(payload))).rejects.toMatchObject({ code: 'invalid_request', status: 400 });
-  });
-  it('rejects above configured output cap instead of silently clamping', async () => {
-    await expect(parseChatInput(input({ ...valid, max_completion_tokens: 129 }), { maxOutputTokens: 128 })).rejects.toMatchObject({ protocolError: { code: 'output_limit_exceeded' } });
-    await expect(parseChatInput(input(valid), { maxOutputTokens: 0 })).rejects.toMatchObject({ code: 'service_unavailable' });
   });
   it('honors the bounded HTTP reader before parsing a large prompt', async () => {
     await expect(parseChatInput(input(valid), { maxBodyBytes: 10 })).rejects.toMatchObject({ status: 413 });

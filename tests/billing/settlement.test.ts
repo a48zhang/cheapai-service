@@ -48,9 +48,9 @@ beforeEach(async () => {
   await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
     VALUES('b13-channel','Fixture','https://example.invalid',?,'active',0,1,60,1,0,0)`).bind(credential).run();
   await testEnv.DB.prepare("INSERT INTO channel_groups(channel_id,group_id) VALUES('b13-channel','b13-group')").run();
-  await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('b13-model','active','{"input":"1","output":"2"}',1,0,4096,0,0)`).run();
-  await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,upstream_model,protocol,capabilities_json,config_version)
-    VALUES('b13-channel','b13-model','provider-model','chat','{}',1)`).run();
+  await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,created_at,updated_at) VALUES ('b13-model','active','{"input":"1","output":"2"}',1,0,0)`).run();
+  await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,upstream_model,protocol,config_version)
+    VALUES('b13-channel','b13-model','provider-model','chat',1)`).run();
   const price = createPriceSnapshot({ publicModelId: 'b13-model', upstreamModel: 'provider-model', upstreamProtocol: 'chat', priceVersion: 1, sellPrices: { input: '1', output: '2' } });
   const admission = prepareRequestRegistration(testEnv.DB, { userId: 'b13-user', keyId: key.key.id, groupId: 'b13-group', channelId: 'b13-channel', downstreamProtocol: 'responses', priceSnapshotJson: price.json,
     versions: { user: 1, key: 1, group: 1, channel: 1, mapping: 1 }, now: 2000 });

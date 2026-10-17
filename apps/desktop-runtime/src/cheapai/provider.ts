@@ -14,7 +14,6 @@ export interface CheapAiModelProfile {
   id: string
   name?: string
   contextWindow?: number
-  maxTokens?: number
 }
 
 export interface CheapAiProviderProfileOptions {
@@ -92,14 +91,17 @@ export function createCheapAiProviderProfile(
     }
     for (const [field, value] of [
       ['contextWindow', model.contextWindow],
-      ['maxTokens', model.maxTokens],
     ] as const) {
       if (value !== undefined && (!Number.isInteger(value) || value <= 0)) {
         throw new Error(`CheapAI model ${model.id} has an invalid ${field}`)
       }
     }
 
-    return { ...model }
+    return {
+      id: model.id,
+      ...(model.name === undefined ? {} : { name: model.name }),
+      ...(model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow }),
+    }
   })
 
   return {

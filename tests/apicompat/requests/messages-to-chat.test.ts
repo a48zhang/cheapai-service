@@ -45,13 +45,12 @@ describe('P-MC-Q1 native text requests', () => {
   });
   it('rejects invalid source and target configuration', () => {
     expect(messagesToChatRequest({ ...base(), max_tokens: 0 }, context).ok).toBe(false);
-    expect(messagesToChatRequest(base(), { targetModel: '' }).ok).toBe(false);
   });
 });
 
 describe('P-MC-Q3 images', () => {
   const convert = (source: unknown) => messagesToChatRequest({ ...base(), messages: [{ role: 'user', content: [{ type: 'text', text: 'before' }, { type: 'image', source }, { type: 'text', text: 'after' }] }] }, context,
-    { channelCapabilities: { protocol: 'chat', features: ['image_url', 'image_base64'] } });
+    { channelCapabilities: { protocol: 'chat' } });
   it('maps HTTP images with automatic detail and no network IO', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(() => { throw new Error('no fetch'); });
     try {
@@ -68,11 +67,11 @@ describe('P-MC-Q3 images', () => {
     const image = { type: 'image', source: { type: 'url', url: 'https://image.example/x' } };
     const request = { ...base(), messages: [{ role: 'user', content: [image] }] };
     expect(messagesToChatRequest(request, context).ok).toBe(true);
-    expect(createMessagesToChatRequestAdapter({ protocol: 'chat', features: [] }).convert(request as never, context).ok).toBe(true);
-    expect(messagesToChatRequest({ ...base(), messages: [{ role: 'assistant', content: [image] }] }, context, { channelCapabilities: { protocol: 'chat', features: ['image_url'] } }).ok).toBe(false);
+    expect(createMessagesToChatRequestAdapter({ protocol: 'chat' }).convert(request as never, context).ok).toBe(true);
+    expect(messagesToChatRequest({ ...base(), messages: [{ role: 'assistant', content: [image] }] }, context, { channelCapabilities: { protocol: 'chat' } }).ok).toBe(false);
     expect(messagesToChatRequest({ ...base(), messages: [
       { role: 'assistant', content: [{ type: 'tool_use', id: 'a', name: 'f', input: {} }] }, { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'a', content: [image] }] },
-    ] }, context, { channelCapabilities: { protocol: 'chat', features: ['tools', 'image_url', 'tool_result_images'] } }).ok).toBe(false);
+    ] }, context, { channelCapabilities: { protocol: 'chat' } }).ok).toBe(false);
   });
   it.each([{ type: 'base64', media_type: 'image/svg+xml', data: 'AQID' }, { type: 'base64', media_type: 'image/png', data: 'AR==' },
     { type: 'base64', media_type: 'image/png', data: '' }, { type: 'url', url: 'file:///a' }, { type: 'url', url: 'https://u:p@image.example/a' }])('rejects invalid image envelope %#', source => {
@@ -128,13 +127,12 @@ describe('P-MC-Q2 tools', () => {
 });
 
 describe('P-MC-Q4 generation controls', () => {
-  const configured = () => createMessagesToChatRequestAdapter({ protocol: 'chat', features: ['temperature', 'top_p', 'stop_sequences', 'streaming'], maxOutputTokens: 200 });
+  const configured = () => createMessagesToChatRequestAdapter({ protocol: 'chat', });
   it('maps the output limit, sampling, stop order and stream flag directly', () => {
     const result = configured().convert({ ...base(), max_tokens: 150, temperature: 0, top_p: 1, stop_sequences: ['END', 'STOP'], stream: true }, context);
     expect(result).toMatchObject({ ok: true, value: { max_completion_tokens: 150, temperature: 0, top_p: 1, stop: ['END', 'STOP'], stream: true } });
   });
-  it('maps native sampling and stop controls while enforcing output limits', () => {
-    expect(configured().convert({ ...base(), max_tokens: 201 }, context).ok).toBe(false);
+  it('maps native sampling and stop controls', () => {
     expect(messagesToChatRequest({ ...base(), temperature: 0.5 }, context).ok).toBe(true);
     expect(messagesToChatRequest({ ...base(), stop_sequences: ['END'] }, context).ok).toBe(true);
     expect(messagesToChatRequest({ ...base(), stop_sequences: [] }, context).ok).toBe(false);
@@ -143,7 +141,7 @@ describe('P-MC-Q4 generation controls', () => {
 
 describe('P-MC-Q4-O structured output and P-MC-Q5 effort', () => {
   const schema = { type: 'object', properties: { value: { type: ['string', 'null'] } }, required: ['value'], additionalProperties: false };
-  const structured = () => createMessagesToChatRequestAdapter({ protocol: 'chat', features: ['json_schema', 'reasoning_effort'], reasoningEfforts: ['low', 'medium', 'high'] });
+  const structured = () => createMessagesToChatRequestAdapter({ protocol: 'chat', });
   it('maps native output_config schema to the Chat envelope without changing the schema', () => {
     const result = structured().convert({ ...base(), output_config: { format: { type: 'json_schema', schema } } }, context);
     expect(result).toMatchObject({ ok: true, value: { response_format: { type: 'json_schema', json_schema: { name: 'output', schema, strict: true } } } });
@@ -162,7 +160,7 @@ describe('P-MC-Q4-O structured output and P-MC-Q5 effort', () => {
 });
 
 describe('P-MC-Q6 native cache and extension boundaries', () => {
-  const configured = () => createMessagesToChatRequestAdapter({ protocol: 'chat', features: ['cache_control'], cacheTtls: ['5m', '1h'] });
+  const configured = () => createMessagesToChatRequestAdapter({ protocol: 'chat', });
   it('rejects Messages-native cache markers and unrelated extensions across protocols', () => {
     expect(configured().convert({ ...base(), cache_control: { type: 'ephemeral' } }, context).ok).toBe(false);
     expect(configured().convert({ ...base(), messages: [{ role: 'user', content: [{ type: 'text', text: 'x', cache_control: { type: 'ephemeral' } }] }] }, context).ok).toBe(false);

@@ -51,7 +51,6 @@ test('real browser signup → key → funding → nine JSON/SSE pairs → overdr
     await dialog.getByLabel('名称', { exact: true }).fill('Full workflow key');
     await expect(dialog.locator('input[name="groupId"]')).toHaveValue('default');
     await expect(dialog.getByRole('combobox', { name: '分组' })).toHaveCount(0);
-    await expect(dialog.getByText(/授权模型与价格/)).toBeVisible();
     await dialog.getByRole('button', { name: '创建密钥', exact: true }).click();
     const secret = dialog.getByLabel('完整 API Key', { exact: true });
     await expect(secret).toBeVisible(); const token = await secret.inputValue();
@@ -68,16 +67,9 @@ test('real browser signup → key → funding → nine JSON/SSE pairs → overdr
       expect(createdChannel.status(), await createdChannel.text()).toBe(201);
       const channel = (await createdChannel.json()).data; channelIds.push(channel.id);
       const model = `q12/${upstream}/${tag}`; models[upstream] = model;
-      const createdModel = await admin.post('/api/v1/admin/models', { headers, data: {
-        publicModelId: model, status: 'active', sellPrices: { input: '1', output: '1' },
-        admissionMinBalanceUnits: '0', maxOutputTokens: 64,
-      } });
+      const createdModel = await admin.post('/api/v1/admin/models', { headers, data: {publicModelId: model, status: 'active', sellPrices: { input: '1', output: '1' }} });
       expect(createdModel.status(), await createdModel.text()).toBe(201);
-      const mapping = await admin.post(`/api/v1/admin/models/${encodeURIComponent(model)}/mappings`, { headers, data: {
-        channelId: channel.id, protocol: upstream, upstreamModel: `fixture-${upstream}`,
-        capabilities: { protocol: upstream, features: ['streaming', 'stream_usage', ...(upstream === 'responses' ? ['response_history'] : [])],
-          maxOutputTokens: 64 },
-      } });
+      const mapping = await admin.post(`/api/v1/admin/models/${encodeURIComponent(model)}/mappings`, { headers, data: {channelId: channel.id, protocol: upstream, upstreamModel: `fixture-${upstream}`} });
       expect(mapping.status(), await mapping.text()).toBe(201);
     }
     const groupPage = (await (await admin.get('/api/v1/admin/groups?limit=100')).json()).data;

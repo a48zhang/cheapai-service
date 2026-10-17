@@ -25,11 +25,11 @@ export interface MessagesToChatRequestOptions { readonly channelCapabilities?: C
 export function messagesToChatRequest(input: unknown, context: RequestContext, options: MessagesToChatRequestOptions = {}): ConversionResult<ChatRequest> {
   const parsed = parseMessagesRequest(input, { unknownFields: 'preserve' });
   if (!parsed.ok) return parsed;
-  if (typeof context?.targetModel !== 'string' || !context.targetModel.trim()) return {
+  if (typeof context?.targetModel !== 'string') return {
     ok: false, error: { kind: 'invalid_request', code: 'invalid_target_model', message: 'A target model is required.', param: 'targetModel' },
   };
   const request = parsed.value;
-  const checked = checkRequestCapabilities({ protocol: 'messages', request }, options.channelCapabilities ?? { protocol: 'chat', features: [] });
+  const checked = checkRequestCapabilities({ protocol: 'messages', request }, options.channelCapabilities ?? { protocol: 'chat' });
   if (!checked.supported) return unsupported(checked.reasons[0]?.path ?? '$');
   for (const field of Object.keys(request)) if (!['model', 'max_tokens', 'system', 'messages', 'tools', 'tool_choice',
     'stream', 'temperature', 'top_p', 'stop_sequences', 'output_config'].includes(field)) return unsupported(field);

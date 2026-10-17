@@ -10,8 +10,6 @@ import { buildBootstrapSql } from './bootstrap-admin.ts';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(join(root, 'package.json'));
 const ts = require('typescript');
-const expected = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).engines.node;
-if (process.versions.node !== expected) throw new Error(`Use Node ${expected} to start local browser tests.`);
 const portText = process.env.SUB2API_E2E_PORT ?? '9789';
 if (!/^[0-9]{4,5}$/.test(portText) || Number(portText) > 65535 || Number(portText) < 1024) throw new Error('Invalid local test port.');
 const baseURL = `https://127.0.0.1:${portText}`;

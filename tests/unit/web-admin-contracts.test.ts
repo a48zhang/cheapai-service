@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { billingMultiplierSchema, decodeGroup, groupInputSchema } from '@cheapai/contracts/groups';
 import { channelProbeResultSchema } from '@cheapai/contracts/channels';
-import {
-  CHANNEL_PROBE_MAX_OUTPUT_TOKENS,
-  CHANNEL_PROBE_PROMPT,
-  createChannelProbeBody,
-} from '@cheapai/contracts/channel-probe';
-import { decodeMapping } from '@cheapai/contracts/mappings';
+
 import { decodeRequest } from '@cheapai/contracts/requests';
 import {
   createChannelsApi,
@@ -79,30 +74,6 @@ describe('web admin API contracts', () => {
     );
     expect(decodeGroup(group({ channelIds, future_field: true })).channelIds).toHaveLength(150);
   });
-  it('accepts new capability metadata and ignores the obsolete extension allowlist', () => {
-    expect(
-      decodeMapping({
-        channelId: 'channel-1',
-        publicModelId: 'model-1',
-        protocol: 'chat',
-        upstreamModel: 'upstream-1',
-        configVersion: 1,
-        capabilities: {
-          protocol: 'chat',
-          features: ['vendor_feature'],
-          reasoningEfforts: ['future'],
-          cacheTtls: ['1d'],
-          nativeExtensions: [{ scope: 'new_scope', name: 'future' }],
-        },
-      }).capabilities,
-    ).toEqual({
-      protocol: 'chat',
-      features: ['vendor_feature'],
-      reasoningEfforts: ['future'],
-      cacheTtls: ['1d'],
-    });
-  });
-
   it('keeps group multipliers as exact non-negative decimal strings', () => {
     expect(isBillingMultiplier('0')).toBe(true);
     expect(isBillingMultiplier('0.2')).toBe(true);
@@ -251,34 +222,7 @@ describe('channel diagnostic contracts', () => {
     expect(extractChannelDiagnosticErrorDetails(new Error('raw response envelope'))).toBeNull();
   });
 
-  it('uses fixed protocol request templates with a bounded output-token setting', () => {
-    expect(CHANNEL_PROBE_MAX_OUTPUT_TOKENS).toBe(16);
-    expect(
-      createChannelProbeBody('chat', 'upstream-model', CHANNEL_PROBE_MAX_OUTPUT_TOKENS),
-    ).toEqual({
-      model: 'upstream-model',
-      messages: [{ role: 'user', content: CHANNEL_PROBE_PROMPT }],
-      max_tokens: 16,
-      stream: false,
-    });
-    expect(createChannelProbeBody('responses', 'upstream-model', 4)).toEqual({
-      model: 'upstream-model',
-      input: CHANNEL_PROBE_PROMPT,
-      max_output_tokens: 4,
-      stream: false,
-    });
-    expect(createChannelProbeBody('messages', 'upstream-model', 1)).toEqual({
-      model: 'upstream-model',
-      max_tokens: 1,
-      messages: [{ role: 'user', content: CHANNEL_PROBE_PROMPT }],
-      stream: false,
-    });
-    for (const invalidLimit of [0, 17, 1.5, Number.NaN]) {
-      expect(() => createChannelProbeBody('chat', 'upstream-model', invalidLimit)).toThrow(
-        RangeError,
-      );
-    }
-  });
+
 });
 
 describe('complete administrator channel reads', () => {

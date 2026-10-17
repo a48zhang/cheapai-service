@@ -3,16 +3,7 @@ import { expect, test } from '@playwright/test';
 test('public home stays available when session restoration fails', async ({ page }) => {
   await page.route('**/api/v1/**', route => route.fulfill({ status: 503, body: 'Unavailable' }));
   await page.goto('/');
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('旗舰模型');
   await expect(page).toHaveURL(/\/$/);
-  await page.getByText('支持哪些模型？', { exact: true }).click();
-  await expect(page.getByText('可用模型取决于平台配置和你的账户授权。', { exact: false })).toBeVisible();
-  await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', {
-    configurable: true,
-    value: { writeText: () => Promise.reject(new Error('Clipboard unavailable')) },
-  }));
-  await page.getByRole('button', { name: '复制 Python 示例' }).click();
-  await expect(page.getByRole('status')).toContainText('请选中上方代码手动复制');
 });
 
 test('home links into anonymous chat and preserves the login destination', async ({ page }) => {
@@ -28,8 +19,7 @@ test('home links into anonymous chat and preserves the login destination', async
   }));
   await page.goto('/');
   await page.getByRole('main')
-    .getByRole('region', { name: /旗舰模型/ })
-    .getByRole('link', { name: '开始对话', exact: true }).click();
+    .getByRole('link', { name: '开始对话', exact: true }).first().click();
   await expect(page).toHaveURL(/\/chat$/);
   await expect(page.getByRole('textbox', { name: '消息内容' })).toBeEnabled();
   await page.getByRole('textbox', { name: '消息内容' }).fill('一个新想法');

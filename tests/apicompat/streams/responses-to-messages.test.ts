@@ -76,7 +76,6 @@ describe('P-RM-S1 Responses → Messages text lifecycle', () => {
 
   it('rejects duplicate starts and invalid source sequence/context values', () => {
     const stream = session(); stream.push(created); expect(stream.push(created).terminal?.status).toBe('failed');
-    expect(createResponsesToMessagesSession({ ...context, targetModel: '' }, options).ok).toBe(false);
     expect(createResponsesToMessagesSession(context, { ...options, maxBufferedBytes: 0 }).ok).toBe(false);
   });
 });

@@ -6,6 +6,7 @@ import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { Field } from '../../shared/ui/Field';
 import { Input } from '../../shared/ui/Input';
 import { Button } from '../../shared/ui/Button';
+import { ModelIdentity } from '../../shared/ui/ModelIdentity';
 import { PriceFields } from './PriceFields';
 import { modelPriceErrors } from './model-form-model';
 import { useModelForm } from './useModelForm';
@@ -54,19 +55,9 @@ export function ModelForm({ client, model, onSaved, onCancel }: ModelFormProps) 
         {reference && (
           <details className="rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)]/30 p-4 sm:col-span-2">
             <summary className="cursor-pointer text-sm font-medium">
-              {reference.provider} 官方参考：{reference.id}
+              <ModelIdentity modelId={reference.id} secondary={`${reference.provider} 官方参考`} />
             </summary>
             <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
-              <div>
-                <dt className="console-muted">上下文窗口</dt>
-                <dd className="console-number">{reference.contextWindow.toLocaleString()} Token</dd>
-              </div>
-              <div>
-                <dt className="console-muted">参考最大输出</dt>
-                <dd className="console-number">
-                  {reference.maxOutputTokens.toLocaleString()} Token
-                </dd>
-              </div>
               <div className="sm:col-span-2">
                 <dt className="console-muted">参考价格说明</dt>
                 <dd>{reference.pricingNote}</dd>
@@ -101,29 +92,6 @@ export function ModelForm({ client, model, onSaved, onCancel }: ModelFormProps) 
             </div>
           )}
         />
-        <Field
-          label="最低余额门槛（USD）"
-          required
-          error={errors.admissionMinBalanceUnits?.message}
-          description="填写 0 表示无最低余额要求。"
-        >
-          <Input
-            {...form.register('admissionMinBalanceUnits')}
-            required
-            inputMode="decimal"
-            maxLength={17}
-            placeholder="例如 0"
-          />
-        </Field>
-        <Field label="最大输出 Token" required error={errors.maxOutputTokens?.message}>
-          <Input
-            {...form.register('maxOutputTokens')}
-            required
-            inputMode="numeric"
-            maxLength={16}
-            placeholder="请输入正整数"
-          />
-        </Field>
       </fieldset>
       {saveError && <ApiErrorNotice error={saveError} />}
       <div className="flex flex-wrap justify-end gap-3">

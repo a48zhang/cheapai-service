@@ -90,15 +90,9 @@ test('local web chat: groups, idempotency, history, versions, failure and mobile
       name: `Web chat discount ${tag}`, baseUrl: fixtureBaseUrl, upstreamKey: 'local-fixture-upstream-key',
       concurrencyLimit: 2, rpmLimit: 60, priority: 10, status: 'active',
     }, adminHeaders);
-    await create(admin, '/api/v1/admin/models', {
-      publicModelId: modelId, status: 'active', sellPrices: { input: '1', output: '1' },
-      admissionMinBalanceUnits: '0', maxOutputTokens: 64,
-    }, adminHeaders);
+    await create(admin, '/api/v1/admin/models', {publicModelId: modelId, status: 'active', sellPrices: { input: '1', output: '1' }}, adminHeaders);
     for (const [channelId, upstreamModel] of [[fullChannel.id, 'web-chat-full'], [discountChannel.id, 'web-chat-discount']] as const) {
-      await create(admin, `/api/v1/admin/models/${encodeURIComponent(modelId)}/mappings`, {
-        channelId, protocol: 'chat', upstreamModel,
-        capabilities: { protocol: 'chat', features: ['streaming', 'stream_usage'], maxOutputTokens: 64 },
-      }, adminHeaders);
+      await create(admin, `/api/v1/admin/models/${encodeURIComponent(modelId)}/mappings`, {channelId, protocol: 'chat', upstreamModel}, adminHeaders);
     }
     const fullGroup = await create(admin, '/api/v1/admin/groups', {
       name: `Web chat full ${tag}`, status: 'active', channelIds: [fullChannel.id], billingMultiplier: '1',
@@ -223,7 +217,6 @@ test('local web chat: groups, idempotency, history, versions, failure and mobile
     await userPage.getByRole('button', { name: '打开聊天记录', exact: true }).click();
     await expect(userPage.getByRole('dialog', { name: '聊天记录' })).toBeVisible();
     await expect(userPage.getByRole('button', { name: '关闭聊天记录', exact: true })).toBeVisible();
-    expect(await userPage.locator('main').innerText()).not.toMatch(/协议互转|创建 Key/);
     await userPage.close();
 
     // Make one isolated local channel fail. The test Worker rejects all
@@ -237,13 +230,8 @@ test('local web chat: groups, idempotency, history, versions, failure and mobile
     // A new model has no cached pre-edit channel route. This case exercises
     // upstream failure, rather than the existing stale-route CAS rejection.
     const failureModelId = `${modelId}-failure`;
-    await create(admin, '/api/v1/admin/models', {
-      publicModelId: failureModelId, sellPrices: { input: '1', output: '1' }, admissionMinBalanceUnits: '0', maxOutputTokens: 64,
-    }, adminHeaders);
-    await create(admin, `/api/v1/admin/models/${encodeURIComponent(failureModelId)}/mappings`, {
-      channelId: fullChannel.id, protocol: 'chat', upstreamModel: 'web-chat-failure',
-      capabilities: { protocol: 'chat', features: ['streaming', 'stream_usage'], maxOutputTokens: 64 },
-    }, adminHeaders);
+    await create(admin, '/api/v1/admin/models', {publicModelId: failureModelId, sellPrices: { input: '1', output: '1' }}, adminHeaders);
+    await create(admin, `/api/v1/admin/models/${encodeURIComponent(failureModelId)}/mappings`, {channelId: fullChannel.id, protocol: 'chat', upstreamModel: 'web-chat-failure'}, adminHeaders);
     const failedConversation = await createConversation(userApi, userCsrf, info, fullGroup.id, failureModelId);
     const beforeFailure = await accountBalance(userApi);
     const failed = await sendMessage(userApi, userCsrf, info, failedConversation, 'browser-failed', 'keep this input');

@@ -168,10 +168,6 @@ export default function UserDetailPage() {
                 <dt className="console-label">用户 ID</dt>
                 <dd className="mt-1 break-all font-mono text-sm select-all">{profile.id}</dd>
               </div>
-              <div>
-                <dt className="console-label">资料版本</dt>
-                <dd className="mt-1 console-number">{profile.version}</dd>
-              </div>
             </dl>
           </details>
         </section>

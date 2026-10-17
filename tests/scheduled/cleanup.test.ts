@@ -52,7 +52,7 @@ describe('bounded native D1 identity cleanup', () => {
       VALUES('cleanup-key','cleanup-admin',?,'s2a_key_ABCDEFGH','cleanup','revoked',500,0,0,'cleanup-key-op',?)`).bind('d'.repeat(64), 'e'.repeat(64)).run();
     await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
       VALUES('cleanup-channel','cleanup','https://example.invalid',?,'active',1,2,60,1,0,0)`).bind('test-upstream-key').run();
-    await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('cleanup-model','active','{"input":"1","output":"2"}',1,0,4096,0,0)`).run();
+    await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,created_at,updated_at) VALUES ('cleanup-model','active','{"input":"1","output":"2"}',1,0,0)`).run();
     await testEnv.DB.prepare(`INSERT INTO requests(id,user_id,api_key_id,channel_id,public_model_id,upstream_model,downstream_protocol,upstream_protocol,price_snapshot,created_at,updated_at)
       VALUES('cleanup-request','cleanup-admin','cleanup-key','cleanup-channel','cleanup-model','upstream','chat','chat','{}',0,0)`).run();
     await testEnv.DB.prepare(`INSERT INTO billing_entries(id,operation_id,kind,user_id,delta_units,fingerprint,created_by,reason,created_at)

@@ -32,7 +32,7 @@ export const codeBatchSchema = z.discriminatedUnion('replayed', [
   z.object({
     batchId: text,
     replayed: z.literal(true),
-    codes: z.array(codeMetadataSchema).min(1).max(100),
+    codes: z.array(codeMetadataSchema).min(1),
   }),
   z.object({
     batchId: text,
@@ -41,8 +41,7 @@ export const codeBatchSchema = z.discriminatedUnion('replayed', [
       .array(
         codeMetadataSchema.extend({ token: z.string().regex(/^s2a_invite_[A-Za-z0-9_-]{43}$/u) }),
       )
-      .min(1)
-      .max(100),
+      .min(1),
   }),
 ]);
 export const codePageSchema = z.object({
@@ -56,8 +55,8 @@ export const codeRevocationSchema = z.object({
   revokedAt: time,
 });
 export const codeBatchInputSchema = z.object({
-  quantity: z.number().int().min(1).max(100),
-  expiresAt: count,
+  quantity: z.number().int().min(1),
+  expiresAt: time.optional(),
 });
 export type AdminRegistrationSettings = z.infer<typeof adminRegistrationSettingsSchema>;
 export type CodeMetadata = z.infer<typeof codeMetadataSchema>;

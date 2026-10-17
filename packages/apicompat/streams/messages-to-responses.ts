@@ -82,8 +82,7 @@ function makeResponse(id: string, model: string, status: string, output: readonl
 function validResponseContext(context: ResponseContext, options: StreamOptions): boolean {
   return Number.isSafeInteger(options.maxBufferedBytes) && options.maxBufferedBytes > 0
     && ['ignore', 'reject', 'preserve'].includes(options.unknownEventPolicy)
-    && safeId(context.identity?.responseId) && typeof context.targetModel === 'string' && !!context.targetModel.trim()
-    && context.targetModel.length <= 512 && !/[\u0000-\u001f\u007f]/u.test(context.targetModel)
+    && safeId(context.identity?.responseId) && typeof context.targetModel === 'string'
     && Number.isSafeInteger(context.createdAt) && context.createdAt >= 0 && typeof context.idFor === 'function';
 }
 

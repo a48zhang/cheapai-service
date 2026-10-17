@@ -3,6 +3,7 @@ import { Button } from '../../shared/ui/Button';
 import { Link } from 'react-router-dom';
 import type { ModelView } from '@cheapai/api-client/models';
 import { CursorTable } from '../../shared/patterns/CursorTable';
+import { ModelIdentity } from '../../shared/ui/ModelIdentity';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
 
 export interface ModelTableProps {
@@ -24,9 +25,9 @@ const columns: ColumnDef<ModelView, unknown>[] = [
       <Link
         to={`/admin/models/${encodeURIComponent(row.original.publicModelId)}`}
         title={row.original.publicModelId}
-        className="block min-w-40 max-w-72 truncate font-mono text-sm font-medium text-[var(--color-primary)] underline-offset-4 hover:underline"
+        className="block min-w-40 max-w-72 text-sm text-[var(--color-primary)] underline-offset-4 hover:underline"
       >
-        {row.original.publicModelId}
+        <ModelIdentity modelId={row.original.publicModelId} />
       </Link>
     ),
   },
@@ -63,16 +64,6 @@ const columns: ColumnDef<ModelView, unknown>[] = [
     ),
     cell: ({ row }) => (
       <span className="console-number block text-right">{row.original.sellPrices.output}</span>
-    ),
-  },
-  {
-    accessorKey: 'maxOutputTokens',
-    meta: { align: 'right', numeric: true },
-    header: '最大输出 Token',
-    cell: ({ row }) => (
-      <span className="whitespace-nowrap tabular-nums">
-        {row.original.maxOutputTokens.toLocaleString()}
-      </span>
     ),
   },
   {

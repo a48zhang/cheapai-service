@@ -26,7 +26,7 @@ beforeEach(async () => {
   const credential = 'PRIVATE-UPSTREAM-KEY';
   await testEnv.DB.prepare("INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at) VALUES('details-channel','Details','https://provider.example.invalid',?,'active',1,2,60,1,?,?)").bind(credential, now, now).run();
   await testEnv.DB.prepare("INSERT INTO channel_groups(channel_id,group_id) VALUES('details-channel','details-group')").run();
-  await testEnv.DB.prepare("INSERT INTO models(public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES('details/vendor:model','active','{\"input\":\"1\",\"output\":\"2\"}',1,0,4096,?,?)").bind(now, now).run();
+  await testEnv.DB.prepare("INSERT INTO models(public_model_id,status,sell_prices_json,price_version,created_at,updated_at) VALUES('details/vendor:model','active','{\"input\":\"1\",\"output\":\"2\"}',1,?,?)").bind(now, now).run();
 });
 
 describe.each(entities)('administrator $kind detail', entity => {

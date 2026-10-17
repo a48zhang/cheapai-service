@@ -41,10 +41,7 @@ describe('React chat API stream client', () => {
     const deltas: string[] = [];
     const done = vi.fn();
     const api = createChatApi({ fetch: fetcher, getCsrfToken: () => 'csrf-token' });
-    const result = await api.sendMessage(conversation.id, {
-      operationId: 'operation-1', conversationVersion: conversation.version, groupId: 'group-1', modelId: 'model-1',
-      content: '你好', maxOutputTokens: 64,
-    }, {
+    const result = await api.sendMessage(conversation.id, {operationId: 'operation-1', conversationVersion: conversation.version, groupId: 'group-1', modelId: 'model-1', content: '你好'}, {
       onMeta: value => { meta(value); },
       onDelta: text => { deltas.push(text); },
       onDone: (message, billingStatus) => { done({ message, billingStatus }); },
@@ -59,7 +56,6 @@ describe('React chat API stream client', () => {
     expect(new Headers(init?.headers).get('x-csrf-token')).toBe('csrf-token');
     const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
     expect(body).toMatchObject({ operationId: 'operation-1' });
-    expect(body).not.toHaveProperty('maxOutputTokens');
   });
 
   it('decodes an idempotent replay without starting another generation', async () => {

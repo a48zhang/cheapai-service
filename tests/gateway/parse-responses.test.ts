@@ -10,7 +10,7 @@ describe('Responses entry parsing and history requirements', () => {
         { type: 'function_call', call_id: 'call-1', name: 'lookup', arguments: '{"n":1}' },
         { type: 'function_call_output', call_id: 'call-1', output: 'result' }],
     };
-    const parsed = await parseResponsesInput(input(value), { maxOutputTokens: 100 });
+    const parsed = await parseResponsesInput(input(value));
     expect(parsed).toMatchObject({ protocol: 'responses', model: valid.model, stream: true, request: value });
     expect(parsed.features.outputTokenLimit).toBe(100);
   });
@@ -32,8 +32,7 @@ describe('Responses entry parsing and history requirements', () => {
   it('rejects out-of-scope background generation before any execution', async () => {
     await expect(parseResponsesInput(input({ ...valid, background: true }))).rejects.toMatchObject({ protocolError: { kind: 'unsupported_feature', code: 'background_out_of_scope' } });
   });
-  it('does not clamp output or bypass the shared byte bound', async () => {
-    await expect(parseResponsesInput(input({ ...valid, max_output_tokens: 101 }), { maxOutputTokens: 100 })).rejects.toMatchObject({ protocolError: { code: 'output_limit_exceeded' } });
+  it('enforces the shared byte bound', async () => {
     await expect(parseResponsesInput(input(valid), { maxBodyBytes: 10 })).rejects.toMatchObject({ status: 413 });
   });
 });

@@ -1,16 +1,15 @@
 import type { Protocol } from '@sub2api/apicompat/types/shared';
-import type { ChannelCapabilities } from '@sub2api/apicompat/capabilities/check';
 import { batch, prepare } from '../db';
 import { ApiError } from '../http';
 import { buildAuditStatement } from './audit';
 import { getChannelById } from '../catalog/channels';
 import { getModelById } from '../catalog/models';
-import { getModelMapping, validateMappingCapabilities, modelMappingProjection as projection, decodeModelMappingRow as view, invalidMappingInput as invalid, mappingInputObject as object, mappingIdentifier as text, mappingInteger as integer, mappingKey as key } from '../catalog/model-mappings';
+import { getModelMapping, modelMappingProjection as projection, decodeModelMappingRow as view, invalidMappingInput as invalid, mappingInputObject as object, mappingIdentifier as text, mappingUpstreamModel as upstreamModelValue, mappingInteger as integer, mappingKey as key } from '../catalog/model-mappings';
 import type { ModelMappingKey, ModelMappingInput, ModelMappingView, ModelMappingRow as Row } from '../catalog/model-mappings';
-export { getModelMapping, listModelMappings, validateMappingCapabilities } from '../catalog/model-mappings';
+export { getModelMapping, listModelMappings } from '../catalog/model-mappings';
 export type { ModelMappingKey, ModelMappingInput, ModelMappingView, ModelMappingQuery } from '../catalog/model-mappings';
 
-export interface ModelMappingPatch { upstreamModel?: string; capabilities?: ChannelCapabilities }
+export interface ModelMappingPatch { upstreamModel?: string }
 export interface ModelMappingAuditContext { actorId: string; operationId: string; now: number }
 
 async function parents(database: D1Database, identity: ModelMappingKey): Promise<void> {
@@ -34,17 +33,16 @@ function writeError(error: unknown): never {
   throw new ApiError('service_unavailable', { cause: error });
 }
 export async function createModelMapping(database: D1Database, input: ModelMappingInput, context: ModelMappingAuditContext): Promise<ModelMappingView> {
-  const fields = object(input, ['channelId', 'publicModelId', 'protocol', 'upstreamModel', 'capabilities']);
+  const fields = object(input, ['channelId', 'publicModelId', 'protocol', 'upstreamModel']);
   const identity = key({ channelId: fields.channelId as string, publicModelId: fields.publicModelId as string, protocol: fields.protocol as Protocol });
-  const upstreamModel = text(fields.upstreamModel);
-  const capabilities = validateMappingCapabilities(fields.capabilities === undefined ? { protocol: identity.protocol, features: [] } : fields.capabilities, identity.protocol);
+  const upstreamModel = upstreamModelValue(fields.upstreamModel);
   await parents(database, identity);
   const statement = await audit(database, identity, 1, context, 'channel_model.create');
   try {
     const result = await batch(database, [
-      prepare<Row>(database, `INSERT INTO channel_models (${projection}) VALUES (?,?,?,?,?,1)
+      prepare<Row>(database, `INSERT INTO channel_models (${projection}) VALUES (?,?,?,?,1)
         ON CONFLICT(channel_id,public_model_id,protocol) DO NOTHING RETURNING ${projection}`,
-      [identity.channelId, identity.publicModelId, identity.protocol, upstreamModel, JSON.stringify(capabilities)]), guard(database), statement,
+      [identity.channelId, identity.publicModelId, identity.protocol, upstreamModel]), guard(database), statement,
     ] as const);
     if (!result[0].rows[0]) throw new ApiError('service_unavailable');
     return view(result[0].rows[0]);
@@ -54,19 +52,18 @@ export async function updateModelMapping(database: D1Database, input: ModelMappi
   const identity = key(input);
   integer(expectedVersion);
   if (expectedVersion >= Number.MAX_SAFE_INTEGER) throw new ApiError('conflict');
-  const fields = object(patch, ['upstreamModel', 'capabilities']);
+  const fields = object(patch, ['upstreamModel']);
   if (Object.keys(fields).length === 0) invalid();
   const current = await getModelMapping(database, identity);
   if (!current) throw new ApiError('not_found');
   if (current.configVersion !== expectedVersion) throw new ApiError('conflict');
-  const upstreamModel = Object.hasOwn(fields, 'upstreamModel') ? text(fields.upstreamModel) : current.upstreamModel;
-  const capabilities = Object.hasOwn(fields, 'capabilities') ? validateMappingCapabilities(fields.capabilities, identity.protocol) : current.capabilities;
+  const upstreamModel = Object.hasOwn(fields, 'upstreamModel') ? upstreamModelValue(fields.upstreamModel) : current.upstreamModel;
   await parents(database, identity);
   const statement = await audit(database, identity, expectedVersion + 1, context, 'channel_model.update');
   try {
-    const result = await batch(database, [prepare<Row>(database, `UPDATE channel_models SET upstream_model=?,capabilities_json=?,config_version=config_version+1
+    const result = await batch(database, [prepare<Row>(database, `UPDATE channel_models SET upstream_model=?,config_version=config_version+1
       WHERE channel_id=? AND public_model_id=? AND protocol=? AND config_version=? RETURNING ${projection}`,
-    [upstreamModel, JSON.stringify(capabilities), identity.channelId, identity.publicModelId, identity.protocol, expectedVersion]), guard(database), statement] as const);
+    [upstreamModel, identity.channelId, identity.publicModelId, identity.protocol, expectedVersion]), guard(database), statement] as const);
     if (!result[0].rows[0]) throw new ApiError('service_unavailable');
     return view(result[0].rows[0]);
   } catch (error) { return writeError(error); }

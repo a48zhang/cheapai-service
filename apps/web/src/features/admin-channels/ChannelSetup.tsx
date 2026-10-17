@@ -2,10 +2,10 @@ import { useId, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import type { GroupView } from '@cheapai/api-client/groups';
-import type { ModelMappingView } from '@cheapai/api-client/mappings';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { Button } from '../../shared/ui/Button';
 import { Sheet } from '../../shared/ui/Sheet';
+import { ModelIdentity } from '../../shared/ui/ModelIdentity';
 import type { ChannelSetupCommands, ChannelSetupProgress } from './setup-controller';
 import { createChannelSetupController } from './setup-controller';
 import { uncertainChannelCreationMessage } from './create-outcome';
@@ -59,12 +59,6 @@ function stepLabel(
       {labels[step]}
     </span>
   );
-}
-
-function modelMappingReference(mapping: ModelMappingView | null) {
-  return mapping
-    ? `${mapping.publicModelId} · ${mapping.protocol} · v${mapping.configVersion}`
-    : null;
 }
 
 /** Guided setup records each successful resource and resumes at the next unfinished step. */
@@ -224,21 +218,21 @@ export function ChannelSetup({
               <div className="min-w-0">
                 <dt className="console-muted">已保存渠道</dt>
                 <dd className="mt-1 break-all font-mono">
-                  {progress.channel.id} · v{progress.channel.configVersion}
+                  {progress.channel.name}
                 </dd>
               </div>
             )}
             {progress.mapping && (
               <div className="min-w-0">
                 <dt className="console-muted">已保存映射</dt>
-                <dd className="mt-1 break-all">{modelMappingReference(progress.mapping)}</dd>
+                <dd className="mt-1 break-all"><ModelIdentity modelId={progress.mapping.publicModelId} secondary={progress.mapping.protocol} /></dd>
               </div>
             )}
             {progress.group && (
               <div className="min-w-0">
                 <dt className="console-muted">已更新访问组</dt>
                 <dd className="mt-1 break-all">
-                  {progress.group.name} · v{progress.group.version}
+                  {progress.group.name}
                 </dd>
               </div>
             )}

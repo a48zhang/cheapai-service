@@ -22,7 +22,7 @@ interface Choice { tools: Map<number, Tool>; refusal: boolean; terminal?: Termin
 function makeSession(context: ResponseContext, options: StreamOptions, budget: ByteBudget): ConversionResult<ChatStreamSession> {
   const max = options.maxBufferedBytes;
   if (!Number.isSafeInteger(max) || max < 1 || !['ignore', 'reject', 'preserve'].includes(options.unknownEventPolicy) ||
-    typeof context.targetModel !== 'string' || !context.targetModel.trim() || context.targetModel.length > 512 || /[\u0000-\u001f\u007f]/u.test(context.targetModel) ||
+    typeof context.targetModel !== 'string' ||
     typeof context.identity.responseId !== 'string' || !context.identity.responseId || context.identity.responseId.length > 128 || /[\u0000-\u0020\u007f]/u.test(context.identity.responseId)) {
     return { ok: false, error: error('invalid_stream_configuration') };
   }

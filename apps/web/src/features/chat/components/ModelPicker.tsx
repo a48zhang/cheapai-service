@@ -1,3 +1,5 @@
+import { ModelIdentity } from '../../../shared/ui/ModelIdentity';
+import { ModelPrice } from '../../../shared/ui/ModelPrice';
 import { useState } from 'react';
 import { Check, ChevronDown, RefreshCw, Search } from 'lucide-react';
 import { Button } from '../../../shared/ui/Button';
@@ -45,7 +47,11 @@ export function ModelPicker({ selection, disabled = false }: ModelPickerProps) {
     <section aria-label="模型选择" className="chat-model-control">
       {single ? (
         <div role="group" aria-label="当前模型" className="chat-model-current" title={name}>
-          <span>{name}</span>
+          <ModelIdentity
+            modelId={selectedOption?.modelId ?? name}
+            className="model-identity-compact"
+            secondary={duplicate ? selectedOption?.group.name : undefined}
+          />
         </div>
       ) : options.length > 0 ? (
         <Popover.Root
@@ -63,7 +69,11 @@ export function ModelPicker({ selection, disabled = false }: ModelPickerProps) {
               aria-label="切换模型"
               title={name}
             >
-              <span>{name}</span>
+              <ModelIdentity
+                modelId={selectedOption?.modelId ?? name}
+                className="model-identity-compact"
+                secondary={duplicate ? selectedOption?.group.name : undefined}
+              />
               <ChevronDown size={14} aria-hidden="true" />
             </button>
           </Popover.Trigger>
@@ -106,8 +116,6 @@ export function ModelPicker({ selection, disabled = false }: ModelPickerProps) {
                     option.model.sellPrices?.output,
                     option.group.billingMultiplier,
                   );
-                  const compactPrice = (price: string) =>
-                    price === '价格暂不可用' ? '—' : price.replace(' / 百万 Token', '/m');
                   const showGroup = options.some(
                     (other) => other.key !== option.key && other.modelId === option.modelId,
                   );
@@ -125,19 +133,22 @@ export function ModelPicker({ selection, disabled = false }: ModelPickerProps) {
                         setSearch('');
                       }}
                     >
-                      <span className="chat-model-icon-slot" aria-hidden="true" />
-                      <span className="chat-model-name">
-                        <span>{option.modelId}</span>
-                        <span className={showGroup ? 'chat-model-group' : 'sr-only'}>
-                          {option.group.name}
-                        </span>
-                      </span>
-                      <span
+                      <ModelIdentity
+                        modelId={option.modelId}
+                        secondary={
+                          <span className={showGroup ? undefined : 'sr-only'}>
+                            {option.group.name}
+                          </span>
+                        }
+                        className="chat-model-name"
+                      />
+                      <ModelPrice
+                        input={option.model.sellPrices?.input}
+                        output={option.model.sellPrices?.output}
+                        multiplier={option.group.billingMultiplier}
+                        compact
                         className="chat-model-price-tag"
-                        aria-label={`输入 ${inputPrice}，输出 ${outputPrice}`}
-                      >
-                        读 {compactPrice(inputPrice)} · 写 {compactPrice(outputPrice)}
-                      </span>
+                      />
                       <span className="chat-model-check" aria-hidden="true">
                         {selectedOption?.key === option.key && <Check size={14} />}
                       </span>

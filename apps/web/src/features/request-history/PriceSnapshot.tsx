@@ -105,21 +105,9 @@ export function PriceSnapshot({
                 </dd>
               </div>
               <div>
-                <dt className="console-label">价格版本</dt>
-                <dd className="m-0 tabular-nums text-[var(--color-ink)]">
-                  v{snapshot.price_version}
-                </dd>
-              </div>
-              <div>
                 <dt className="console-label">访问组</dt>
                 <dd className="m-0 break-all text-[var(--color-ink)]">
                   {snapshot.group_id ?? '历史快照未记录'}
-                </dd>
-              </div>
-              <div>
-                <dt className="console-label">组版本</dt>
-                <dd className="m-0 tabular-nums text-[var(--color-ink)]">
-                  {snapshot.group_version ?? '历史快照未记录'}
                 </dd>
               </div>
               <div>

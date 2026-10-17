@@ -43,7 +43,7 @@ export function createResponsesToMessagesRequestAdapter(options: ResponsesToMess
   return { ok: true, value: {
     from: 'responses', to: 'messages',
     convert(input, context) {
-      if (typeof context.targetModel !== 'string' || !context.targetModel.trim()) return {
+      if (typeof context.targetModel !== 'string') return {
         ok: false, error: { kind: 'invalid_request', code: 'invalid_target_model', message: 'A target model is required.', param: 'targetModel' },
       };
       const parsed = parseResponsesRequest(input, { unknownFields: 'preserve' });
@@ -52,7 +52,7 @@ export function createResponsesToMessagesRequestAdapter(options: ResponsesToMess
       const outputLimit = request.max_output_tokens ?? maxTokens;
       if (outputLimit == null) return unsupported('max_tokens', 'output_limit_required');
       const format = request.text?.format;
-      const checked = checkRequestCapabilities({ protocol: 'responses', request: { ...request, max_output_tokens: outputLimit } }, policy ?? { protocol: 'messages', features: [] });
+      const checked = checkRequestCapabilities({ protocol: 'responses', request: { ...request, max_output_tokens: outputLimit } }, policy ?? { protocol: 'messages' });
       if (!checked.supported) return unsupported(checked.reasons[0]?.path ?? 'input');
       for (const field of Object.keys(request)) if (!['model', 'instructions', 'input', 'tools', 'tool_choice', 'parallel_tool_calls', 'max_output_tokens', 'temperature', 'top_p', 'stream', 'text', 'reasoning', 'cache_control'].includes(field)) return unsupported(field);
       const automatic = marker(request.cache_control, 'cache_control'); if (!automatic.ok) return automatic;

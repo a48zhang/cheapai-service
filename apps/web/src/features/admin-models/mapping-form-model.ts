@@ -8,12 +8,8 @@ export const mappingDraftSchema = z
   .object({
     channelId: z.string().max(128),
     protocol: protocolSchema,
-    upstreamModel: z
-      .string()
-      .max(128)
-      .refine((value) => value.trim().length > 0),
+    upstreamModel: z.string(),
   })
-  .transform((value) => ({ ...value, upstreamModel: value.upstreamModel.trim() }))
   .pipe(modelMappingInputSchema);
 
 export type MappingFormValues = z.input<typeof mappingDraftSchema>;

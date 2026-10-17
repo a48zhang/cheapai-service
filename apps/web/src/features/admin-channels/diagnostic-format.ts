@@ -1,7 +1,4 @@
-import {
-  CHANNEL_PROBE_MAX_OUTPUT_TOKENS,
-  createChannelProbeBody,
-} from '@cheapai/contracts/channel-probe';
+import { createChannelProbeBody } from '@cheapai/contracts/channel-probe';
 import type { ProbeEvidence } from '@cheapai/contracts/channel-diagnostics';
 import type {
   ChannelModel,
@@ -25,20 +22,20 @@ export interface DiagnosticPreview {
   readonly publicModelId: string;
   readonly upstreamModel: string;
   readonly protocol: ChannelProtocol;
-  readonly maxOutputTokens: typeof CHANNEL_PROBE_MAX_OUTPUT_TOKENS;
   readonly headers: Readonly<Record<string, string>>;
   readonly body: string;
 }
 
-/** A clearly marked estimate built from the selected mapping and shared fixed probe template. */
+/** A clearly marked estimate built from the selected mapping and editable probe example. */
 export function createDiagnosticPreview(
   channel: Pick<ChannelView, 'baseUrl'>,
   model: Pick<ChannelModel, 'publicModelId' | 'upstreamModel' | 'protocol'>,
+  params?: Record<string, unknown>,
 ): DiagnosticPreview {
   const body = createChannelProbeBody(
     model.protocol,
     model.upstreamModel,
-    CHANNEL_PROBE_MAX_OUTPUT_TOKENS,
+    params,
   );
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -60,7 +57,6 @@ export function createDiagnosticPreview(
     publicModelId: model.publicModelId,
     upstreamModel: model.upstreamModel,
     protocol: model.protocol,
-    maxOutputTokens: CHANNEL_PROBE_MAX_OUTPUT_TOKENS,
     headers,
     body: JSON.stringify(body, null, 2),
   };
@@ -188,7 +184,6 @@ export function formatDiagnosticExport(input: DiagnosticExportInput): string {
       channelVersion: result?.channelVersion ?? null,
       mappingVersion: result?.mappingVersion ?? null,
       priceVersion: result?.priceVersion ?? null,
-      maxOutputTokens: result?.maxOutputTokens ?? null,
       mayIncurUpstreamCost: result?.mayIncurUpstreamCost ?? null,
       userBalanceCharged: result?.userBalanceCharged ?? null,
       apiError:

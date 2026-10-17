@@ -42,7 +42,7 @@ export interface ChatToResponsesRequestOptions { readonly channelCapabilities?: 
 export function chatToResponsesRequest(input: unknown, context: RequestContext, options: ChatToResponsesRequestOptions = {}): ConversionResult<ResponsesRequest> {
   const parsed = parseChatRequest(input, { unknownFields: "preserve" });
   if (!parsed.ok) return parsed;
-  if (typeof context?.targetModel !== "string" || context.targetModel.trim().length === 0) {
+  if (typeof context?.targetModel !== "string") {
     return { ok: false, error: { kind: "invalid_request", code: "invalid_target_model", message: "A target model is required for request conversion.", param: "context.targetModel" } };
   }
   const request = parsed.value;
@@ -59,7 +59,7 @@ export function chatToResponsesRequest(input: unknown, context: RequestContext, 
     // dropping this upstream-only field never authorizes dropping billable usage.
   }
   const outputLimit = request.max_completion_tokens ?? request.max_tokens;
-  const checked = checkRequestCapabilities({ protocol: 'chat', request }, options.channelCapabilities ?? { protocol: 'responses', features: [] });
+  const checked = checkRequestCapabilities({ protocol: 'chat', request }, options.channelCapabilities ?? { protocol: 'responses' });
   if (!checked.supported) return unsupported(checked.reasons[0]?.path ?? '$');
   for (const key of Object.keys(request)) if (!["model", "messages", "stream", "tools", "tool_choice", "parallel_tool_calls",
     "max_tokens", "max_completion_tokens", "temperature", "top_p", "stop", "n", "response_format", "reasoning_effort", "stream_options"].includes(key)) return unsupported(`$.${key}`);

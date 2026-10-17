@@ -92,7 +92,6 @@ export function makeProbeResult(overrides: Partial<ChannelProbeResult> = {}): Ch
     channelVersion: 7,
     mappingVersion: diagnosticModelA.mappingVersion,
     priceVersion: diagnosticModelA.priceVersion,
-    maxOutputTokens: 16,
     mayIncurUpstreamCost: true,
     userBalanceCharged: false,
     evidence: makeProbeEvidence(),

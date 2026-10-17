@@ -10,7 +10,7 @@ const data = { public_model_id: modelId, price_version: 3, sell_prices: { input:
 const snapshot = { schema_version: 1 as const, observed_at: now, data };
 
 beforeEach(async () => {
-  await prepare(testEnv.DB, `INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES (?,'active',?,3,0,4096,?,?)`, [modelId, JSON.stringify(data.sell_prices), now, now]).run();
+  await prepare(testEnv.DB, `INSERT INTO models (public_model_id,status,sell_prices_json,price_version,created_at,updated_at) VALUES (?,'active',?,3,?,?)`, [modelId, JSON.stringify(data.sell_prices), now, now]).run();
 });
 
 describe('price configuration cache on native D1/KV', () => {

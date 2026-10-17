@@ -20,7 +20,7 @@ beforeEach(async () => {
   adminCookie = (await createCookieSession(testEnv.DB, 'c09-admin', now)).setCookie.split(';')[0]!;
   userCookie = (await createCookieSession(testEnv.DB, 'c09-user', now)).setCookie.split(';')[0]!;
   for (let index = 0; index < 3; index++) await createModel(testEnv.DB, { publicModelId: `c09-${index}`, status: index === 2 ? 'disabled' : 'active',
-    sellPrices: { input: '1', output: '2', cacheRead: '0' }, admissionMinBalanceUnits: '100', maxOutputTokens: 4096 },
+    sellPrices: { input: '1', output: '2', cacheRead: '0' } },
   { actorId: 'c09-admin', operationId: `setup-${index}`, now });
 });
 
@@ -29,9 +29,9 @@ function headers(cookie = adminCookie) {
   return { Cookie: `${cookie}; ${nonce.setCookie.split(';')[0]}`, Origin: origin, 'X-CSRF-Token': nonce.token, 'Content-Type': 'application/json', 'X-Actor-Id': 'c09-user' };
 }
 function writes() { return createModelRoutes({ now: () => now, trustedOrigin: origin }); }
-const newModel = { publicModelId: 'c09-new', sellPrices: { input: '1', output: '2' }, admissionMinBalanceUnits: '0', maxOutputTokens: 4096 };
+const newModel = { publicModelId: 'c09-new', sellPrices: { input: '1', output: '2' } };
 describe('administrator model creation', () => {
-  it('stores exact prices and limits with trusted-actor atomic audit', async () => {
+  it('stores exact prices with trusted-actor atomic audit', async () => {
     const response = await writes().request(origin + ADMIN_MODELS_PATH, { method: 'POST', headers: headers(), body: JSON.stringify(newModel) }, { DB: testEnv.DB });
     expect(response.status).toBe(201);
     expect(await response.json()).toMatchObject({ data: { ...newModel, priceVersion: 1 } });
@@ -45,16 +45,13 @@ describe('administrator model creation', () => {
     expect((await writes().request(origin + ADMIN_MODELS_PATH, { method: 'POST', headers: headers(), body: JSON.stringify({ ...newModel, sellPrices: { input: '0', output: '0' } }) }, { DB: testEnv.DB })).status).toBe(201);
     expect(await testEnv.DB.prepare("SELECT sell_prices_json FROM models WHERE public_model_id='c09-new'").first('sell_prices_json')).toBe('{"input":"0","output":"0"}');
   });
-  it('enforces authorization/CSRF and typed limits without trusting injected configuration', async () => {
+  it('enforces authorization/CSRF and typed input without trusting injected configuration', async () => {
     const trustedOrigin = vi.fn(() => { throw new Error('unset'); });
     const lazy = createModelRoutes({ now: () => now, trustedOrigin });
     expect((await lazy.request(origin + ADMIN_MODELS_PATH, { method: 'POST' }, { DB: testEnv.DB })).status).toBe(401);
     expect((await lazy.request(origin + ADMIN_MODELS_PATH, { method: 'POST', headers: headers(userCookie) }, { DB: testEnv.DB })).status).toBe(403);
     expect(trustedOrigin).not.toHaveBeenCalled();
     expect((await writes().request(origin + ADMIN_MODELS_PATH, { method: 'POST', headers: { Cookie: adminCookie } }, { DB: testEnv.DB })).status).toBe(403);
-    for (const patch of [{ maxOutputTokens: 0 }, { admissionMinBalanceUnits: 0.1 }, { admissionMinBalanceUnits: '-1' }]) {
-      expect((await writes().request(origin + ADMIN_MODELS_PATH, { method: 'POST', headers: headers(), body: JSON.stringify({ ...newModel, ...patch }) }, { DB: testEnv.DB })).status).toBe(400);
-    }
   });
   it('checks streamed bytes and rolls back audit failure', async () => {
     const body = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new Uint8Array(MODEL_BODY_MAX_BYTES + 1)); controller.close(); } });
@@ -70,12 +67,12 @@ describe('administrator model update and pricing CAS', () => {
   it('updates status/prices atomically and preserves omitted fields', async () => {
     const response = await writes().request(target(), { method: 'PATCH', headers: headers(), body: '{"version":1,"status":"disabled","sellPrices":{"input":"3","output":"4","cacheRead":"0"}}' }, { DB: testEnv.DB });
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ data: { status: 'disabled', priceVersion: 2, sellPrices: { input: '3', output: '4', cacheRead: '0' }, admissionMinBalanceUnits: '100', maxOutputTokens: 4096 } });
+    expect(await response.json()).toMatchObject({ data: { status: 'disabled', priceVersion: 2, sellPrices: { input: '3', output: '4', cacheRead: '0' } } });
     expect(await testEnv.DB.prepare("SELECT COUNT(*) AS count FROM admin_audit WHERE action='model.update' AND target_id='c09-0'").first('count')).toBe(1);
   });
   it('allows only typed patches and rejects missing replacement prices or privilege claims', async () => {
     for (const patch of [{ version: 1 }, { version: 1, sellPrices: { input: '1' } }, { version: 1, sellPrices: { input: '1', output: '2', reasoning: null } },
-      { version: 1, publicModelId: 'other' }, { version: 1, actorId: 'c09-admin' }, { version: 1, admissionMinBalanceUnits: '1.2' }]) {
+      { version: 1, publicModelId: 'other' }, { version: 1, actorId: 'c09-admin' }]) {
       expect((await writes().request(target(), { method: 'PATCH', headers: headers(), body: JSON.stringify(patch) }, { DB: testEnv.DB })).status).toBe(400);
     }
     expect((await writes().request(target(), { method: 'PATCH', headers: headers(userCookie), body: '{"version":1,"status":"disabled"}' }, { DB: testEnv.DB })).status).toBe(403);
@@ -92,14 +89,14 @@ describe('administrator model update and pricing CAS', () => {
   });
 });
 describe('administrator public-model listing', () => {
-  it('returns explicit prices/versions/limits without resolving write configuration', async () => {
+  it('returns explicit prices/versions without resolving write configuration', async () => {
     const trustedOrigin = vi.fn(() => { throw new Error('not configured'); });
     const app = createModelRoutes({ now: () => now, trustedOrigin });
     const response = await app.request(origin + ADMIN_MODELS_PATH + '?limit=2', { headers: { Cookie: adminCookie } }, { DB: testEnv.DB });
     expect(response.status).toBe(200); expect(response.headers.get('Cache-Control')).toBe('no-store');
     const body = await response.json() as { data: { items: unknown[]; nextCursor: string } };
     expect(body.data.items).toHaveLength(2);
-    expect(body.data.items[0]).toMatchObject({ publicModelId: 'c09-2', sellPrices: { input: '1', output: '2', cacheRead: '0' }, priceVersion: 1, maxOutputTokens: 4096, admissionMinBalanceUnits: '100' });
+    expect(body.data.items[0]).toMatchObject({ publicModelId: 'c09-2', sellPrices: { input: '1', output: '2', cacheRead: '0' }, priceVersion: 1 });
     expect(await (await get(`?limit=2&cursor=${body.data.nextCursor}`)).json()).toMatchObject({ data: { items: [{ publicModelId: 'c09-0' }], nextCursor: null } });
     expect(trustedOrigin).not.toHaveBeenCalled();
   });
