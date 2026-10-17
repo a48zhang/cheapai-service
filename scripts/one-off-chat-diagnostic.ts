@@ -14,7 +14,7 @@ function sql(query) {
   const file = '/tmp/cheapai-diag-' + randomUUID() + '.sql';
   writeFileSync(file, query, {mode:0o600});
   try {
-    const result = execFileSync('pnpm', ['exec','wrangler','d1','execute','DB','--config','wrangler.jsonc','--env','production','--remote','--json','--file',file], {cwd:'apps/worker',encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:60000,maxBuffer:2000000});
+    const result = execFileSync('pnpm', ['exec','wrangler','d1','execute','DB','--config','wrangler.jsonc','--env','production','--remote','--json','--command',query], {cwd:'apps/worker',encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:60000,maxBuffer:2000000});
     const parsed = JSON.parse(result);
     if (parsed.some(x=>x.success===false)) throw new Error('D1 query failed');
     return parsed.flatMap(x=>x.results ?? []);
@@ -36,9 +36,12 @@ async function jsonResponse(label,response) {
   return body;
 }
 try {
+  out('phase',{name:'read_expected_model'});
   const group=sql("SELECT g.id FROM groups g JOIN channel_groups cg ON cg.group_id=g.id JOIN channels c ON c.id=cg.channel_id JOIN channel_models cm ON cm.channel_id=c.id JOIN models m ON m.public_model_id=cm.public_model_id WHERE g.id='default' AND g.status='active' AND c.status='active' AND m.status='active' AND cm.public_model_id='gpt-5' LIMIT 1")[0];
   if(!group) throw new Error('Expected active diagnostic model missing');
+  out('phase',{name:'hash_new_test_password'});
   const hash=await hashPassword(password);const now=Date.now();
+  out('phase',{name:'insert_new_test_user',userId:uid});
   sql("INSERT INTO users (id,email_normalized,password_hash,role,status,email_verified_at,group_id,balance_units,concurrency_limit,rpm_limit,created_via,created_at,updated_at) VALUES ("+[uid,email,hash,'user','active'].map(quote).join(',')+","+now+","+quote(group.id)+",0,1,10,'bootstrap',"+now+","+now+");");
   created=true;out('test_user_created',{userId:uid,role:'user',balanceUnits:0,groupId:group.id});
   await jsonResponse('bootstrap',await request('/api/v1/settings/public'));
