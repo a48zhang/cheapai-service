@@ -180,7 +180,7 @@ test('missing models have a single recovery prompt and refresh enables sending w
   const input = page.getByRole('textbox', { name: '消息内容' });
   await input.fill('先保存我的问题');
   await expect(
-    page.getByText('暂无可用模型，请联系管理员开通模型权限。', { exact: true }),
+    page.getByText('暂无可用模型，请稍后刷新重试。', { exact: true }),
   ).toHaveCount(1);
   await expect(page.getByRole('button', { name: '发送', exact: true })).toBeDisabled();
   api.enableModels();

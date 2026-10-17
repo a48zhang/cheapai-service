@@ -131,8 +131,9 @@ async function readSse(
     if (signal?.aborted || (cause instanceof Error && cause.name === 'AbortError')) {
       throw transportError(cause, signal);
     }
-    throw cause;
+    throw transportError(cause, signal);
   } finally {
+    void reader.cancel().catch(() => undefined);
     reader.releaseLock();
   }
 }
