@@ -44,11 +44,18 @@ response. Wrangler runs through `@sub2api/worker` with `--config wrangler.jsonc
 before the next runs. A failed migration stops publication, and a failed health
 check fails the release without an automatic rollback.
 
-Configure this command only on the intended production release trigger, with
-Cloudflare credentials available to Wrangler. This entrypoint does not enable a
-GitHub Actions deployment job or change Dashboard build triggers. The existing
-`pnpm run deploy` remains a manual Worker-only publication command and does not
-apply migrations. PR checks continue to build without applying remote migrations.
+[Production release](../.github/workflows/production-release.yml) runs automatically
+on pushes to `main`, including merged PRs. It checks out that merged commit,
+installs locked dependencies, then calls `pnpm run deploy:ci`. Releases share one
+concurrency group and do not cancel an active migration/publication when a newer
+commit arrives. PR branch checks do not run remote SQL or deploy.
+
+Set the repository Actions secret `CLOUDFLARE_API_TOKEN` to a token that can migrate
+the configured D1 database and deploy the production Worker and its bindings.
+The account and resource IDs come from the checked-in production Wrangler config.
+The workflow does not require a new environment approval or enable the removed
+Cloudflare Builds trigger. The existing `pnpm run deploy` remains a manual
+Worker-only publication command and does not apply migrations.
 
 `pnpm run deploy:ci --dry-run` builds and bundles the production Worker locally;
 it skips remote migrations, publication and live health requests. It does not

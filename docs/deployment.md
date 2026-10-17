@@ -48,14 +48,16 @@ pnpm --filter @sub2api/worker exec wrangler deployments list --env production
 
 ## 正式 CI 发布入口与失败恢复
 
-正式流水线的发布命令为 `pnpm run deploy:ci`，按以下顺序执行：
+合并到 `main` 后，GitHub Actions 自动执行 `pnpm run deploy:ci`，顺序为：
 
 1. `pnpm run build:cloud` 成功，产出匹配的前端和 Worker。
 2. 从 Worker workspace 执行 `wrangler d1 migrations apply DB --config wrangler.jsonc --env production --remote`。
 3. 迁移成功后执行 `wrangler deploy --config wrangler.jsonc --env production`。
 4. 请求 `https://cheapai.dev/healthz`，检查成功响应及 JSON 的 `status: "ok"`。该入口只证明存活，不证明 D1、登录、邮件或真实上游可用；继续执行第 7 节的验收。
 
-脚本位置为 [`scripts/release-production.mjs`](../scripts/release-production.mjs)。任一步失败即退出，不继续后续步骤，不自动回滚数据库或 Worker。`pnpm run deploy:ci --dry-run` 只构建并执行本地 production 打包，明确跳过远程迁移、正式发布和线上 health 请求。原 `pnpm run deploy` 保持仅发布 Worker 的手动语义；不要把它配置成需要自动迁移的 CI 入口。新增入口本身不启用 GitHub Actions 发布触发器，也不更改 Dashboard Builds 配置。
+脚本位置为 [`scripts/release-production.mjs`](../scripts/release-production.mjs)。任一步失败即退出，不继续后续步骤，不自动回滚数据库或 Worker。`pnpm run deploy:ci --dry-run` 只构建并执行本地 production 打包，明确跳过远程迁移、正式发布和线上 health 请求。原 `pnpm run deploy` 保持仅发布 Worker 的手动语义；不要把它配置成需要自动迁移的 CI 入口。[Production release 工作流](../.github/workflows/production-release.yml) 在 PR 合并到 `main` 后自动运行此入口，使用该次合并的提交；实际触发事件是 `push` 到 `main`。D1 自动跳过已执行的迁移，依次应用尚未执行的 SQL。运行中的迁移和发布不会因后续提交被取消。PR 分支的检查不执行远程 SQL。
+
+在 GitHub 仓库 Settings → Secrets and variables → Actions 中配置 `CLOUDFLARE_API_TOKEN`，需要能迁移目标 D1 并发布 production Worker 及其绑定。工作流从 Secret 注入凭据，目标账户和资源 ID 使用仓库 production 配置。未配置或权限不足时发布会失败，不能将本地 dry-run 当作线上授权已通过。工作流不设置额外环境审批，也不重新启用 Dashboard Builds 触发器。
 
 发布前保存当前 Worker version/deployment ID、D1 实际迁移清单及备份恢复点。从仓库根目录核对远端数据库，并将导出文件保存到仓库外的受控位置（含渠道与 Desktop 凭据，不提交 Git）：
 
