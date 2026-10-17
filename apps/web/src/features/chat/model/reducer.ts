@@ -113,6 +113,7 @@ export function chatReducer(state: ChatState = initialChatState, event: ChatEven
       return {
         ...state,
         phase: 'failed',
+        detail: event.detail ?? state.detail,
         operationId: null,
         operationKind: null,
         streamMessageId: null,

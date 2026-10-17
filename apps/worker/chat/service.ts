@@ -102,12 +102,15 @@ function gatewayErrorCode(status: number, bodyCode: unknown): keyof typeof API_E
 
 /** Trusted dispatch still returns its native protocol envelope for admission
  * failures. Before registration those failures must remain management errors
- * (especially 402/403); the body is inspected only for its allowlisted code,
- * never copied to a browser error. */
+ * (especially 402/403). Preserve the gateway request ID and envelope in the
+ * logged cause; management responses still expose only the public API error. */
 async function throwUnregisteredGatewayError(response: Response): Promise<never> {
-  let code: unknown;
-  try { code = (await boundedChatWork(response.json()) as { error?: { code?: unknown } }).error?.code; } catch { /* status mapping below */ }
-  throw new ApiError(gatewayErrorCode(response.status, code));
+  let payload: { error?: { code?: unknown } } | undefined;
+  try { payload = await boundedChatWork(response.json()); } catch { /* status mapping below */ }
+  const requestId = response.headers.get('X-Request-Id');
+  throw new ApiError(gatewayErrorCode(response.status, payload?.error?.code), {
+    cause: new Error(`Gateway rejected chat request: ${JSON.stringify({ request_id: requestId, status: response.status, response: payload })}`),
+  });
 }
 
 /** Trusted server dispatch adapter.  It creates a Chat request with no
@@ -289,7 +292,8 @@ export class ChatService {
         messages: started.context, operationId: input.operationId, auth, ...(maxTokens === undefined ? {} : { maxOutputTokens: maxTokens }),
         ...(input.signal === undefined ? {} : { signal: input.signal }), ...(input.executionContext === undefined ? {} : { executionContext: input.executionContext }), onRegistered });
       if (!registered) throw new ApiError('service_unavailable');
-      const meta: ChatSseMeta = { conversation: started.conversation, userMessage: started.userMessage, assistantMessage: started.assistantMessage };
+      const meta: ChatSseMeta = { conversation: started.conversation, userMessage: started.userMessage,
+        assistantMessage: { ...started.assistantMessage, requestId: execution.requestId } };
       const body = createChatSseStream(meta, execution, {
         onDelta: async delta => {
           answer += delta;
@@ -303,6 +307,8 @@ export class ChatService {
       }) });
       return { kind: 'stream', response: sseResponse(body, execution.requestId), assistantMessageId: started.assistantMessage.id };
     } catch (error) {
+      logError('Chat generation failed', error, { request_id: registeredRequestId, conversation_id: idOfConversation,
+        operation_id: input.operationId, message_id: started.assistantMessage.id, model_id: modelId, group_id: groupId });
       // If execution escaped before a response could be installed, stop it
       // first. Gateway cleanup still owns all leases and settlement.
       try { await boundedChatWork(Promise.resolve().then(() => execution?.cancel?.()), 1000); } catch (error) { logError('Chat cancellation failed', error, { conversation_id: idOfConversation }); }

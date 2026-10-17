@@ -23,6 +23,7 @@ export interface ChatFailure {
   readonly kind: 'rejected' | 'failed' | 'interrupted';
   readonly message: string;
   readonly code?: string;
+  readonly requestId?: string;
 }
 
 export interface ChatState {
@@ -64,7 +65,12 @@ export type ChatEvent =
       readonly detail: ConversationDetail;
       readonly failure?: ChatFailure;
     }
-  | { readonly type: 'failed'; readonly operationId: string; readonly failure: ChatFailure }
+  | {
+      readonly type: 'failed';
+      readonly operationId: string;
+      readonly failure: ChatFailure;
+      readonly detail?: ConversationDetail;
+    }
   | { readonly type: 'interrupted'; readonly operationId: string; readonly failure: ChatFailure };
 
 export const initialChatState: ChatState = Object.freeze({

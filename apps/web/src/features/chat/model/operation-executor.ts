@@ -54,7 +54,13 @@ function delay(milliseconds: number): Promise<void> {
 }
 
 export function asChatFailure(cause: unknown, kind: ChatFailure['kind']): ChatFailure {
-  if (cause instanceof ApiClientError) return { kind, message: cause.message, code: cause.code };
+  if (cause instanceof ApiClientError)
+    return {
+      kind,
+      message: cause.message,
+      code: cause.code,
+      ...(cause.request_id === null ? {} : { requestId: cause.request_id }),
+    };
   return { kind, message: cause instanceof Error ? cause.message : '聊天请求失败。' };
 }
 
@@ -300,6 +306,18 @@ export async function executeChatOperation(
       operation.assistantMessageId !== null ||
       run.terminalMessage !== null;
     if (isKnownWriteRejection(cause, accepted)) {
+      // Admission can fail after the server has saved the prompt and advanced
+      // the conversation version, before it has sent an SSE meta event.
+      let detail: ConversationDetail | undefined;
+      if (cause instanceof ApiClientError && cause.kind !== 'request') {
+        try {
+          const fetched = await api.getConversation(operation.conversationId);
+          if (!context.isCurrent()) return 'superseded';
+          detail = mergeConversationDetail(context.currentDetail(), fetched);
+        } catch {
+          if (!context.isCurrent()) return 'superseded';
+        }
+      }
       operation = markOperationRejected(operation);
       run.operation = operation;
       context.forgetPending(operation);
@@ -307,7 +325,15 @@ export async function executeChatOperation(
         type: 'failed',
         operationId: operation.operationId,
         failure: asChatFailure(cause, 'rejected'),
+        ...(detail === undefined ? {} : { detail }),
       });
+      if (detail) {
+        try {
+          await context.onDetailConfirmed?.(detail);
+        } catch {
+          /* Cache writes/navigation are advisory. */
+        }
+      }
       return 'rejected';
     }
     operation = markOperationUnknown(operation);
@@ -315,7 +341,11 @@ export async function executeChatOperation(
     context.rememberPending(operation);
     context.dispatch({ type: 'finalizing', operationId: operation.operationId });
     const failure = run.streamError
-      ? { kind: 'failed' as const, message: run.streamError.message, code: run.streamError.code }
+      ? {
+          ...asChatFailure(cause, 'failed'),
+          message: run.streamError.message,
+          code: run.streamError.code,
+        }
       : asChatFailure(cause, 'interrupted');
     return reconcileFinalSnapshot(context, operation, null, false, failure);
   }

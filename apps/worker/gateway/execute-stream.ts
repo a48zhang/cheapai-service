@@ -1,4 +1,5 @@
 import { logError } from '../logging';
+import { readDiagnosticBody } from './diagnostic-body';
 import { createResponseIds } from '@sub2api/apicompat/ids';
 import { SseByteParser } from '@sub2api/apicompat/streams/parser';
 import { BoundedByteBuffer, ByteBudget, readBoundedBytes } from '@sub2api/apicompat/streams/buffers';
@@ -293,7 +294,21 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
     // A stop here may have finalized before an output controller existed;
     // never return a fresh body whose pull would then wait forever.
     if (finalizing || lifecycle.signal.aborted) throw new Error('Stream stopped before response publication');
-    if (!exchange.response.ok || !exchange.response.headers.get('content-type')?.toLowerCase().startsWith('text/event-stream') || !exchange.response.body) throw new Error('Expected upstream SSE');
+    if (!exchange.response.ok || !exchange.response.headers.get('content-type')?.toLowerCase().startsWith('text/event-stream') || !exchange.response.body) {
+      // Capture the rejected response before cleanup discards it. A stalled
+      // error body must not hold the chat open until the generation deadline.
+      const response = exchange.response;
+      const timer = setTimeout(() => exchange!.cancel(), 1500);
+      try {
+        const captured = await readDiagnosticBody(response.body);
+        console.error({ event: 'Upstream rejected streaming request', request_id: record.id,
+          channel_id: record.channel_id, model_id: record.public_model_id, protocol: record.upstream_protocol,
+          upstream_status: response.status, content_type: response.headers.get('content-type'),
+          upstream_request_id: response.headers.get('x-request-id') ?? response.headers.get('request-id'),
+          response_body: captured.text, response_body_complete: captured.complete });
+      } finally { clearTimeout(timer); }
+      throw new Error(`Expected upstream SSE; received HTTP ${response.status} (${response.headers.get('content-type') ?? 'no content type'})`);
+    }
     inputBytes = readBoundedBytes(exchange.response.body, new ByteBudget(maxInputChunkBytes), lifecycle.signal);
     void exchange.done.then(result => {
       if (!result.ok && !finalizing) {

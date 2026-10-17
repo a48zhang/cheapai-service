@@ -34,6 +34,7 @@ describe('web chat SSE persistence bridge', () => {
   });
 
   it('closes with a visible persistence error when final save throws', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const source = (async function* (): AsyncGenerator<ChatGatewayEvent> {
       yield { type: 'delta', text: 'answer' };
       yield { type: 'done' };
@@ -50,6 +51,11 @@ describe('web chat SSE persistence bridge', () => {
     expect(failed).toBe(1);
     expect(wire).toContain('event: error');
     expect(wire).toContain('persistence_error');
+    expect(errors).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'Chat terminal persistence failed', request_id: 'request-2', message_id: 'assistant-1',
+      errors: expect.arrayContaining([expect.objectContaining({ message: 'synthetic final persistence failure' })]),
+    }));
+    errors.mockRestore();
   });
 
   it('closes with an error even when the failed-state callback also throws', async () => {
