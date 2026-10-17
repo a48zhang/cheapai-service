@@ -23,7 +23,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
-      - name: Read only deployment and natural post-release errors
+      - name: Read only natural failures from 08:35 through 09:40 UTC
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: node --experimental-transform-types scripts/one-off-gpt55-investigation.mjs
