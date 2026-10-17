@@ -1,17 +1,18 @@
 import type { FormEvent } from 'react';
-import { BUILTIN_MODELS } from '@cheapai/model-catalog';
-import type { BuiltinModel } from '@cheapai/model-catalog';
+import type { ApiClient } from '@cheapai/api-client/types';
+import { PublicModelPicker } from '../admin-models/public';
 import type { GroupView } from '@cheapai/api-client/groups';
 import type { ChannelSetupProgress } from './setup-controller';
 import type { SetupChannelDraft, SetupMappingDraft } from './setup-form-model';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { Field } from '../../shared/ui/Field';
 import { Input } from '../../shared/ui/Input';
-import { ModelIdentity } from '../../shared/ui/ModelIdentity';
 import { Select } from '../../shared/ui/Select';
 import { Link } from 'react-router-dom';
 
 export interface ChannelSetupStepsProps {
+  readonly client: ApiClient;
+  readonly actorId: string;
   readonly step: ChannelSetupProgress['step'];
   readonly channelFormId: string;
   readonly mappingFormId: string;
@@ -24,7 +25,6 @@ export interface ChannelSetupStepsProps {
   readonly groupsError: Error | null | undefined;
   readonly onRetryGroups: (() => void) | undefined;
   readonly selectedGroup: GroupView | null;
-  readonly selectedBuiltin: BuiltinModel | undefined;
   readonly progressError: Error | null;
   readonly busy: boolean;
   readonly onSubmitChannel: (event: FormEvent<HTMLFormElement>) => void;
@@ -37,7 +37,6 @@ export interface ChannelSetupStepsProps {
     key: K,
     value: SetupMappingDraft[K],
   ) => void;
-  readonly onSelectBuiltin: (value: string) => void;
   readonly onSubmitGroup: (event: FormEvent<HTMLFormElement>) => void;
   readonly onGroupIdChange: (value: string) => void;
 }
@@ -49,6 +48,8 @@ const protocolOptions = [
 ] as const;
 
 export function ChannelSetupSteps({
+  client,
+  actorId,
   step,
   channelFormId,
   mappingFormId,
@@ -61,14 +62,12 @@ export function ChannelSetupSteps({
   groupsError,
   onRetryGroups,
   selectedGroup,
-  selectedBuiltin,
   progressError,
   busy,
   onSubmitChannel,
   onChannelDraftChange,
   onSubmitMapping,
   onMappingDraftChange,
-  onSelectBuiltin,
   onSubmitGroup,
   onGroupIdChange,
 }: ChannelSetupStepsProps) {
@@ -124,41 +123,14 @@ export function ChannelSetupSteps({
       {step === 'mapping' && (
         <form id={mappingFormId} className="grid gap-4" onSubmit={onSubmitMapping}>
           <p className="console-muted">
-            渠道已保存。选择已有模型目录中的公开模型，然后声明上游模型 ID 与协议。
+            渠道已保存。搜索选择或新增对外模型，然后填写上游模型名称与协议。
           </p>
-          <Field label="内置模型参考">
-            <Select
-              items={[
-                { value: '', label: '不使用内置参考' },
-                ...BUILTIN_MODELS.map((model) => ({
-                  value: model.id,
-                  label: <ModelIdentity modelId={model.id} secondary={model.provider} />,
-                })),
-              ]}
-              value={mappingDraft.builtinId}
-              onValueChange={onSelectBuiltin}
-              disabled={busy}
-            />
-          </Field>
-          {selectedBuiltin && (
-            <div className="rounded-md bg-[var(--color-muted)] p-3 console-muted">
-              <ModelIdentity modelId={selectedBuiltin.id} secondary={selectedBuiltin.provider} />
-              <a
-                href={selectedBuiltin.source}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-1 inline-block text-[var(--color-primary)] underline"
-              >
-                查看官方资料
-              </a>
-            </div>
-          )}
-          <Field label="公开模型 ID" description="此模型必须已存在于模型目录。" required>
-            <Input
+          <Field label="对外模型" required>
+            <PublicModelPicker
+              client={client}
+              actorId={actorId}
               value={mappingDraft.publicModelId}
-              onChange={(event) => onMappingDraftChange('publicModelId', event.currentTarget.value)}
-              maxLength={128}
-              required
+              onValueChange={(value) => onMappingDraftChange('publicModelId', value)}
               disabled={busy}
             />
           </Field>

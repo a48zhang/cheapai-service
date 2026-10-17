@@ -47,7 +47,7 @@
 
 ## 3. 构建/发布配置：与运行时严格分开
 
-2026-10-17 已移除失效的 Cloudflare Workers Builds 分支触发器，待维护者重新配置。`pnpm run build` 只构建与 dry-run；`pnpm run deploy` 明确选择 production 并执行正式发布，不能作为 PR Preview 命令。预发配置及后续状态见[预发说明](pr-previews.md)，正式发布见[部署步骤](deployment.md)。
+2026-10-17 已关闭 Cloudflare 原生 Preview 总开关并移除 Worker 级 Builds 配置；自动预发停用，正式迁移发布由 GitHub Actions 的 main 工作流负责。`pnpm run build` 只构建与 dry-run；`pnpm run deploy` 明确选择 production 并执行正式发布，不能作为 PR Preview 命令。预发配置及后续状态见[预发说明](pr-previews.md)，正式发布见[部署步骤](deployment.md)。
 
 | 名称 / 设置 | 所在位置 | 是否需要 / 作用 |
 | --- | --- | --- |
@@ -64,7 +64,7 @@
 - Web 使用同源 `/api`、`/v1`，无生产 `VITE_API_BASE_URL` 必配项。`CHEAPAI_WEB_TLS_KEY_FILE`、`CHEAPAI_WEB_TLS_CERT_FILE`、`CHEAPAI_WEB_PORT`、`CHEAPAI_WORKER_PORT` 是本地开发 Vite/launcher 配置，不是线上 Worker 变量。
 - Desktop runtime 可选 `SUB2API_DESKTOP_API_BASE_URL`（默认 `https://cheapai.dev`）、`SUB2API_DESKTOP_MODEL_BASE_URL`（默认 `https://cheapai.dev/v1`）、`SUB2API_DESKTOP_MODEL_API`（默认 `openai-completions`；也支持 openai-responses / anthropic-messages）。它们属于客户端进程配置，Worker 不消费它们；当前默认生产地址无需人工补 Worker env。
 - Desktop 的 `SUB2API_DSH_*` 路径和 development-only key mode 属于本机侧，不是 Cloudflare runtime 配置。
-- Cloudflare 自动预发触发器已于 2026-10-17 移除，待维护者重新配置；仓库不生成分支预发配置或在 GitHub CI 中部署。
+- Cloudflare 自动构建与预发已于 2026-10-17 从父配置停用；仓库不生成分支预发配置或在 GitHub CI 中部署。
 
 ## 5. 环境变量之外的必要上线步骤
 

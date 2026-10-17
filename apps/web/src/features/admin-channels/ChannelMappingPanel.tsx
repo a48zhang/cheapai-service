@@ -1,7 +1,7 @@
 import { ModelIdentity } from '../../shared/ui/ModelIdentity';
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import { createChannelsApi } from '@cheapai/api-client/channels';
 import type { ChannelView } from '@cheapai/api-client/channels';
@@ -9,7 +9,7 @@ import { ApiClientError } from '@cheapai/api-client/errors';
 import { createMappingsApi } from '@cheapai/api-client/mappings';
 import type { Protocol } from '@cheapai/api-client/mappings';
 import type { ApiClient } from '@cheapai/api-client/types';
-import { modelListQueryOptions, recordMappingSaved } from '../admin-models/public';
+import { PublicModelPicker, recordMappingSaved } from '../admin-models/public';
 import { withErrorContext } from '../../shared/lib/api-error';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { Button } from '../../shared/ui/Button';
@@ -45,34 +45,17 @@ export function ChannelMappingPanel({
   const api = useMemo(() => createMappingsApi(client), [client]);
   const [editor, setEditor] = useState<ChannelMapping | 'new' | null>(null);
   const [modelId, setModelId] = useState('');
-  const [modelSearch, setModelSearch] = useState('');
   const [upstreamModel, setUpstreamModel] = useState('');
+  const [upstreamEdited, setUpstreamEdited] = useState(false);
   const [protocol, setProtocol] = useState<Protocol>('chat');
   const [saving, setSaving] = useState(false);
   const [conflict, setConflict] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const editorId = useId();
-  const models = useInfiniteQuery({
-    ...modelListQueryOptions({ client, actorId }),
-    enabled: editor === 'new',
-  });
-  const { hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage } = models;
-  useEffect(() => {
-    if (editor === 'new' && hasNextPage && !isFetchingNextPage && !isFetchNextPageError)
-      void fetchNextPage();
-  }, [editor, hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage]);
-  const modelOptions = (models.data?.pages.flatMap((page) => page.items) ?? [])
-    .filter(
-      (model) =>
-        model.publicModelId === modelId ||
-        model.publicModelId.toLocaleLowerCase().includes(modelSearch.trim().toLocaleLowerCase()),
-    )
-    .map((model) => ({ value: model.publicModelId, label: model.publicModelId }));
-
   const openEditor = (mapping: ChannelMapping | 'new') => {
     setEditor(mapping);
-    setModelSearch('');
+    setUpstreamEdited(false);
     setModelId(mapping === 'new' ? '' : mapping.publicModelId);
     setUpstreamModel(mapping === 'new' ? '' : mapping.upstreamModel);
     setProtocol(mapping === 'new' ? 'chat' : mapping.protocol);
@@ -176,29 +159,17 @@ export function ChannelMappingPanel({
           {notice}
         </p>
       )}
-      {editor === 'new' && (
-        <Input
-          aria-label="搜索模型"
-          placeholder="搜索模型名称"
-          value={modelSearch}
-          onChange={(event) => setModelSearch(event.currentTarget.value)}
-          disabled={saving}
-          autoComplete="off"
-        />
-      )}
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="对外模型" required>
           {editor === 'new' ? (
-            <Select
-              aria-label="对外模型"
-              items={modelOptions}
+            <PublicModelPicker
+              client={client}
+              actorId={actorId}
               value={modelId}
-              placeholder={models.isPending ? '正在读取模型…' : '选择已有模型'}
-              required
-              disabled={saving || models.isPending}
+              disabled={saving}
               onValueChange={(value) => {
                 setModelId(value);
-                if (!upstreamModel) setUpstreamModel(value);
+                if (!modelId && !upstreamEdited) setUpstreamModel(value);
               }}
             />
           ) : (
@@ -218,37 +189,13 @@ export function ChannelMappingPanel({
           />
         </Field>
       </div>
-      {editor === 'new' && models.isError && (
-        <ApiErrorNotice
-          error={models.error}
-          onRetry={() => {
-            void models.refetch();
-          }}
-        />
-      )}
-      {editor === 'new' && models.hasNextPage && (
-        <Button
-          variant="ghost"
-          size="sm"
-          busy={models.isFetchingNextPage}
-          onClick={() => {
-            void models.fetchNextPage();
-          }}
-        >
-          加载更多模型
-        </Button>
-      )}
-      {editor === 'new' &&
-        !models.isPending &&
-        !models.isError &&
-        !modelSearch &&
-        modelOptions.length === 0 && (
-          <p className="console-muted">模型目录为空，请先在模型目录创建对外模型。</p>
-        )}
       <Field label="上游模型名称">
         <Input
           value={upstreamModel}
-          onChange={(event) => setUpstreamModel(event.currentTarget.value)}
+          onChange={(event) => {
+            setUpstreamEdited(true);
+            setUpstreamModel(event.currentTarget.value);
+          }}
           disabled={saving}
           placeholder="例如 gpt-5"
           autoComplete="off"
