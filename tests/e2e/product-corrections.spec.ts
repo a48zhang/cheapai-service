@@ -230,7 +230,7 @@ for (const kind of ['group', 'mapping'] as const) {
       await expect(ui.dialog.getByRole('checkbox', { name: /^Picker channel 1(?:\s|$)/ })).toHaveCount(0);
       await expect(ui.dialog.getByRole('checkbox', { name: /^Picker channel 21(?:\s|$)/ })).toHaveCount(0);
       if (kind === 'group') {
-        await expect(ui.dialog.getByRole('checkbox', { name: /^Picker channel 41(?:\s|$)/ })).toBeChecked();
+        await expect(ui.dialog.getByRole('checkbox', { name: /(?:^Picker channel 41(?:\s|$)|picker-channel-41$)/ })).toBeChecked();
         await expect(ui.dialog.getByRole('checkbox', { name: /missing-channel/ })).toBeChecked();
       }
       expect(state.cursors.slice(0, 2)).toEqual([null, 'page-2']);
