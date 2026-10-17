@@ -59,16 +59,16 @@ beforeEach(async () => {
     VALUES('a43-user',?,'fixture-hash','user','active','a43-group',1000000,2,60,'admin',?,?)`)
     .bind(email, now, now).run();
   await testEnv.DB.prepare(`INSERT INTO models
-    (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at)
-    VALUES (?,'active','{"input":"1","output":"2"}',1,0,64,0,0)`).bind(model).run();
+    (public_model_id,status,sell_prices_json,price_version,created_at,updated_at)
+    VALUES (?,'active','{"input":"1","output":"2"}',1,0,0)`).bind(model).run();
   await testEnv.DB.prepare(`INSERT INTO channels
     (id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
     VALUES ('a43-channel','A43','https://provider-a43.example',?,'active',1,2,60,1,0,0)`)
     .bind('A43-UPSTREAM').run();
   await testEnv.DB.prepare("INSERT INTO channel_groups(channel_id,group_id) VALUES('a43-channel','a43-group')").run();
   await testEnv.DB.prepare(`INSERT INTO channel_models
-    (channel_id,public_model_id,upstream_model,protocol,capabilities_json,config_version)
-    VALUES ('a43-channel',?,'provider-a43','chat','{"protocol":"chat","features":["streaming","stream_usage"],"maxOutputTokens":64}',1)`)
+    (channel_id,public_model_id,upstream_model,protocol,config_version)
+    VALUES ('a43-channel',?,'provider-a43','chat',1)`)
     .bind(model).run();
   env = {
     ...testEnv,

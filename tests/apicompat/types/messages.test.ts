@@ -96,7 +96,7 @@ describe("Messages request wire validation", () => {
   });
 
   it.each([
-    null, [], {}, { ...request(), model: "" }, { ...request(), max_tokens: 0 }, { ...request(), max_tokens: 1.5 },
+    null, [], {}, { ...request(), max_tokens: 0 }, { ...request(), max_tokens: 1.5 },
     { ...request(), messages: [] }, { ...request(), messages: [{ role: "system", content: "wrong role" }] },
     { ...request(), messages: [{ role: "tool", content: "wrong protocol" }] }, { ...request(), messages: [{ role: "user", content: null }] },
     { ...request(), system: [{ type: "image", source: { type: "url", url: "https://images.example/a.png" } }] },

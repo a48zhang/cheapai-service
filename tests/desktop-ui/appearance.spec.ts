@@ -5,7 +5,7 @@ test('Desktop settings switch real DSH code highlighting without remounting mess
 }) => {
   await page.emulateMedia({ colorScheme: 'light' });
   await page.goto('/tests/appearance.html');
-  const token = page.locator('.conversation-message__markdown .shiki span[style]').first();
+  const token = page.locator('pre code span[style]').first();
   await expect(token).toBeVisible();
   const originalToken = await token.elementHandle();
   const lightColor = await token.evaluate((element) => getComputedStyle(element).color);

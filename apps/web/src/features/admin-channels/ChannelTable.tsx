@@ -1,3 +1,4 @@
+import { ModelIdentity } from '../../shared/ui/ModelIdentity';
 import { useMemo } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Link } from 'react-router-dom';
@@ -63,16 +64,14 @@ export function ChannelTable({
           return (
             <div className="min-w-32 max-w-48 space-y-1">
               <p className="text-sm">{models.length} 个映射</p>
-              <p
-                className="truncate console-muted"
-                title={models.map((model) => model.publicModelId).join('、')}
-              >
-                {models
-                  .slice(0, 3)
-                  .map((model) => model.publicModelId)
-                  .join('、')}
-                {models.length > 3 ? '…' : ''}
-              </p>
+              {models.slice(0, 3).map((model) => (
+                <ModelIdentity
+                  key={`${model.publicModelId}:${model.protocol}`}
+                  modelId={model.publicModelId}
+                  className="model-identity-compact text-sm"
+                />
+              ))}
+              {models.length > 3 && <span className="console-muted">…</span>}
             </div>
           );
         },

@@ -38,7 +38,7 @@ const nullable = (test: (value: unknown) => boolean) => (value: unknown) => valu
 function responseShape(value: Record<string, unknown>): string | undefined {
   if (!nonempty(value.id)) return 'id';
   if (value.object !== 'response') return 'object';
-  if (!nonempty(value.model)) return 'model';
+  if (!text(value.model)) return 'model';
   if (!count(value.created_at)) return 'created_at';
   if (!text(value.status) || !['completed', 'incomplete', 'failed', 'cancelled', 'queued', 'in_progress'].includes(value.status)) return 'status';
   if (!optional(value, 'previous_response_id', v => v === null || nonempty(v))) return 'previous_response_id';
@@ -87,7 +87,7 @@ export function createResponsesPassthrough(_options: ResponsesPassthroughOptions
   const request: RequestAdapter<unknown, ResponsesRequest, 'responses', 'responses'> = {
     from: 'responses', to: 'responses',
     convert(input, context) {
-      if (!nonempty(context.targetModel)) return fail('invalid_request', 'model');
+      if (!text(context.targetModel)) return fail('invalid_request', 'model');
       if (!object(input) || !jsonBoundary(input)) return fail('invalid_request', '$');
       const parsed = parseResponsesRequest(input, { unknownFields: 'preserve', native: true });
       if (!parsed.ok) return parsed;
@@ -98,7 +98,7 @@ export function createResponsesPassthrough(_options: ResponsesPassthroughOptions
   const response: JsonResponseAdapter<unknown, ResponsesResponse, 'responses', 'responses'> = {
     from: 'responses', to: 'responses',
     convert(input, context) {
-      if (!nonempty(context.targetModel) || !nonempty(context.identity.responseId)) return fail('invalid_response', 'context');
+      if (!text(context.targetModel) || !nonempty(context.identity.responseId)) return fail('invalid_response', 'context');
       if (!object(input) || !jsonBoundary(input)) return fail('invalid_response', '$');
       const bad = responseShape(input); if (bad) return fail('invalid_response', bad);
       // All declared response fields and discriminated output members were checked.

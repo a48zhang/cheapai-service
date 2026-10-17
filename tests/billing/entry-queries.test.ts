@@ -15,8 +15,8 @@ async function consumptionEntry() {
     (id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
     VALUES('b09-channel','Fixture','https://example.invalid',?,'active',0,1,60,1,0,0)`).bind(secret).run();
   await testEnv.DB.prepare(`INSERT INTO models
-    (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at)
-    VALUES('b09-model','active','{}',1,0,1024,0,0)`).run();
+    (public_model_id,status,sell_prices_json,price_version,created_at,updated_at)
+    VALUES('b09-model','active','{}',1,0,0)`).run();
   await testEnv.DB.prepare(`INSERT INTO requests
     (id,user_id,api_key_id,channel_id,public_model_id,upstream_model,downstream_protocol,upstream_protocol,price_snapshot,group_id,source,created_at,updated_at)
     VALUES('b09-request','b09-owner','b09-key','b09-channel','b09-model','upstream-model','chat','chat','{}','b09-group','api',2000,2000)`).run();

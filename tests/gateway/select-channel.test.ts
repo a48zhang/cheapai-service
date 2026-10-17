@@ -15,8 +15,7 @@ const auth = (): InternalPlatformKeyAuth => ({
 const request: ProtocolRequest = { protocol: 'chat', request: { model: 'model', messages: [{ role: 'user', content: 'hello' }], max_tokens: 20 } };
 function candidate(id: string, priority = 1, protocol: 'chat' | 'messages' = 'chat'): RouteCandidate {
   return { channel: { id, baseUrl: 'https://example.com', priority, concurrencyLimit: 2, rpmLimit: 60, configVersion: 2 },
-    mapping: { channelId: id, publicModelId: 'model', protocol, upstreamModel: 'provider-model', configVersion: 4,
-      capabilities: { protocol, features: [], maxOutputTokens: 100 } } };
+    mapping: {channelId: id, publicModelId: 'model', protocol, upstreamModel: 'provider-model', configVersion: 4} };
 }
 const snapshot = (candidates = [candidate('channel')]): Snapshot<RouteData> => ({ schema_version: 1, observed_at: 0,
   data: { group: { id: 'group', version: 3 }, model: { publicModelId: 'model', priceVersion: 7 }, candidates } });
@@ -74,15 +73,6 @@ describe('pure channel prerequisites and priority selection', () => {
     if (result.kind !== 'candidates') throw new Error('Expected candidates');
     expect(result.candidates.map(item => item.candidate.channel.id)).toEqual(['native']);
     expect(result.requiresAuthoritativeRecheck).toBe(true);
-  });
-
-  it('allows undeclared features while keeping explicit output bounds', () => {
-    const streamed: ProtocolRequest = { protocol: 'chat', request: { ...request.request, stream: true } as never };
-    const result = selectChannelCandidates(snapshot(), auth(), streamed, options);
-    if (result.kind !== 'candidates') throw new Error('Expected candidates');
-    expect(result.candidates[0]?.outputTokenLimit).toBe(20);
-    const limited = candidate('limited'); limited.mapping.capabilities = { protocol: 'chat', features: [], maxOutputTokens: 10 };
-    expect(selectChannelCandidates(snapshot([limited]), auth(), streamed, options)).toEqual({ kind: 'no_candidates', reason: 'capability_mismatch' });
   });
 
   it('filters mismatched mapping identity and deduplicates the same channel/protocol', () => {

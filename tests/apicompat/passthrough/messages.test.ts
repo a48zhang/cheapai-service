@@ -156,10 +156,8 @@ describe('Messages ordinary JSON response passthrough', () => {
     expect(messagesResponseAdapter.convert(input, context).ok).toBe(false);
   });
 
-  it('rejects invalid public model/identity and mismatched upstream identity', () => {
+  it('rejects invalid identity and mismatched upstream identity', () => {
     expect(messagesResponseAdapter.convert(response, { ...context, identity: { responseId: 'public', upstreamResponseId: 'different' } }).ok).toBe(false);
     expect(messagesResponseAdapter.convert(response, { ...context, identity: { responseId: '' } }).ok).toBe(false);
-    expect(messagesResponseAdapter.convert(response, { ...context, targetModel: 'bad\nmodel' }).ok).toBe(false);
-    expect(messagesRequestAdapter.convert(request, { targetModel: '' }).ok).toBe(false);
   });
 });

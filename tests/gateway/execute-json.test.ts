@@ -43,10 +43,10 @@ describe('ordinary JSON execution with actual admission, D1 accounting and mock 
     const credential = 'trusted-upstream';
     await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
       VALUES('g07-channel','G07 channel','https://provider.example.com',?,'active',1,2,60,1,0,0)`).bind(credential).run();
-    await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('g07-model','active','{"input":"500","output":"500"}',1,0,4096,0,0)`).run();
+    await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,created_at,updated_at) VALUES ('g07-model','active','{"input":"500","output":"500"}',1,0,0)`).run();
     await testEnv.DB.prepare("INSERT INTO channel_groups(channel_id,group_id) VALUES('g07-channel','g07-group')").run();
-    await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,capabilities_json,config_version)
-      VALUES('g07-channel','g07-model','chat','provider-model','{"protocol":"chat","features":[],"maxOutputTokens":4096}',1)`).run();
+    await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,config_version)
+      VALUES('g07-channel','g07-model','chat','provider-model',1)`).run();
     subject = await authenticatePlatformKey(testEnv.DB, new Request('https://gateway.example/v1/chat/completions', { headers: { Authorization: `Bearer ${token}` } }), now);
   });
   afterEach(() => vi.restoreAllMocks());

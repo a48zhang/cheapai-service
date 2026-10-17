@@ -6,7 +6,7 @@ import type { UsageSnapshot } from '../../packages/apicompat/types/shared';
 import { testEnv } from '../helpers/database';
 
 // Synthetic local database inputs; no provider calls or production prices.
-const input = (): CreateModelInput => ({ publicModelId: 'vendor/model-v1', sellPrices: { input: '1.25', output: '2.5' }, admissionMinBalanceUnits: '0', maxOutputTokens: 4096 });
+const input = (): CreateModelInput => ({ publicModelId: 'vendor/model-v1', sellPrices: { input: '1.25', output: '2.5' } });
 const audit = (operationId: string, now = 1000): ModelAuditContext => ({ actorId: 'c08-admin', operationId, now });
 const counts = async () => ({
   models: await testEnv.DB.prepare('SELECT COUNT(*) AS count FROM models').first('count'),
@@ -27,20 +27,18 @@ describe('model repository with native D1', () => {
     expect(saved).toEqual({ ...input(), status: 'active', priceVersion: 1, createdAt: 1000, updatedAt: 1000 });
     expect(await getModelById(testEnv.DB, saved.publicModelId)).toEqual(saved);
     expect(await counts()).toEqual({ models: 1, audits: 1 });
-    const row = await testEnv.DB.prepare('SELECT sell_prices_json,admission_min_balance_units FROM models WHERE public_model_id=?').bind(saved.publicModelId).first<{ sell_prices_json: string; admission_min_balance_units: number }>();
-    expect(row).toEqual({ sell_prices_json: '{"input":"1.25","output":"2.5"}', admission_min_balance_units: 0 });
+    const row = await testEnv.DB.prepare('SELECT sell_prices_json FROM models WHERE public_model_id=?').bind(saved.publicModelId).first<{ sell_prices_json: string }>();
+    expect(row).toEqual({ sell_prices_json: '{"input":"1.25","output":"2.5"}' });
     const event = await testEnv.DB.prepare("SELECT action,target_type,target_id,redacted_change_json FROM admin_audit WHERE operation_id='create'").first<{ action: string; target_type: string; target_id: string; redacted_change_json: string }>();
     expect(event).toMatchObject({ action: 'model.create', target_type: 'model', target_id: saved.publicModelId });
-    expect(JSON.parse(event!.redacted_change_json)).toEqual({ after: { status: 'active', price_version: 1, admission_min_balance_units: 0, max_output_tokens: 4096 } });
+    expect(JSON.parse(event!.redacted_change_json)).toEqual({ after: { status: 'active', price_version: 1 } });
   });
 
-  it('preserves explicit free rates, optional absence and maximum safe units exactly', async () => {
-    const saved = await createModel(testEnv.DB, { ...input(), sellPrices: { input: '0', output: '0.00000000', cacheRead: '0', cacheWrite1h: '90071992.54740991' }, admissionMinBalanceUnits: '9007199254740991', maxOutputTokens: Number.MAX_SAFE_INTEGER }, audit('zero'));
+  it('preserves explicit free rates, optional absence and large exact prices', async () => {
+    const saved = await createModel(testEnv.DB, { ...input(), sellPrices: { input: '0', output: '0.00000000', cacheRead: '0', cacheWrite1h: '90071992.54740991' } }, audit('zero'));
     expect(saved.sellPrices).toEqual({ input: '0', output: '0.00000000', cacheRead: '0', cacheWrite1h: '90071992.54740991' });
     expect(Object.hasOwn(saved.sellPrices, 'cacheWrite')).toBe(false);
     expect(Object.hasOwn(saved.sellPrices, 'reasoning')).toBe(false);
-    expect(saved.admissionMinBalanceUnits).toBe('9007199254740991');
-    expect(await testEnv.DB.prepare('SELECT admission_min_balance_units FROM models').first('admission_min_balance_units')).toBe(Number.MAX_SAFE_INTEGER);
   });
 
   it('does not interpret an omitted excluded-usage price as free in B02', async () => {
@@ -55,15 +53,15 @@ describe('model repository with native D1', () => {
 
   it('updates model configuration under priceVersion CAS and replaces the entire price table', async () => {
     const saved = await createModel(testEnv.DB, { ...input(), sellPrices: { input: '1', output: '2', cacheRead: '0.1', reasoning: '3' } }, audit('create'));
-    const changed = await updateModel(testEnv.DB, saved.publicModelId, 1, { sellPrices: { input: '3', output: '4' }, status: 'disabled', admissionMinBalanceUnits: '123', maxOutputTokens: 2048 }, audit('update', 2000));
-    expect(changed).toMatchObject({ sellPrices: { input: '3', output: '4' }, status: 'disabled', admissionMinBalanceUnits: '123', maxOutputTokens: 2048, priceVersion: 2, createdAt: 1000, updatedAt: 2000 });
+    const changed = await updateModel(testEnv.DB, saved.publicModelId, 1, { sellPrices: { input: '3', output: '4' }, status: 'disabled' }, audit('update', 2000));
+    expect(changed).toMatchObject({ sellPrices: { input: '3', output: '4' }, status: 'disabled', priceVersion: 2, createdAt: 1000, updatedAt: 2000 });
     expect(Object.hasOwn(changed.sellPrices, 'cacheRead')).toBe(false);
     expect(Object.hasOwn(changed.sellPrices, 'reasoning')).toBe(false);
     expect(saved.sellPrices).toEqual({ input: '1', output: '2', cacheRead: '0.1', reasoning: '3' });
     const statusOnly = await updateModel(testEnv.DB, saved.publicModelId, 2, { status: 'active' }, audit('status-only', 1500));
-    expect(statusOnly).toMatchObject({ priceVersion: 3, sellPrices: changed.sellPrices, updatedAt: 2000, maxOutputTokens: 2048 });
+    expect(statusOnly).toMatchObject({ priceVersion: 3, sellPrices: changed.sellPrices, updatedAt: 2000 });
     const event = await testEnv.DB.prepare("SELECT redacted_change_json FROM admin_audit WHERE operation_id='update'").first<string>('redacted_change_json');
-    expect(JSON.parse(event!)).toMatchObject({ before: { price_version: 1, status: 'active', admission_min_balance_units: 0 }, after: { price_version: 2, status: 'disabled', admission_min_balance_units: 123 } });
+    expect(JSON.parse(event!)).toMatchObject({ before: { price_version: 1, status: 'active' }, after: { price_version: 2, status: 'disabled' } });
   });
 
   it('requires both base rates and rejects invalid or implicit rates before any write', async () => {
@@ -77,11 +75,8 @@ describe('model repository with native D1', () => {
     expect(await counts()).toEqual({ models: 0, audits: 0 });
   });
 
-  it('requires valid max/default output and canonical nonnegative admission units', async () => {
+  it('requires valid model identity and status', async () => {
     for (const patch of [
-      { maxOutputTokens: undefined }, { maxOutputTokens: null }, { maxOutputTokens: 0 },
-      { maxOutputTokens: 0.5 }, { maxOutputTokens: Number.MAX_SAFE_INTEGER + 1 },
-      ...[undefined, null, 0, '-1', '-0', '00', '1.0', '+1', '1e2', ' 1', '9007199254740992'].map(admissionMinBalanceUnits => ({ admissionMinBalanceUnits })),
       { status: 'enabled' }, { publicModelId: "m';DROP TABLE models;--" }, { publicModelId: '' }, { publicModelId: 'x'.repeat(129) },
     ]) await expect(createModel(testEnv.DB, { ...input(), ...patch } as unknown as CreateModelInput, audit('invalid-input'))).rejects.toMatchObject({ code: 'invalid_request' });
     expect(await counts()).toEqual({ models: 0, audits: 0 });
@@ -89,7 +84,7 @@ describe('model repository with native D1', () => {
 
   it('rejects empty patches, identity/version changes and partial price replacements without changing stored state', async () => {
     const saved = await createModel(testEnv.DB, input(), audit('create'));
-    for (const patch of [{}, { publicModelId: 'renamed' }, { priceVersion: 9 }, { sellPrices: { input: '4' } }, { sellPrices: null }, { sellPrices: undefined }, { maxOutputTokens: 0 }, { defaultOutputTokens: 5000 }, { admissionMinBalanceUnits: -1 }]) {
+    for (const patch of [{}, { publicModelId: 'renamed' }, { priceVersion: 9 }, { sellPrices: { input: '4' } }, { sellPrices: null }, { sellPrices: undefined }]) {
       await expect(updateModel(testEnv.DB, saved.publicModelId, 1, patch as unknown as ModelPatch, audit('invalid-patch'))).rejects.toMatchObject({ code: 'invalid_request' });
     }
     expect(await getModelById(testEnv.DB, saved.publicModelId)).toEqual(saved);
@@ -102,7 +97,7 @@ describe('model repository with native D1', () => {
     expect(created.find(result => result.status === 'rejected')).toMatchObject({ reason: { code: 'conflict' } });
     const updated = await Promise.allSettled([
       updateModel(testEnv.DB, input().publicModelId, 1, { sellPrices: { input: '3', output: '4' } }, audit('update-one', 2000)),
-      updateModel(testEnv.DB, input().publicModelId, 1, { maxOutputTokens: 512 }, audit('update-two', 2000)),
+      updateModel(testEnv.DB, input().publicModelId, 1, { status: 'disabled' }, audit('update-two', 2000)),
     ]);
     expect(updated.filter(result => result.status === 'fulfilled')).toHaveLength(1);
     expect(updated.find(result => result.status === 'rejected')).toMatchObject({ reason: { code: 'conflict' } });

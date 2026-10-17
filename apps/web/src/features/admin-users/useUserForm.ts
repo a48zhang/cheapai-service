@@ -157,7 +157,7 @@ export function useUserForm(props: UserFormProps) {
         const message =
           mode === 'edit'
             ? error instanceof ApiClientError && error.status === 409
-              ? '用户版本已变化，或触发最后管理员保护。请关闭后重新读取，再核对当前设置。'
+              ? '用户资料已被其他操作更新，或触发最后管理员保护。请关闭后重新读取，再核对当前设置。'
               : '保存结果暂时无法确认。请关闭后重新读取用户状态；不会自动重试。'
             : '创建结果尚未确认，账户可能已经创建。请返回列表核对；本表单不会重复提交。';
         setMessage(withErrorContext(error, message));

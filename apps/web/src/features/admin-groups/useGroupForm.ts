@@ -66,7 +66,7 @@ export function useGroupForm({ client, actorId, sessionEpoch, group, onSaved }: 
     if (result.isSuccess) {
       setNeedsRefresh(false);
       setSaveError(null);
-      setFeedback('已重新读取访问组。表单输入已保留；如配置版本变化，请核对后明确采用新版本。');
+      setFeedback('已重新读取访问组。表单输入已保留；如配置已变化，请核对后采用最新配置。');
     }
   }
 
@@ -99,8 +99,8 @@ export function useGroupForm({ client, actorId, sessionEpoch, group, onSaved }: 
       setNeedsRefresh(false);
       setFeedback(
         baseline
-          ? `访问组已保存，配置版本为 v${saved.version}。`
-          : `访问组已创建，配置版本为 v${saved.version}。`,
+          ? '访问组已保存。'
+          : '访问组已创建。',
       );
       form.reset(initialGroupFormValues(saved));
       onSaved(saved);
@@ -108,7 +108,7 @@ export function useGroupForm({ client, actorId, sessionEpoch, group, onSaved }: 
       setNeedsRefresh(true);
       const conflict = error instanceof ApiClientError && error.status === 409;
       const context = conflict
-        ? '访问组配置版本已变化，或此更改会破坏最后管理员保护。请重新读取后核对；输入已保留。'
+        ? '访问组已被其他操作更新，或此更改会破坏最后管理员保护。请重新读取后核对；输入已保留。'
         : error instanceof Error
           ? `${error.message} 保存结果可能未确认；请重新读取访问组后再继续。输入已保留。`
           : '保存结果未确认；请重新读取访问组后再继续。输入已保留。';

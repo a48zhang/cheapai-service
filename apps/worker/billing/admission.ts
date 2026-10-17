@@ -9,7 +9,6 @@ export interface BalanceAdmission {
   readonly groupId: string;
   readonly publicModelId: string;
   readonly balanceUnits: string;
-  readonly admissionMinBalanceUnits: string;
   readonly priceVersion: number;
   readonly userVersion: number;
   readonly keyVersion: number;
@@ -32,7 +31,7 @@ interface AdmissionRow {
   key_user_id: string; key_status: string; key_created_at: number; expires_at: number | null;
   allowed_models_json: string | null; key_version: number; user_status: string; user_version: number;
   group_id: string; group_status: string; group_version: number; balance_units: string;
-  model_status: string | null; admission_min_balance_units: string | null; price_version: number | null;
+  model_status: string | null; price_version: number | null;
 }
 const identifier = (value: unknown): value is string => typeof value === 'string' && value.length > 0
   && value.length <= 128 && value.trim() === value && !/[\u0000-\u001f\u007f]/.test(value);
@@ -73,7 +72,7 @@ export async function checkBalanceAdmission(database: D1Database, subject: Inter
     row = await prepare<AdmissionRow>(database, `SELECT k.user_id AS key_user_id,k.status AS key_status,k.created_at AS key_created_at,
       k.expires_at,k.allowed_models_json,k.version AS key_version,u.status AS user_status,u.version AS user_version,
       g.id AS group_id,g.status AS group_status,g.version AS group_version,CAST(u.balance_units AS TEXT) AS balance_units,
-      m.status AS model_status,CAST(m.admission_min_balance_units AS TEXT) AS admission_min_balance_units,m.price_version
+      m.status AS model_status,m.price_version
       FROM api_keys k JOIN users u ON u.id=k.user_id JOIN groups g ON g.id=?
       JOIN user_group_access access ON access.user_id=u.id AND access.group_id=g.id
       JOIN groups owner_group ON owner_group.id=u.group_id AND owner_group.status='active'
@@ -94,13 +93,11 @@ export async function checkBalanceAdmission(database: D1Database, subject: Inter
   } catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
   if (Array.isArray(models) && !models.includes(publicModelId)) throw new ApiError('forbidden');
   let balance: bigint;
-  let minimum: bigint;
   try {
     balance = parseUnits(row.balance_units);
-    minimum = parseUnits(row.admission_min_balance_units);
-    if (minimum < 0n || ![row.price_version, row.user_version, row.key_version, row.group_version].every(value => typeof value === 'number' && Number.isSafeInteger(value) && value >= 1)) throw new Error();
+    if (![row.price_version, row.user_version, row.key_version, row.group_version].every(value => typeof value === 'number' && Number.isSafeInteger(value) && value >= 1)) throw new Error();
   } catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
-  if (balance <= 0n || balance < minimum) throw new ApiError('insufficient_balance');
+  if (balance <= 0n) throw new ApiError('insufficient_balance');
   let billingMultiplier = '1';
   try {
     const value = await prepare<{ billing_multiplier: unknown }>(database,
@@ -113,7 +110,7 @@ export async function checkBalanceAdmission(database: D1Database, subject: Inter
     // interpreted as a free group.
     if (!missingMultiplierColumn(error)) throw new ApiError('service_unavailable', { cause: error });
   }
-  return Object.freeze({ userId, keyId, groupId, publicModelId, balanceUnits: balance.toString(), admissionMinBalanceUnits: minimum.toString(),
+  return Object.freeze({ userId, keyId, groupId, publicModelId, balanceUnits: balance.toString(),
     priceVersion: row.price_version as number, userVersion: row.user_version, keyVersion: row.key_version, groupVersion: row.group_version,
     billingMultiplier, source: 'd1', requiresAuthoritativeRegistration: true });
 }

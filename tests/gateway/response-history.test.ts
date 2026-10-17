@@ -18,8 +18,7 @@ const now = 1000;
 const responseId = 'resp_shared_synthetic';
 const continuation = (id = responseId): ProtocolRequest => ({ protocol: 'responses', request: { model: 'g13-model', previous_response_id: id, input: 'next' } });
 const candidate = (): RouteCandidate => ({ channel: { id: 'g13-channel', baseUrl: 'https://example.com', priority: 1, concurrencyLimit: 2, rpmLimit: 60, configVersion: 1 },
-  mapping: { channelId: 'g13-channel', publicModelId: 'g13-model', protocol: 'responses', upstreamModel: 'native-model', configVersion: 1,
-    capabilities: { protocol: 'responses', features: ['response_history'] } } });
+  mapping: {channelId: 'g13-channel', publicModelId: 'g13-model', protocol: 'responses', upstreamModel: 'native-model', configVersion: 1} });
 async function save(subject: InternalPlatformKeyAuth, id = responseId) {
   const registration = prepareRequestRegistration(testEnv.DB, { userId: subject.user.id, keyId: subject.key.id, groupId: 'g13-group', channelId: 'g13-channel',
     downstreamProtocol: 'responses', now, versions: { user: 1, key: 1, group: 1, channel: 1, mapping: 1 },
@@ -45,10 +44,10 @@ beforeEach(async () => {
   const envelope = 'test-upstream-key';
   await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
     VALUES('g13-channel','G13 Channel','https://example.com',?,'active',1,2,60,1,0,0)`, [envelope]).run();
-  await prepare(testEnv.DB, `INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('g13-model','active',?,1,0,4096,0,0)`, [JSON.stringify({ input: '1', output: '2' })]).run();
+  await prepare(testEnv.DB, `INSERT INTO models (public_model_id,status,sell_prices_json,price_version,created_at,updated_at) VALUES ('g13-model','active',?,1,0,0)`, [JSON.stringify({ input: '1', output: '2' })]).run();
   await prepare(testEnv.DB, "INSERT INTO channel_groups(channel_id,group_id) VALUES('g13-channel','g13-group')").run();
-  await prepare(testEnv.DB, `INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,capabilities_json,config_version)
-    VALUES('g13-channel','g13-model','responses','native-model',?,1)`, [JSON.stringify({ protocol: 'responses', features: ['response_history'] })]).run();
+  await prepare(testEnv.DB, `INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,config_version)
+    VALUES('g13-channel','g13-model','responses','native-model',1)`, []).run();
 });
 
 describe('native Responses history ownership on D1', () => {

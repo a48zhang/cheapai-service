@@ -23,12 +23,12 @@ export interface MessagesToResponsesRequestOptions { readonly channelCapabilitie
 export function messagesToResponsesRequest(input: unknown, context: RequestContext, options: MessagesToResponsesRequestOptions = {}): ConversionResult<ResponsesRequest> {
   const parsed = parseMessagesRequest(input, { unknownFields: 'preserve' });
   if (!parsed.ok) return parsed;
-  if (typeof context?.targetModel !== 'string' || !context.targetModel.trim()) return {
+  if (typeof context?.targetModel !== 'string') return {
     ok: false, error: { kind: 'invalid_request', code: 'invalid_target_model', message: 'A target model is required.', param: 'targetModel' },
   };
   const request = parsed.value;
   const outputLimit = request.max_tokens;
-  const checked = checkRequestCapabilities({ protocol: 'messages', request }, options.channelCapabilities ?? { protocol: 'responses', features: [] });
+  const checked = checkRequestCapabilities({ protocol: 'messages', request }, options.channelCapabilities ?? { protocol: 'responses' });
   if (!checked.supported) return unsupported(checked.reasons[0]?.path ?? '$');
   for (const field of Object.keys(request)) if (!['model', 'max_tokens', 'system', 'messages', 'tools', 'tool_choice',
     'stream', 'temperature', 'top_p', 'output_config'].includes(field)) return unsupported(field);

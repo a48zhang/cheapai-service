@@ -81,14 +81,14 @@ export function selectChannelCandidates(
   let hasMapping = false;
   for (const candidate of routes.data.candidates) {
     const { channel, mapping } = candidate;
-    if (mapping.channelId !== channel.id || mapping.publicModelId !== modelId || mapping.protocol !== mapping.capabilities.protocol ||
+    if (mapping.channelId !== channel.id || mapping.publicModelId !== modelId ||
         !['chat', 'responses', 'messages'].includes(mapping.protocol) || !Number.isSafeInteger(channel.priority) || channel.priority < 0 ||
         !Number.isSafeInteger(channel.configVersion) || channel.configVersion < 1 || !Number.isSafeInteger(mapping.configVersion) || mapping.configVersion < 1) continue;
     const identity = JSON.stringify([channel.id, mapping.protocol]);
     if (seen.has(identity)) continue;
     seen.add(identity);
     hasMapping = true;
-    const checked = checkRequestCapabilities(request, mapping.capabilities, features.value);
+    const checked = checkRequestCapabilities(request, { protocol: mapping.protocol }, features.value);
     if (!checked.supported) continue;
     capable.push({ candidate, requiredChecks: [...checked.requiredChecks],
       ...(checked.outputTokenLimit === undefined ? {} : { outputTokenLimit: checked.outputTokenLimit }) });

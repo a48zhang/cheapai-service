@@ -25,8 +25,6 @@ test('built-in models are installed and channel mapping defaults use catalog pro
   await page.getByRole('button', { name: '编辑模型', exact: true }).click();
   const reference = page.locator('details').filter({ hasText: astra!.id });
   await reference.locator('summary').click();
-  await expect(reference.locator('dl div').filter({ hasText: '上下文窗口' })).toContainText(astra!.contextWindow.toLocaleString());
-  await expect(reference.locator('dl div').filter({ hasText: '参考最大输出' })).toContainText(astra!.maxOutputTokens.toLocaleString());
   const pricingNote = reference.locator('dl div').filter({ hasText: '参考价格说明' }).locator('dd');
   expect((await pricingNote.innerText()).trim().length).toBeGreaterThan(0);
 

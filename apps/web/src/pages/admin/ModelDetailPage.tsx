@@ -1,3 +1,5 @@
+import { ModelIdentity } from '../../shared/ui/ModelIdentity';
+import { ModelPrice } from '../../shared/ui/ModelPrice';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -10,7 +12,6 @@ import { MappingForm } from '../../features/admin-models/public';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { AsyncState } from '../../shared/patterns/AsyncState';
 import { PageHeader } from '../../shared/patterns/PageHeader';
-import { formatConsumptionUsd } from '../../shared/lib/money';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
 import { Button } from '../../shared/ui/Button';
 
@@ -106,7 +107,12 @@ export default function ModelDetailPage({ createMode = false }: { createMode?: b
   return (
     <section className="space-y-6">
       <PageHeader
-        heading={createMode ? '新增公开模型' : (model?.publicModelId ?? modelId)}
+        heading={
+          createMode ? '新增公开模型' : <ModelIdentity modelId={model?.publicModelId ?? modelId} />
+        }
+        description={
+          model && <ModelPrice input={model.sellPrices.input} output={model.sellPrices.output} />
+        }
         actions={
           <>
             <Button asChild variant="outline">
@@ -153,18 +159,6 @@ export default function ModelDetailPage({ createMode = false }: { createMode?: b
               <dt className="console-muted">输出价格 · USD / 百万 Token</dt>
               <dd className="mt-1 console-number">{model.sellPrices.output}</dd>
             </div>
-            <div>
-              <dt className="console-muted">最大输出</dt>
-              <dd className="mt-1 console-number">
-                {model.maxOutputTokens.toLocaleString()} Token
-              </dd>
-            </div>
-            <div>
-              <dt className="console-muted">最低余额门槛</dt>
-              <dd className="mt-1 console-number">
-                {formatConsumptionUsd(model.admissionMinBalanceUnits)} USD
-              </dd>
-            </div>
           </dl>
           {Object.entries(model.sellPrices).some(
             ([bucket, rate]) => bucket !== 'input' && bucket !== 'output' && rate != null,
@@ -195,7 +189,6 @@ export default function ModelDetailPage({ createMode = false }: { createMode?: b
           )}
           <details className="mt-5 border-t border-[var(--color-border)] pt-4">
             <summary className="cursor-pointer console-muted">技术信息</summary>
-            <p className="mt-3 console-muted">价格版本 v{model.priceVersion}</p>
           </details>
         </section>
       ) : (

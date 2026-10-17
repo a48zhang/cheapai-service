@@ -1,4 +1,3 @@
-import { formatConsumptionUsd, parseUsdToUnits } from '../../shared/lib/money';
 import { z } from 'zod';
 import type {
   ModelInput,
@@ -38,12 +37,6 @@ const priceFormSchema = z
     reasoning: values.reasoning === '' ? undefined : values.reasoning,
   }));
 
-const maxOutputTokensText = z
-  .string()
-  .regex(/^[1-9][0-9]*$/u)
-  .transform(Number)
-  .pipe(modelInputSchema.shape.maxOutputTokens);
-
 const requiredModelInputSchema = modelInputSchema.extend({ status: modelStatusSchema });
 
 /** Form inputs keep price text exact and convert only empty optional buckets before contract validation. */
@@ -52,20 +45,7 @@ export const modelFormSchema = z
     publicModelId: modelInputSchema.shape.publicModelId,
     status: modelStatusSchema,
     sellPrices: priceFormSchema,
-    admissionMinBalanceUnits: z
-      .string()
-      .transform((value, ctx) => {
-        try {
-          return parseUsdToUnits(value).toString();
-        } catch {
-          ctx.addIssue({ code: 'custom', message: '请输入最多八位小数的 USD 金额。' });
-          return z.NEVER;
-        }
-      })
-      .pipe(modelInputSchema.shape.admissionMinBalanceUnits),
-    maxOutputTokens: maxOutputTokensText,
   })
-
   .pipe(requiredModelInputSchema);
 
 export type ModelFormValues = z.input<typeof modelFormSchema>;
@@ -91,8 +71,6 @@ export function initialModelFormValues(model?: ModelView): ModelFormValues {
     publicModelId: model?.publicModelId ?? '',
     status: model?.status ?? 'active',
     sellPrices: priceValues(model?.sellPrices),
-    admissionMinBalanceUnits: model ? formatConsumptionUsd(model.admissionMinBalanceUnits) : '0',
-    maxOutputTokens: model === undefined ? '' : String(model.maxOutputTokens),
   };
 }
 
@@ -123,14 +101,8 @@ export function createModelPatch(previous: ModelView, next: ModelInput): ModelPa
   const patch: {
     status?: ModelStatus;
     sellPrices?: SellPrices;
-    admissionMinBalanceUnits?: string;
-    maxOutputTokens?: number;
   } = {};
   if (next.status !== undefined && previous.status !== next.status) patch.status = next.status;
   if (!samePrices(previous.sellPrices, next.sellPrices)) patch.sellPrices = next.sellPrices;
-  if (previous.admissionMinBalanceUnits !== next.admissionMinBalanceUnits)
-    patch.admissionMinBalanceUnits = next.admissionMinBalanceUnits;
-  if (previous.maxOutputTokens !== next.maxOutputTokens)
-    patch.maxOutputTokens = next.maxOutputTokens;
   return patch;
 }

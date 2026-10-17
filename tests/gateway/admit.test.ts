@@ -55,10 +55,10 @@ beforeEach(async () => {
   const credential = 'PRIVATE-UPSTREAM-KEY';
   await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
     VALUES('g03-channel','G03 Channel','https://provider.example.com',?,'active',1,2,60,1,0,0)`, [credential]).run();
-  await prepare(testEnv.DB, `INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES ('g03-model','active',?,1,10,4096,0,0)`, [JSON.stringify({ input: '1', output: '2' })]).run();
+  await prepare(testEnv.DB, `INSERT INTO models (public_model_id,status,sell_prices_json,price_version,created_at,updated_at) VALUES ('g03-model','active',?,1,0,0)`, [JSON.stringify({ input: '1', output: '2' })]).run();
   await prepare(testEnv.DB, "INSERT INTO channel_groups(channel_id,group_id) VALUES('g03-channel','g03-group')").run();
-  await prepare(testEnv.DB, `INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,capabilities_json,config_version)
-    VALUES('g03-channel','g03-model','chat','provider-model',?,1)`, [JSON.stringify({ protocol: 'chat', features: [], maxOutputTokens: 4096 })]).run();
+  await prepare(testEnv.DB, `INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,config_version)
+    VALUES('g03-channel','g03-model','chat','provider-model',1)`, []).run();
   subject = await authenticatePlatformKey(testEnv.DB, new Request('https://gateway.example/v1/chat/completions', { headers: { Authorization: `Bearer ${token}` } }), now);
 });
 afterEach(() => vi.restoreAllMocks());
@@ -156,7 +156,6 @@ describe('final gateway admission with native D1 and Gate leases', () => {
 
   it('admits Chat streaming without an upstream stream_usage declaration', async () => {
     const streaming: ProtocolRequest = { protocol: 'chat', request: { ...request.request, stream: true, stream_options: { include_usage: false } } };
-    await testEnv.DB.prepare("UPDATE channel_models SET capabilities_json=? WHERE channel_id='g03-channel'").bind(JSON.stringify({ protocol: 'chat', features: ['streaming'], maxOutputTokens: 4096 })).run();
     const admitted = await admitRequest(testEnv, subject, streaming, options());
     try {
       expect(admitted.request.execution_status).toBe('admitted');
@@ -200,12 +199,12 @@ async function addAlternative(protocol: 'chat' | 'responses') {
     SELECT 'g03-alternative','G03 Alternative',base_url,upstream_key,status,100,concurrency_limit,rpm_limit,1,0,0
     FROM channels WHERE id='g03-channel'`).run();
   await prepare(testEnv.DB, "INSERT INTO channel_groups(channel_id,group_id) VALUES('g03-alternative','g03-group')").run();
-  await prepare(testEnv.DB, `INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,capabilities_json,config_version)
-    VALUES('g03-alternative','g03-model',?,'provider-model',?,1)`, [protocol, JSON.stringify({ protocol, features: protocol === 'responses' ? ['response_history'] : [], maxOutputTokens: 4096 })]).run();
+  await prepare(testEnv.DB, `INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,config_version)
+    VALUES('g03-alternative','g03-model',?,'provider-model',1)`, [protocol]).run();
 }
 async function nativeHistoryRequest(): Promise<ProtocolRequest> {
-  await prepare(testEnv.DB, `INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,capabilities_json,config_version)
-    VALUES('g03-channel','g03-model','responses','provider-model',?,1)`, [JSON.stringify({ protocol: 'responses', features: ['response_history'], maxOutputTokens: 4096 })]).run();
+  await prepare(testEnv.DB, `INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,config_version)
+    VALUES('g03-channel','g03-model','responses','provider-model',1)`, []).run();
   const original = await commitRequestRegistration(testEnv.DB, prepareRequestRegistration(testEnv.DB, {
     userId: subject.user.id, keyId: subject.key.id, groupId: subject.group.id, channelId: 'g03-channel', downstreamProtocol: 'responses', now,
     versions: { user: 1, key: 1, group: 1, channel: 1, mapping: 1 },

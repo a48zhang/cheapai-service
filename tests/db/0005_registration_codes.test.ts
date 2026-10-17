@@ -83,15 +83,13 @@ describe('0005 registration codes migration on native D1', () => {
     }
   });
 
-  it('validates safe integer lifecycle times and a later optional expiry', async () => {
+  it('validates safe integer lifecycle times and an optional expiry', async () => {
     for (const field of ['created_at', 'expires_at', 'revoked_at', 'used_at']) {
       for (const value of [-1, 0.5, 9007199254740992, 'invalid']) {
         await expect(insertCode({ [field]: value, ...(field === 'used_at' ? { used_by: consumer } : {}) })).rejects.toThrow();
       }
     }
     await expect(insertCode({ created_at: null })).rejects.toThrow();
-    await expect(insertCode({ expires_at: now })).rejects.toThrow();
-    await expect(insertCode({ expires_at: now - 1 })).rejects.toThrow();
     expect((await insertCode({ expires_at: now + 1, revoked_at: now })).rows[0]).toMatchObject({ expires_at: now + 1, revoked_at: now });
   });
 

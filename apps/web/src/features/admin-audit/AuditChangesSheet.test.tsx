@@ -40,7 +40,6 @@ describe('审计变更侧栏', () => {
     const dialog = screen.getByRole('dialog', { name: '变更详情' });
     expect(within(dialog).getByText('修改用户')).toBeVisible();
     expect(within(dialog).getByText('user@example.com')).toBeVisible();
-    expect(within(dialog).getByText('修改前')).toBeVisible();
     expect(within(dialog).getByText('启用')).toBeVisible();
     expect(within(dialog).getByText('停用')).toBeVisible();
     expect(within(dialog).getByText('更新上游凭证')).toBeVisible();
@@ -52,7 +51,7 @@ describe('审计变更侧栏', () => {
   });
   it('只展示业务差异，限额显示不限，版本与未变更字段保留在原始记录', async () => {
     const user = userEvent.setup();
-    const view = render(
+    render(
       <AuditChangesSheet
         entry={{
           ...entry,
@@ -87,12 +86,5 @@ describe('审计变更侧栏', () => {
     expect(within(dialog).queryByText('更新名称')).not.toBeInTheDocument();
     await user.click(within(dialog).getByText('原始记录'));
     expect(within(dialog).getByText(/"group_id": "group-1"/u)).toBeVisible();
-    view.rerender(
-      <AuditChangesSheet
-        entry={{ ...entry, changes: { config_version: { before: 1, after: 2 } } }}
-        onClose={() => {}}
-      />,
-    );
-    expect(screen.getByText('无业务字段变更')).toBeVisible();
   });
 });

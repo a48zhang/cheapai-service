@@ -83,7 +83,7 @@ function jsonBoundary(value: unknown): void {
 function contextIdentity(context: ResponseContext, upstreamId?: unknown): void {
   if (!context || !isRepresentableWireId(context.identity?.responseId)
     || (upstreamId !== undefined && !isRepresentableWireId(upstreamId))
-    || typeof context.targetModel !== 'string' || !context.targetModel.trim()
+    || typeof context.targetModel !== 'string'
     || typeof context.idFor !== 'function' || !Number.isSafeInteger(context.createdAt) || context.createdAt < 0
     || (context.identity.upstreamResponseId !== undefined
       && (!isRepresentableWireId(context.identity.upstreamResponseId)
@@ -270,7 +270,7 @@ function convert(input: unknown, context: ResponseContext): ConversionResult<Out
   const source = record(input, '$', ['id', 'object', 'created_at', 'model', 'status', 'output'], [
     'usage', 'error', 'incomplete_details', ...RESPONSE_METADATA_KEYS,
   ]);
-  if (source.object !== 'response' || !isRepresentableWireId(source.id) || typeof source.model !== 'string' || !source.model.trim()
+  if (source.object !== 'response' || !isRepresentableWireId(source.id) || typeof source.model !== 'string'
     || typeof source.created_at !== 'number' || !Number.isSafeInteger(source.created_at) || source.created_at < 0 || !Array.isArray(source.output)) invalid('$');
   contextIdentity(context, source.id);
   if (typeof source.status !== 'string' || !['completed', 'incomplete', 'failed'].includes(source.status)) unsupported('$.status');

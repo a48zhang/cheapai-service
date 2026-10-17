@@ -188,10 +188,7 @@ function parseDesktopHostAccountRequest(
   if (!isRecord(payload)) return null
   if (operation === 'login'
     && typeof payload.email === 'string'
-    && payload.email.length > 0
-    && payload.email.length <= 320
-    && typeof payload.password === 'string'
-    && payload.password.length <= 256) {
+    && typeof payload.password === 'string') {
     return { operation, payload: { email: payload.email, password: payload.password } }
   }
   if ((operation === 'restore' || operation === 'getAccount'

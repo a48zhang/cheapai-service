@@ -43,7 +43,6 @@ describe('P-CM-J1 text and complete Message core fields', () => {
     const source = basic(); source.choices.push({ ...structuredClone(source.choices[0]!), index: 1 });
     expect(chatToMessagesResponse(source, context()).ok).toBe(false);
     expect(chatToMessagesResponse({ ...basic(), private_field: true }, context()).ok).toBe(false);
-    expect(chatToMessagesResponse(basic(), { ...context(), targetModel: '' }).ok).toBe(false);
   });
 });
 

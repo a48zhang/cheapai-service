@@ -89,12 +89,11 @@ describe('P-RM-Q1 text and roles', () => {
     const first = value(instance.convert(source, context));
     expect(first.max_tokens).toBe(7); expect(first.messages[0]?.content).not.toBe(content);
     expect(value(instance.convert(basic(), context))).not.toHaveProperty('system');
-    expect(instance.convert(basic(), { targetModel: '' })).toMatchObject({ ok: false, error: { code: 'invalid_target_model' } });
   });
 });
 
 describe('P-RM-Q6 known cache scope and completed items',()=>{
-  const configured=()=>value(createResponsesToMessagesRequestAdapter({maxTokens:256,channelCapabilities:{protocol:'messages',features:['cache_control','tools','strict_tools','image_url'],cacheTtls:['5m','1h']}}));
+  const configured=()=>value(createResponsesToMessagesRequestAdapter({maxTokens:256,channelCapabilities:{protocol:'messages'}}));
   it('preserves request/tool/system block cache markers at native boundaries',()=>{
     const input:ResponsesRequest={model:'m',cache_control:{type:'ephemeral'},tools:[{type:'function',name:'f',strict:false,parameters:{type:'object'},cache_control:{type:'ephemeral',ttl:'1h'}}],input:[
       {role:'system',content:[{type:'input_text',text:'system',cache_control:{type:'ephemeral',ttl:'1h'}}]},
@@ -132,7 +131,7 @@ describe('P-RM-Q6 known cache scope and completed items',()=>{
 });
 
 describe('P-RM-Q5 native qualitative effort',()=>{
-  const configured=()=>value(createResponsesToMessagesRequestAdapter({maxTokens:256,channelCapabilities:{protocol:'messages',features:['reasoning_effort'],reasoningEfforts:['low','medium','high']}}));
+  const configured=()=>value(createResponsesToMessagesRequestAdapter({maxTokens:256,channelCapabilities:{protocol:'messages'}}));
   it.each(['low','medium','high'])('maps effort %s without synthesizing thinking budgets',effort=>{
     const output=value(configured().convert({...basic(),reasoning:{effort}},context));
     expect(output.output_config).toEqual({effort});expect(output.max_tokens).toBe(256);expect(output).not.toHaveProperty('thinking');
@@ -151,7 +150,7 @@ describe('P-RM-Q5 native qualitative effort',()=>{
 });
 
 describe('P-RM-Q4-O strict output schema', () => {
-  const configured=()=>value(createResponsesToMessagesRequestAdapter({maxTokens:128,channelCapabilities:{protocol:'messages',features:['json_schema']}}));
+  const configured=()=>value(createResponsesToMessagesRequestAdapter({maxTokens:128,channelCapabilities:{protocol:'messages'}}));
   const schema=()=>({type:'object',properties:{x:{type:'string'}},required:['x'],additionalProperties:false});
   it('maps strict format constraints and description to output_config',()=>{
     const output=value(configured().convert({...basic(),text:{format:{type:'json_schema',name:'out',schema:schema(),strict:true,description:'Output'}}},context));
@@ -173,12 +172,11 @@ describe('P-RM-Q4-O strict output schema', () => {
 
 describe('P-RM-Q4 generation controls', () => {
   const configured = () => value(createResponsesToMessagesRequestAdapter({ maxTokens: 128, channelCapabilities: {
-    protocol: 'messages', features: ['temperature','top_p','streaming'], maxOutputTokens: 256,
+    protocol: 'messages',
   } }));
   it('maps explicit limit/sampling/stream without clamping', () => {
     expect(configured().convert({ ...basic(), max_output_tokens: 200, temperature: 0, top_p: 1, stream: true },context))
       .toMatchObject({ok:true,value:{max_tokens:200,temperature:0,top_p:1,stream:true}});
-    expect(configured().convert({ ...basic(), max_output_tokens: 257 },context).ok).toBe(false);
   });
   it('uses explicit fallback for null limit and does not invent sampler defaults', () => {
     const output=value(configured().convert({ ...basic(), max_output_tokens:null,temperature:null,top_p:null,stream:false },context));
@@ -192,7 +190,7 @@ describe('P-RM-Q4 generation controls', () => {
 });
 
 describe('P-RM-Q3 image sources', () => {
-  const configured = () => value(createResponsesToMessagesRequestAdapter({ maxTokens: 256, channelCapabilities: { protocol: 'messages', features: ['image_url','image_base64','tools','tool_result_images'] } }));
+  const configured = () => value(createResponsesToMessagesRequestAdapter({ maxTokens: 256, channelCapabilities: { protocol: 'messages' } }));
   const input = (image_url: string, detail?: 'auto'|'low'|'high'|'original'): ResponsesRequest => ({ model: 'm', input: [{ role: 'user', content: [
     { type: 'input_text', text: 'before' }, { type: 'input_image', image_url, ...(detail ? { detail } : {}) }, { type: 'input_text', text: 'after' },
   ] }] });
@@ -228,7 +226,7 @@ describe('P-RM-Q3 image sources', () => {
 
 describe('P-RM-Q2 complete function history', () => {
   const configured = () => value(createResponsesToMessagesRequestAdapter({ maxTokens: 256, channelCapabilities: { protocol: 'messages',
-    features: ['tools', 'strict_tools', 'tool_choice', 'parallel_tools', 'parallel_tool_control'], maxOutputTokens: 512 } }));
+    } }));
   const tool = () => ({ type: 'function' as const, name: 'lookup', parameters: { type: 'object', properties: { q: { type: 'string' } } } });
   const source = (): ResponsesRequest => ({ model: 'm', tools: [tool()], input: [
     { role: 'assistant', content: 'before' }, { type: 'function_call', call_id: 'a', name: 'lookup', arguments: '{"q":"a"}' },
@@ -253,7 +251,7 @@ describe('P-RM-Q2 complete function history', () => {
       .toMatchObject({ ok: true, value: { tools: [{ strict: false, input_schema: parameters }], tool_choice: { type: 'tool', name: 'lookup', disable_parallel_tool_use: true } } });
   });
   it('preserves normalized strict tools without target capability declarations', () => {
-    const noStrict = value(createResponsesToMessagesRequestAdapter({ maxTokens: 256, channelCapabilities: { protocol: 'messages', features: ['tools', 'parallel_tools'] } }));
+    const noStrict = value(createResponsesToMessagesRequestAdapter({ maxTokens: 256, channelCapabilities: { protocol: 'messages' } }));
     expect(noStrict.convert(source(), context).ok).toBe(true);
     expect(adapter().convert(source(), context).ok).toBe(true);
   });

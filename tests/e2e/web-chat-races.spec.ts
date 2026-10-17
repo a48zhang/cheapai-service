@@ -65,14 +65,8 @@ async function prepareUser(playwright: PlaywrightHarness, browser: BrowserHarnes
     name: `Web chat race ${tag}`, baseUrl: fixtureBaseUrl, upstreamKey: 'local-fixture-upstream-key',
     concurrencyLimit: 2, rpmLimit: 60, priority: 10, status: 'active',
   }, headers);
-  await create(admin, '/api/v1/admin/models', {
-    publicModelId: modelId, status: 'active', sellPrices: { input: '1', output: '1' },
-    admissionMinBalanceUnits: '0', maxOutputTokens: 64,
-  }, headers);
-  await create(admin, `/api/v1/admin/models/${encodeURIComponent(modelId)}/mappings`, {
-    channelId: channel.id, protocol: 'chat', upstreamModel: `race-upstream-${tag}`,
-    capabilities: { protocol: 'chat', features: ['streaming', 'stream_usage'], maxOutputTokens: 64 },
-  }, headers);
+  await create(admin, '/api/v1/admin/models', {publicModelId: modelId, status: 'active', sellPrices: { input: '1', output: '1' }}, headers);
+  await create(admin, `/api/v1/admin/models/${encodeURIComponent(modelId)}/mappings`, {channelId: channel.id, protocol: 'chat', upstreamModel: `race-upstream-${tag}`}, headers);
   const group = await create(admin, '/api/v1/admin/groups', {
     name: `Web chat race ${tag}`, status: 'active', channelIds: [channel.id], billingMultiplier: '1',
   }, headers);

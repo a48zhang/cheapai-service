@@ -35,10 +35,9 @@ async function channel(id = 'd08-channel') {
 }
 
 describe('0008 models and channel mappings in native D1', () => {
-  it('creates no model seeds and stores exact explicit prices/output limits', async () => {
+  it('creates no model seeds and stores exact explicit prices', async () => {
     expect(await testEnv.DB.prepare('SELECT COUNT(*) AS count FROM models').first('count')).toBe(0);
     await model();
-    expect(await testEnv.DB.prepare('SELECT * FROM models WHERE public_model_id = ?').bind(validModel.public_model_id).first()).toEqual(validModel);
     await model({ public_model_id: 'd08-free', status: 'disabled', sell_prices_json: '{"input":"0","output":"0"}' });
     expect(await testEnv.DB.prepare('SELECT sell_prices_json FROM models WHERE public_model_id = ?').bind('d08-free').first('sell_prices_json')).toBe('{"input":"0","output":"0"}');
     const schema = await testEnv.DB.prepare('PRAGMA table_info(models)').all<{ dflt_value: unknown }>();
@@ -46,7 +45,7 @@ describe('0008 models and channel mappings in native D1', () => {
   });
 
   it('requires fields and legal status without defaulting absent prices to zero', async () => {
-    for (const column of modelColumns) await expect(model({ [column]: null })).rejects.toThrow();
+    for (const column of ['public_model_id', 'status', 'sell_prices_json', 'price_version', 'created_at', 'updated_at'] as const) await expect(model({ [column]: null })).rejects.toThrow();
     await expect(model({ public_model_id: ' ' })).rejects.toThrow();
     await expect(model({ status: 'enabled' })).rejects.toThrow();
     await expect(testEnv.DB.prepare('INSERT INTO models (public_model_id,status) VALUES (?,?)').bind('missing-values', 'active').run()).rejects.toThrow();
@@ -54,35 +53,27 @@ describe('0008 models and channel mappings in native D1', () => {
     await expect(model()).rejects.toThrow();
   });
 
-  it('requires price/capability JSON objects while leaving field schemas to application validators', async () => {
+  it('requires price JSON objects while leaving field schemas to application validators', async () => {
     for (const json of ['{broken', 'null', '[]', '1', 'true', '"string"']) await expect(model({ sell_prices_json: json })).rejects.toThrow();
     await model({ sell_prices_json: '{}' }); // Valid object is not a claim of price readiness.
-    await channel();
-    for (const json of ['{broken', 'null', '[]', '1', 'false', '"string"']) await expect(mapping({ capabilities_json: json })).rejects.toThrow();
-    await mapping({ capabilities_json: '{}' });
-    expect(await testEnv.DB.prepare('SELECT capabilities_json FROM channel_models').first('capabilities_json')).toBe('{}');
   });
 
-  it('bounds numeric values, forbids zero outputs, and requires default <= maximum', async () => {
-    for (const column of ['price_version', 'max_output_tokens', 'default_output_tokens'] as const) {
+  it('bounds version and timestamp values', async () => {
+    for (const column of ['price_version'] as const) {
       for (const value of [0, -1, 0.5, Number.MAX_SAFE_INTEGER + 1, 'invalid']) await expect(model({ [column]: value })).rejects.toThrow();
     }
-    for (const column of ['admission_min_balance_units', 'created_at', 'updated_at'] as const) {
+    for (const column of ['created_at', 'updated_at'] as const) {
       for (const value of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1, 'invalid']) await expect(model({ [column]: value })).rejects.toThrow();
     }
-    await expect(model({ default_output_tokens: 4097 })).rejects.toThrow();
     await expect(model({ updated_at: 999 })).rejects.toThrow();
-    await model({ default_output_tokens: 4096, created_at: 0, updated_at: 0 });
-    await model({ public_model_id: 'd08-max', admission_min_balance_units: Number.MAX_SAFE_INTEGER, max_output_tokens: Number.MAX_SAFE_INTEGER, default_output_tokens: Number.MAX_SAFE_INTEGER, price_version: Number.MAX_SAFE_INTEGER, created_at: Number.MAX_SAFE_INTEGER, updated_at: Number.MAX_SAFE_INTEGER });
-    expect(await testEnv.DB.prepare('SELECT admission_min_balance_units FROM models WHERE public_model_id = ?').bind('d08-max').first('admission_min_balance_units')).toBe(Number.MAX_SAFE_INTEGER);
-    await expect(testEnv.DB.prepare('UPDATE models SET max_output_tokens = 1 WHERE public_model_id = ?').bind('d08-public').run()).rejects.toThrow();
+    await model({ created_at: 0, updated_at: 0 });
+    await model({ public_model_id: 'd08-max', price_version: Number.MAX_SAFE_INTEGER, created_at: Number.MAX_SAFE_INTEGER, updated_at: Number.MAX_SAFE_INTEGER });
   });
 
   it('allows each protocol and many-to-many mappings but rejects duplicate tuples and malformed rows', async () => {
     await model(); await channel();
     await model({ public_model_id: 'd08-public-2' }); await channel('d08-channel-2');
-    for (const column of mappingColumns) await expect(mapping({ [column]: null })).rejects.toThrow();
-    await expect(mapping({ upstream_model: ' ' })).rejects.toThrow();
+    for (const column of ['channel_id', 'public_model_id', 'upstream_model', 'protocol', 'config_version'] as const) await expect(mapping({ [column]: null })).rejects.toThrow();
     await expect(mapping({ protocol: 'openai' })).rejects.toThrow();
     for (const value of [0, -1, 0.5, Number.MAX_SAFE_INTEGER + 1, 'invalid']) await expect(mapping({ config_version: value })).rejects.toThrow();
     for (const protocol of ['chat', 'responses', 'messages']) await mapping({ protocol });

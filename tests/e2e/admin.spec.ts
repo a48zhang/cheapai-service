@@ -140,10 +140,8 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
   await page.goto('/admin/models/actions/create');
   await expect(page.getByRole('heading', { name: '新增公开模型' })).toBeVisible();
   await page.getByRole('textbox', { name: '公开模型 ID' }).fill(modelId);
-  await page.getByRole('textbox', { name: '最低余额门槛（USD）' }).fill('0');
-  await page.getByRole('textbox', { name: '最大输出 Token' }).fill('128');
-  await page.getByRole('textbox', { name: /^输入 Token/ }).fill('1');
-  await page.getByRole('textbox', { name: /^输出 Token/ }).fill('2');
+  await page.getByRole('textbox', { name: '输入价格', exact: true }).fill('1');
+  await page.getByRole('textbox', { name: '输出价格', exact: true }).fill('2');
   const modelCreateResponsePromise = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === '/api/v1/admin/models' &&
@@ -163,7 +161,6 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
   const protocol = page.getByRole('combobox', { name: '协议' });
   await chooseRadixOption(page, protocol, 'Chat Completions');
   await page.getByRole('textbox', { name: '上游模型名称' }).fill('fixture-chat-model');
-  await expect(page.getByText('能力与高级设置', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('checkbox', { name: 'streaming' })).toHaveCount(0);
   const mappingResponsePromise = page.waitForResponse(
     (response) =>
@@ -340,7 +337,6 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
   await requestLink.click();
   await expect(page).toHaveURL(new RegExp(`/admin/requests/${requestId}`));
   await expect(page.getByRole('heading', { name: '请求详情' })).toBeVisible();
-  await expect(page.getByText('上游模型请求失败', { exact: true })).toBeVisible();
   await page.getByText('服务返回信息', { exact: true }).click();
   await expect(page.getByText('upstream_error', { exact: true })).toBeVisible();
   await expect(page.getByText('用量未知')).toBeVisible();
@@ -389,7 +385,7 @@ test('已有渠道可直接添加和编辑模型，取消草稿不写入配置',
   const channel = (await channelResponse.json()).data as { id: string };
   const modelResponse = await administrator.post('/api/v1/admin/models', {
     headers,
-    data: { publicModelId: model, sellPrices: { input: '1', output: '2' }, admissionMinBalanceUnits: '0', maxOutputTokens: 128 },
+    data: {publicModelId: model, sellPrices: { input: '1', output: '2' }},
   });
   expect(modelResponse.status(), await modelResponse.text()).toBe(201);
 
@@ -397,11 +393,9 @@ test('已有渠道可直接添加和编辑模型，取消草稿不写入配置',
   await page.getByRole('row').filter({ hasText: name }).getByRole('button', { name: '管理渠道', exact: true }).click();
   const panel = page.getByRole('dialog', { name: /管理渠道/ });
   await expect(panel.getByRole('tab', { name: '模型管理', exact: true })).toHaveAttribute('aria-selected', 'true');
-  await expect(panel.getByText('此渠道尚未添加模型', { exact: true })).toBeVisible();
   await panel.getByRole('button', { name: '添加模型', exact: true }).click();
   const form = panel.locator('form').filter({ has: page.getByLabel('上游模型名称', { exact: true }) });
   await expect(form.getByRole('checkbox')).toHaveCount(0);
-  await expect(form.getByText(/能力/)).toHaveCount(0);
   await chooseRadixOption(page, form.getByRole('combobox', { name: '对外模型', exact: true }), model);
   await form.getByLabel('上游模型名称', { exact: true }).fill('management-upstream');
   const addResponse = page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/admin/models/${model}/mappings` && response.request().method() === 'POST');

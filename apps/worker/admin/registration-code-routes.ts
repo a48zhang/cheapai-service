@@ -3,7 +3,7 @@ import type { MiddlewareHandler } from 'hono';
 import { requireSession } from '../auth/middleware';
 import type { AuthEnv } from '../auth/middleware';
 import { requireAdmin } from '../auth/roles';
-import { generateRegistrationCodes, listRegistrationCodes, revokeRegistrationCode, REGISTRATION_CODE_LIMITS } from '../auth/registration-codes';
+import { generateRegistrationCodes, listRegistrationCodes, revokeRegistrationCode } from '../auth/registration-codes';
 import { validateCsrfRequest } from '../auth/csrf';
 import { ApiError, apiError, apiSuccess, createRequestId, parsePagination } from '../http';
 
@@ -63,17 +63,14 @@ async function readCodeJsonBody(request: Request): Promise<unknown> {
   return parsed;
 }
 
-/** expiresAt is a required absolute UTC-millisecond safe integer. null never
- * means unlimited lifetime; A11 enforces future/30-day bounds for new batches
- * while allowing exact metadata replay after the original expiry has passed.
- */
-async function readCreationBody(request: Request): Promise<{ quantity: number; expiresAt: number }> {
+/** Omitted and null expiry both mean no expiration. */
+async function readCreationBody(request: Request): Promise<{ quantity: number; expiresAt: number | null }> {
   const parsed = await readCodeJsonBody(request);
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new ApiError('invalid_request');
   const fields = parsed as Record<string, unknown>;
-  if (typeof fields.quantity !== 'number' || !Number.isSafeInteger(fields.quantity) || fields.quantity < 1 || fields.quantity > REGISTRATION_CODE_LIMITS.quantity
-      || typeof fields.expiresAt !== 'number' || !Number.isSafeInteger(fields.expiresAt) || fields.expiresAt < 0) throw new ApiError('invalid_request');
-  return { quantity: fields.quantity, expiresAt: fields.expiresAt };
+  if (typeof fields.quantity !== 'number' || !Number.isSafeInteger(fields.quantity) || fields.quantity < 1
+      || (fields.expiresAt != null && (typeof fields.expiresAt !== 'number' || !Number.isSafeInteger(fields.expiresAt) || fields.expiresAt < 0))) throw new ApiError('invalid_request');
+  return { quantity: fields.quantity, expiresAt: (fields.expiresAt as number | null | undefined) ?? null };
 }
 
 /** Mount at '/': this router owns its full path. No bindings are read at import

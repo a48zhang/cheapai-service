@@ -78,11 +78,11 @@ export async function setupMatrix(fixture: MatrixFixture, upstream: MatrixUpstre
   const baseUrl = `https://${channelId.replace(/_/gu, '-')}.example.invalid`;
   await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
     VALUES(?,?,?,?,'active',10,4,60,1,0,0)`, [channelId, `Matrix ${upstream}`, baseUrl, credential]).run();
-  await prepare(testEnv.DB, `INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES (?,'active','{"input":"1","output":"2"}',1,0,64,0,0)`, [fixture.publicModel]).run();
+  await prepare(testEnv.DB, `INSERT INTO models (public_model_id,status,sell_prices_json,price_version,created_at,updated_at) VALUES (?,'active','{"input":"1","output":"2"}',1,0,0)`, [fixture.publicModel]).run();
   await prepare(testEnv.DB, 'INSERT INTO channel_groups(channel_id,group_id) VALUES(?,?)', [channelId, groupId]).run();
   const features = ['streaming', 'tools', 'tool_choice', 'parallel_tools', 'parallel_tool_control', ...(upstream === 'chat' ? ['stream_usage'] : [])];
-  await prepare(testEnv.DB, `INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,capabilities_json,config_version)
-    VALUES(?,?,?,?,?,1)`, [channelId, fixture.publicModel, upstream, fixture.upstreamModel, JSON.stringify({ protocol: upstream, features, maxOutputTokens: 64 })]).run();
+  await prepare(testEnv.DB, `INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,config_version)
+    VALUES(?,?,?,?,1)`, [channelId, fixture.publicModel, upstream, fixture.upstreamModel]).run();
 
   const call = async (payload: unknown, headers: HeadersInit = {}): Promise<MatrixCall> => {
     const context = createExecutionContext();

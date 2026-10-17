@@ -227,7 +227,7 @@ const toolChoice: Check = (v, p, options) => typeof v === 'string' ? oneOf('auto
 const responseFormat: Check = (v, p, options) => object(v) && v.type === 'json_schema'
   ? shape({ type: oneOf('json_schema'), json_schema: shape({ name: nonempty, schema: jsonObject }, { description: string, strict: nullable(bool) }) })(v, p, options)
   : shape({ type: oneOf('text', 'json_object') })(v, p, options);
-const requestRequired = { model: nonempty, messages: list(message, 1) };
+const requestRequired = { model: string, messages: list(message, 1) };
 const requestOptional: Record<string, Check> = {
   stream: bool, stream_options: nullable(shape({}, { include_usage: bool })),
   tools: list(tool), tool_choice: toolChoice, parallel_tool_calls: bool,
@@ -296,11 +296,11 @@ const delta = shape({}, {
 });
 const outputOptional = { usage: nullable(usage), system_fingerprint: nullable(string), service_tier: nullable(string) };
 const responseShape = shape({
-  id: nonempty, object: oneOf('chat.completion'), created: nonnegative, model: nonempty,
+  id: nonempty, object: oneOf('chat.completion'), created: nonnegative, model: string,
   choices: list(shape({ index: nonnegative, message: outputMessage, finish_reason: nonempty }, { logprobs: nullable(jsonObject) }), 1),
 }, outputOptional);
 const chunkShape = shape({
-  id: nonempty, object: oneOf('chat.completion.chunk'), created: nonnegative, model: nonempty,
+  id: nonempty, object: oneOf('chat.completion.chunk'), created: nonnegative, model: string,
   choices: list(shape({ index: nonnegative, delta, finish_reason: nullable(nonempty) }, { logprobs: nullable(jsonObject) })),
 }, outputOptional);
 

@@ -74,7 +74,6 @@ describe('resource cache updates', () => {
       protocol: 'chat',
       upstreamModel: 'upstream',
       configVersion: 2,
-      capabilities: { protocol: 'chat', features: [] },
     };
     const key = modelMappingQueryKeys.list('actor', 'm');
     client.setQueryData(key, { items: [{ ...mapping, configVersion: 1 }] });

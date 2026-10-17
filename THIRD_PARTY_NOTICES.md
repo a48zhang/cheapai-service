@@ -1,5 +1,9 @@
 # 第三方来源与许可声明
 
+## 模型品牌图标
+
+模型品牌 SVG 来自 [Lobe Icons](https://github.com/lobehub/lobe-icons/tree/master/packages/static-svg/icons)，按 MIT 许可随项目发布。来源清单及原许可保存在 `apps/web/src/shared/ui/model-logos/README.md` 和同目录 `LICENSE`。品牌标识分别属于其权利人；图标只用于模型展示，不参与模型授权或有效性判断。
+
 核对日期：2026-09-05。P21 建立来源和未来移植要求；P21-L 另附完整 LGPL v3 / GPL v3 许可文本。这两项任务未向本工程复制 Sub2API 业务源码或测试 fixture，也未对整个工程授予或更改许可证。其他任务引入的第三方材料须逐项补充此文件。
 
 ## Sub2API 协议参考

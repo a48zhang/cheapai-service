@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { JsonValue } from './common.js';
 import { probeEvidenceSchema } from './channel-diagnostics.js';
 
 const safeInteger = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
@@ -43,7 +44,7 @@ const rpmLimitInputSchema = z
 
 export const channelModelSchema = z.object({
   publicModelId: modelIdSchema,
-  upstreamModel: cleanText(128),
+  upstreamModel: z.string(),
   protocol: channelProtocolSchema,
   mappingVersion: positiveVersion,
   priceVersion: positiveVersion,
@@ -106,6 +107,7 @@ export const channelProbeInputSchema = z.object({
   channelVersion: channelVersionSchema,
   mappingVersion: positiveVersion,
   priceVersion: positiveVersion,
+  params: z.record(z.string(), z.custom<JsonValue>()).optional(),
 });
 
 export const channelProbeResultSchema = z.object({
@@ -125,7 +127,6 @@ export const channelProbeResultSchema = z.object({
   channelVersion: positiveVersion,
   mappingVersion: positiveVersion,
   priceVersion: positiveVersion,
-  maxOutputTokens: positiveVersion,
   mayIncurUpstreamCost: z.literal(true),
   userBalanceCharged: z.literal(false),
   evidence: probeEvidenceSchema.optional(),

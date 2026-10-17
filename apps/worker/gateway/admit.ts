@@ -140,7 +140,7 @@ export async function admitRequest(bindings: AdmissionBindings, subject: Interna
   let model: Awaited<ReturnType<typeof getModelById>>;
   try { model = await getModelById(bindings.DB, modelId); } catch (error) { throw new ApiError('service_unavailable', { cause: error }); }
   if (!model || model.status !== 'active' || model.priceVersion !== eligibility.priceVersion) throw new ApiError('conflict');
-  const selected = selection.candidates.find(item => item.outputTokenLimit === undefined || item.outputTokenLimit <= model!.maxOutputTokens);
+  const selected = selection.candidates[0];
   if (!selected) throw new ApiError('invalid_request');
   const remainingChecks = selected.requiredChecks.filter(check => check !== 'response_history_binding' || historyBinding === null);
   if (remainingChecks.length && (!options.validateRequiredChecks ||

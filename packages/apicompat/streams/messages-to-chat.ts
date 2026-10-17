@@ -22,8 +22,8 @@ const error = (code: string): ProtocolError => ({ kind: 'stream_error', code, me
 const types = new Set(['message_start', 'content_block_start', 'content_block_delta', 'content_block_stop', 'message_delta', 'message_stop', 'ping', 'error']);
 
 function makeSession(context: ResponseContext, options: StreamOptions, budget: ByteBudget): ConversionResult<MessagesToChatSession> {
-  if (!isRepresentableWireId(context.identity?.responseId) || typeof context.targetModel !== 'string' || !context.targetModel.trim() ||
-      context.targetModel.length > 512 || /[\u0000-\u001f\u007f]/.test(context.targetModel) || !Number.isSafeInteger(context.createdAt) || context.createdAt < 0 ||
+  if (!isRepresentableWireId(context.identity?.responseId) || typeof context.targetModel !== 'string' ||
+      !Number.isSafeInteger(context.createdAt) || context.createdAt < 0 ||
       !['ignore', 'reject', 'preserve'].includes(options.unknownEventPolicy)) return { ok: false, error: error('invalid_stream_configuration') };
   const id = context.identity.responseId; const model = context.targetModel; const created = context.createdAt;
   const frameLimit = options.maxBufferedBytes; const unknownPolicy = options.unknownEventPolicy;

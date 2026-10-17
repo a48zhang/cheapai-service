@@ -127,7 +127,7 @@ function copyPrices(value: unknown): PriceTable {
 }
 
 function snapshot(input: PriceSnapshotInput): PriceSnapshot {
-  if (!id(input.publicModelId) || !id(input.upstreamModel) || !['chat', 'responses', 'messages'].includes(input.upstreamProtocol)
+  if (!id(input.publicModelId) || typeof input.upstreamModel !== 'string' || !['chat', 'responses', 'messages'].includes(input.upstreamProtocol)
     || !Number.isSafeInteger(input.priceVersion) || input.priceVersion < 1) throw new FingerprintError('invalid_snapshot');
   if (input.groupId !== undefined && !id(input.groupId)) throw new FingerprintError('invalid_snapshot');
   if (input.groupVersion !== undefined && (!Number.isSafeInteger(input.groupVersion) || input.groupVersion < 1)) throw new FingerprintError('invalid_snapshot');

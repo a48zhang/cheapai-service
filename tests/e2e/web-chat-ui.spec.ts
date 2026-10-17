@@ -21,7 +21,7 @@ const prompt = {
 };
 
 test('chat UI locks a new send before conversation creation and renders the stream', async ({ page }) => {
-  const calls = { conversationCreates: 0, messagePosts: 0, operationIds: [] as string[], maxOutputTokens: [] as number[] };
+  const calls = {conversationCreates: 0, messagePosts: 0, operationIds: [] as string[]};
   // Restored login sessions can outlive the CSRF cookie. The first write must bootstrap it.
   await page.route('**/api/v1/settings/public', route => route.fulfill({
     status: 200, contentType: 'application/json',
@@ -31,7 +31,7 @@ test('chat UI locks a new send before conversation creation and renders the stre
   await page.route('**/api/v1/auth/me', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: user, request_id: requestId }) }));
   await page.route('**/api/v1/chat/models', route => route.fulfill({
     status: 200, contentType: 'application/json',
-    body: JSON.stringify({ data: { items: [{ id: 'ui-group', name: 'UI group', billingMultiplier: '1', models: [{ publicModelId: 'ui-model', maxOutputTokens: 64 }] }] }, request_id: requestId }),
+    body: JSON.stringify({ data: { items: [{ id: 'ui-group', name: 'UI group', billingMultiplier: '1', models: [{publicModelId: 'ui-model'}] }] }, request_id: requestId }),
   }));
   await page.route('**/api/v1/chat/conversations', async route => {
     if (route.request().method() === 'GET') {
@@ -52,9 +52,8 @@ test('chat UI locks a new send before conversation creation and renders the stre
   await page.route('**/api/v1/chat/conversations/conv-ui/messages', async route => {
     calls.messagePosts += 1;
     expect(route.request().headers()['x-csrf-token']).toBe('a'.repeat(42) + 'A');
-    const body = JSON.parse(route.request().postData() ?? '{}') as { operationId?: string; maxOutputTokens?: number };
+    const body = JSON.parse(route.request().postData() ?? '{}') as { operationId?: string };
     if (body.operationId) calls.operationIds.push(body.operationId);
-    if (body.maxOutputTokens !== undefined) calls.maxOutputTokens.push(body.maxOutputTokens);
     await route.fulfill({
       status: 200,
       headers: { 'content-type': 'text/event-stream' },
@@ -83,7 +82,6 @@ test('chat UI locks a new send before conversation creation and renders the stre
   expect(calls.conversationCreates).toBe(1);
   expect(calls.messagePosts).toBe(1);
   expect(calls.operationIds).toHaveLength(1);
-  expect(calls.maxOutputTokens).toEqual([]);
 });
 
 // FE-V01/02 use only browser mocks; no real provider or billing traffic.
@@ -97,7 +95,7 @@ async function mockedChat(page: import('@playwright/test').Page) {
     if (url.pathname === '/api/v1/auth/me' || url.pathname === '/api/v1/auth/login') return fulfill(route, identity);
     if (url.pathname === '/api/v1/auth/logout') return fulfill(route, { loggedOut: true });
     if (url.pathname === '/api/v1/settings/public') return fulfill(route, { registrationMode: 'open', emailVerificationEnabled: false, csrfToken: 'a'.repeat(42) + 'A' });
-    if (url.pathname === '/api/v1/chat/models') return fulfill(route, { items: [{ id: 'empty', name: 'Empty', billingMultiplier: '1', models: [] }, { id: 'ui-group', name: 'UI group', billingMultiplier: '1', models: [{ publicModelId: 'ui-model', maxOutputTokens: 64 }] }] });
+    if (url.pathname === '/api/v1/chat/models') return fulfill(route, { items: [{ id: 'empty', name: 'Empty', billingMultiplier: '1', models: [] }, { id: 'ui-group', name: 'UI group', billingMultiplier: '1', models: [{publicModelId: 'ui-model'}] }] });
     if (url.pathname === '/api/v1/chat/conversations') return fulfill(route, route.request().method() === 'POST' ? detail.conversation : { items: [detail.conversation], nextCursor: null });
     if (url.pathname === `/api/v1/chat/conversations/${conversation.id}`) return fulfill(route, route.request().method() === 'DELETE' ? { deleted: true } : detail);
     return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: { code: 'not_found', message: 'fixture route missing' }, request_id: requestId }) });

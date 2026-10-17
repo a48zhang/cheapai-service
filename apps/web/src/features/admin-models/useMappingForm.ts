@@ -133,7 +133,7 @@ export function useMappingForm({
     if (result.isSuccess) {
       setNeedsRefresh(false);
       setSaveError(null);
-      setMessage('已重新读取映射。输入内容已保留；如版本改变，请核对后明确选择新版本。');
+      setMessage('已刷新映射。输入内容已保留，请核对后继续。');
     }
   }
 
@@ -175,7 +175,7 @@ export function useMappingForm({
       setNeedsRefresh(true);
       const conflict = error instanceof ApiClientError && error.status === 409;
       const context = conflict
-        ? '映射配置版本已变化。请重新读取映射并核对；当前输入已保留。'
+        ? '映射已被其他操作更新。请刷新并核对；当前输入已保留。'
         : error instanceof Error
           ? `${error.message} 保存结果可能未确认；请重新读取映射后再继续。当前输入已保留。`
           : '保存结果未确认；请重新读取映射后再继续。当前输入已保留。';
@@ -191,7 +191,7 @@ export function useMappingForm({
     setNeedsRefresh(false);
     setSaveError(null);
     setMessage(
-      `已选用服务端映射 v${latestSelected.configVersion}，并保留当前输入。请确认上方字段后保存。`,
+      '已同步映射并保留当前输入。请核对后保存。',
     );
   }
 

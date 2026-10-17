@@ -5,7 +5,7 @@ import type { AnyProtocolRegistration, RequestWire, ResponseWire } from '../../p
 import type { Protocol, SseFrame } from '../../packages/apicompat/types/shared.js';
 
 const protocols: Protocol[] = ['chat', 'responses', 'messages'];
-const context = (protocol: Protocol) => ({ capabilities: { protocol, features: ['streaming' as const], maxOutputTokens: 64 }, outputTokenLimit: 16 });
+const context = (protocol: Protocol) => ({ capabilities: { protocol, }, outputTokenLimit: 16 });
 const responseContext = { identity: { responseId: 'public_id', upstreamResponseId: 'native_id' }, targetModel: 'public-model', createdAt: 1, idFor: (kind: string, key: string) => `${kind}_${key}` };
 const requests: RequestWire = {
   chat: { model: 'public-model', messages: [{ role: 'user', content: 'Synthetic text' }] },
@@ -93,7 +93,7 @@ describe('P22 default production registry: all direct combinations', () => {
     if (!strict.ok) throw new Error();
     expect(strict.value.request.convert(request, { targetModel: 'provider' }).ok).toBe(true);
     const allowed = defaultProtocolRegistry.lookup({ from: protocol, to: protocol, streaming: false }, {
-      ...context(protocol), capabilities: { ...context(protocol).capabilities, nativeExtensions: [{ scope: 'request', name: 'vendor_hint' }, { scope: 'content', name: 'vendor_hint' }] },
+      ...context(protocol), capabilities: { ...context(protocol).capabilities },
     });
     if (!allowed.ok) throw new Error();
     expect(allowed.value.request.convert(request, { targetModel: 'provider' })).toMatchObject({ ok: true, value: { vendor_hint: 'allowed-value' } });
@@ -108,11 +108,11 @@ describe('P22 default production registry: all direct combinations', () => {
 
   it('rejects mismatched trusted target context and invalid output limits', () => {
     expect(defaultProtocolRegistry.lookup({ from: 'chat', to: 'chat', streaming: false }, context('responses'))).toMatchObject({ ok: false });
-    for (const outputTokenLimit of [0, 1.5, 100, Number.NaN]) expect(defaultProtocolRegistry.lookup({ from: 'chat', to: 'chat', streaming: false }, { ...context('chat'), outputTokenLimit })).toMatchObject({ ok: false });
+    for (const outputTokenLimit of [0, 1.5, Number.NaN]) expect(defaultProtocolRegistry.lookup({ from: 'chat', to: 'chat', streaming: false }, { ...context('chat'), outputTokenLimit })).toMatchObject({ ok: false });
   });
 
   it('binds the explicit request limit without adding a channel default', () => {
-    const target = { capabilities: { protocol: 'messages' as const, features: [], maxOutputTokens: 64 }, outputTokenLimit: 8 };
+    const target = { capabilities: { protocol: 'messages' as const, }, outputTokenLimit: 8 };
     const chat = defaultProtocolRegistry.lookup({ from: 'chat', to: 'messages', streaming: false }, target);
     if (!chat.ok) throw new Error('Expected Chat→Messages registry entry');
     expect(chat.value.request.convert({ model: 'public', max_tokens: 8, messages: [{ role: 'user', content: 'probe' }] }, { targetModel: 'provider' }))

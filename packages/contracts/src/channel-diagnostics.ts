@@ -25,7 +25,7 @@ export const probeEvidenceSchema = z.strictObject({
       headers: boundedHeaders,
       body: z.string().max(32_768).nullable(),
       publicModelId: cleanText(128),
-      upstreamModel: cleanText(128),
+      upstreamModel: z.string(),
     })
     .nullable(),
   redirects: z

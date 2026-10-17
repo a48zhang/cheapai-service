@@ -1,6 +1,5 @@
 import { decodeMapping, decodeMappings } from '@cheapai/contracts/mappings';
 import type {
-  ChannelCapabilities,
   ModelMappingInput,
   ModelMappingList,
   ModelMappingPatch,
@@ -11,8 +10,6 @@ import type {
 import type { ApiClient, ApiReadOptions } from './types.js';
 
 export type {
-  CapabilityFeature,
-  ChannelCapabilities,
   ModelMappingInput,
   ModelMappingList,
   ModelMappingPatch,
@@ -20,28 +17,11 @@ export type {
   ModelMappingView,
   Protocol,
 } from '@cheapai/contracts/mappings';
-export {
-  CAPABILITY_FEATURES,
-  decodeCapabilities,
-  decodeMapping,
-  decodeMappings,
-} from '@cheapai/contracts/mappings';
+export { decodeMapping, decodeMappings } from '@cheapai/contracts/mappings';
 
 const modelPath = (publicModelId: string) =>
   `/api/v1/admin/models/${encodeURIComponent(publicModelId)}`;
 const mappingPath = (publicModelId: string) => `${modelPath(publicModelId)}/mappings`;
-
-function capabilitiesBody(value: ChannelCapabilities) {
-  return {
-    protocol: value.protocol,
-    features: [...value.features],
-    ...(value.maxOutputTokens === undefined ? {} : { maxOutputTokens: value.maxOutputTokens }),
-    ...(value.reasoningEfforts === undefined
-      ? {}
-      : { reasoningEfforts: [...value.reasoningEfforts] }),
-    ...(value.cacheTtls === undefined ? {} : { cacheTtls: [...value.cacheTtls] }),
-  };
-}
 
 /** Administrator channel mappings use their independent configVersion for edits. */
 export function createMappingsApi(api: ApiClient) {
@@ -70,9 +50,6 @@ export function createMappingsApi(api: ApiClient) {
           channelId: input.channelId,
           protocol: input.protocol,
           upstreamModel: input.upstreamModel,
-          ...(input.capabilities === undefined
-            ? {}
-            : { capabilities: capabilitiesBody(input.capabilities) }),
         },
         { decode: decodeMapping },
       )
@@ -92,9 +69,6 @@ export function createMappingsApi(api: ApiClient) {
         {
           version: configVersion,
           ...(input.upstreamModel === undefined ? {} : { upstreamModel: input.upstreamModel }),
-          ...(input.capabilities === undefined
-            ? {}
-            : { capabilities: capabilitiesBody(input.capabilities) }),
         },
         { decode: decodeMapping },
       )

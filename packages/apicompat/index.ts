@@ -181,8 +181,7 @@ export function createProtocolRegistry(registrations: readonly AnyProtocolRegist
       const entry = entries.get(`${direction.from}:${direction.to}`);
       if (!entry) return failure('adapter_not_available');
       if (!context || !context.capabilities || context.capabilities.protocol !== direction.to
-        || (context.outputTokenLimit !== undefined && (!Number.isSafeInteger(context.outputTokenLimit) || context.outputTokenLimit < 1
-        || (context.capabilities.maxOutputTokens !== undefined && context.outputTokenLimit > context.capabilities.maxOutputTokens)))) return failure('invalid_registry_context');
+        || (context.outputTokenLimit !== undefined && (!Number.isSafeInteger(context.outputTokenLimit) || context.outputTokenLimit < 1))) return failure('invalid_registry_context');
       const made = entry.create(context);
       if (!made.ok) return made;
       const bundle = made.value;

@@ -36,14 +36,14 @@ function unsupported(param: string): ConversionResult<ChatRequest> {
  */
 export interface ResponsesToChatRequestOptions { readonly channelCapabilities?: ChannelCapabilities }
 export function convertResponsesToChatRequest(input: ResponsesRequest, context: RequestContext, options: ResponsesToChatRequestOptions = {}): ConversionResult<ChatRequest> {
-  if (typeof context.targetModel !== 'string' || context.targetModel.trim().length === 0) return {
+  if (typeof context.targetModel !== 'string') return {
     ok: false, error: { kind: 'invalid_request', code: 'invalid_target_model', message: 'A target model is required.', param: 'targetModel' },
   };
   const parsed = parseResponsesRequest(input, { unknownFields: 'preserve' });
   if (!parsed.ok) return parsed;
   const request = parsed.value;
   const format = request.text?.format;
-  const checked = checkRequestCapabilities({ protocol: 'responses', request }, options.channelCapabilities ?? { protocol: 'chat', features: [] });
+  const checked = checkRequestCapabilities({ protocol: 'responses', request }, options.channelCapabilities ?? { protocol: 'chat' });
   if (!checked.supported) return unsupported(checked.reasons[0]?.path ?? '$');
   for (const key of Object.keys(request)) if (!['model', 'instructions', 'input', 'tools', 'tool_choice', 'parallel_tool_calls', 'max_output_tokens', 'temperature', 'top_p', 'stream', 'text', 'reasoning'].includes(key)) return unsupported(key);
   let reasoningEffort: string | undefined;

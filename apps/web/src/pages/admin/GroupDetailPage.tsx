@@ -176,10 +176,6 @@ export function GroupDetailPage() {
                 <dt className="console-label">访问组 ID</dt>
                 <dd className="mt-1 break-all font-mono text-sm select-all">{group.id}</dd>
               </div>
-              <div>
-                <dt className="console-label">配置版本</dt>
-                <dd className="mt-1 console-number">v{group.version}</dd>
-              </div>
             </dl>
           </details>
         </div>

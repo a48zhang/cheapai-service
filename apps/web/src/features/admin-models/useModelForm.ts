@@ -43,7 +43,7 @@ export function useModelForm({ client, model, onSaved }: UseModelFormProps) {
     } catch (error) {
       const conflict = error instanceof ApiClientError && error.status === 409;
       const context = conflict
-        ? '模型价格版本已变化。请重新读取并核对后再保存；当前输入已保留。'
+        ? '模型已被其他操作更新。请刷新后核对并保存；当前输入已保留。'
         : error instanceof Error
           ? `${error.message} 当前输入已保留。`
           : '保存结果未确认。请重新读取模型；当前输入已保留。';

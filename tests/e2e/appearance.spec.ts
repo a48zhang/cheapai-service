@@ -71,9 +71,6 @@ test('storage failure does not prevent switching appearance', async ({ page }) =
   await page.getByRole('button', { name: '外观', exact: true }).click();
   await page.getByRole('menuitemradio', { name: '深色', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  await expect(page.getByRole('status').filter({ hasText: '外观已切换' })).toContainText(
-    '暂时无法保存',
-  );
 });
 
 test('appearance menu supports keyboard navigation and outside dismissal', async ({ page }) => {

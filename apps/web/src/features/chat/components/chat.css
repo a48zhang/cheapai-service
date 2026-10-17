@@ -184,8 +184,8 @@
   opacity: 0.55;
   cursor: not-allowed;
 }
-.chat-model-trigger span,
-.chat-model-current span {
+.chat-model-trigger > .model-identity,
+.chat-model-current > .model-identity {
   min-width: 0;
   max-width: 270px;
   overflow: hidden;
@@ -292,32 +292,11 @@
 .chat-model-option[aria-pressed='true'] {
   background: var(--color-accent-soft);
 }
-.chat-model-icon-slot {
-  flex: 0 0 22px;
-  height: 22px;
-  border: 1px solid var(--color-line);
-  border-radius: 6px;
-  background: var(--color-surface-subtle);
-}
 .chat-model-name {
-  display: flex;
-  align-items: center;
-  gap: 5px;
   flex: 1;
   min-width: 0;
   color: var(--color-ink);
   font-size: 14px;
-}
-.chat-model-name > span:first-child {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.chat-model-group {
-  flex-shrink: 0;
-  font-size: 12px;
-  color: var(--color-ink-muted);
 }
 .chat-model-price-tag {
   flex-shrink: 0;
@@ -389,8 +368,8 @@
     font-size: 16px;
   }
 
-  .chat-model-trigger span,
-  .chat-model-current span {
+  .chat-model-trigger > .model-identity,
+  .chat-model-current > .model-identity {
     max-width: 185px;
   }
   .chat-message {

@@ -3,7 +3,7 @@ import { checkRequestCapabilities, identifyRequestFeatures } from '../../../pack
 import type { ProtocolRequest, ChannelCapabilities } from '../../../packages/apicompat/capabilities/check';
 
 const chat = (patch = {}): ProtocolRequest => ({ protocol: 'chat', request: { model: 'm', messages: [{ role: 'user', content: 'hello' }], max_completion_tokens: 64, ...patch } });
-const target = (protocol: ChannelCapabilities['protocol']): ChannelCapabilities => ({ protocol, features: [] });
+const target = (protocol: ChannelCapabilities['protocol']): ChannelCapabilities => ({ protocol });
 
 describe('protocol representability rather than declared capability policy', () => {
   it('reuses parsed features and accepts native extensions without declarations', () => {
@@ -24,8 +24,7 @@ describe('protocol representability rather than declared capability policy', () 
     expect(checkRequestCapabilities(chat({ provider_option: true }), target('chat')).supported).toBe(true);
     expect(checkRequestCapabilities(chat({ provider_option: true }), target('responses'))).toMatchObject({ supported: false, reasons: [{ code: 'no_protocol_mapping', path: '$.provider_option' }] });
   });
-  it('retains channel output limits and the Messages output-token requirement', () => {
-    expect(checkRequestCapabilities(chat(), { ...target('chat'), maxOutputTokens: 32 })).toMatchObject({ supported: false, reasons: [{ code: 'output_limit_exceeded' }] });
+  it('retains the Messages output-token requirement', () => {
     expect(checkRequestCapabilities(chat({ max_completion_tokens: undefined }), target('messages'))).toMatchObject({ supported: false, reasons: [{ code: 'output_limit_required' }] });
   });
   it('does not weaken a constraint that cannot be represented across protocols', () => {

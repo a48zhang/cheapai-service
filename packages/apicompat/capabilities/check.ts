@@ -30,14 +30,6 @@ export interface NativeExtensionPermission {
 
 export interface ChannelCapabilities {
   readonly protocol: Protocol;
-  /** Informational model capabilities; native requests are forwarded unchanged. */
-  readonly features: readonly CapabilityFeature[];
-  readonly maxOutputTokens?: number;
-  /** Explicit policy default needed when converting an uncapped request to Messages. */
-  readonly reasoningEfforts?: readonly string[];
-  readonly cacheTtls?: readonly ("5m" | "1h")[];
-  /** Legacy metadata, retained for stored configuration compatibility; never gates forwarding. */
-  readonly nativeExtensions?: readonly NativeExtensionPermission[];
 }
 
 export interface FeatureRequirement {
@@ -59,9 +51,8 @@ export interface RequestFeatures {
   readonly requiresFileBinding: boolean;
 }
 
-export type CapabilityReasonCode = "invalid_request" | "invalid_channel_capabilities" | "missing_capability"
-  | "no_protocol_mapping" | "extension_not_allowed" | "output_limit_exceeded" | "output_limit_required"
-  | "parameter_not_representable" | "reasoning_effort_not_supported" | "cache_ttl_not_supported";
+export type CapabilityReasonCode = "invalid_request" | "no_protocol_mapping" | "output_limit_required"
+  | "parameter_not_representable";
 
 export interface CapabilityReason {
   readonly code: CapabilityReasonCode;
@@ -368,9 +359,6 @@ export function checkRequestCapabilities(input: ProtocolRequest, channel: Channe
   const features = identified.value;
   const reasons: CapabilityReason[] = [];
   const problem = (code: CapabilityReasonCode, path: string, message: string, feature?: CapabilityFeature): void => { reasons.push({ code, path, message, ...(feature ? { feature } : {}) }); };
-  if (channel.maxOutputTokens !== undefined && !positive(channel.maxOutputTokens)) {
-    problem("invalid_channel_capabilities", "$channel", "Channel maximum output must be a positive safe integer.");
-  }
   for (const requirement of features.required) {
     if (input.protocol !== channel.protocol && (requirement.mapping === "native" || (requirement.targets && !requirement.targets.includes(channel.protocol)))) {
       problem("no_protocol_mapping", requirement.path, "This constraint has no equivalent mapping to the target protocol.", requirement.feature);
@@ -383,7 +371,6 @@ export function checkRequestCapabilities(input: ProtocolRequest, channel: Channe
   }
   const outputTokenLimit = features.outputTokenLimit;
   if (channel.protocol === "messages" && outputTokenLimit === undefined) problem("output_limit_required", "$.max_tokens", "Messages requires an explicit output limit in the client request.");
-  if (outputTokenLimit !== undefined && channel.maxOutputTokens !== undefined && outputTokenLimit > channel.maxOutputTokens) problem("output_limit_exceeded", "$.max_output_tokens", "Requested output exceeds the channel limit; it cannot be silently clamped.");
   if (input.protocol !== channel.protocol && channel.protocol === "messages" && features.temperature !== undefined && features.temperature > 1) problem("parameter_not_representable", "$.temperature", "Messages cannot represent this temperature without changing it.", "temperature");
   if (reasons.length) return { ...direction, supported: false, features, reasons };
   const requiredChecks: RequiredCapabilityCheck[] = [];

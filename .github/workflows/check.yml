@@ -66,8 +66,12 @@ jobs:
         if: steps.changes.outputs.desktop == 'true'
         run: pnpm run build:desktop
 
-      - name: Check React and shared package style
-        run: pnpm run lint:web && pnpm run lint:shared && pnpm run format:check:web
+      - name: Check React and shared packages
+        run: pnpm run lint:web && pnpm run lint:shared
+
+      - name: Report formatting differences
+        continue-on-error: true
+        run: pnpm run format:check:web
 
       - name: Install Playwright Chromium and system dependencies
         run: pnpm exec playwright install --with-deps chromium

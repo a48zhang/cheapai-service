@@ -101,7 +101,7 @@ type Tool = {
 };
 
 function validModel(value: unknown): value is string {
-  return typeof value === 'string' && value.trim().length > 0 && value.length <= 512 && !/[\u0000-\u001f\u007f]/u.test(value);
+  return typeof value === 'string';
 }
 
 function validToolName(value: unknown): value is string {

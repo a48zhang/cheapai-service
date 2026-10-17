@@ -45,8 +45,8 @@ async function addChannel(id: string, priority: number, secret: string): Promise
   await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
     VALUES(?,?,?,?,'active',?,2,60,1,0,0)`).bind(id, id, `https://provider-${id}.example.invalid`, credential, priority).run();
   await testEnv.DB.prepare('INSERT INTO channel_groups(channel_id,group_id) VALUES(?,?)').bind(id, group).run();
-  await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,upstream_model,protocol,capabilities_json,config_version)
-    VALUES(?,?,?,?,?,1)`).bind(id, model, `upstream-${id}`, 'responses', JSON.stringify({ protocol: 'responses', features: ['streaming', 'response_history'], maxOutputTokens: 64 })).run();
+  await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,upstream_model,protocol,config_version)
+    VALUES(?,?,?,?,1)`).bind(id, model, `upstream-${id}`, 'responses').run();
 }
 
 beforeEach(async () => {
@@ -61,7 +61,7 @@ beforeEach(async () => {
   otherKey = await addKey('q08-other-key', other);
 
   env = { ...testEnv, ENVIRONMENT: 'local', PUBLIC_BASE_URL: origin,  } as Env;
-  await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES (?,'active','{"input":"1","output":"2"}', 1, 0, 64, 0, 0)`).bind(model).run();
+  await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,created_at,updated_at) VALUES (?,'active','{"input":"1","output":"2"}', 1, 0, 0)`).bind(model).run();
   await addChannel(channelA, 10, 'q08-upstream-a'); await addChannel(channelB, 1, 'q08-upstream-b');
 });
 

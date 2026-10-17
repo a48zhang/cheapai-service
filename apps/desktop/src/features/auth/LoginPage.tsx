@@ -31,15 +31,6 @@ export function LoginPage({ store, onAuthenticated }: LoginPageProps) {
     if (composing.current || submitting.current || loginPending) return
     setFormError('')
 
-    const normalizedEmail = email.trim()
-    if (normalizedEmail.length === 0) {
-      setFormError('请输入邮箱地址。')
-      return
-    }
-    if (password.length === 0) {
-      setFormError('请输入密码。')
-      return
-    }
     if (!snapshot.available) {
       setPassword('')
       setFormError('浏览器预览不可用账号登录，请在桌面应用中继续。')
@@ -50,7 +41,7 @@ export function LoginPage({ store, onAuthenticated }: LoginPageProps) {
     setPassword('')
     submitting.current = true
     try {
-      const state = await store.login({ email: normalizedEmail, password: submittedPassword })
+      const state = await store.login({ email, password: submittedPassword })
       if (state.status === 'signedIn') {
         try {
           await onAuthenticated?.(state)
@@ -131,8 +122,7 @@ export function LoginPage({ store, onAuthenticated }: LoginPageProps) {
             onCompositionEnd={() => setComposition(false)}
             onCompositionStart={() => setComposition(true)}
             placeholder="name@example.com"
-            required
-            type="email"
+            type="text"
             value={email}
           />
 
@@ -146,7 +136,6 @@ export function LoginPage({ store, onAuthenticated }: LoginPageProps) {
             onCompositionEnd={() => setComposition(false)}
             onCompositionStart={() => setComposition(true)}
             placeholder="输入密码"
-            required
             type="password"
             value={password}
           />

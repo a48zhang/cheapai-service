@@ -28,10 +28,7 @@ function invalid(code: string, param: string): never {
 
 /** This compatibility endpoint supplies the supported version when omitted;
  * an explicit version is never silently rewritten. No upstream call here. */
-export async function parseMessagesInput(input: Request, options: { maxBodyBytes?: number; maxOutputTokens?: number } = {}): Promise<ParsedMessagesInput> {
-  if (options.maxOutputTokens !== undefined && (!Number.isSafeInteger(options.maxOutputTokens) || options.maxOutputTokens < 1)) {
-    throw new ApiError('service_unavailable');
-  }
+export async function parseMessagesInput(input: Request, options: { maxBodyBytes?: number } = {}): Promise<ParsedMessagesInput> {
   const version = input.headers.get('anthropic-version') ?? MESSAGES_INPUT_VERSION;
   const rawBetas = input.headers.get('anthropic-beta');
   const betas = rawBetas === null ? [] : rawBetas.split(',').map(value => value.trim());
@@ -44,7 +41,6 @@ export async function parseMessagesInput(input: Request, options: { maxBodyBytes
   }
   const features = identifyRequestFeatures({ protocol: 'messages', request });
   if (!features.ok) throw new MessagesInputError(features.error);
-  if (options.maxOutputTokens !== undefined && request.max_tokens > options.maxOutputTokens) invalid('output_limit_exceeded', '$.max_tokens');
   return { protocol: 'messages', request, model: request.model, stream: request.stream === true,
     features: features.value, version, betas: [...new Set(betas)] };
 }

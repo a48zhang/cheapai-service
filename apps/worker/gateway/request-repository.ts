@@ -73,7 +73,7 @@ function buildRegistration(database: D1Database, input: RequestRegistrationInput
       AND k.status='active' AND u.status='active' AND g.status='active' AND c.status='active' AND m.status='active'
       AND k.created_at<=? AND (k.expires_at IS NULL OR k.expires_at>?)
       AND (k.allowed_models_json IS NULL OR EXISTS(SELECT 1 FROM json_each(k.allowed_models_json) WHERE value=m.public_model_id))
-      AND u.balance_units>0 AND u.balance_units>=m.admission_min_balance_units
+      AND u.balance_units>0
       AND (
         (? IS NULL AND ? IS NULL AND ? IS NULL AND ?='api' AND g.billing_multiplier='1')
         OR (?=g.id AND ?=g.version AND COALESCE(?, '1')=g.billing_multiplier)

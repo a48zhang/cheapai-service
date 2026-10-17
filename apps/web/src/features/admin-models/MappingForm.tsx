@@ -8,6 +8,7 @@ import { Field } from '../../shared/ui/Field';
 import { Input } from '../../shared/ui/Input';
 import { Select } from '../../shared/ui/Select';
 import { Button } from '../../shared/ui/Button';
+import { ModelIdentity } from '../../shared/ui/ModelIdentity';
 import { mappingKey } from './mapping-form-model';
 import { useMappingForm } from './useMappingForm';
 
@@ -49,7 +50,6 @@ export function MappingForm({
     rows,
     selected,
     selectedKey,
-    latestSelected,
     versionChanged,
     duplicate,
     saving,
@@ -167,22 +167,19 @@ export function MappingForm({
             ))}
           </ul>
         )}
-        {versionChanged && latestSelected && (
+        {versionChanged && (
           <div
             className="grid gap-2 rounded-lg border border-[var(--color-warning-line)] bg-[var(--color-warning-soft)] p-3 text-sm text-[var(--color-warning)]"
             role="alert"
           >
-            <p>
-              此映射已更新到 v{latestSelected.configVersion}
-              ；表单仍保留当前输入。检查两边的字段后，可明确采用新版本并保留当前输入。
-            </p>
+            <p>此映射已被其他操作更新。当前输入已保留，请同步后核对并保存。</p>
             <Button
               size="sm"
               variant="secondary"
               disabled={saving || mappings.isFetching}
               onClick={retainDraftOnLatestVersion}
             >
-              采用 v{latestSelected.configVersion}，保留输入
+              同步并保留输入
             </Button>
           </div>
         )}
@@ -203,6 +200,7 @@ export function MappingForm({
           onSubmit={form.handleSubmit(submit)}
         >
           <div>
+            <ModelIdentity modelId={publicModelId} className="mb-3" />
             <h3 className="font-semibold">{selected ? '编辑渠道映射' : '创建渠道映射'}</h3>
             <p className="mt-1 console-muted">选择渠道与协议，并填写上游模型名称。</p>
           </div>
@@ -265,15 +263,12 @@ export function MappingForm({
             </div>
             <Field
               label="上游模型名称"
-              required
               error={form.formState.errors.upstreamModel?.message}
               description="填写此渠道实际接受的上游模型 ID。"
             >
               <Input
                 {...form.register('upstreamModel')}
-                required
                 autoComplete="off"
-                maxLength={128}
                 placeholder="例如 vendor-model-v2"
               />
             </Field>

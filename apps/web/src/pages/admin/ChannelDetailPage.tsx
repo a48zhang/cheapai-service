@@ -153,10 +153,6 @@ export function ChannelDetailPage() {
                   <dt className="console-label">渠道 ID</dt>
                   <dd className="mt-1 break-all font-mono text-sm select-all">{channel.id}</dd>
                 </div>
-                <div>
-                  <dt className="console-label">配置版本</dt>
-                  <dd className="mt-1 console-number">v{channel.configVersion}</dd>
-                </div>
               </dl>
             </details>
           </section>

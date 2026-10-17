@@ -41,7 +41,6 @@ describe('P-MR-Q1 direct native text history', () => {
   });
   it('validates source and target, with fresh copied containers', () => {
     expect(messagesToResponsesRequest({ ...base(), max_tokens: 0 }, context).ok).toBe(false);
-    expect(messagesToResponsesRequest(base(), { targetModel: '' }).ok).toBe(false);
     const source = { ...base(), system: [{ type: 'text', text: 's' }] };
     const original = structuredClone(source); const result = messagesToResponsesRequest(source, context);
     expect(source).toEqual(original);
@@ -51,7 +50,7 @@ describe('P-MR-Q1 direct native text history', () => {
 });
 
 describe('P-MR-Q3 image transport', () => {
-  const policy: ChannelCapabilities = { protocol: 'responses', features: ['tools', 'image_url', 'image_base64', 'tool_result_images'] };
+  const policy: ChannelCapabilities = { protocol: 'responses' };
   const image = (source: unknown) => ({ type: 'image', source });
   const convert = (source: unknown) => messagesToResponsesRequest({ ...base(), messages: [{ role: 'user', content: [{ type: 'text', text: 'before' }, image(source), { type: 'text', text: 'after' }] }] }, context, { channelCapabilities: policy });
   it('keeps URL/text block order and never fetches images', () => {
@@ -74,12 +73,12 @@ describe('P-MR-Q3 image transport', () => {
     const result = messagesToResponsesRequest(request, context, { channelCapabilities: policy });
     expect(result).toMatchObject({ ok: true, value: { input: [{ type: 'function_call', call_id: 'a' }, { type: 'function_call_output', call_id: 'a', output: [{ type: 'input_text', text: 'result' }, { type: 'input_image', image_url: 'data:image/png;base64,AQID' }] }] } });
     if (result.ok) expect(parseResponsesRequest(result.value).ok).toBe(true);
-    expect(messagesToResponsesRequest(request, context, { channelCapabilities: { protocol: 'responses', features: ['tools', 'image_base64'] } }).ok).toBe(true);
+    expect(messagesToResponsesRequest(request, context, { channelCapabilities: { protocol: 'responses' } }).ok).toBe(true);
   });
   it('accepts undeclared image transport but rejects assistant images', () => {
     const request = { ...base(), messages: [{ role: 'user', content: [image({ type: 'url', url: 'https://image.example/x' })] }] };
     expect(messagesToResponsesRequest(request, context).ok).toBe(true);
-    expect(createMessagesToResponsesRequestAdapter({ protocol: 'responses', features: [] }).convert(request as never, context).ok).toBe(true);
+    expect(createMessagesToResponsesRequestAdapter({ protocol: 'responses' }).convert(request as never, context).ok).toBe(true);
     expect(messagesToResponsesRequest({ ...request, messages: [{ role: 'assistant', content: request.messages[0]!.content }] }, context, { channelCapabilities: policy }).ok).toBe(false);
   });
   it.each([{ type: 'base64', media_type: 'image/svg+xml', data: 'AQID' }, { type: 'base64', media_type: 'image/png', data: 'AR==' },
@@ -135,14 +134,13 @@ describe('P-MR-Q2 native tool items', () => {
 
 describe('P-MR-Q4 generation controls', () => {
   const configured = () => createMessagesToResponsesRequestAdapter({
-    protocol: 'responses', features: ['temperature', 'top_p', 'streaming'], maxOutputTokens: 200,
+    protocol: 'responses',
   });
   it('maps output limit, sampling and stream without fabricating defaults', () => {
     const result = configured().convert({ ...base(), max_tokens: 150, temperature: 0, top_p: 1, stream: true }, context);
     expect(result).toMatchObject({ ok: true, value: { max_output_tokens: 150, temperature: 0, top_p: 1, stream: true } });
   });
-  it('maps undeclared sampling while rejecting output limits and unrepresentable stop controls', () => {
-    expect(configured().convert({ ...base(), max_tokens: 201 }, context).ok).toBe(false);
+  it('maps undeclared sampling while rejecting unrepresentable stop controls', () => {
     expect(messagesToResponsesRequest({ ...base(), temperature: 0.5 }, context).ok).toBe(true);
     expect(configured().convert({ ...base(), stop_sequences: ['END'] }, context).ok).toBe(false);
     expect(configured().convert({ ...base(), stop_sequences: [] }, context).ok).toBe(false);
@@ -152,7 +150,7 @@ describe('P-MR-Q4 generation controls', () => {
 describe('P-MR-Q4-O structured output and P-MR-Q5 effort', () => {
   const schema = { type: 'object', properties: { value: { type: ['string', 'null'] } }, required: ['value'], additionalProperties: false };
   const structured = () => createMessagesToResponsesRequestAdapter({
-    protocol: 'responses', features: ['json_schema', 'reasoning_effort'], reasoningEfforts: ['low', 'medium', 'high'],
+    protocol: 'responses',
   });
   it('maps native output_config schema to Responses text.format without changing the schema', () => {
     const result = structured().convert({ ...base(), output_config: { format: { type: 'json_schema', schema } } }, context);
@@ -172,7 +170,7 @@ describe('P-MR-Q4-O structured output and P-MR-Q5 effort', () => {
 
 describe('P-MR-Q6 native cache and extension boundaries', () => {
   const configured = () => createMessagesToResponsesRequestAdapter({
-    protocol: 'responses', features: ['cache_control'], cacheTtls: ['5m', '1h'],
+    protocol: 'responses',
   });
   it('rejects Messages-native cache markers and unrelated extensions across protocols', () => {
     expect(configured().convert({ ...base(), cache_control: { type: 'ephemeral' } }, context).ok).toBe(false);

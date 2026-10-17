@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createModelMapping, getModelMapping, listModelMappings, updateModelMapping, validateMappingCapabilities } from '../../apps/worker/admin/model-mappings';
+import { createModelMapping, getModelMapping, listModelMappings, updateModelMapping } from '../../apps/worker/admin/model-mappings';
 import type { ModelMappingInput } from '../../apps/worker/admin/model-mappings';
 import { createChannel } from '../../apps/worker/admin/channel-repository';
 import { createModel } from '../../apps/worker/admin/model-repository';
@@ -10,7 +10,7 @@ const modelId = 'c10-public';
 
 const context = (operationId: string) => ({ actorId: 'c10-admin', operationId, now: 2000 });
 function mapping(protocol: 'chat' | 'responses' | 'messages' = 'chat'): ModelMappingInput {
-  return { channelId, publicModelId: modelId, protocol, upstreamModel: `provider-${protocol}`, capabilities: { protocol, features: [], maxOutputTokens: 8192 } };
+  return { channelId, publicModelId: modelId, protocol, upstreamModel: `provider-${protocol}` };
 }
 const key = (protocol: 'chat' | 'responses' | 'messages' = 'chat') => ({ channelId, publicModelId: modelId, protocol });
 async function audits() { return (await testEnv.DB.prepare("SELECT * FROM admin_audit WHERE target_type='channel_model'").all()).results; }
@@ -22,17 +22,15 @@ describe('channel/model/protocol mappings on native D1', () => {
       VALUES ('c10-admin','c10@example.invalid','test-only','admin','active','c10-group',2,60,'admin',0,0)`).run();
     const channel = await createChannel(testEnv.DB, { name: 'C10 channel', baseUrl: 'https://provider.example.com', upstreamKey: 'test-key', concurrencyLimit: 2, rpmLimit: 60 }, context('channel'));
     channelId = channel.id;
-    await createModel(testEnv.DB, { publicModelId: modelId, sellPrices: { input: '1', output: '2' }, admissionMinBalanceUnits: '0', maxOutputTokens: 4096 }, context('model'));
+    await createModel(testEnv.DB, { publicModelId: modelId, sellPrices: { input: '1', output: '2' } }, context('model'));
   });
 
-  it('stores three distinct upstream mappings without treating capabilities as converter availability', async () => {
+  it('stores three distinct upstream mappings', async () => {
     for (const protocol of ['chat', 'responses', 'messages'] as const) await createModelMapping(testEnv.DB, mapping(protocol), context(protocol));
     const rows = await listModelMappings(testEnv.DB, { publicModelId: modelId });
     expect(rows).toHaveLength(3);
     for (const row of rows) {
       expect(row.upstreamModel).toBe(`provider-${row.protocol}`);
-      expect(row.capabilities.protocol).toBe(row.protocol);
-      expect(row.capabilities.features).toEqual([]);
       expect(row).not.toHaveProperty('supported');
       expect(row).not.toHaveProperty('converterReady');
     }
@@ -48,38 +46,22 @@ describe('channel/model/protocol mappings on native D1', () => {
     expect(await audits()).toHaveLength(1);
   });
 
-  it('updates a single protocol via CAS and replaces capabilities without mutating input', async () => {
+  it('updates a single protocol via CAS', async () => {
     await createModelMapping(testEnv.DB, mapping(), context('create-chat'));
     await createModelMapping(testEnv.DB, mapping('messages'), context('create-messages'));
-    const capabilities = { protocol: 'chat' as const, features: ['tools' as const, 'parallel_tools' as const], maxOutputTokens: 4096 };
-    const changed = await updateModelMapping(testEnv.DB, key(), 1, { upstreamModel: 'new-upstream', capabilities }, context('update'));
-    capabilities.features.length = 0;
+    const changed = await updateModelMapping(testEnv.DB, key(), 1, { upstreamModel: 'new-upstream' }, context('update'));
     expect(changed).toMatchObject({ configVersion: 2, upstreamModel: 'new-upstream' });
-    expect(changed.capabilities.features).toEqual(['parallel_tools', 'tools']);
     expect((await getModelMapping(testEnv.DB, key('messages')))?.upstreamModel).toBe('provider-messages');
     await expect(updateModelMapping(testEnv.DB, key(), 1, { upstreamModel: 'stale' }, context('stale'))).rejects.toMatchObject({ code: 'conflict' });
     await expect(updateModelMapping(testEnv.DB, key(), 2, { protocol: 'messages' } as never, context('identity-change'))).rejects.toMatchObject({ code: 'invalid_request' });
   });
 
-  it('accepts descriptive capabilities without feature or extension allowlists', async () => {
-    const capabilities = { protocol: 'chat' as const, features: ['vendor_feature', 'stream_usage'],
-      reasoningEfforts: ['future-effort'], cacheTtls: ['24h'],
-      nativeExtensions: [{ scope: 'anything', name: '*' }], supported: true };
-    const result = await createModelMapping(testEnv.DB, { ...mapping(), capabilities: capabilities as never }, context('metadata'));
-    expect(result.capabilities).toMatchObject({ features: ['stream_usage', 'vendor_feature'], reasoningEfforts: ['future-effort'], cacheTtls: ['24h'] });
-    expect(result.capabilities).not.toHaveProperty('nativeExtensions');
-    for (const bad of [{ protocol: 'messages' }, { protocol: 'chat', maxOutputTokens: 0 }, { protocol: 'chat', maxOutputTokens: Number.MAX_SAFE_INTEGER + 1 }]) {
-      expect(() => validateMappingCapabilities(bad, 'chat')).toThrow();
-    }
-  });
 
-  it('filters active parents only when requested and rejects corrupt stored capability claims', async () => {
+  it('filters active parents only when requested', async () => {
     await createModelMapping(testEnv.DB, mapping(), context('create'));
     await testEnv.DB.prepare('UPDATE channels SET status=? WHERE id=?').bind('disabled', channelId).run();
     expect(await listModelMappings(testEnv.DB, { publicModelId: modelId, activeOnly: true })).toEqual([]);
     expect(await listModelMappings(testEnv.DB, { publicModelId: modelId })).toHaveLength(1);
-    await testEnv.DB.prepare('UPDATE channel_models SET capabilities_json=? WHERE channel_id=?').bind('{"protocol":"chat","maxOutputTokens":0}', channelId).run();
-    await expect(getModelMapping(testEnv.DB, key())).rejects.toMatchObject({ code: 'service_unavailable' });
   });
 
   it('serializes concurrent updates with one audit and rolls back audit failures and zero-row mutations', async () => {

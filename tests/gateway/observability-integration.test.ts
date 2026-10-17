@@ -52,9 +52,9 @@ beforeEach(async () => {
   await testEnv.DB.prepare(`INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)
     VALUES(?,?,?,?,'active',1,2,60,1,0,0)`).bind(channel, 'G22', 'https://provider.example.invalid/g22', credential).run();
   await testEnv.DB.prepare("INSERT INTO channel_groups(channel_id,group_id) VALUES('g22-channel','g22-group')").run();
-  await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,admission_min_balance_units,max_output_tokens,created_at,updated_at) VALUES (?,'active','{"input":"1","output":"2"}', 1, 0, 64, 0, 0)`).bind(model).run();
-  await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,upstream_model,protocol,capabilities_json,config_version)
-    VALUES(?,?,?,?,?,1)`).bind(channel, model, 'g22-upstream', 'chat', JSON.stringify({ protocol: 'chat', features: ['streaming', 'stream_usage'], maxOutputTokens: 64 })).run();
+  await testEnv.DB.prepare(`INSERT INTO models (public_model_id,status,sell_prices_json,price_version,created_at,updated_at) VALUES (?,'active','{"input":"1","output":"2"}', 1, 0, 0)`).bind(model).run();
+  await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,upstream_model,protocol,config_version)
+    VALUES(?,?,?,?,1)`).bind(channel, model, 'g22-upstream', 'chat').run();
 });
 
 describe('G22 diagnostics and request observability through the Worker', () => {
