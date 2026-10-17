@@ -1,0 +1,45 @@
+name: Read-only chat endpoint diagnosis
+
+on:
+  push:
+    branches: [diagnostic/chat-public-endpoints]
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Inspect public pages and unauthenticated API routes
+        run: |
+          node --input-type=module <<'JS'
+          const origins = ['https://cheapai.dev', 'https://www.cheapai.dev', 'https://pre.cheapai.dev'];
+          const paths = ['/chat', '/healthz', '/api/v1/settings/public', '/api/v1/auth/me'];
+          await Promise.all(origins.flatMap(origin => paths.map(async path => {
+            const url = origin + path;
+            try {
+              const response = await fetch(url, { signal: AbortSignal.timeout(15000), redirect: 'follow' });
+              const body = await response.text();
+              let json;
+              try { json = JSON.parse(body); } catch {}
+              console.log(JSON.stringify({
+                url, final_url: response.url, status: response.status,
+                content_type: response.headers.get('content-type'),
+                cf_ray: response.headers.get('cf-ray'),
+                csp: path === '/chat' ? response.headers.get('content-security-policy') : undefined,
+                script_assets: path === '/chat' ? [...body.matchAll(/src="([^"]+\.js)"/g)].map(match => match[1]) : undefined,
+                health: path === '/healthz' ? json : undefined,
+                settings: path === '/api/v1/settings/public' && json?.data ? {
+                  keys: Object.keys(json.data), csrf_token_present: typeof json.data.csrfToken === 'string',
+                  csrf_cookie_present: response.headers.get('set-cookie')?.includes('__Host-sub2api_csrf=') ?? false,
+                } : undefined,
+                api_error: json?.error, request_id: json?.request_id,
+                unexpected_body: !json && path !== '/chat' ? body.slice(0,300) : undefined,
+              }));
+            } catch (error) {
+              console.log(JSON.stringify({url, error: String(error), cause: String(error.cause ?? '')}));
+            }
+          })));
+          JS
