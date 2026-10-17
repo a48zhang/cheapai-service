@@ -23,8 +23,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
-      - name: Read exact failed-request Worker logs only
+      - name: Read only failed-request channel endpoint and mapping
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           DIAGNOSTIC_REQUEST_IDS: '["223f172339512d6e662e6534c07d8c4a","43a4489fa077da352474c2f0e07bf8cb"]'
-        run: node scripts/one-off-chat-log-query.mjs
+        run: node --experimental-strip-types scripts/one-off-channel-metadata.ts
