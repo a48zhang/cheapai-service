@@ -52,7 +52,7 @@ describe('ordinary JSON execution with actual admission, D1 accounting and mock 
   afterEach(() => vi.restoreAllMocks());
 
   it.each([
-    { status: 503, body: '{"error":{"message":"PRIVATE RESPONSE trusted-upstream"}}', source: 'provider_http', code: 'http_error' },
+    { status: 503, body: '{"error":{"code":"overloaded","message":"capacity exhausted trusted-upstream"},"private":"PRIVATE RESPONSE"}', source: 'provider_http', code: 'http_error' },
     { status: 200, body: 'PRIVATE RESPONSE trusted-upstream', source: 'response_format', code: 'invalid_json_or_encoding' },
   ])('logs safe JSON failure metadata for status $status', async scenario => {
     const logs = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -68,6 +68,7 @@ describe('ordinary JSON execution with actual admission, D1 accounting and mock 
     expect(events[0]).toMatchObject({ request_id: admission.request.id, public_model_id: 'g07-model', upstream_model: 'provider-model',
       failure_source: scenario.source, failure_code: scenario.code, upstream_status: scenario.status });
     expect(events[0].upstream_request_id).not.toBe('trusted-upstream');
+    if (scenario.status === 503) expect(events[0].provider_error).toMatchObject({ code: 'overloaded', message: expect.stringContaining('capacity exhausted') });
     expect(JSON.stringify(logs.mock.calls)).not.toMatch(/PRIVATE RESPONSE|trusted-upstream/);
     expect(fetcher).toHaveBeenCalledOnce();
   });

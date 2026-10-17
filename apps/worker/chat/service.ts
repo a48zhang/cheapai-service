@@ -1,4 +1,4 @@
-import { logError } from '../logging';
+import { logExecutionFailure, requestDiagnosticSecrets } from '../gateway/execution-diagnostics';
 import { API_ERRORS, ApiError } from '../http';
 import { authenticateWebChat } from '../auth/web-chat-auth';
 import { authorizeChatSelection, listAuthorizedChatModels } from './models';
@@ -143,6 +143,7 @@ export function createTrustedChatGateway(dependencies: ChatGatewayDependencies):
           onRegistered: async requestId => { await request.onRegistered(requestId); registered = true; },
           signal,
         }, { waitUntil });
+        if (!response.ok) logExecutionFailure({ id: response.headers.get('X-Request-Id') ?? 'unregistered', public_model_id: request.modelId, downstream_protocol: 'chat' }, { stage: 'chat_bridge', source: 'chat_bridge', code: 'gateway_http_rejected', response });
         if (!registered && !response.ok) await throwUnregisteredGatewayError(response);
         const requestId = response.headers.get('X-Request-Id') ?? response.headers.get('X-Request-ID');
         if (requestId === null || !identifier.test(requestId)) throw new ApiError('service_unavailable');
@@ -160,6 +161,7 @@ export function createTrustedChatGateway(dependencies: ChatGatewayDependencies):
               if (row?.execution_status === 'succeeded') return { terminal: 'completed' as const, billingStatus: row.billing_status };
               if (row?.execution_status === 'cancelled') return { terminal: 'stopped' as const, billingStatus: row.billing_status };
               if (row?.execution_status === 'failed' || row?.execution_status === 'abandoned') return { terminal: 'failed' as const, billingStatus: row.billing_status };
+              logExecutionFailure({ id: requestId, public_model_id: request.modelId }, { stage: 'chat_bridge', source: 'persistence', code: 'gateway_terminal_unavailable', note: `execution_status=${row?.execution_status ?? 'missing_row'}` });
               return { terminal: 'failed' as const, billingStatus: 'unknown' };
             } finally { cleanup(); }
           },
@@ -298,18 +300,21 @@ export class ChatService {
         onDone: billingStatus => this.storage.finishAssistant(userId, idOfConversation, started.assistantMessage.id, 'completed', answer, this.clock()),
         onFailed: (_code, _message) => this.storage.finishAssistant(userId, idOfConversation, started.assistantMessage.id, 'failed', answer, this.clock()),
         onCancelled: () => this.storage.finishAssistant(userId, idOfConversation, started.assistantMessage.id, 'stopped', answer, this.clock()),
-      }, { ...(input.signal === undefined ? {} : { signal: input.signal }), ...(input.executionContext === undefined ? {} : {
+      }, { diagnosticIdentity: { id: execution.requestId, public_model_id: selection.model.publicModelId, downstream_protocol: 'chat' },
+        diagnosticSecrets: () => [...requestDiagnosticSecrets(started.context), answer],
+        ...(input.signal === undefined ? {} : { signal: input.signal }), ...(input.executionContext === undefined ? {} : {
         waitUntil: (work: Promise<unknown>) => input.executionContext!.waitUntil(work),
       }) });
       return { kind: 'stream', response: sseResponse(body, execution.requestId), assistantMessageId: started.assistantMessage.id };
     } catch (error) {
+      logExecutionFailure({ id: registeredRequestId ?? 'unregistered', public_model_id: selection.model.publicModelId, downstream_protocol: 'chat' }, { stage: 'chat_bridge', source: 'chat_bridge', code: 'chat_execution_failed', cause: error }, requestDiagnosticSecrets(started.context));
       // If execution escaped before a response could be installed, stop it
       // first. Gateway cleanup still owns all leases and settlement.
-      try { await boundedChatWork(Promise.resolve().then(() => execution?.cancel?.()), 1000); } catch (error) { logError('Chat cancellation failed', error, { conversation_id: idOfConversation }); }
+      try { await boundedChatWork(Promise.resolve().then(() => execution?.cancel?.()), 1000); } catch (error) { logExecutionFailure({ id: registeredRequestId ?? 'unregistered', public_model_id: selection.model.publicModelId }, { stage: 'cleanup', source: 'chat_bridge', code: 'chat_cancellation_failed', cause: error }, [...requestDiagnosticSecrets(started.context), answer]); }
       try {
         await boundedChatWork(Promise.resolve().then(() => this.storage.finishAssistant(userId, idOfConversation,
           started.assistantMessage.id, input.signal?.aborted ? 'stopped' : 'failed', answer, this.clock())));
-      } catch (error) { logError('Chat failure persistence failed', error, { conversation_id: idOfConversation, message_id: started.assistantMessage.id }); }
+      } catch (error) { logExecutionFailure({ id: registeredRequestId ?? 'unregistered', public_model_id: selection.model.publicModelId }, { stage: 'chat_persistence', source: 'persistence', code: 'chat_failure_persistence_failed', cause: error }, [...requestDiagnosticSecrets(started.context), answer]); }
       throw error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error });
     }
   }

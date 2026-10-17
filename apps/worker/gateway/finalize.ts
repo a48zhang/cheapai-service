@@ -1,4 +1,4 @@
-import { logError } from '../logging';
+import { logExecutionFailure } from './execution-diagnostics';
 import type { UsageSnapshot, UsageQuality } from '@sub2api/apicompat/types/shared';
 import { canonicalJson } from '../billing/fingerprint';
 import { settleRequest } from '../billing/settlement';
@@ -107,7 +107,7 @@ export function createRequestFinalizer(dependencies: FinalizerDependencies): Req
             if (outcome?.status === 'settled') { billingStatus = 'settled'; accounting = 'settled'; recover = false; }
             else if (outcome?.status === 'pending' && outcome.inFlight) track(outcome.inFlight);
           } catch (error) {
-            logError('Stream settlement failed', error, { request_id: request.id });
+            logExecutionFailure(request, { stage: 'settlement', source: 'accounting', code: 'settlement_failed', cause: error });
             if (error instanceof ApiError && error.code === 'conflict') { errors.push('conflict'); recover = false; }
             else errors.push(error instanceof ApiError ? error.code : 'service_unavailable');
           }
@@ -116,13 +116,14 @@ export function createRequestFinalizer(dependencies: FinalizerDependencies): Req
           const recovery = await bounded(() => saveSettlementRecovery(dependencies.database, { requestId: request.id, userId: request.user_id, usage }, now()), remaining(), signal);
           if (recovery) { billingStatus = recovery.billingStatus; accounting = billingStatus === 'settled' ? 'settled' : 'recovered'; }
         }
-      } catch (error) { logError('Request finalization failed', error, { request_id: request.id }); errors.push(error instanceof ApiError ? error.code : 'service_unavailable'); }
+      } catch (error) { logExecutionFailure(request, { stage: 'recovery', source: 'accounting', code: 'settlement_recovery_failed', cause: error }); errors.push(error instanceof ApiError ? error.code : 'service_unavailable'); }
       finally {
         if (dependencies.cleanup) {
           try { cleanup = await bounded(dependencies.cleanup, cleanupBudget) ?? { complete: false, outcomes: [] }; }
-          catch (error) { logError('Request cleanup failed', error, { request_id: request.id }); cleanup = { complete: false, outcomes: [] }; errors.push('cleanup_failed'); }
+          catch (error) { logExecutionFailure(request, { stage: 'cleanup', source: 'lifecycle', code: 'lease_cleanup_failed', cause: error }); cleanup = { complete: false, outcomes: [] }; errors.push('cleanup_failed'); }
         }
       }
+      if (errors.includes('finalization_timeout')) logExecutionFailure(request, { stage: 'settlement', source: 'accounting', code: 'finalization_timeout', note: `budget_ms=${budget}; accounting=${accounting}; billing_status=${billingStatus}; in_flight=${inFlight.length}` });
       return { requestId: request.id, usageQuality: usage.quality, billingStatus, accounting, cleanup,
         uncertain: accounting === 'unavailable' || inFlight.length > 0 || cleanup?.complete === false, errors, inFlight };
     });

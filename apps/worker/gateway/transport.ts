@@ -17,6 +17,7 @@ export class UpstreamTransportError extends Error {
     readonly reason: TransportFailure,
     readonly execution: 'not_started' | 'uncertain',
     readonly upstreamStatus?: number,
+    readonly diagnosticCause?: unknown,
   ) {
     super(`Upstream transport failed: ${reason}`);
     this.name = 'UpstreamTransportError';
@@ -307,7 +308,7 @@ export async function sendUpstream(
     headerTimer = undefined;
     rejectHeaders = undefined;
   } catch (cause) {
-    const error = failure ?? new UpstreamTransportError('network_error', 'uncertain');
+    const error = failure ?? new UpstreamTransportError('network_error', 'uncertain', undefined, cause);
     logError('Upstream fetch failed', dependencies.observer ? error : cause, {
       protocol: options.upstreamProtocol,
     });
@@ -327,7 +328,7 @@ export async function sendUpstream(
   try {
     reader = upstream.body.getReader();
   } catch (cause) {
-    const error = new UpstreamTransportError('stream_error', 'uncertain');
+    const error = new UpstreamTransportError('stream_error', 'uncertain', undefined, cause);
     logError('Upstream response reader failed', dependencies.observer ? error : cause);
     finish(error);
     throw error;
@@ -353,7 +354,7 @@ export async function sendUpstream(
             finish();
           } else target.enqueue(part.value);
         } catch (cause) {
-          const error = failure ?? new UpstreamTransportError('stream_error', 'uncertain');
+          const error = failure ?? new UpstreamTransportError('stream_error', 'uncertain', undefined, cause);
           logError('Upstream response stream failed', dependencies.observer ? error : cause);
           finish(error);
         }
@@ -370,7 +371,7 @@ export async function sendUpstream(
     });
     return { response, done, cancel };
   } catch (cause) {
-    const error = new UpstreamTransportError('stream_error', 'uncertain');
+    const error = new UpstreamTransportError('stream_error', 'uncertain', undefined, cause);
     logError('Upstream response construction failed', dependencies.observer ? error : cause);
     finish(error);
     throw error;

@@ -355,10 +355,10 @@ describe('G10 cancellation and bounded completion', () => {
 
 describe('gateway failure metadata without upstream content', () => {
   it.each([
-    { name: 'HTTP rejection', status: 503, type: 'application/json', body: 'PRIVATE RESPONSE synthetic-upstream-secret', source: 'provider_http', code: 'http_error', startup: true },
+    { name: 'HTTP rejection', status: 503, type: 'application/json', body: '{"error":{"code":"overloaded","message":"capacity exhausted synthetic-upstream-secret"},"private":"PRIVATE RESPONSE"}', source: 'provider_http', code: 'http_error', startup: true },
     { name: 'wrong MIME', status: 200, type: 'application/json', body: 'PRIVATE RESPONSE', source: 'response_format', code: 'invalid_sse_content_type', startup: true },
     { name: 'missing body', status: 204, type: 'text/event-stream', body: null, source: 'response_format', code: 'missing_body', startup: true },
-    { name: 'provider SSE error', status: 200, type: 'text/event-stream', body: 'event: error\ndata: {"error":{"message":"PRIVATE RESPONSE synthetic-upstream-secret"}}\n\n', source: 'provider_stream', code: 'upstream_error', startup: false },
+    { name: 'provider SSE error', status: 200, type: 'text/event-stream', body: 'event: error\ndata: {"error":{"code":"overloaded","type":"server_error","message":"capacity exhausted synthetic-upstream-secret"}}\n\n', source: 'provider_stream', code: 'upstream_error', startup: false },
     { name: 'invalid JSON frame', status: 200, type: 'text/event-stream', body: 'data: PRIVATE RESPONSE synthetic-upstream-secret\n\n', source: 'adapter', code: 'invalid_or_oversized_chunk', startup: false },
     { name: 'invalid chunk shape', status: 200, type: 'text/event-stream', body: 'data: {"private":"PRIVATE RESPONSE"}\n\n', source: 'adapter', code: 'invalid_chunk', startup: false },
   ])('classifies $name and retains correlation without leaking content', async scenario => {
@@ -382,6 +382,9 @@ describe('gateway failure metadata without upstream content', () => {
       stage: scenario.startup ? 'stream_start' : 'stream_terminal', failure_source: scenario.source, failure_code: scenario.code,
       upstream_status: scenario.status, upstream_content_type: scenario.type, upstream_request_id: 'provider-req-123' });
     if (!scenario.startup) expect(events[0].terminal_error_code).toBe(scenario.code);
+    if (scenario.source === 'provider_stream' || scenario.source === 'provider_http') expect(events[0].provider_error).toMatchObject({ code: 'overloaded', message: expect.stringContaining('capacity exhausted') });
+    if (scenario.code === 'invalid_chunk') expect(events[0]).toMatchObject({ terminal_error_param: '$.id', terminal_error_reason: 'Expected nonempty string; received missing.' });
+    if (scenario.code === 'invalid_or_oversized_chunk') expect(events[0].terminal_error_reason).toContain('Invalid JSON syntax');
     expect(JSON.stringify(logs.mock.calls)).not.toMatch(/PRIVATE RESPONSE|synthetic-upstream-secret|synthetic prompt/);
     expect(fetcher).toHaveBeenCalledOnce();
     expect(await active('user:g08-user')).toBe(0);

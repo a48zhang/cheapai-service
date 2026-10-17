@@ -1,3 +1,5 @@
+import { logExecutionFailure } from '../gateway/execution-diagnostics';
+import type { DiagnosticIdentity } from '../gateway/execution-diagnostics';
 import type { ChatMessage } from './service';
 
 export interface ChatGatewayDelta { readonly type: 'delta'; readonly text: string }
@@ -33,6 +35,8 @@ export interface ChatSseCallbacks {
 }
 
 export interface ChatSseOptions {
+  readonly diagnosticIdentity?: DiagnosticIdentity;
+  readonly diagnosticSecrets?: () => readonly string[];
   readonly signal?: AbortSignal;
   readonly waitUntil?: (work: Promise<unknown>) => void;
 }
@@ -223,6 +227,7 @@ function sse(event: string, value: unknown): Uint8Array {
 
 export function createChatSseStream(meta: ChatSseMeta, execution: ChatGatewayExecution, callbacks: ChatSseCallbacks,
   options: ChatSseOptions = {}): ReadableStream<Uint8Array> {
+  const report = (code: string, cause?: unknown, note?: string) => logExecutionFailure(options.diagnosticIdentity ?? { id: execution.requestId }, { stage: code.includes('persist') ? 'chat_persistence' : 'chat_bridge', source: code.includes('persist') ? 'persistence' : 'chat_bridge', code, cause, ...(note ? { note } : {}) }, options.diagnosticSecrets?.() ?? []);
   const controller = new AbortController();
   let state: 'open' | 'closing' | 'finished' = 'open';
   let closePromise: Promise<void> | null = null;
@@ -276,13 +281,14 @@ export function createChatSseStream(meta: ChatSseMeta, execution: ChatGatewayExe
         if (kind !== 'completed') await cancelExecution();
         // Give the final write its own budget even if a checkpoint is stuck.
         // onDelta incorporates the text before awaiting its checkpoint write.
-        try { await flushQueued(1500); } catch { persistenceError = true; await cancelExecution(); }
+        try { await flushQueued(1500); } catch (error) { report('chat_final_progress_persistence_failed', error); persistenceError = true; await cancelExecution(); }
         const savingCompleted = kind === 'completed' && !persistenceError;
         const saveDeadline = Date.now() + 3500;
         const save = Promise.resolve().then(() => kind === 'completed'
           ? persistenceError ? callbacks.onFailed('persistence_error', 'The chat answer could not be saved.') : callbacks.onDone(billingStatus)
           : kind === 'cancelled' ? callbacks.onCancelled() : callbacks.onFailed(safeCode, safeMessage));
         try { final = await boundedChatWork(save, 3500); } catch (error) {
+          report('chat_terminal_persistence_failed', error);
           persistenceError = true;
           await cancelExecution();
           // A rejected write may be repaired. A timed-out write is unknown;
@@ -291,7 +297,7 @@ export function createChatSseStream(meta: ChatSseMeta, execution: ChatGatewayExe
             try {
               final = await boundedChatWork(Promise.resolve().then(() => callbacks.onFailed('persistence_error', 'The chat answer could not be saved.')),
                 Math.max(1, saveDeadline - Date.now()));
-            } catch { /* The persistence error remains visible. */ }
+            } catch (error) { report('chat_failure_persistence_failed', error); }
           }
         }
         if (persistenceError) {
@@ -339,6 +345,7 @@ export function createChatSseStream(meta: ChatSseMeta, execution: ChatGatewayExe
                 lastPersist = now;
                 try { await flushQueued(5000, controller.signal); } catch (error) {
                   if (state !== 'open') return;
+                  report('chat_progress_persistence_failed', error);
                   await finish('failed', 'persistence_error', 'The chat answer could not be saved.');
                   return;
                 }
@@ -355,6 +362,7 @@ export function createChatSseStream(meta: ChatSseMeta, execution: ChatGatewayExe
           const terminalState = terminal?.terminal ?? execution.terminal;
           const billingStatus = terminal?.billingStatus ?? execution.billingStatus ?? eventBillingStatus;
           if (terminalState === 'failed' || terminalState === 'stopped' || (!doneMarker && terminalState !== 'completed')) {
+            report('chat_terminal_not_completed', undefined, `gateway_terminal=${terminalState ?? 'unknown'}; done_marker=${doneMarker}; billing_status=${billingStatus ?? 'unknown'}`);
             await finish('failed', terminalState === 'stopped' ? 'cancelled' : 'incomplete_stream', 'The chat stream did not complete.');
             return;
           }
@@ -362,6 +370,7 @@ export function createChatSseStream(meta: ChatSseMeta, execution: ChatGatewayExe
         } catch (error) {
           if (state !== 'open') return;
           if (options.signal?.aborted) { await finish('cancelled'); return; }
+          report(error instanceof ChatGatewayStreamError ? error.code : 'chat_stream_exception', error);
           await finish('failed', error instanceof ChatGatewayStreamError ? error.code : 'gateway_error',
             error instanceof ChatGatewayStreamError ? error.safeMessage : 'The chat request failed.');
         }

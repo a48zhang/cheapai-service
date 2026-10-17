@@ -1,6 +1,5 @@
-import { logExecutionFailure, streamFailureSource } from './execution-diagnostics';
+import { logExecutionFailure, streamFailureSource, providerDiagnostic, requestDiagnosticSecrets, captureProviderFailure } from './execution-diagnostics';
 import type { ExecutionDiagnostic } from './execution-diagnostics';
-import { logError } from '../logging';
 import { createResponseIds } from '@sub2api/apicompat/ids';
 import { SseByteParser } from '@sub2api/apicompat/streams/parser';
 import { BoundedByteBuffer, ByteBudget, readBoundedBytes } from '@sub2api/apicompat/streams/buffers';
@@ -126,7 +125,8 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
   let consumerCancelled = false;
   let upstreamDispatched = false;
   let diagnostic: ExecutionDiagnostic | undefined;
-  let diagnosticSecrets: string[] = [];
+  let diagnosticSecrets: string[] = requestDiagnosticSecrets(admission.requestForAdapter.request);
+  let providerError: ReturnType<typeof providerDiagnostic>;
   let startupFailure: 'invalid_request' | 'service_unavailable' = 'service_unavailable';
   let preDispatchAccounting = true;
   let finalizing: Promise<StreamCompletion> | undefined;
@@ -167,7 +167,7 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
         WHERE id=? AND user_id=? AND execution_status='admitted' AND billing_status='awaiting_usage'
           AND NOT EXISTS(SELECT 1 FROM billing_entries WHERE request_id=requests.id AND kind='consumption')`, [now(), record!.id, record!.user_id]).run();
       return result.changes === 1;
-    } catch (error) { logError('Stream accounting update failed', error, { request_id: record?.id }); return false; }
+    } catch (error) { logExecutionFailure(record!, { stage: 'recovery', source: 'persistence', code: 'mark_not_chargeable_failed', cause: error }, diagnosticSecrets); return false; }
   }
   function stop(reason: RequestStopReason): void {
     if (finalizing || stopReason !== undefined) return;
@@ -186,7 +186,8 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
     if (state.status === 'failed' || (state.status === 'incomplete' && state.reason === 'unexpected_eof')) {
       const code = state.status === 'failed' ? state.error.code : state.reason;
       logExecutionFailure(record!, { ...(diagnostic ?? { stage: 'stream_terminal', source: streamFailureSource(code), code }),
-        ...(state.status === 'failed' ? { error: diagnostic?.error ?? state.error } : {}), ...(exchange ? { response: exchange.response } : {}) }, diagnosticSecrets);
+        ...(state.status === 'failed' ? { error: diagnostic?.error ?? state.error } : {}),
+        ...(providerError ? { provider: providerError } : {}), ...(exchange ? { response: exchange.response } : {}) }, diagnosticSecrets);
     }
     if (yieldTimer !== undefined) clearTimeout(yieldTimer);
     yieldTimer = undefined;
@@ -199,7 +200,7 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
       for (const queued of queue) queued.cancel();
       queue.length = 0;
       let usage: UsageSnapshot;
-      try { usage = usageSession.finish(state); } catch (error) { logError('Stream usage finalization failed', error, { request_id: record?.id }); usage = { quality: 'missing', protocol: record!.upstream_protocol }; }
+      try { usage = usageSession.finish(state); } catch (error) { logExecutionFailure(record!, { stage: 'settlement', source: 'accounting', code: 'usage_finalization_failed', cause: error }, diagnosticSecrets); usage = { quality: 'missing', protocol: record!.upstream_protocol }; }
       // A normal terminal keeps renewal until bounded final persistence/accounting
       // finishes. Cancellation or lease loss may already have closed L10 safely.
       if (!upstreamDispatched) {
@@ -212,6 +213,8 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
           ...(state.status === 'failed' ? { errorCode: upstreamDispatched ? 'upstream_error' as const : 'internal_error' as const } : {}),
         }, now()));
       const recorded = recordedResult.ok && recordedResult.value;
+      if (!recorded) logExecutionFailure(record!, { stage: 'recovery', source: 'persistence', code: 'request_terminal_not_persisted',
+        ...(!recordedResult.ok ? { cause: recordedResult.error } : {}), note: recordedResult.ok ? 'Request terminal update did not match an owned request row.' : recordedResult.reason }, diagnosticSecrets);
       const result = { requestId: record!.id, terminal: state, usage, usageUpdateCount: updates, upstreamResponseId: upstreamId, recorded };
       let hookSucceeded = true;
       let cleanup: DualLeaseCleanupReport;
@@ -220,9 +223,11 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
           const hookController = new AbortController();
           const hook = await bounded(() => options.onComplete!(result, hookController.signal), () => hookController.abort());
           hookSucceeded = hook.ok;
+          if (!hook.ok) logExecutionFailure(record!, { stage: 'settlement', source: 'accounting', code: 'completion_hook_failed', cause: hook.error, note: hook.reason }, diagnosticSecrets);
         }
       } finally {
         cleanup = await lifecycle.close();
+        if (!cleanup.complete) logExecutionFailure(record!, { stage: 'cleanup', source: 'lifecycle', code: 'lease_cleanup_incomplete', note: JSON.stringify(cleanup.outcomes.map(outcome => ({ kind: outcome.subject.kind, status: outcome.status, code: outcome.errorCode, rpcAttempts: outcome.rpcAttempts }))) }, diagnosticSecrets);
       }
       const completed = { ...result, cleanup, hookSucceeded };
       resolveCompletion(completed);
@@ -237,6 +242,7 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
     try { value = JSON.parse(frame.data); } catch { return; }
     if (!value || typeof value !== 'object') return;
     const object = value as Record<string, unknown>;
+    providerError = providerDiagnostic(object) ?? providerError;
     const source = record!.upstream_protocol === 'responses' ? object.response : record!.upstream_protocol === 'messages' ? object.message : object;
     if (!source || typeof source !== 'object') return;
     const id = (source as Record<string, unknown>).id;
@@ -281,7 +287,7 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
     const channel = await Promise.race([readChannelForForwarding(database, record.channel_id), interrupted]);
     if (!channel || channel.status !== 'active' || channel.configVersion !== admission.selected.candidate.channel.configVersion ||
         channel.baseUrl !== admission.selected.candidate.channel.baseUrl) throw new Error('Channel changed');
-    diagnosticSecrets = [channel.upstreamKey];
+    diagnosticSecrets.unshift(channel.upstreamKey);
     const boundedInput = { ...admission.requestForAdapter.request, stream: true };
     const converted = adapters.request.convert(boundedInput as Input, { targetModel: record.upstream_model });
     if (!converted.ok) { diagnostic = { stage: 'stream_start', source: 'adapter', code: converted.error.code, error: converted.error }; startupFailure = 'invalid_request'; throw new Error(converted.error.message, { cause: converted.error }); }
@@ -296,7 +302,7 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
       // network/timeout result after dispatch. Only the latter has unknown
       // usage and is allowed to reach the recovery finalizer.
       upstreamDispatched = !(error instanceof UpstreamTransportError && error.execution === 'not_started');
-      diagnostic = { stage: 'stream_start', source: 'transport', code: error instanceof UpstreamTransportError ? error.reason : 'fetch_failed' };
+      diagnostic = { stage: 'stream_start', source: 'transport', code: error instanceof UpstreamTransportError ? error.reason : 'fetch_failed', cause: error };
       throw error;
     }
     lifecycle.attachUpstream(() => exchange!.cancel());
@@ -308,11 +314,13 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
     if (!exchange.response.ok || !exchange.response.headers.get('content-type')?.toLowerCase().startsWith('text/event-stream') || !exchange.response.body) {
       diagnostic = { stage: 'stream_start', source: exchange.response.ok ? 'response_format' : 'provider_http',
         code: !exchange.response.ok ? 'http_error' : !exchange.response.body ? 'missing_body' : 'invalid_sse_content_type', response: exchange.response };
+      Object.assign(diagnostic, await captureProviderFailure(exchange.response, () => exchange!.cancel()));
       throw new Error('Expected upstream SSE');
     }
     inputBytes = readBoundedBytes(exchange.response.body, new ByteBudget(maxInputChunkBytes), lifecycle.signal);
     void exchange.done.then(result => {
       if (!result.ok && !finalizing) {
+        diagnostic = { stage: 'stream_terminal', source: 'transport', code: result.error.reason, cause: result.error, response: exchange!.response };
         const state: TerminalState = result.error.reason === 'cancelled' && (consumerCancelled || stopReason === 'cancelled')
           ? { status: 'cancelled' } : { status: 'failed', error: problem(stopReason ?? result.error.reason) };
         try { session?.finish(state.status === 'cancelled' ? { kind: 'cancelled' } : { kind: 'error', error: problem(result.error.reason) }); } catch { /* Finalize anyway. */ }
@@ -344,7 +352,7 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
           if (terminal && queue.length === 0) { target.close(); await finish(terminal); }
         } catch (error) {
           diagnostic = { stage: 'stream_terminal', source: error instanceof UpstreamTransportError ? 'transport' : 'response_format',
-            code: error instanceof UpstreamTransportError ? error.reason : 'stream_processing_failed', response: exchange!.response };
+            code: error instanceof UpstreamTransportError ? error.reason : 'stream_processing_failed', cause: error, response: exchange!.response };
           const state: TerminalState = { status: 'failed', error: problem('stream_processing_failed') };
           try { session?.finish({ kind: 'error', error: state.error }); } catch { /* Finalize anyway. */ }
           try { target.error(new Error('Stream processing failed.')); } catch { /* Already cancelled. */ }
@@ -359,7 +367,7 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
     }, { highWaterMark: 0 });
     return { response: new Response(body, { headers: { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', 'X-Request-ID': record.id } }), completion };
   } catch (error) {
-    diagnostic ??= { stage: 'stream_start', source: stopReason ? 'lifecycle' : 'internal', code: stopReason ?? 'stream_start_failed',
+    diagnostic ??= { stage: 'stream_start', source: stopReason ? 'lifecycle' : 'internal', code: stopReason ?? 'stream_start_failed', cause: error,
       ...(exchange ? { response: exchange.response } : {}) };
     const result = await finish(stopReason === 'cancelled' ? { status: 'cancelled' } : { status: 'failed', error: problem(stopReason ?? 'stream_start_failed') });
     if (!preDispatchAccounting) startupFailure = 'service_unavailable';
