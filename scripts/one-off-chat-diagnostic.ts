@@ -1,9 +1,12 @@
 import { execFileSync } from 'node:child_process';
-import { writeFileSync, unlinkSync } from 'node:fs';
+import { realpathSync, writeFileSync, unlinkSync } from 'node:fs';
 import { randomUUID, randomBytes } from 'node:crypto';
+import { createRequire } from 'node:module';
 import { hashPassword } from '../apps/worker/auth/password.ts';
 
-const uid = 'diag-' + randomUUID();
+const uid = 'diag-31ca2dc4-83a3-4e09-a94c-19c46317c654';
+let chatRequestId;
+const diagnosticStarted=Date.now();
 const email = uid + '@example.invalid';
 const password = randomBytes(32).toString('base64url');
 const cookieJar = new Map();
@@ -41,9 +44,23 @@ try {
   if(!group) throw new Error('Expected active diagnostic model missing');
   out('phase',{name:'hash_new_test_password'});
   const hash=await hashPassword(password);const now=Date.now();
-  out('phase',{name:'insert_new_test_user',userId:uid});
-  sql("INSERT INTO users (id,email_normalized,password_hash,role,status,email_verified_at,group_id,balance_units,concurrency_limit,rpm_limit,created_via,created_at,updated_at) VALUES ("+[uid,email,hash,'user','active'].map(quote).join(',')+","+now+","+quote(group.id)+",0,1,10,'bootstrap',"+now+","+now+");");
-  created=true;out('test_user_created',{userId:uid,role:'user',balanceUnits:0,groupId:group.id});
+  const existing=sql("SELECT id,role,status,group_id,balance_units FROM users WHERE id="+quote(uid))[0];
+  if(!existing || existing.role!=='user' || existing.status!=='disabled' || existing.group_id!=='default') throw new Error('Exact temporary account state mismatch');
+  const reactivated=sql("UPDATE users SET status='active',password_hash="+quote(hash)+",version=version+1,updated_at="+now+" WHERE id="+quote(uid)+" AND role='user' AND status='disabled' RETURNING id");
+  created=true;
+  if(reactivated.length!==1) throw new Error('Temporary account activation not confirmed');
+  const req=createRequire(realpathSync('apps/worker/node_modules/wrangler/package.json'));
+  req('esbuild').buildSync({entryPoints:['apps/worker/billing/fingerprint.ts'],bundle:true,platform:'node',format:'esm',outfile:'/tmp/cheapai-fingerprint.mjs',logLevel:'silent'});
+  const {buildSettlementFingerprint}=await import('file:///tmp/cheapai-fingerprint.mjs');
+  const operationId='diagnostic-grant-20261017-'+uid;
+  const reason='User-authorized CI diagnostic internal credit USD 0.01; only this temporary ordinary account; no payment. CI operator, recorded under diagnostic identity.';
+  const facts={kind:'grant',operationId,userId:uid,requestId:null,priceSnapshotJson:null,usage:null,deltaUnits:'1000000',createdBy:uid,reason};
+  const fp=await buildSettlementFingerprint(facts);
+  const prior=sql("SELECT delta_units,fingerprint FROM billing_entries WHERE operation_id="+quote(operationId)+" AND user_id="+quote(uid));
+  if(prior.length===0) {
+    sql("INSERT INTO billing_entries (id,operation_id,kind,user_id,currency,delta_units,fingerprint,created_by,reason,created_at) VALUES ("+[randomUUID(),operationId,'grant',uid,'USD'].map(quote).join(',')+",1000000,"+[fp.fingerprint,uid,reason].map(quote).join(',')+","+now+")");
+  } else if(prior.length!==1 || prior[0].delta_units!==1000000 || prior[0].fingerprint!==fp.fingerprint) throw new Error('Diagnostic grant mismatch');
+  out('test_credit',{userId:uid,role:'user',grantUnits:1000000,grantUsd:'0.01',operationId,balance:sql("SELECT balance_units FROM users WHERE id="+quote(uid))[0]?.balance_units});
   await jsonResponse('bootstrap',await request('/api/v1/settings/public'));
   const login=await request('/api/v1/auth/login',{email,password});await jsonResponse('login',login);
   if(!login.ok) throw new Error('Test login failed');
@@ -55,8 +72,9 @@ try {
   if(!conversationResponse.ok) throw new Error('Conversation creation failed');
   const c=conversation.data;
   const response=await request('/api/v1/chat/conversations/'+encodeURIComponent(c.id)+'/messages',{operationId:randomUUID(),conversationVersion:c.version,groupId:group.id,modelId:'gpt-5',content:'Reply only OK.'});
-  if(!(response.headers.get('content-type')??'').includes('text/event-stream')) await jsonResponse('chat_send',response);
+  if(!(response.headers.get('content-type')??'').includes('text/event-stream')) {const error=await jsonResponse('chat_send',response);chatRequestId=error?.request_id??response.headers.get('x-request-id');}
   else {
+    chatRequestId=response.headers.get('x-request-id');
     const text=await response.text();
     const events=text.split(/\r?\n\r?\n/).filter(Boolean).map(frame=>{
       const event=frame.match(/^event:\s*(.*)$/m)?.[1];let data;try{data=JSON.parse(frame.split(/\r?\n/).filter(l=>l.startsWith('data:')).map(l=>l.slice(5).trim()).join('\n'))}catch{}
@@ -69,7 +87,7 @@ try {
 } catch(error) {out('diagnostic_stopped',{reason:error instanceof Error?error.message:'unknown'});process.exitCode=1;}
 finally {
   if(created) {
-    try {sql("UPDATE users SET status='disabled',version=version+1,updated_at="+Date.now()+" WHERE id="+quote(uid)+" AND role='user'; DELETE FROM sessions WHERE user_id="+quote(uid)+";");out('cleanup',{userId:uid,disabled:true,sessionsRemoved:true});}
+    try {sql("UPDATE users SET status='disabled',version=version+1,updated_at="+Date.now()+" WHERE id="+quote(uid)+" AND role='user'; DELETE FROM sessions WHERE user_id="+quote(uid)+";");out('cleanup',{userId:uid,disabled:true,sessionsRemoved:true,remainingBalanceUnits:sql("SELECT balance_units FROM users WHERE id="+quote(uid))[0]?.balance_units});}
     catch {out('cleanup_failed',{userId:uid});process.exitCode=1;}
   }
 }
