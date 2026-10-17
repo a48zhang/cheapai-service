@@ -41,7 +41,6 @@ export function ChannelManagement({
   });
   const channel = channelQuery.data;
   const [tab, setTab] = useState<string>(initialTab);
-  const [settingsChannel, setSettingsChannel] = useState(initialChannel);
   const [busy, setBusy] = useState(false);
   const [footerContainer, setFooterContainer] = useState<HTMLDivElement | null>(null);
   const close = (open: boolean) => {
@@ -134,12 +133,11 @@ export function ChannelManagement({
                 embedded
                 footerContainer={footerContainer}
                 open
-                channel={settingsChannel}
+                channel={channel}
                 api={api}
                 onOpenChange={close}
                 onBusyChange={setBusy}
                 onSaved={(saved) => {
-                  setSettingsChannel(saved);
                   void recordChannelSaved(queryClient, actorId, sessionEpoch, saved);
                 }}
               />
