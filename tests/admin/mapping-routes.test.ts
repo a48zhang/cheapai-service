@@ -77,4 +77,19 @@ describe('typed administrator model mapping HTTP', () => {
     const response = await create(); expect(response.status).toBe(503); expect(response.headers.get('Cache-Control')).toBe('no-store');
     expect(await testEnv.DB.prepare('SELECT COUNT(*) AS count FROM channel_models').first('count')).toBe(0);
   });
+  it('deletes one versioned mapping with admin/CSRF protection and retains the model and other protocols', async () => {
+    await create(); await create('messages');
+    const target = `${listUrl}/${channelId}/chat`;
+    for (const [cookie, status] of [['', 401], [userCookie, 403], [adminCookie, 403]] as const) {
+      expect((await app().request(target, { method: 'DELETE', headers: { Cookie: cookie } }, { DB: testEnv.DB })).status).toBe(status);
+    }
+    for (const [version, status] of [[0, 400], [2, 409], [1, 200], [1, 404]]) {
+      expect((await app().request(target, { method: 'DELETE', headers: headers(), body: JSON.stringify({ version }) }, { DB: testEnv.DB })).status).toBe(status);
+    }
+    expect(await testEnv.DB.prepare('SELECT protocol FROM channel_models WHERE channel_id=?').bind(channelId).all()).toMatchObject({ results: [{ protocol: 'messages' }] });
+    expect(await testEnv.DB.prepare("SELECT count(*) AS n FROM models WHERE public_model_id='c11-public'").first('n')).toBe(1);
+    expect(await testEnv.DB.prepare('SELECT config_version FROM channels WHERE id=?').bind(channelId).first('config_version')).toBe(2);
+    expect(await testEnv.DB.prepare("SELECT count(*) AS n FROM admin_audit WHERE action='channel_model.delete'").first('n')).toBe(1);
+  });
+
 });

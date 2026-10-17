@@ -6,6 +6,7 @@ import { Sheet } from '../../shared/ui/Sheet';
 import { Tabs } from '../../shared/ui/Tabs';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
+import { DeleteChannelAction } from './DeleteChannelAction';
 import { ChannelForm } from './ChannelForm';
 import { ChannelMappingPanel } from './ChannelMappingPanel';
 import {
@@ -87,6 +88,17 @@ export function ChannelManagement({
           />
         </div>
       )}
+      <div className="mb-5 flex justify-end">
+        <DeleteChannelAction
+          channel={channel}
+          api={api}
+          actorId={actorId}
+          epoch={sessionEpoch}
+          busy={busy}
+          onBusyChange={setBusy}
+          onDeleted={() => onOpenChange(false)}
+        />
+      </div>
       <Tabs
         value={tab}
         onValueChange={(value) => {

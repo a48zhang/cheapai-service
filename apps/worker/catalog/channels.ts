@@ -30,7 +30,7 @@ function view(row: ChannelRow): ChannelView {
 }
 /** Safe internal/admin metadata read. It never selects encrypted credentials. */
 export async function getChannelById(database: D1Database, id: string): Promise<ChannelView | null> {
-  const row = await prepare<ChannelRow>(database, `SELECT ${projection} FROM channels WHERE id=?`, [idValue(id)]).first();
+  const row = await prepare<ChannelRow>(database, `SELECT ${projection} FROM channels WHERE id=? AND deleted_at IS NULL`, [idValue(id)]).first();
   return row ? view(row) : null;
 }
 
@@ -39,7 +39,7 @@ export async function getChannelById(database: D1Database, id: string): Promise<
  */
 export async function readChannelForForwarding(database: D1Database, id: string): Promise<{ id: string; baseUrl: string; upstreamKey: string; configVersion: number; status: 'active' | 'disabled' } | null> {
   const row = await prepare<{ id: string; base_url: string; upstream_key: string | null; config_version: number; status: 'active' | 'disabled' }>(database,
-    'SELECT id,base_url,upstream_key,config_version,status FROM channels WHERE id=?', [idValue(id)]).first();
+    'SELECT id,base_url,upstream_key,config_version,status FROM channels WHERE id=? AND deleted_at IS NULL', [idValue(id)]).first();
   if (!row) return null;
   if (!row.upstream_key) throw new ApiError('service_unavailable', { cause: new Error('Channel upstream key is missing; re-enter the key in channel settings.') });
   return { id: row.id, baseUrl: row.base_url, upstreamKey: row.upstream_key, configVersion: row.config_version, status: row.status };

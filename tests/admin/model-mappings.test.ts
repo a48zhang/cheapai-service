@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createModelMapping, getModelMapping, listModelMappings, updateModelMapping } from '../../apps/worker/admin/model-mappings';
+import { createModelMapping, deleteModelMapping, getModelMapping, listModelMappings, updateModelMapping } from '../../apps/worker/admin/model-mappings';
 import type { ModelMappingInput } from '../../apps/worker/admin/model-mappings';
 import { createChannel } from '../../apps/worker/admin/channel-repository';
 import { createModel } from '../../apps/worker/admin/model-repository';
@@ -79,4 +79,14 @@ describe('channel/model/protocol mappings on native D1', () => {
     expect(await getModelMapping(testEnv.DB, key())).toEqual(before);
     expect(await audits()).toHaveLength(2);
   });
+  it('does not let a stale deletion remove a re-created mapping', async () => {
+    await createModelMapping(testEnv.DB, mapping(), context('create'));
+    await updateModelMapping(testEnv.DB, key(), 1, { upstreamModel: 'updated' }, context('update'));
+    await deleteModelMapping(testEnv.DB, key(), 2, context('delete'));
+    const recreated = await createModelMapping(testEnv.DB, mapping(), context('recreate'));
+    expect(recreated.configVersion).toBe(3);
+    await expect(deleteModelMapping(testEnv.DB, key(), 2, context('stale-delete'))).rejects.toMatchObject({ code: 'conflict' });
+    expect(await getModelMapping(testEnv.DB, key())).toEqual(recreated);
+  });
+
 });

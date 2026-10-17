@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ApiError } from '../../apps/worker/http';
-import { createChannel, getChannelById, listChannels, readChannelForForwarding, updateChannel } from '../../apps/worker/admin/channel-repository';
+import { createChannel, deleteChannel, getChannelById, listChannels, readChannelForForwarding, updateChannel } from '../../apps/worker/admin/channel-repository';
 import type { ChannelAuditContext, ChannelPatch, ChannelPageOptions, CreateChannelInput } from '../../apps/worker/admin/channel-repository';
 import { testEnv } from '../helpers/database';
 import { legacyChannelSecret } from '../helpers/legacy-channel-secret';
@@ -149,4 +149,13 @@ describe('channel repository with native D1', () => {
     await testEnv.DB.prepare('UPDATE channels SET config_version=? WHERE id=?').bind(Number.MAX_SAFE_INTEGER, saved.id).run();
     await expect(updateChannel(testEnv.DB, saved.id, Number.MAX_SAFE_INTEGER, { name: 'overflow' }, audit('overflow'))).rejects.toMatchObject({ code: 'conflict' });
   });
+  it('rolls back deletion and associations on audit failure', async () => {
+    const saved = await createChannel(testEnv.DB, input, audit('create'));
+    await testEnv.DB.prepare("INSERT INTO channel_groups(channel_id,group_id) VALUES(?,'c03-group')").bind(saved.id).run();
+    await testEnv.DB.exec("CREATE TRIGGER deletion_audit_failure BEFORE INSERT ON admin_audit BEGIN SELECT RAISE(ABORT,'audit failed'); END;");
+    await expect(deleteChannel(testEnv.DB, saved.id, 1, audit('delete'))).rejects.toMatchObject({ code: 'service_unavailable' });
+    expect(await getChannelById(testEnv.DB, saved.id)).toEqual(saved);
+    expect(await testEnv.DB.prepare('SELECT count(*) AS n FROM channel_groups WHERE channel_id=?').bind(saved.id).first('n')).toBe(1);
+  });
+
 });
