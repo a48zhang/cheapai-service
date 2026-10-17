@@ -39,8 +39,8 @@ function makeSession(context: ResponseContext, options: StreamOptions, budget: B
     choices.clear(); for (const release of releases) release(); releases.length = 0;
     return { events, terminal, usageUpdates: [], usage: usage.finish(terminal) };
   }
-  function fail(code: string): ChatStreamStep {
-    const problem = error(code);
+  function fail(code: string, detail?: ProtocolError): ChatStreamStep {
+    const problem = { ...error(code), ...(detail ? { ...(detail.param === undefined ? {} : { param: detail.param }), message: detail.message } : {}) };
     return close({ status: 'failed', error: problem }, [encodeErrorSseFrame('chat', problem)]);
   }
   return { ok: true, value: {
@@ -61,7 +61,7 @@ function makeSession(context: ResponseContext, options: StreamOptions, budget: B
         const raw: unknown = JSON.parse(frame.data);
         if (raw && typeof raw === 'object' && Object.hasOwn(raw, 'error')) return fail('upstream_error');
         const parsed = parseChatStreamChunk(raw, { unknownFields: 'preserve', native: true });
-        if (!parsed.ok) return fail('invalid_chunk');
+        if (!parsed.ok) return fail('invalid_chunk', parsed.error);
         const value = parsed.value;
         if (nativeId !== undefined && nativeId !== value.id) return fail('upstream_identity_mismatch');
         if (nativeId === undefined) { releases.push(budget.reserve(encoder.encode(value.id).byteLength)); nativeId = value.id; }
@@ -110,7 +110,7 @@ function makeSession(context: ResponseContext, options: StreamOptions, budget: B
           }
         }
         return { events: [{ data: JSON.stringify({ ...value, id, model }) }], usageUpdates: usage.push(value) };
-      } catch { return fail('invalid_or_oversized_chunk'); }
+      } catch (cause) { return fail('invalid_or_oversized_chunk', cause instanceof SyntaxError ? { ...error('invalid_or_oversized_chunk'), message: 'Invalid JSON syntax in an upstream Chat frame.' } : undefined); }
     },
     finish(end) {
       if (closed) return empty();

@@ -4,7 +4,7 @@ import { startLeaseLifecycle } from '../limits/lease-lifecycle';
 import type { LeaseLifecycle } from '../limits/lease-lifecycle';
 
 export type RequestStopReason = 'cancelled' | 'request_timeout' | 'lease_lost' | 'failed';
-export type BoundedResult<T> = { ok: true; value: T } | { ok: false };
+export type BoundedResult<T> = { ok: true; value: T } | { ok: false; reason: 'rejected' | 'timeout'; error?: unknown };
 
 /** Local resource owner only. Protocol parsing, D1 claim and accounting remain
  * with the executor. A losing CAS must close with release=false. */
@@ -63,11 +63,11 @@ export function createRequestLifecycle(permit: DualLeasePermit, options: {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       return await Promise.race([
-        Promise.resolve().then(task).then(value => ({ ok: true as const, value }), () => ({ ok: false as const })),
-        new Promise<{ ok: false }>(resolve => {
+        Promise.resolve().then(task).then(value => ({ ok: true as const, value }), error => ({ ok: false as const, reason: 'rejected' as const, error })),
+        new Promise<{ ok: false; reason: 'timeout' }>(resolve => {
           timer = setTimeout(() => {
             try { onTimeout?.(); } catch { /* Still resolve the deadline. */ }
-            resolve({ ok: false });
+            resolve({ ok: false, reason: 'timeout' });
           }, Number.isSafeInteger(completionMs) && completionMs > 0 && completionMs <= 60_000
             ? completionMs : DEFAULT_CONFIG.settlementRetryBudgetMs);
         }),

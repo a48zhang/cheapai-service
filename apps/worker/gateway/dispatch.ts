@@ -1,4 +1,5 @@
-import { logError } from '../logging';
+import { logExecutionFailure, requestDiagnosticSecrets } from './execution-diagnostics';
+import type { ExecutionDiagnostic } from './execution-diagnostics';
 import { defaultProtocolRegistry } from '@sub2api/apicompat';
 import type { ProtocolRegistry, ResolvedProtocolAdapters } from '@sub2api/apicompat';
 import { encodeChatError, encodeResponsesError, encodeMessagesError } from '@sub2api/apicompat/errors';
@@ -152,13 +153,18 @@ export async function dispatchGatewayRequest(dependencies: GatewayDispatchDepend
   let admission: AdmittedRequest | undefined;
   let observer: RequestObserver | undefined;
   let transferred = false;
-  const own = (work: Promise<unknown>) => context.waitUntil(work.then(() => undefined, error => logError('Gateway background task failed', error, { request_id: requestId })));
+  let publicModel: string | undefined;
+  let diagnosticSecrets: string[] = [];
+  const diagnose = (details: ExecutionDiagnostic) => logExecutionFailure(admission?.request ?? { id: requestId, ...(publicModel ? { public_model_id: publicModel } : {}), downstream_protocol: downstream }, details, diagnosticSecrets);
+  const own = (work: Promise<unknown>) => context.waitUntil(work.then(() => undefined, error => diagnose({ stage: 'dispatch', source: 'internal', code: 'background_task_failed', cause: error })));
   try {
     now = dependencies.now ?? Date.now;
     if (request.method !== 'POST') throw new ApiError('invalid_request');
     const subject = trusted?.subject ?? await authenticatePlatformKey(dependencies.DB, request, now());
     const parsed = downstream === 'chat' ? await parseChatInput(request) : downstream === 'responses' ? await parseResponsesInput(request) : await parseMessagesInput(request);
     const registry = dependencies.registry ?? defaultProtocolRegistry;
+    publicModel = parsed.request.model;
+    diagnosticSecrets = requestDiagnosticSecrets(parsed.request);
     const original: ProtocolRequest = { protocol: parsed.protocol, request: parsed.request } as ProtocolRequest;
     const showUsage = parsed.protocol === 'chat' && parsed.request.stream_options?.include_usage === true;
     const excluded: CandidateExclusion[] = [];
@@ -197,7 +203,7 @@ export async function dispatchGatewayRequest(dependencies: GatewayDispatchDepend
     const onUpstreamResponse = (response: ChannelCooldownInput): Promise<void> => {
       const work = recordChannelCooldown(dependencies.GATE, response, { clock: now }).then(() => undefined, error => {
         // Timeout/transport failure cannot prove whether the write committed.
-        logError('Channel cooldown write failed', error, { request_id: requestId, channel_id: response.channelId });
+        diagnose({ stage: 'dispatch', source: 'persistence', code: 'channel_cooldown_write_failed', cause: error });
         try { console.warn(JSON.stringify({ event: 'channel_cooldown_write_uncertain', request_id: requestId,
           channel_id: response.channelId, upstream_status: response.status,
           error_code: error instanceof CooldownClientError ? error.code : 'unavailable' })); } catch { /* Best effort. */ }
@@ -226,20 +232,23 @@ export async function dispatchGatewayRequest(dependencies: GatewayDispatchDepend
     observer.mark('first_byte');
     own(execution.completion.then(async completion => {
       let finalization: Awaited<NonNullable<typeof finalizer.completion>> | undefined;
-      try { finalization = finalizer.completion === null ? undefined : await finalizer.completion; } catch (error) { logError('Gateway finalization failed', error, { request_id: requestId }); }
+      try { finalization = finalizer.completion === null ? undefined : await finalizer.completion; } catch (error) { diagnose({ stage: 'settlement', source: 'accounting', code: 'gateway_finalization_failed', cause: error }); }
       const details = { usage: completion.usage, ...(finalization === undefined ? {} : { finalization }) };
       observer?.mark('stream_terminal', { terminal: completion.terminal, ...details });
       observer?.mark('settlement', details);
       observer?.finish({ terminal: completion.terminal, ...details });
     }, error => {
-      logError('Gateway stream completion failed', error, { request_id: requestId });
+      diagnose({ stage: 'stream_terminal', source: 'internal', code: 'stream_completion_rejected', cause: error });
       observer?.finish({ terminal: observationFailure });
     }));
     const headers = new Headers(execution.response.headers);
     headers.set('X-Request-Id', requestId); headers.set('Cache-Control', 'no-store');
     return new Response(execution.response.body, { status: execution.response.status, headers });
   } catch (error) {
-    logError('Gateway dispatch failed', error, { request_id: requestId, protocol: downstream });
+    diagnose({ stage: 'dispatch', source: admission ? 'internal' : 'admission',
+      code: error instanceof JsonExecutionError || error instanceof StreamExecutionError ? error.reason : error instanceof ApiError ? error.code : 'dispatch_exception', cause: error,
+      ...(error instanceof Error && 'protocolError' in error ? { error: error.protocolError as ProtocolError } : {}),
+      ...(error instanceof GatewayAdmissionError ? { note: `candidate_failure=${error.candidateFailure ?? 'none'}; cleanup_complete=${error.cleanup.complete}` } : {}) });
     observer?.finish({ terminal: observationFailure });
     if (admission && (!transferred || (error instanceof StreamExecutionError && error.completion === null))) {
       const held = admission;
