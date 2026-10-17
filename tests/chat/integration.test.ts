@@ -492,6 +492,39 @@ describe('web chat HTTP contract and accounting boundaries', () => {
     expect(await testEnv.DB.prepare('SELECT execution_status FROM requests').first('execution_status')).toBe('cancelled');
   }, 30_000);
 
+  it('returns an HTTP error and preserves the failed request when a channel credential is missing', async () => {
+    await seedChatFixtures();
+    const user = await createIdentity('chat-missing-credential-user');
+    const channelId = `chat-full-channel-${sequence}`;
+    await testEnv.DB.prepare('UPDATE channels SET upstream_key=NULL WHERE id=?').bind(channelId).run();
+    const upstream = vi.fn(async () => streamResponse());
+    vi.stubGlobal('fetch', upstream);
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const created = await request('/api/v1/chat/conversations', {
+        method: 'POST', headers: jsonHeaders(user, true), body: JSON.stringify({ groupId: 'chat-full', modelId: model }),
+      });
+      const conversation = (await body(created)).data;
+      const sent = await request(`/api/v1/chat/conversations/${conversation.id}/messages`, {
+        method: 'POST', headers: jsonHeaders(user, true), body: JSON.stringify({
+          operationId: 'missing-credential', conversationVersion: conversation.version,
+          groupId: 'chat-full', modelId: model, content: 'hi',
+        }),
+      });
+      expect(sent.response.status).toBe(503);
+      expect(sent.response.headers.get('content-type')).toContain('application/json');
+      expect(await body(sent)).toMatchObject({ error: { code: 'service_unavailable' }, request_id: expect.any(String) });
+      expect(sent.text).not.toContain('event: meta');
+      expect(upstream).not.toHaveBeenCalled();
+      const view = await request(`/api/v1/chat/conversations/${conversation.id}`, { headers: jsonHeaders(user) });
+      const detail = (await body(view)).data;
+      expect(detail.conversation.version).toBe(conversation.version + 1);
+      expect(detail.messages.at(-1)).toMatchObject({ role: 'assistant', status: 'failed', requestId: expect.any(String) });
+      expect(JSON.stringify(errors.mock.calls)).toContain('Channel upstream key is missing');
+      expect(await testEnv.DB.prepare('SELECT COUNT(*) AS n FROM billing_entries').first('n')).toBe(0);
+    } finally { errors.mockRestore(); }
+  }, 30_000);
+
   it('web Chat shares the real gateway cooldown and skips the failed channel on the next conversation', async () => {
     await seedChatFixtures();
     const user = await createIdentity('chat-cooldown-user');
@@ -507,7 +540,15 @@ describe('web chat HTTP contract and accounting boundaries', () => {
         method: 'POST', headers: jsonHeaders(user, true), body: JSON.stringify({ operationId, conversationVersion: conversation.version,
           groupId: 'chat-full', modelId: model, content: 'cooldown route probe' }),
       });
-      expect(sent.response.status >= 400 || events(sent.text).some(event => event.event === 'error')).toBe(true);
+      expect(sent.response.status).toBe(503);
+      expect(sent.response.headers.get('content-type')).toContain('application/json');
+      expect(await body(sent)).toMatchObject({ error: { code: 'service_unavailable' }, request_id: expect.any(String) });
+      expect(sent.text).not.toContain('event: meta');
+      const view = await request(`/api/v1/chat/conversations/${conversation.id}`, { headers: jsonHeaders(user) });
+      expect((await body(view)).data.messages.at(-1)).toMatchObject({
+        role: 'assistant', status: 'failed',
+        requestId: operationId === 'cooldown-first' ? expect.any(String) : null,
+      });
     }
     expect(upstream).toHaveBeenCalledOnce();
     expect(await testEnv.GATE.get(testEnv.GATE.idFromName(`channel:chat-full-channel-${sequence}`)).getCooldown())

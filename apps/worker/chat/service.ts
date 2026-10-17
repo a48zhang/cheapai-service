@@ -100,11 +100,10 @@ function gatewayErrorCode(status: number, bodyCode: unknown): keyof typeof API_E
   return 'service_unavailable';
 }
 
-/** Trusted dispatch still returns its native protocol envelope for admission
- * failures. Before registration those failures must remain management errors
- * (especially 402/403). Preserve the gateway request ID and envelope in the
+/** A rejected gateway response never starts a successful chat stream, even
+ * after the request row was registered. Preserve its ID and envelope in the
  * logged cause; management responses still expose only the public API error. */
-async function throwUnregisteredGatewayError(response: Response): Promise<never> {
+async function throwGatewayError(response: Response): Promise<never> {
   let payload: { error?: { code?: unknown } } | undefined;
   try { payload = await boundedChatWork(response.json()); } catch { /* status mapping below */ }
   const requestId = response.headers.get('X-Request-Id');
@@ -137,16 +136,15 @@ export function createTrustedChatGateway(dependencies: ChatGatewayDependencies):
         stream: true,
       };
       const wireBody: ChatRequest = request.maxOutputTokens === undefined ? body : { ...body, max_tokens: request.maxOutputTokens };
-      let registered = false;
       let response: Response | undefined;
       try {
         response = await dispatchTrustedGatewayRequest({ ...dependencies }, {
           subject: request.auth as Parameters<typeof dispatchTrustedGatewayRequest>[1]['subject'],
           request: { protocol: 'chat', request: wireBody } as ProtocolRequest,
-          onRegistered: async requestId => { await request.onRegistered(requestId); registered = true; },
+          onRegistered: request.onRegistered,
           signal,
         }, { waitUntil });
-        if (!registered && !response.ok) await throwUnregisteredGatewayError(response);
+        if (!response.ok) await throwGatewayError(response);
         const requestId = response.headers.get('X-Request-Id') ?? response.headers.get('X-Request-ID');
         if (requestId === null || !identifier.test(requestId)) throw new ApiError('service_unavailable');
         return {
