@@ -23,7 +23,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
-      - name: Read only exact gpt-5.5 invocation terminal metadata
+      - name: Read only recent entry HTTP503 and error events
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: node scripts/one-off-gpt55-investigation.mjs
