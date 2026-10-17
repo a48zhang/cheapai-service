@@ -1,5 +1,5 @@
 name: One-off chat diagnostic
-# Query-mode correction; never import or deploy.
+# Same temporary account; authorized internal USD 0.01 ledger grant.
 on:
   push:
     branches: [diagnostics/chat-20261017]
