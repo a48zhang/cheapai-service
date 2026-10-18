@@ -16,13 +16,13 @@
 | Chat → Responses | ✓ Chat→Responses | ✓ Responses→Chat | ✓ Responses→Chat | 文本、函数工具、tool choice、并行工具、图片输入、结构化输出和常见 reasoning effort 在目标协议可表达时通过；Responses 无等价 Chat `stop`、部分缓存/私有 reasoning、非空 annotations/logprobs 时拒绝 |
 | Chat → Messages | ✓ Chat→Messages | ✓ Messages→Chat | ✓ Messages→Chat | 文本、函数工具、图片输入、输出上限、采样、stop、严格 JSON schema、常见 effort/cache 按目标协议表达；Messages 原生 `max_tokens` 必须有显式策略，签名/私有 thinking 和不可映射图片/引用拒绝 |
 | Responses → Chat | ✓ Responses→Chat | ✓ Chat→Responses | ✓ Chat→Responses | Responses input/instructions、函数工具、图片和 schema 按目标协议映射；服务端历史引用需要原渠道绑定；Chat 返回的 annotations 非空、未知 finish、不可回传私有 reasoning 拒绝 |
-| Responses → Responses | 原生 | ✓ 原生 | ✓ 原生 | 原生 item、历史、后台/扩展等仍由 Responses validator、能力和网关范围控制 |
+| Responses → Responses | 原生 | ✓ 原生 | ✓ 原生 | 原生 item 与扩展由 Responses validator 校验；历史引用另需归属检查，独立后台任务接口未挂载 |
 | Responses → Messages | ✓ Responses→Messages | ✓ Messages→Responses | ✓ Messages→Responses | input/instructions、函数工具、图片、schema、常见 effort/cache 按目标协议映射；Messages 不支持 Responses content filter 等无等价终态，跨协议 signed/encrypted reasoning 拒绝 |
 | Messages → Chat | ✓ Messages→Chat | ✓ Chat→Messages | ✓ Chat→Messages | 文本、tool_use、stop_sequence/max_tokens/tool_use、无签名公开 thinking 按目标协议映射；图片/cache/thinking budget、redacted/signed thinking 和工具后不可表达文本按实际表示或明确错误处理 |
 | Messages → Responses | ✓ Messages→Responses | ✓ Responses→Messages | ✓ Responses→Messages | 文本、tool_use、公开 thinking、refusal、缓存 usage 展示按目标协议映射；签名/redacted thinking、不可表达 cache/图片/历史引用拒绝 |
 | Messages → Messages | 原生 | ✓ 原生 | ✓ 原生 | Messages 原生 block、thinking signature、cache 和 usage 由自身基本结构及真实供应商处理 |
 
-上述“图片”只表示对话输入中的 URL/base64/file 引用转换。独立图片生成接口、Realtime/WebSocket、后台任务和供应商内置服务端工具不因矩阵注册而获得支持；无法表达的约束在请求转换前由能力检查拒绝。
+上述“图片”只表示对话输入中的 URL/base64/file 引用转换。独立图片生成接口、Realtime/WebSocket、后台任务和供应商内置服务端工具不因矩阵注册而获得支持；跨协议无法表达的约束在请求转换前拒绝，同协议扩展不使用渠道能力白名单。
 
 ## 字段族边界
 
