@@ -4,7 +4,7 @@
 
 This note is based on the immutable upstream release ref [`dsh-v0.2.1-alpha.1`](https://github.com/deepseek-ai/deepseek-harness/tree/5badb15009ae1756c3afe0ae0cef1faafc290ccc), which resolves directly to commit `5badb15009ae1756c3afe0ae0cef1faafc290ccc`. The published CLI package at this revision is `@deepseek-ai/dsh@0.2.1-alpha.1`, with the executable mapping `dsh` to `lib/bin.js`. The release is a prerelease, and the README calls the project a developer preview with breaking changes expected. Treat every internal DSH seam below as tied to this commit.
 
-The upstream root `package.json` declares pnpm `11.7.0` and Node `^22.19.0 || >=24.0.0`. This repository's Node `24.19.0` pin satisfies that range and is the comparison baseline. Bun `1.4.2` is pinned as a comparison candidate only. DSH does not declare Bun support, and this task did not launch DSH or measure Bun compatibility. The Tauri, Rust, React, and target pins are recorded in [`runtime-versions.json`](../../scripts/desktop/runtime-versions.json); Tauri is a separate shell choice because upstream Desktop is Electron based.
+The upstream root `package.json` declares pnpm `11.7.0` and Node `^22.19.0 || >=24.0.0`. This repository's Node `24.19.0` pin satisfies that range and is the comparison baseline. Bun `1.4.2` is pinned as a comparison candidate only. DSH does not declare Bun support. The Tauri, Rust, React, and target pins are recorded in [`runtime-versions.json`](../../scripts/desktop/runtime-versions.json); Tauri is a separate shell choice because upstream Desktop is Electron based.
 
 ## Launcher and profile boot
 
@@ -18,7 +18,7 @@ runProfile(options: RunProfileOptions): Promise<{ ctx: Context; shutdown: Proces
 
 `RunProfileOptions` carries the environment snapshot, profile name, optional application-owned resolved profile, `patchFiles`, inner `args`, and optional package-manager service. Profiles live under `$DSH_HOME/profiles`; the launcher loads bundle patches, the profile patch, home-level patch, and command-line overlays. The returned context and shutdown controller are a source-level API. The process CLI has no documented machine-readable ready frame; the internal `AppReady` service in `profile-boot.ts` is committed after boot/host setup and should not be mistaken for an external protocol.
 
-For the planned Tauri shell, keep a private DSH home and use a named profile plus source-controlled profile patch. Do not rely on the reserved `desktop` profile: `args.ts` rejects it for the public CLI because the upstream Electron application owns it. Exact profile bundle IDs and configuration schemas are DSH-managed and must be read from the pinned source whenever the profile is authored.
+For the Tauri shell, keep a private DSH home and use a named profile plus source-controlled profile patch. Do not rely on the reserved `desktop` profile: `args.ts` rejects it for the public CLI because the upstream Electron application owns it. Exact profile bundle IDs and configuration schemas are DSH-managed and must be read from the pinned source whenever the profile is authored.
 
 ## Sessions, message streams, and tool interaction
 
@@ -44,23 +44,22 @@ The upstream web client entry is [`apps/web/index.html`](https://github.com/deep
 | Event frames, tool/user-control payloads, JSONL layout and migration | `packages/api/session-controller`, `packages/core/session`, and `packages/session/session-persistence-jsonl` | Version-maintained. Keep DSH as owner; do not persist or replay an independently invented format. |
 | DSH web static resources and official Desktop packaging | `apps/web`, `packages/host/frontend-static`, `apps/desktop`, and `apps/desktop-host` | DSH's official app is Electron + bundled Node. Reuse service seams, not the official page or Electron host. |
 
-Upstream package metadata includes native modules such as `node-pty`, `koffi`, and `fs-ext`; compatibility of one Node-API addon does not establish compatibility of this complete dependency set. Node remains the reference runtime. Bun remains unverified until the centralized runtime validation task exercises the exact profile, architecture, persistence path, and native dependency closure recorded here. No DSH process, test, build, or compatibility experiment was run for F01.
+Node is the reference runtime. Bun compatibility requires checking the exact profile, architecture, persistence implementation, and native dependencies.
 
-
-## Desktop adapters added on 2026-10-04
+## Desktop adapters
 
 The renderer installs the public `installConnection` hook from `@deepseek-ai/dsh-client-connection/client` with a decoded native `ClientConnectionRpc`. It mounts the Session contribution from `@deepseek-ai/dsh-api-session-controller/remote`, the Gateway client, and the Typert registry. The carrier is `{ channel: '/api', endpoint: 'session/create', payload: { args: ... } }`, not a browser request to a loopback URL. Native IPC carries decoded values and stream frames; Runtime owns the Cookie and Origin. Native commands and Runtime apply the same endpoint allowlist and generation guard. Account, credential, and settings namespaces are excluded from this renderer carrier.
 
 Runtime unary calls use the official Connection RPC implementation with a private fetch hook. Streams reuse the official Gateway mux through the **version-maintained internal** `ClientRemoteService.openRemoteStream` method in `packages/api/gateway/src/client/index.ts`. That TypeScript-private method is present on the published JavaScript service at this pin; the adapter checks it before binding it. It is not a stable public export. The official mux requires a process-local WebSocket hook and `__DSH_TRANSPORT__.streamBaseUrl`; Runtime scopes those hooks to one active transport and restores them on disposal. Package upgrades require checking this seam and validating both unary and streaming behavior. No second mux implementation is maintained.
 
-The pinned SessionController has list/create/rename/fork/page/follow operations but no delete operation. U04 must expose deletion as unsupported; hiding an item locally would not delete the DSH history. Search is limited to already loaded titles unless the caller explicitly uses the upstream search API. DSH continues to own history and durable cursors.
+The pinned SessionController has list/create/rename/fork/page/follow operations but no delete operation. The UI exposes deletion as unsupported. Search is limited to already loaded titles unless the caller explicitly uses the upstream search API. DSH continues to own history and durable cursors.
 
 For managed credentials, `packages/llm/llm-pi-ai/src/adapter.ts` resolves the API Key in `streamWithSnapshot` for each model stream, and `packages/llm/llm-pi-ai/src/index.ts` delegates to `ctx.credentials.resolve(ref)`. The desktop provider subclasses the published `LocalCredentialProvider`; only `CHEAPAI_API_KEY` resolves through the private Runtime IPC bridge to `DesktopSessionManager.getKey()`. Other references retain the upstream provider. The bridge address, never Token or Key, is passed in the DSH child environment. The provider rejects managed Key writes and does not persist the Key.
 
 A normal profile patch `name` is a matching assertion, as implemented in `vendor/include/src/index.ts`; it cannot replace a module. The launcher therefore disables the existing `credentials` entry and inserts a new `cheapai-credentials` entry with an absolute module file URL. This patch is generated only after a bridge address is explicitly supplied. Source launches point to the `.ts` provider; packaged launches point to `dist/src/cheapai/dsh-credential-provider.js`. The Runtime production dependency closure includes `@deepseek-ai/dsh-credentials-local`, because the CLI's development dependency alone does not guarantee it will be packaged.
 
-These are implementation artifacts. L04–L06 now wire native persistence-before-restore, account-partitioned home binding, and the managed credential bridge into the Runtime entry. The explicit upstream local credential configuration path is gated to development source plus an explicit development flag. Transport/provider have not been exercised against a real DSH process; dependency installation, Node/Bun comparison, and native validation remain separate tasks.
-## 桌面完整装配补充（2026-10-04）
+Native persistence precedes restore. Runtime partitions DSH home by account and binds the managed credential bridge. Static credentials require development mode and an explicit flag.
+## 装配与任务状态
 
 固定 ref `5badb15009ae1756c3afe0ae0cef1faafc290ccc` 的 `packages/bundle/web-app/cordis.patch.yml` 已装配 Host `api-remotes`，不用重复注册 Gateway event source。Renderer 类型面引入 `@deepseek-ai/dsh-api-remotes/client`，仅挂载所用的 Session、workspaceFiles 与 userQuestions contribution，不加载整个上游页面。
 
