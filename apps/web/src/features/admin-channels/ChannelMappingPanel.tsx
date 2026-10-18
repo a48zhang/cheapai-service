@@ -9,9 +9,14 @@ import { ApiClientError } from '@cheapai/api-client/errors';
 import { createMappingsApi } from '@cheapai/api-client/mappings';
 import type { Protocol } from '@cheapai/api-client/mappings';
 import type { ApiClient } from '@cheapai/api-client/types';
-import { PublicModelPicker, recordMappingSaved } from '../admin-models/public';
+import {
+  PublicModelPicker,
+  recordMappingSaved,
+  modelMappingQueryKeys,
+} from '../admin-models/public';
 import { withErrorContext } from '../../shared/lib/api-error';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
+import { ConfirmAction } from '../../shared/ui/ConfirmAction';
 import { Button } from '../../shared/ui/Button';
 import { Field } from '../../shared/ui/Field';
 import { Input } from '../../shared/ui/Input';
@@ -226,10 +231,15 @@ export function ChannelMappingPanel({
           添加模型
         </Button>
       </div>
+      {!editor && notice && (
+        <p role="status" className="console-muted">
+          {notice}
+        </p>
+      )}
       {editor === 'new' && form}
       {channel.models.length ? (
         <div className="overflow-hidden rounded-xl border border-[var(--color-border)]">
-          <div className="hidden grid-cols-[minmax(0,1fr)_minmax(0,1fr)_8rem_4rem] gap-3 bg-[var(--color-muted)] px-4 py-3 text-sm text-[var(--color-muted-foreground)] sm:grid">
+          <div className="hidden grid-cols-[minmax(0,1fr)_minmax(0,1fr)_8rem_9rem] gap-3 bg-[var(--color-muted)] px-4 py-3 text-sm text-[var(--color-muted-foreground)] sm:grid">
             <span>对外模型</span>
             <span>上游模型</span>
             <span>接口协议</span>
@@ -240,7 +250,7 @@ export function ChannelMappingPanel({
               key={`${mapping.publicModelId}:${mapping.protocol}`}
               className="border-t border-[var(--color-border)] first:border-t-0"
             >
-              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_8rem_4rem]">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_8rem_9rem]">
                 <ModelIdentity modelId={mapping.publicModelId} />
                 <span
                   className="truncate text-sm text-[var(--color-muted-foreground)]"
@@ -251,14 +261,61 @@ export function ChannelMappingPanel({
                 <span className="text-sm">
                   {protocols.find((item) => item.value === mapping.protocol)?.label}
                 </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={saving}
-                  onClick={() => openEditor(mapping)}
-                >
-                  编辑
-                </Button>
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={saving}
+                    onClick={() => openEditor(mapping)}
+                  >
+                    编辑
+                  </Button>
+                  <ConfirmAction
+                    trigger={
+                      <Button variant="ghost" size="sm" disabled={saving}>
+                        删除
+                      </Button>
+                    }
+                    title={`删除 ${mapping.publicModelId} 的 ${mapping.protocol} 映射？`}
+                    description="仅移除此渠道上的模型映射。全局模型、其他渠道映射、历史请求和账单会保留。"
+                    confirmLabel="删除映射"
+                    onConfirm={async () => {
+                      setSaving(true);
+                      onBusyChange?.(true);
+                      try {
+                        await api.deleteMapping(
+                          mapping.publicModelId,
+                          channel.id,
+                          mapping.protocol,
+                          mapping.mappingVersion,
+                        );
+                        setEditor(null);
+                        setNotice('模型映射已删除，全局模型已保留。');
+                        await Promise.all([
+                          invalidateAdminChannels(queryClient, actorId, sessionEpoch),
+                          queryClient.invalidateQueries({
+                            queryKey: modelMappingQueryKeys.root(actorId, mapping.publicModelId),
+                          }),
+                        ]);
+                      } catch (cause) {
+                        if (
+                          cause instanceof ApiClientError &&
+                          (cause.status === 409 || cause.status === 404)
+                        ) {
+                          void invalidateAdminChannels(queryClient, actorId, sessionEpoch);
+                          throw withErrorContext(
+                            cause,
+                            '模型映射已被修改或删除，请关闭确认框，重新读取后再操作。',
+                          );
+                        }
+                        throw cause;
+                      } finally {
+                        setSaving(false);
+                        onBusyChange?.(false);
+                      }
+                    }}
+                  />
+                </div>
               </div>
               {editor !== null &&
                 editor !== 'new' &&

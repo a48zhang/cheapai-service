@@ -91,3 +91,33 @@ describe('configuration CRUD through the real app entry', () => {
     expect(await testEnv.DB.prepare('SELECT name,config_version FROM channels WHERE id=?').bind(created.id).first()).toEqual({ name: channelInput.name, config_version: 1 });
   });
 });
+
+it('routes both DELETE operations through the real app with authorization and current versions', async () => {
+  const created = await channel();
+  const channelPath = `/api/v1/admin/channels/${created.id}`;
+  await data(await call('/api/v1/admin/models', { method: 'POST', body: modelInput }), 201);
+  const mappingsPath = '/api/v1/admin/models/c17-model/mappings';
+  const mapping = await data<{ configVersion: number }>(await call(mappingsPath, {
+    method: 'POST', body: { channelId: created.id, protocol: 'chat', upstreamModel: 'upstream-model' },
+  }), 201);
+  const mappingPath = `${mappingsPath}/${created.id}/chat`;
+  for (const path of [channelPath, mappingPath]) {
+    expect((await call(path, { method: 'DELETE', body: { version: 1 }, actor: 'missing-session' })).status).toBe(401);
+    expect((await call(path, { method: 'DELETE', body: { version: 1 }, actor: ordinary })).status).toBe(403);
+    expect((await call(path, { method: 'DELETE', body: { version: 1 }, headers: { 'X-CSRF-Token': '' } })).status).toBe(403);
+    expect((await call(path, { method: 'DELETE', body: { version: 1 }, headers: { Origin: 'https://evil.example' } })).status).toBe(403);
+  }
+  expect(await data(await call(mappingPath, { method: 'DELETE', body: { version: mapping.configVersion } }))).toEqual({ deleted: true });
+  expect(await data(await call(mappingsPath))).toEqual({ items: [] });
+  expect((await call('/api/v1/admin/models/c17-model')).status).toBe(200);
+  const refreshed = await data<{ configVersion: number }>(await call(channelPath));
+  expect(refreshed.configVersion).toBe(created.configVersion + 1);
+  const saved = await data<{ configVersion: number; name: string }>(await call(channelPath, {
+    method: 'PATCH', body: { version: refreshed.configVersion, name: 'Draft saved after mapping deletion' },
+  }));
+  expect(saved.name).toBe('Draft saved after mapping deletion');
+  expect((await call(channelPath, { method: 'DELETE', body: { version: created.configVersion } })).status).toBe(409);
+  expect(await data(await call(channelPath, { method: 'DELETE', body: { version: saved.configVersion } }))).toEqual({ deleted: true });
+  expect((await call(channelPath)).status).toBe(404);
+  expect(await testEnv.DB.prepare('SELECT deleted_at FROM channels WHERE id=?').bind(created.id).first('deleted_at')).not.toBeNull();
+});

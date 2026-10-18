@@ -139,7 +139,7 @@ function groupManagement(env: Env) {
   return createGroupRoutes({ database: env.DB, now: Date.now, trustedOrigin: () => trustedOriginFromConfig(env) });
 }
 routes.on(['GET', 'POST'], ADMIN_CHANNELS_PATH, c => channels.fetch(c.req.raw, c.env));
-routes.patch(`${ADMIN_CHANNELS_PATH}/:id`, c => channels.fetch(c.req.raw, c.env));
+routes.on(['PATCH', 'DELETE'], `${ADMIN_CHANNELS_PATH}/:id`, c => channels.fetch(c.req.raw, c.env));
 routes.get(`${ADMIN_CHANNELS_PATH}/:id`, c => channels.fetch(c.req.raw, c.env));
 // These narrow-binding factories clone their local env; pass only DB so a clone
 // cannot accidentally read Secret properties. Origin closures retain trusted env.
@@ -150,7 +150,7 @@ routes.on(['GET', 'POST'], ADMIN_MODELS_PATH, c => models.fetch(c.req.raw, c.env
 routes.patch(`${ADMIN_MODELS_PATH}/:id`, c => models.fetch(c.req.raw, c.env));
 routes.get(`${ADMIN_MODELS_PATH}/:id`, c => models.fetch(c.req.raw, c.env));
 routes.on(['GET', 'POST'], ADMIN_MAPPINGS_PATH, c => mappings.fetch(c.req.raw, c.env));
-routes.patch(ADMIN_MAPPING_UPDATE_PATH, c => mappings.fetch(c.req.raw, c.env));
+routes.on(['PATCH', 'DELETE'], ADMIN_MAPPING_UPDATE_PATH, c => mappings.fetch(c.req.raw, c.env));
 
 // Read/adjustment billing endpoints do not depend on gateway or Cron readiness.
 // Request history, known-evidence recovery, reconciliation and audit are kept

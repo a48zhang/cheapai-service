@@ -6,6 +6,7 @@ import { Sheet } from '../../shared/ui/Sheet';
 import { Tabs } from '../../shared/ui/Tabs';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
+import { DeleteChannelAction } from './DeleteChannelAction';
 import { ChannelForm } from './ChannelForm';
 import { ChannelMappingPanel } from './ChannelMappingPanel';
 import {
@@ -40,7 +41,6 @@ export function ChannelManagement({
   });
   const channel = channelQuery.data;
   const [tab, setTab] = useState<string>(initialTab);
-  const [settingsChannel, setSettingsChannel] = useState(initialChannel);
   const [busy, setBusy] = useState(false);
   const [footerContainer, setFooterContainer] = useState<HTMLDivElement | null>(null);
   const close = (open: boolean) => {
@@ -87,6 +87,17 @@ export function ChannelManagement({
           />
         </div>
       )}
+      <div className="mb-5 flex justify-end">
+        <DeleteChannelAction
+          channel={channel}
+          api={api}
+          actorId={actorId}
+          epoch={sessionEpoch}
+          busy={busy}
+          onBusyChange={setBusy}
+          onDeleted={() => onOpenChange(false)}
+        />
+      </div>
       <Tabs
         value={tab}
         onValueChange={(value) => {
@@ -122,12 +133,11 @@ export function ChannelManagement({
                 embedded
                 footerContainer={footerContainer}
                 open
-                channel={settingsChannel}
+                channel={channel}
                 api={api}
                 onOpenChange={close}
                 onBusyChange={setBusy}
                 onSaved={(saved) => {
-                  setSettingsChannel(saved);
                   void recordChannelSaved(queryClient, actorId, sessionEpoch, saved);
                 }}
               />

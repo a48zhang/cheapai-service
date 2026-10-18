@@ -7,7 +7,7 @@ import { getChannelById } from '../catalog/channels';
 import { validateCsrfRequest } from '../auth/csrf';
 import { DEFAULT_CONFIG } from '../config';
 import { ApiError, apiError, apiSuccess, createRequestId, parsePagination } from '../http';
-import { createChannel, listChannels, updateChannel } from './channel-repository';
+import { createChannel, deleteChannel, listChannels, updateChannel } from './channel-repository';
 import type { ChannelPatch, CreateChannelInput } from './channel-repository';
 
 export const ADMIN_CHANNELS_PATH = '/api/v1/admin/channels';
@@ -110,6 +110,14 @@ export function createChannelRoutes<B extends Bindings = Bindings>(dependencies:
       actorId: context.get('user').id, operationId: crypto.randomUUID(), now: context.get('channelNow'),
     });
     return apiSuccess(result, context.get('requestId'));
+  });
+  app.delete(`${ADMIN_CHANNELS_PATH}/:id`, async (context) => {
+    await protectWrite(dependencies, context.env, context.req.raw);
+    const body = await readBody(context.req.raw);
+    if (typeof body.version !== 'number' || !Number.isSafeInteger(body.version) || body.version < 1) throw new ApiError('invalid_request');
+    await deleteChannel(context.env.DB, context.req.param('id'), body.version,
+      { actorId: context.get('user').id, operationId: crypto.randomUUID(), now: context.get('channelNow') });
+    return apiSuccess({ deleted: true }, context.get('requestId'));
   });
   app.notFound((context) => apiError(new ApiError('not_found'), context.get('requestId') ?? createRequestId()));
   return app;

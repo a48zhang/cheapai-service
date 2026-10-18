@@ -7,7 +7,7 @@ import { requireAdmin } from '../auth/roles';
 import { validateCsrfRequest } from '../auth/csrf';
 import { DEFAULT_CONFIG } from '../config';
 import { ApiError, apiError, apiSuccess, createRequestId } from '../http';
-import { createModelMapping, listModelMappings, updateModelMapping } from './model-mappings';
+import { createModelMapping, deleteModelMapping, listModelMappings, updateModelMapping } from './model-mappings';
 import type { ModelMappingPatch } from './model-mappings';
 
 export const ADMIN_MAPPINGS_PATH = '/api/v1/admin/models/:publicModelId/mappings';
@@ -93,6 +93,15 @@ export function createMappingRoutes<B extends Bindings = Bindings>(dependencies:
       channelId: context.req.param('channelId'), protocol: context.req.param('protocol') as Protocol }, version, patch as ModelMappingPatch,
     { actorId: context.get('user').id, operationId: crypto.randomUUID(), now: context.get('mappingNow') });
     return apiSuccess(result, context.get('requestId'));
+  });
+  app.delete(ADMIN_MAPPING_UPDATE_PATH, async (context) => {
+    await protect(dependencies, context.env, context.req.raw);
+    const body = await readBody(context.req.raw);
+    if (typeof body.version !== 'number' || !Number.isSafeInteger(body.version) || body.version < 1) throw new ApiError('invalid_request');
+    await deleteModelMapping(context.env.DB, { publicModelId: context.req.param('publicModelId'),
+      channelId: context.req.param('channelId'), protocol: context.req.param('protocol') as Protocol }, body.version,
+    { actorId: context.get('user').id, operationId: crypto.randomUUID(), now: context.get('mappingNow') });
+    return apiSuccess({ deleted: true }, context.get('requestId'));
   });
   app.notFound((context) => apiError(new ApiError('not_found'), context.get('requestId') ?? createRequestId()));
   return app;
