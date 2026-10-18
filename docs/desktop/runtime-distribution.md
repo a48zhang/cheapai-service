@@ -1,14 +1,14 @@
 # Desktop Runtime 分发
 
-桌面壳、自有 React 前端、Runtime 和固定 DSH 组合按同一应用版本打包。壳的 Cargo package、Tauri bundle、前端 package 和 Runtime package 版本必须相同。运行时选择来自 `scripts/desktop/runtime-versions.json`；Node 24.19.0 是固定对照，Bun 1.4.2 是候选，当前没有真实 DSH/Bun/native addon 兼容结论。
+桌面壳、自有 React 前端、Runtime 和固定 DSH 组合按同一应用版本打包。壳的 Cargo package、Tauri bundle、前端 package 和 Runtime package 版本必须相同。运行时选择来自 `scripts/desktop/runtime-versions.json`；发行使用 Node 24.19.0；Bun 1.4.2 为实验候选。
 
 ## 文件与数据位置
 
 准备成功后，`resource_dir()/resources/generated/runtime` 是安装包资源，包含单一所选 `bin/<node|bun>`、编译后的 `dist/src/index.js`、生产 `node_modules` 闭包、`profiles/cheapai.yml`、`desktop-runtime.json`、`release-manifest.json` 和 notices。编译后 managed credential provider 位于 `dist/src/cheapai/dsh-credential-provider.js`；launcher 的动态 patch 只引用它的绝对 file URL，不包含 Token/Key。`release-manifest.json` 还记录 Tauri `frontendDist` 文件的路径、字节数和 SHA-256；清单本身不对自身生成递归 checksum。
 
-DSH home 位于宿主应用用户数据目录并按稳定 userId 散列分区，偏好按账号保存在 WebView 本地存储；Token 使用系统凭据库。Runtime 入口已启用私有 bridge/provider，先由原生持久化 Token 再 restore、绑定 home 并启动 DSH。源码接线已完成，安装升级的数据保留和真实账号隔离仍需目标机验收。构建脚本只写 `apps/desktop/src-tauri/resources/generated/runtime`；发布升级不得覆盖用户数据目录，也不得依赖用户的外部 pnpm store。
+DSH home 位于宿主应用用户数据目录并按稳定 userId 散列分区，偏好按账号保存在 WebView 本地存储；Token 使用系统凭据库。Runtime 入口已启用私有 bridge/provider，先由原生持久化 Token 再 restore、绑定 home 并启动 DSH。构建脚本只写 `apps/desktop/src-tauri/resources/generated/runtime`；发布升级不得覆盖用户数据目录，也不得依赖用户的外部 pnpm store。
 
-Git、Python、项目编译器、包管理器和其他被 DSH 工具调用的项目命令由用户工作环境提供；它们并非这个桌面安装包自动提供。随包 Node/Bun 只提供 JavaScript runtime，不代表项目工具链或依赖开箱即用。
+Git、Python、项目编译器、包管理器和其他被 DSH 工具调用的项目命令由用户工作环境提供。安装包提供所选 JavaScript Runtime。
 
 ## 准备与版本选择
 
@@ -22,8 +22,8 @@ Node/Bun 为互斥选择，只改变 launcher/runtime executable，不维护第�
 
 仓库 [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md) 保留既有协议来源并增加桌面固定来源；[LICENSES/desktop](../../LICENSES/desktop) 保存 DSH、Bun 和 Node 的完整上游声明。`package-runtime.mjs` 将 notice 与三份完整文本复制到 `notices/THIRD_PARTY_NOTICES.md`、`notices/LICENSES/desktop/`，并完整复制每个已解析 npm package 内容，保留其 LICENSE/NOTICE/COPYING 文件。发行资源还须包含实际依赖包内的声明。
 
-Bun 的声明还覆盖 JavaScriptCore/WebKit 与多种静态链接库，并给出重链接说明；不能只保留“Bun 是 MIT”的一句话。Node 的保存文本同样包含其嵌入库声明。实际 npm/Rust/前端依赖以锁和发行清单为准；清单文件对资源和依赖文件列出路径与 SHA-256，但这不等于完成每个依赖的许可审查。
+Bun 的声明还覆盖 JavaScriptCore/WebKit 与多种静态链接库，并给出重链接说明。Node 的保存文本同样包含其嵌入库声明。实际 npm/Rust/前端依赖以锁和发行清单为准；清单文件对资源和依赖文件列出路径与 SHA-256。
 
 ## 验证与发行
 
-pnpm 与 Cargo 锁已提交。安装和打包命令、目标平台及 CI 产物见[桌面构建与发行](release.md)。Runtime 装配与 DSH 启动的历史结果见[依赖恢复记录](evidence/dependency-recovery.md)；Bun 兼容性和目标系统安装验收需分别记录。产物是否可获取以对应提交的 Actions 结果为准。
+pnpm 与 Cargo 锁已提交。安装和打包命令、目标平台及 CI 产物见[桌面构建与发行](release.md)。

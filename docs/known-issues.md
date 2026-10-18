@@ -22,5 +22,3 @@ Gate 有限 RPM 的配置上限为 4096；实际容量还受 64 KiB 状态预算
 ## 检查记录
 
 提交检查查看对应 SHA 的 [Actions](https://github.com/a48zhang/cheapai-service/actions)。发布后检查按[部署手册](deployment.md)执行，记录目标环境、Worker 版本和 D1 迁移水位。
-
-[2026 年 10 月 3 日问题与回归记录](evidence/known-issues-2026-10-03.md)保留当时的浏览器启动失败和待验证项；后续 React 验收见[集中验证](validation/cheapai-react-final.md)。

@@ -1,53 +1,31 @@
-# 协议源码与用例基线（P21）
+# 协议参考来源
 
-核对日期：2026-09-05。状态：固定来源、目录完整性和代表性源码/测试对应的静态核对已完成；本任务没有移植代码、复制 fixture 到工程、运行上游 Go 测试或验证 Workers/真实供应商兼容性。实施范围仍以 [架构](architecture.md)、[协议方案](protocol-compatibility.md) 和 [证据限制](evidence.md) 为准。
+协议实现参考 [Sub2API apicompat](https://github.com/Wei-Shaw/sub2api/tree/ab99d56e9626e6cd731592dae8553c9758a0efa2/backend/internal/pkg/apicompat)，固定提交为 `ab99d56e9626e6cd731592dae8553c9758a0efa2`。来源与许可声明见[第三方声明](../THIRD_PARTY_NOTICES.md)。
 
-## 固定来源和取证范围
+本仓库的 TypeScript 实现位于 `packages/apicompat`；请求、JSON 响应和 SSE 分别由对应适配器转换。字段范围见[协议支持矩阵](protocol-support.md)，供应商与 SDK 检查方法见[真实上游兼容测试](live-compatibility-testing.md)。
 
-唯一上游为 [Wei-Shaw/sub2api 固定提交](https://github.com/Wei-Shaw/sub2api/tree/ab99d56e9626e6cd731592dae8553c9758a0efa2)，commit `ab99d56e9626e6cd731592dae8553c9758a0efa2`；不使用 main 或最新版本替代。
+维护转换规则时，对照固定来源与目标协议文档，保留来源归属，并更新对应适配器测试。
 
-从 GitHub 官方 API 取得 [递归目录树](https://api.github.com/repos/Wei-Shaw/sub2api/git/trees/ab99d56e9626e6cd731592dae8553c9758a0efa2?recursive=1)：返回 sha 与固定提交一致，`truncated=false`，共 4040 个条目。仅下载根 LICENSE 和 `backend/internal/pkg/apicompat/` 的 48 个文件到工程外的 `../../work/p21-protocol-reference/`；未下载整个旧工程，也未读取或复制部署凭据。临时文件名将 `/` 替换为 `__`，目录树为 `tree.json`。该路径只是本次工作证据，不是构建依赖。
+## 转换参考
 
-49 个下载文件逐一以 `git hash-object` 对照目录树的 blob SHA，全部匹配。完整目录树按 LICENSE/NOTICE/COPYING 文件名核对，只发现根 `LICENSE`；未发现独立 NOTICE、COPYING 或 apicompat 专用许可证。模块源文件未发现版权头、SPDX 或额外许可声明；这是本次检查范围内的结果，不能代替未来新增依赖的核查。根 LICENSE 是 GNU LGPL version 3（2007-06-29），详见 [第三方声明](../THIRD_PARTY_NOTICES.md)。
+以下路径相对 `backend/internal/pkg/apicompat/`。Chat → Messages 请求由本仓库直接实现；固定来源提供 Messages → Chat 请求及反向响应的参考。
 
-## 转换方向与用例对应
-
-以下文件名均相对 `backend/internal/pkg/apicompat/`，完整固定链接和 blob 身份见后面的清单。方向指函数处理的数据方向，不将“请求转换”与“返回转换”混为一项。函数和测试均从下载源码核对；列出测试不表示执行通过。
-
-| 数据方向 / 类型 | 来源函数与文件 | 已核对的代表性测试 | 未来本地对应要求 |
-| --- | --- | --- | --- |
-| Chat → Responses 请求 | `ChatCompletionsToResponses`，`chatcompletions_to_responses.go` | `chatcompletions_responses_test.go`：`TestChatCompletionsToResponses_BasicText`、`TestChatCompletionsToResponses_ToolCalls` | 文本、system、多轮工具历史和参数控制 |
-| Responses → Chat 请求 | `ResponsesToChatCompletionsRequest` / `WithOptions`，`chatcompletions_responses_bridge.go` | `chatcompletions_responses_bridge_test.go`：`TestResponsesToChatCompletionsRequest_InstructionsAndInputDeveloperRole`、`TestResponsesToChatCompletionsRequest_TextFormatJsonObject` | instructions/developer 顺序及结构化输出；显式记录旧行为差异 |
-| Messages → Responses 请求 | `AnthropicToResponses`，`anthropic_to_responses.go` | `anthropic_responses_test.go`：`TestAnthropicToResponses_BasicText`、`TestAnthropicToResponses_ThinkingWithoutSignatureIgnored` | 图片、系统内容块、工具和签名语义 |
-| Responses → Messages 请求 | `ResponsesToAnthropicRequest`，`responses_to_anthropic_request.go` | `responses_to_anthropic_instructions_test.go`：`TestResponsesToAnthropicRequest_Instructions`；`responses_to_anthropic_tool_pairing_test.go`：`TestAnthropicPairing_ParallelBothAnswered` | 多轮工具配对、instructions、未知内容块处理 |
-| Messages → Chat 请求；Chat → Messages JSON/SSE 返回 | `AnthropicToChatCompletionsRequest`、`ChatCompletionsResponseToAnthropic`、`ChatCompletionsChunkToAnthropicEvents`，`chatcompletions_anthropic_bridge.go` | 同名 `_test.go`：`TestChatCompletionsResponseToAnthropic_CacheTokens`、`TestChatCompletionsChunkToAnthropicEvents_ParallelToolCalls`、`TestFinalizeChatCompletionsAnthropicStream_NoOpAfterStop` | 直接桥接，只运行一次流状态机；工具索引、usage、终态唯一 |
-| Chat → Responses JSON/SSE 返回 | `ChatCompletionsResponseToResponses`、`ChatCompletionsChunkToResponsesEvents`、`FinalizeChatCompletionsResponsesStream`，`chatcompletions_responses_bridge.go` | `chatcompletions_responses_stream_lifecycle_test.go`：`TestStream_ReasoningOpensItemBeforeDelta`；`chatcompletions_reasoning_alias_test.go`：`TestChatReasoningAlias_ResponsesSharedPaths` | item/content 生命周期、reasoning、工具参数增量 |
-| Responses → Chat JSON/SSE 返回 | `ResponsesToChatCompletions`、`ResponsesEventToChatChunks`、`FinalizeResponsesChatStream`，`responses_to_chatcompletions.go` | `streaming_stop_reason_test.go`：`TestResponsesToChatCompletions_ContentFilter`、`TestResponsesToChatCompletionsStreaming_ContentFilter` | 过滤与长度等结束原因、终态 usage 和 Chat 结束标记 |
-| Messages → Responses JSON/SSE 返回 | `AnthropicToResponsesResponse`、`AnthropicEventToResponsesEvents`、`FinalizeAnthropicResponsesStream`，`anthropic_to_responses_response.go` | `anthropic_to_responses_stream_test.go`：`TestAnthropicEventToResponses_ItemLifecycleIsBalanced`；`streaming_stop_reason_test.go`：`TestAnthropicStreamingMaxTokens_MapsToIncomplete` | block/item 索引、完整 output、截断不能伪装成功 |
-| Responses → Messages JSON/SSE 返回 | `ResponsesToAnthropic`、`ResponsesEventToAnthropicEvents`、`FinalizeResponsesAnthropicStream`，`responses_to_anthropic.go` | `anthropic_responses_test.go`：`TestStreamingCachedTokensUseAnthropicInputSemantics`；`responses_to_anthropic_parallel_tool_test.go`：`TestStreamingParallelToolUseNoGhostDelta` | 缓存 token 语义、并行工具、结束事件 |
-| 共享类型与 wire | `types.go`、`responses_stream_event_wire.go`、`response_format.go` | `responses_stream_event_wire_test.go`：`TestWire_IndexFieldsPresentAtZero`、`TestWire_ArgumentsDonePresentEvenEmpty` | 零索引和空参数不能被错误省略；共享类型不可访问绑定或密钥 |
-
-**已知来源缺口：** 该模块直接桥接文件只提供 Messages 请求到 Chat 及其反向返回；没有据此证明 Chat 请求到 Messages 及其反向返回存在完整直接实现。未来该方向须自行实现并测试，可参考 Chat↔Responses、Messages↔Responses 的语义，不能将两次流转换冒充已验证的直接实现。同协议三格、网络 SSE 分帧/UTF-8/背压/取消、HTTP 错误处理、用户归属和计费幂等也不能由这些模块测试推出。
-
-**需要明确的兼容差异：** 上游测试包含 server tool 丢弃、无效历史工具调用丢弃、reasoning-only 合成可见文本等既有行为。新工程须遵守协议方案的显式拒绝/能力路由及不将私有思考变成普通文本的规则；不能机械复制这些期望。缓存用量保持原上游语义供一次结算使用，不因返回格式转换重复计费。
-
-## Fixture 来源与以后移植登记
-
-模块目录中有三个外置 fixture，均由 `chatcompletions_reasoning_alias_test.go` 的 `readIssue5302Fixture` 使用；其余选定测试多在 Go 中构造输入和断言，不能将测试文件误列成现成 JSON fixture 包。
-
-| 外置 fixture（位于 testdata/issue5302） | 消费测试 | 语义 |
-| --- | --- | --- |
-| `nonstream_reasoning.json` | `TestChatReasoningAlias_AnthropicNonStreaming`、`TestChatReasoningAlias_ResponsesSharedPaths` | reasoning 别名用于普通返回 |
-| `stream_reasoning.json` | `TestChatReasoningAlias_AnthropicStreaming`、`TestChatReasoningAlias_ResponsesSharedPaths` | reasoning 别名用于流增量 |
-| `reasoning_content_precedence.json` | `TestChatReasoningAlias_ReasoningContentTakesPrecedence` | reasoning_content 优先 |
-
-本任务不将这三个样例声明为真实供应商录制数据。未来复制或翻译源码、Go 内嵌输入/期望或外置 fixture 时，逐项登记：本地路径、来源 commit/文件/blob、测试函数、改动与日期、许可声明、合成/上游派生/真实录制类别和执行结果。自编 fixtures 也需明确为合成数据。录制样例必须去除 Authorization、API Key、Cookie、个人内容和供应商秘密；不能依赖只清除某一个字段。
-
-未来验证须覆盖九格十八条普通/SSE 路径，再补工具多轮、图片、错误、截断、缺失 usage、UTF-8 任意切分、取消和能力拒绝。每条分别记录“未实现、静态核对、mock 通过、远程 Workers 通过、真实供应商通过”，不将本清单当作已通过报告。
+| 数据方向 / 类型 | 来源函数与文件 | 参考测试  |
+| --- | --- | ---  |
+| Chat → Responses 请求 | `ChatCompletionsToResponses`，`chatcompletions_to_responses.go` | `chatcompletions_responses_test.go`：`TestChatCompletionsToResponses_BasicText`、`TestChatCompletionsToResponses_ToolCalls`  |
+| Responses → Chat 请求 | `ResponsesToChatCompletionsRequest` / `WithOptions`，`chatcompletions_responses_bridge.go` | `chatcompletions_responses_bridge_test.go`：`TestResponsesToChatCompletionsRequest_InstructionsAndInputDeveloperRole`、`TestResponsesToChatCompletionsRequest_TextFormatJsonObject`  |
+| Messages → Responses 请求 | `AnthropicToResponses`，`anthropic_to_responses.go` | `anthropic_responses_test.go`：`TestAnthropicToResponses_BasicText`、`TestAnthropicToResponses_ThinkingWithoutSignatureIgnored`  |
+| Responses → Messages 请求 | `ResponsesToAnthropicRequest`，`responses_to_anthropic_request.go` | `responses_to_anthropic_instructions_test.go`：`TestResponsesToAnthropicRequest_Instructions`；`responses_to_anthropic_tool_pairing_test.go`：`TestAnthropicPairing_ParallelBothAnswered`  |
+| Messages → Chat 请求；Chat → Messages JSON/SSE 返回 | `AnthropicToChatCompletionsRequest`、`ChatCompletionsResponseToAnthropic`、`ChatCompletionsChunkToAnthropicEvents`，`chatcompletions_anthropic_bridge.go` | 同名 `_test.go`：`TestChatCompletionsResponseToAnthropic_CacheTokens`、`TestChatCompletionsChunkToAnthropicEvents_ParallelToolCalls`、`TestFinalizeChatCompletionsAnthropicStream_NoOpAfterStop`  |
+| Chat → Responses JSON/SSE 返回 | `ChatCompletionsResponseToResponses`、`ChatCompletionsChunkToResponsesEvents`、`FinalizeChatCompletionsResponsesStream`，`chatcompletions_responses_bridge.go` | `chatcompletions_responses_stream_lifecycle_test.go`：`TestStream_ReasoningOpensItemBeforeDelta`；`chatcompletions_reasoning_alias_test.go`：`TestChatReasoningAlias_ResponsesSharedPaths`  |
+| Responses → Chat JSON/SSE 返回 | `ResponsesToChatCompletions`、`ResponsesEventToChatChunks`、`FinalizeResponsesChatStream`，`responses_to_chatcompletions.go` | `streaming_stop_reason_test.go`：`TestResponsesToChatCompletions_ContentFilter`、`TestResponsesToChatCompletionsStreaming_ContentFilter`  |
+| Messages → Responses JSON/SSE 返回 | `AnthropicToResponsesResponse`、`AnthropicEventToResponsesEvents`、`FinalizeAnthropicResponsesStream`，`anthropic_to_responses_response.go` | `anthropic_to_responses_stream_test.go`：`TestAnthropicEventToResponses_ItemLifecycleIsBalanced`；`streaming_stop_reason_test.go`：`TestAnthropicStreamingMaxTokens_MapsToIncomplete`  |
+| Responses → Messages JSON/SSE 返回 | `ResponsesToAnthropic`、`ResponsesEventToAnthropicEvents`、`FinalizeResponsesAnthropicStream`，`responses_to_anthropic.go` | `anthropic_responses_test.go`：`TestStreamingCachedTokensUseAnthropicInputSemantics`；`responses_to_anthropic_parallel_tool_test.go`：`TestStreamingParallelToolUseNoGhostDelta`  |
+| 共享类型与 wire | `types.go`、`responses_stream_event_wire.go`、`response_format.go` | `responses_stream_event_wire_test.go`：`TestWire_IndexFieldsPresentAtZero`、`TestWire_ArgumentsDonePresentEvenEmpty`  |
 
 ## 固定文件清单
 
-下表 blob SHA 来自固定提交目录树，并与实际下载字节核对。测试文件清单用于后续逐项选择，未声称逐条审计所有测试断言。
+下表列出固定提交中的参考文件及 Git blob SHA-1。
 
 | 文件（固定 GitHub 链接） | Git blob SHA-1 |
 | --- | --- |

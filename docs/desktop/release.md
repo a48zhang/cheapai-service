@@ -2,7 +2,7 @@
 
 ## 固定输入
 
-工具链和目标记录在 `scripts/desktop/runtime-versions.json`，Node/pnpm 也由仓库根约束。Bun 是固定版本的比较候选，未完成兼容验证时不得称为已支持。使用已提交的 `pnpm-lock.yaml` 与 `apps/desktop/src-tauri/Cargo.lock` 安装依赖。
+工具链和目标记录在 `scripts/desktop/runtime-versions.json`，Node/pnpm 也由仓库根约束。发行使用 Node；Bun 为实验候选。使用已提交的 `pnpm-lock.yaml` 与 `apps/desktop/src-tauri/Cargo.lock` 安装依赖。
 
 ```sh
 pnpm install --frozen-lockfile --strict-peer-dependencies
@@ -20,16 +20,16 @@ package 命令依次构建桌面 workspace、准备固定 Runtime/DSH 资源和�
 
 `.github/workflows/desktop-package.yml` 在 `main` 推送桌面相关改动、相关 PR 和手动 Run workflow 时运行。三个任务分别构建 Windows x64 NSIS `.exe`、macOS Apple Silicon `.dmg`、macOS Intel `.dmg`，固定使用 Node Runtime。打开对应 Actions 运行的 Artifacts，下载 `desktop-installer-<target>-<commit>`；产物保留 14 天。
 
-真实 pnpm/Cargo 锁已补齐入库；CI 只执行 frozen + strict peers 安装和 cargo fetch --locked，不修改依赖锁或源码。各目标的实际锁同时上传为 `desktop-locks-<target>-<commit>`；安装包内的清单绑定触发构建的源码提交与锁文件 hash。
+CI 只执行 frozen + strict peers 安装和 cargo fetch --locked，不修改依赖锁或源码。各目标的实际锁同时上传为 `desktop-locks-<target>-<commit>`；安装包内的清单绑定触发构建的源码提交与锁文件 hash。
 
-安装包未签名、未公证；工作流只上传 Actions 产物，不创建公开 Release，也不证明安装后的任务链通过。需由 GitHub runner 实际完成构建后确认产物；安装验收在对应目标系统执行。
+安装包未签名、未公证，通过 Actions 产物分发。安装检查在对应目标系统执行。
 
-历史集中验收见 [Runtime](evidence/runtime.md)、[对话](evidence/conversation.md)、[账号后端](evidence/backend-account.md)、[账号端到端](evidence/account-e2e.md)、[macOS](evidence/native-macos.md)、[Windows](evidence/native-windows.md) 和[候选发布](evidence/release.md)。目标机器应覆盖不预装 Node/Bun、中文和空格路径、工具停止及进程收尾、账号切换和历史保留。更新源、签名、macOS 公证与 Windows 交付条件缺失时逐项记录未运行。
+目标机器检查覆盖：不预装 Node/Bun、中文和空格路径、工具停止和进程收尾、账号切换及历史保留。
 
-验证环境使用本地隔离 Worker/D1 或现有 PR 独立预发环境，不使用退役的共享 staging。真实网关任务需要已有测试 Key 和预算；mock 不证明模型兼容。生产部署、生产迁移和公开发布需要单独授权，不随本开发计划自动执行。
+验证使用隔离环境。真实网关任务需配置测试 Key、模型和费用预算。
 
 ## 更新与许可
 
 Tauri 标准 updater 配置可信源与公钥，私钥只属于发布签名环境。未配置时返回 unavailable。检查与安装分离，安装前对运行任务或未知活动状态确认，并有界停止自有 DSH 和 Runtime。Windows SDK 会启动安装器并退出；macOS/Linux SDK 替换资源后由宿主退出。用户重新打开应用确认实际版本；不自动重放模型请求。更新失败后允许显式重启本地服务。整包更新同时替换壳、前端与 Runtime，账号历史不在替换资源内。
 
-完整许可文本在 `LICENSES/desktop/`；原有仓库 notices 保留，生产包 closure 内各依赖的 LICENSE/NOTICE 保留。见 [运行时分发](runtime-distribution.md) 与根 `THIRD_PARTY_NOTICES.md`。源码实现完成不等于许可审计或正式发行完成。
+完整许可文本在 `LICENSES/desktop/`；原有仓库 notices 保留，生产包 closure 内各依赖的 LICENSE/NOTICE 保留。见 [运行时分发](runtime-distribution.md) 与根 `THIRD_PARTY_NOTICES.md`。

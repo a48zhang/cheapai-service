@@ -13,7 +13,7 @@ Cloudflare rollback 会创建一个新的 deployment，让指定旧 version 承�
 | D1 schema | 旧代码能读取当前表/列/约束/触发器；新增字段允许向后兼容，删列或改语义则不能直接回退 |
 | 财务事实 | 目标版本仍支持当前 `operation_id`、消费唯一性、fingerprint、账单触发器和只追加语义 |
 | 待结算记录 | 能解释当前 `price_snapshot`、`usage_json`、质量、retry_count、next_retry_at；不能把缺失字段当 0 或重复计费 |
-| 协议快照 | 当前 B03 `schema_version`、`canonical_json_version`、`calculation_version` 都为 1；旧代码必须读懂仍保留的所有版本 |
+| 协议快照 | 当前 `schema_version`、`canonical_json_version`、`calculation_version` 都为 1；旧代码必须读懂仍保留的所有版本 |
 | Response ID | 仍遵守 P05 `seed=request.id` → `resp_<内部UUID>`；D09 `response_id` 是原生上游 ID，续接不得改成跨用户/Key 查找 |
 | DO | `Gate` 类/namespace 身份、RPC 输入输出及存量状态兼容；当前租约存储 `gate:leases`、`schemaVersion:1` 不能被旧代码静默重置 |
 | 凭据 | 目标版本支持 `channels.upstream_key` 和 Desktop `current_key`；邮件 Secret 与该版本配置匹配 |
@@ -84,8 +84,8 @@ D1 `migrations apply` 按未应用文件前进，`d1_migrations` 是真实水位
 1. 验证实际域名、API JSON/SPA 边界、管理员登录与权限；不能只看 deploy 命令成功。
 2. 对同一已结算 `operation_id` 的受控重放确认不新增账单、不再扣款。不要以调用真实上游重放来验证数据库幂等。
 3. 核对 `settlement_pending`、`usage_unknown`、未结束请求和负余额统计。负余额按真实事实保留，不截零、不覆盖。需要纠错时由正式授额/调整用例追加账目并记录原因。
-4. 确认 B21 仍分批运行：完整证据才重试结算，五轮耗尽保留人工处理；未知用量不可推导零费用，失败的后台回调不能伪报成功。
+4. 确认定时维护分批运行：usage 和价格快照完整时重试结算，五轮耗尽保留人工处理；未知用量不可推导零费用。
 5. 既有请求继续使用登记时保存的完整价格/usage/fingerprint，不能按回滚后的“当前价格”重新计算历史费用。保留新版本发出的平台 response ID 的归属与原生 ID 还原规则。
-6. 验证正常/取消/超时流仍释放租约、结束有界完成回调，日志只输出 G21 的安全字段。对未实现或缺乏远程证据的协议路径继续标记未验收。
+6. 验证正常/取消/超时流仍释放租约、结束有界完成回调，日志按应用配置记录错误。
 
 若需要恢复数据库到过去时间点，这是独立的隔离恢复事件：恢复到隔离资源，核对账本、幂等记录、未结请求和凭据，再决定切换。必须解释恢复点之后已经发生的交易如何保全；不能以代码回滚之名直接覆盖生产余额或账单。
