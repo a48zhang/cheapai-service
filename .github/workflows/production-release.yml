@@ -3,6 +3,9 @@ name: Production release
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
 
 permissions:
   contents: read
