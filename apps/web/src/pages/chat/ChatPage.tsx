@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { Conversation } from '@cheapai/contracts/chat';
 import { useSession } from '../../features/session/useSession';
 import { useDraft } from '../../features/chat/hooks/useDraft';
@@ -100,16 +100,14 @@ export default function ChatPage() {
       !selection.selection.modelId
     )
       return;
-    const result = chat.send({
-      content,
-      groupId: selection.selection.groupId,
-      modelId: selection.selection.modelId,
-    });
-    draft.setDraft('');
-    void result.then((result) => {
-      if ((result === 'busy' || result === 'superseded') && !draftRef.current?.draft)
-        draftRef.current?.preservePending(content, userId);
-    });
+    void chat.send(
+      {
+        content,
+        groupId: selection.selection.groupId,
+        modelId: selection.selection.modelId,
+      },
+      () => draft.setDraft(''),
+    );
   };
   const newConversation = () => {
     chat.controller.resetConversation();
@@ -134,13 +132,11 @@ export default function ChatPage() {
   const disabledReason =
     status === 'unknown'
       ? '正在确认身份…'
-      : chat.state.phase === 'interrupted'
-        ? '请先确认上一次操作的结果。'
-        : authenticated && chat.view === 'opening'
-          ? '正在读取会话…'
-          : authenticated && chat.view === 'error'
-            ? '会话读取失败，请重试。'
-            : undefined;
+      : authenticated && chat.view === 'opening'
+        ? '正在读取会话…'
+        : authenticated && chat.view === 'error'
+          ? '会话读取失败，请重试。'
+          : undefined;
   const newChat = chat.view === 'welcome';
   return (
     <ChatLayout
@@ -204,7 +200,22 @@ export default function ChatPage() {
           streamText={chat.state.streamText}
           submission={chat.state.submission}
           phase={chat.state.phase}
-          onRestoreSubmission={draft.draft ? undefined : draft.setDraft}
+          unsent={chat.state.unsent}
+          onRetrySubmission={(submission) => {
+            if (selection.available && selection.selection?.groupId && selection.selection.modelId)
+              void chat.send({
+                content: submission.content,
+                groupId: selection.selection.groupId,
+                modelId: selection.selection.modelId,
+                retrySubmissionId: submission.operationId,
+              });
+          }}
+          retryDisabled={
+            chat.busy ||
+            chat.state.phase === 'interrupted' ||
+            chat.state.failure?.code === 'conversation_creation_unknown' ||
+            !selection.available
+          }
           busy={chat.busy}
           loading={authenticated && chat.loading}
           {...(!selection.available && selection.unavailableReason
@@ -226,6 +237,7 @@ export default function ChatPage() {
           <div className="chat-notice-area">
             <ChatNotice
               state={chat.state}
+              onRestart={() => chat.controller.resetConversation(true)}
               onRetry={() => {
                 void chat.retry();
               }}
@@ -245,12 +257,24 @@ export default function ChatPage() {
             void chat.stop();
           }}
           modelPicker={
-            authenticated ? <ModelPicker selection={selection} disabled={chat.busy} /> : null
+            authenticated ? (
+              <ModelPicker selection={selection} disabled={chat.busy} />
+            ) : (
+              <Link
+                className="rounded-md px-2 py-1 text-sm font-medium text-[var(--color-foreground)] underline underline-offset-4"
+                to={`/login?returnTo=${encodeURIComponent(location.pathname + location.search)}`}
+              >
+                登录后发送
+              </Link>
+            )
           }
           sendLabel={authenticated ? '发送' : '登录后发送'}
           busy={chat.busy}
+          stopping={chat.state.phase === 'stopping' || chat.state.phase === 'finalizing'}
           disabled={
             Boolean(disabledReason) ||
+            chat.state.phase === 'interrupted' ||
+            chat.state.failure?.code === 'conversation_creation_unknown' ||
             (authenticated && (Boolean(selection.error) || !selection.available))
           }
           {...(disabledReason ? { disabledReason } : {})}

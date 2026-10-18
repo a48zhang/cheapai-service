@@ -43,17 +43,20 @@ export interface ChatState {
   readonly billingStatus: string | null;
   readonly failure: ChatFailure | null;
   readonly submission: ChatSubmission | null;
+  /** Known unsent questions survive subsequent commands independently of the composer draft. */
+  readonly unsent: readonly ChatSubmission[];
 }
 
 export type ChatEvent =
   | { readonly type: 'hydrate'; readonly detail: ConversationDetail }
-  | { readonly type: 'reset' }
+  | { readonly type: 'reset'; readonly keepUnsent?: boolean }
   | {
       readonly type: 'begin';
       readonly operationId: string;
       readonly operationKind: ChatOperationKind;
       readonly needsConversation: boolean;
       readonly submission?: ChatSubmission;
+      readonly retrySubmissionId?: string;
     }
   | {
       readonly type: 'conversation-created';
@@ -88,6 +91,7 @@ export const initialChatState: ChatState = Object.freeze({
   billingStatus: null,
   failure: null,
   submission: null,
+  unsent: [],
 });
 
 export function operationMatches(state: ChatState, operationId: string): boolean {

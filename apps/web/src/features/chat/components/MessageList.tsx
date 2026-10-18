@@ -17,7 +17,9 @@ export interface MessageListProps {
   readonly busy?: boolean | undefined;
   readonly submission?: ChatSubmission | null | undefined;
   readonly phase?: ChatPhase | undefined;
-  readonly onRestoreSubmission?: ((content: string) => void) | undefined;
+  readonly unsent?: readonly ChatSubmission[] | undefined;
+  readonly onRetrySubmission?: ((submission: ChatSubmission) => void) | undefined;
+  readonly retryDisabled?: boolean | undefined;
   readonly onRegenerate?: ((message: ChatMessage) => void) | undefined;
   readonly onSelectVersion?: ((messageId: string) => void) | undefined;
   readonly regenerateDisabledReason?: string | undefined;
@@ -39,7 +41,9 @@ export function MessageList({
   busy = false,
   submission = null,
   phase = 'idle',
-  onRestoreSubmission,
+  unsent = [],
+  onRetrySubmission,
+  retryDisabled,
   onRegenerate,
   onSelectVersion,
   regenerateDisabledReason,
@@ -91,11 +95,20 @@ export function MessageList({
             正在读取对话…
           </p>
         ) : null}
-        {!loading && !busy && rows.length === 0 ? (
+        {!loading && !busy && rows.length === 0 && unsent.length === 0 ? (
           <div className="mx-auto max-w-4xl px-4 py-4 text-center text-sm text-[var(--color-muted-foreground)]">
             {emptyMessage}
           </div>
         ) : null}
+        {unsent.map((submission) => (
+          <SubmissionMessage
+            key={submission.operationId}
+            submission={submission}
+            phase="failed"
+            retryDisabled={retryDisabled}
+            onRetry={() => onRetrySubmission?.(submission)}
+          />
+        ))}
         {rows.map((row) => {
           if (row.kind === 'submission')
             return (
@@ -103,7 +116,6 @@ export function MessageList({
                 key={`submission:${row.submission.operationId}`}
                 submission={row.submission}
                 phase={phase}
-                onRestore={onRestoreSubmission}
               />
             );
           if (row.kind === 'user') return <Message key={row.message.id} message={row.message} />;

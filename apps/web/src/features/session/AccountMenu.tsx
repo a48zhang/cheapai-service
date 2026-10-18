@@ -106,7 +106,7 @@ export function AccountMenu({
       ) : (
         <Link
           to={`/login?returnTo=${encodeURIComponent(returnTo)}`}
-          className="inline-flex min-h-9 items-center rounded-md px-2 text-xs font-medium text-[var(--color-primary)] hover:bg-[var(--color-surface-subtle)] sm:px-3 sm:text-sm"
+          className="inline-flex min-h-9 shrink-0 items-center whitespace-nowrap rounded-md border border-[var(--color-border)] px-3 text-sm font-medium text-[var(--color-foreground)] hover:bg-[var(--color-surface-subtle)]"
         >
           登录
         </Link>

@@ -443,3 +443,16 @@
     max-width: 240px;
   }
 }
+
+@media (max-width: 767px) {
+  .chat-workspace .app-topbar {
+    gap: 4px;
+    padding-inline: 8px;
+  }
+  .chat-workspace .app-topbar > div:first-child {
+    gap: 4px;
+  }
+  .chat-workspace .app-topbar > div:first-child > a > span {
+    display: none;
+  }
+}

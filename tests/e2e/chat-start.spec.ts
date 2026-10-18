@@ -22,7 +22,7 @@ async function fixture(page: Page, reject = false) {
     createdAt: timestamp,
     updatedAt: timestamp,
   };
-  let completed = false;
+  let version = 1;
   let messages: unknown[] = [];
   await page
     .context()
@@ -73,7 +73,7 @@ async function fixture(page: Page, reject = false) {
     }
     if (path === '/api/v1/chat/conversations/start-conversation')
       return reply({
-        conversation: { ...conversation, version: completed ? 2 : 1 },
+        conversation: { ...conversation, version },
         messages,
       });
     if (path === '/api/v1/chat/conversations/start-conversation/messages') {
@@ -89,7 +89,7 @@ async function fixture(page: Page, reject = false) {
         });
       const base = {
         conversationId: conversation.id,
-        turnIndex: 0,
+        turnIndex: version - 1,
         status: 'completed',
         variant: 1,
         selected: true,
@@ -100,20 +100,20 @@ async function fixture(page: Page, reject = false) {
       };
       const prompt = {
         ...base,
-        id: 'start-prompt',
+        id: `start-prompt-${version}`,
         role: 'user',
         content: route.request().postDataJSON().content,
         requestId: null,
       };
       const answer = {
         ...base,
-        id: 'start-answer',
+        id: `start-answer-${version}`,
         role: 'assistant',
         content: '首次回答已完成',
         requestId: 'start-request',
       };
-      messages = [prompt, answer];
-      completed = true;
+      messages = [...messages, prompt, answer];
+      version += 1;
       return route.fulfill({
         contentType: 'text/event-stream',
         body:
@@ -124,7 +124,14 @@ async function fixture(page: Page, reject = false) {
     }
     return route.fulfill({ status: 404, body: '{}' });
   });
-  return { identity, create, send };
+  return {
+    identity,
+    create,
+    send,
+    allowSend: () => {
+      reject = false;
+    },
+  };
 }
 
 for (const viewport of [
@@ -218,12 +225,22 @@ test('a rejected first send preserves both the original question and a newer dra
   await expect(input).toHaveValue('不要覆盖的新草稿');
   api.send.release();
   const submission = page.getByRole('article', { name: '待确认的消息' });
-  await expect(submission).toContainText('发送未完成');
+  await expect(submission).toContainText('未发送');
   await expect(submission).toContainText('被拒绝的原问题');
   await expect(input).toHaveValue('不要覆盖的新草稿');
-  await input.fill('');
-  await submission.getByRole('button', { name: '编辑问题' }).click();
-  await expect(input).toHaveValue('被拒绝的原问题');
+  await expect(submission.getByRole('button', { name: '复制问题' })).toHaveCount(0);
+  await expect(submission.getByRole('button', { name: '编辑问题' })).toHaveCount(0);
+  api.allowSend();
+  await page.getByRole('button', { name: '发送', exact: true }).click();
+  await expect(page.getByRole('article', { name: '你的消息' })).toContainText('不要覆盖的新草稿');
+  await expect(submission).toContainText('被拒绝的原问题');
+  await input.fill('重试期间保留的草稿');
+  await submission.getByRole('button', { name: '重试发送' }).click();
+  await expect(submission).toHaveCount(0);
+  await expect(page.getByRole('article', { name: '你的消息' }).last()).toContainText(
+    '被拒绝的原问题',
+  );
+  await expect(input).toHaveValue('重试期间保留的草稿');
 });
 
 test('a failed conversation read keeps the draft and requires a successful retry before sending', async ({
@@ -246,4 +263,144 @@ test('a failed conversation read keeps the draft and requires a successful retry
   await page.getByRole('button', { name: '重试', exact: true }).click();
   await expect(send).toBeEnabled();
   await expect(input).toHaveValue('保留读取失败时的草稿');
+});
+
+test('unknown conversation creation can restart while preserving the question and new draft', async ({
+  page,
+}) => {
+  const api = await fixture(page);
+  api.identity.release();
+  api.create.release();
+  api.send.release();
+  let creates = 0;
+  await page.route('**/api/v1/chat/conversations', async (route) => {
+    if (route.request().method() === 'POST' && ++creates === 1)
+      return route.fulfill({ status: 503, body: 'response unavailable' });
+    return route.fallback();
+  });
+  await page.goto('/chat');
+  const input = page.getByRole('textbox', { name: '消息内容' });
+  await input.fill('创建失败前的问题');
+  await page.getByRole('button', { name: '发送', exact: true }).click();
+  await expect(page.getByRole('button', { name: '重新开始', exact: true })).toBeVisible();
+  await input.fill('保留新草稿');
+  await expect(page.getByRole('button', { name: '发送', exact: true })).toBeDisabled();
+  expect(creates).toBe(1);
+  await page.getByRole('button', { name: '重新开始', exact: true }).click();
+  await expect(input).toHaveValue('保留新草稿');
+  await page.getByRole('button', { name: '重试发送', exact: true }).click();
+  await expect(page.getByRole('article', { name: '你的消息' })).toContainText('创建失败前的问题');
+  await expect(input).toHaveValue('保留新草稿');
+  expect(creates).toBe(2);
+});
+
+for (const width of [320, 375, 1440]) {
+  test(`navigation controls fit and remain clickable at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.route('**/api/v1/auth/me', (route) =>
+      route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: { code: 'unauthorized', message: 'Sign in' },
+          request_id: 'login-fixture',
+        }),
+      }),
+    );
+    await page.route('**/api/v1/settings/public', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          request_id: 'login-fixture',
+          data: {
+            registrationMode: 'closed',
+            emailVerificationEnabled: false,
+            csrfToken: 'a'.repeat(42) + 'A',
+          },
+        }),
+      }),
+    );
+    await page.goto('/');
+    const login = page.locator('.home-header').getByRole('link', { name: '登录' });
+    await expect(login).toBeVisible();
+    const bounds = await login.boundingBox();
+    expect(bounds!.height).toBeLessThan(40);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    if (width < 768) {
+      const menu = page.getByRole('button', { name: '打开导航' });
+      expect((await menu.boundingBox())!.width).toBeGreaterThanOrEqual(38);
+      await menu.click();
+      await expect(page.getByRole('navigation', { name: '移动端首页导航' })).toBeVisible();
+    }
+    await page.screenshot({ path: testInfo.outputPath(`home-${width}.png`) });
+    await login.click();
+    await expect(page).toHaveURL(/\/login/);
+    await page.goto('/chat');
+    const input = page.getByRole('textbox', { name: '消息内容' });
+    await input.fill('手机草稿');
+    if (width < 768) {
+      const fresh = page.getByRole('button', { name: '新对话', exact: true });
+      const before = await fresh.boundingBox();
+      await fresh.click();
+      await expect(fresh).toBeVisible();
+      expect(await fresh.boundingBox()).toEqual(before);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({ path: testInfo.outputPath(`chat-${width}.png`) });
+    await page.getByRole('link', { name: '登录后发送', exact: true }).click();
+    await expect(page).toHaveURL(/\/login/);
+    await page.goBack();
+    await expect(input).toHaveValue('手机草稿');
+  });
+}
+
+test('signing in returns to chat with the anonymous draft intact', async ({ page }) => {
+  const api = await fixture(page);
+  api.identity.release();
+  let signedIn = false;
+  await page.route('**/api/v1/auth/me', (route) =>
+    signedIn
+      ? route.fallback()
+      : route.fulfill({
+          status: 401,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            error: { code: 'unauthorized', message: 'Sign in' },
+            request_id: 'login-fixture',
+          }),
+        }),
+  );
+  await page.route('**/api/v1/auth/login', (route) => {
+    signedIn = true;
+    return route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        request_id: 'login-fixture',
+        data: {
+          id: 'start-user',
+          email_normalized: 'start@example.invalid',
+          role: 'user',
+          status: 'active',
+          group_id: 'standard',
+          group_status: 'active',
+          balance_units: '1000000',
+          email_verified_at: null,
+        },
+      }),
+    });
+  });
+  await page.goto('/chat');
+  const input = page.getByRole('textbox', { name: '消息内容' });
+  await input.fill('登录后继续的问题');
+  await page.getByRole('link', { name: '登录后发送', exact: true }).click();
+  await page.getByLabel('邮箱', { exact: true }).fill('start@example.invalid');
+  await page.getByLabel('密码', { exact: true }).fill('local-fixture-password');
+  await page.getByRole('button', { name: '登录', exact: true }).click();
+  await expect(page).toHaveURL(/\/chat$/);
+  await expect(input).toHaveValue('登录后继续的问题');
+  await expect(page.getByRole('button', { name: '发送', exact: true })).toBeEnabled();
 });

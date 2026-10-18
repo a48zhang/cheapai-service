@@ -2,31 +2,20 @@ import type { ChatMessage } from '@cheapai/api-client/chat';
 import { MessageContent } from './MessageContent';
 import { MessageActions } from './MessageActions';
 import { Button } from '../../../shared/ui/Button';
-import { CopyButton } from '../../../shared/ui/CopyButton';
 import type { ChatPhase, ChatSubmission } from '../model/state';
 
 /** Separate from ChatMessage: an accepted local command is not yet a saved message. */
 export function SubmissionMessage({
   submission,
   phase,
-  onRestore,
+  onRetry,
+  retryDisabled,
 }: {
   submission: ChatSubmission;
   phase: ChatPhase;
-  onRestore?: ((content: string) => void) | undefined;
+  onRetry?: (() => void) | undefined;
+  retryDisabled?: boolean | undefined;
 }) {
-  const label =
-    phase === 'failed'
-      ? '发送未完成'
-      : phase === 'interrupted'
-        ? '结果待确认'
-        : phase === 'idle'
-          ? '未发送'
-          : phase === 'stopping'
-            ? '正在停止…'
-            : phase === 'finalizing'
-              ? '正在确认结果…'
-              : '发送中…';
   return (
     <article
       aria-label="待确认的消息"
@@ -37,15 +26,16 @@ export function SubmissionMessage({
         <div className="chat-user-bubble">
           <MessageContent content={submission.content} />
         </div>
-        <div className="mt-2 flex min-h-8 items-center justify-end gap-2 text-xs text-[var(--color-muted-foreground)]">
-          <span role="status">{label}</span>
-          <CopyButton value={submission.content} label="复制问题" />
-          {onRestore && (phase === 'failed' || phase === 'idle') && (
-            <Button size="sm" variant="ghost" onClick={() => onRestore(submission.content)}>
-              编辑问题
-            </Button>
-          )}
-        </div>
+        {(phase === 'failed' || phase === 'idle') && (
+          <div className="mt-2 text-xs text-[var(--color-muted-foreground)]">
+            <span>未发送</span>
+            {onRetry && (
+              <Button size="sm" variant="ghost" disabled={retryDisabled} onClick={onRetry}>
+                重试发送
+              </Button>
+            )}
+          </div>
+        )}
       </div>
     </article>
   );

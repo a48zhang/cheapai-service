@@ -99,7 +99,7 @@ export function useChatController(options: UseChatControllerOptions) {
     if (query.data && query.data.conversation.id === conversationId) controller.hydrate(query.data);
   }, [controller, query.data, conversationId]);
   const send = useCallback(
-    async (command: ChatSendCommand) => {
+    async (command: ChatSendCommand, onAccepted?: () => void) => {
       if (isChatBusy(controller.getSnapshot().phase)) return 'busy' as const;
       if (
         controller.getConversationId() !== conversationId ||
@@ -108,18 +108,7 @@ export function useChatController(options: UseChatControllerOptions) {
         return 'busy' as const;
       const owner = session.requestIdentity();
       if (!owner) return 'superseded' as const;
-      const result = await controller.send(command);
-      if (
-        result === 'interrupted' &&
-        controller.getSnapshot().failure?.code === 'conversation_creation_unknown'
-      ) {
-        const currentOwner = session.requestIdentity();
-        if (currentOwner?.userId === owner.userId && currentOwner.epoch === owner.epoch)
-          callbacks.current.onDraftRestore(command.content, owner.userId);
-      }
-      if (result === 'rejected' && session.requestIdentity()?.userId === owner.userId)
-        callbacks.current.onDraftRestore(command.content, owner.userId);
-      return result;
+      return controller.send(command, onAccepted);
     },
     [controller, conversationId, session],
   );
