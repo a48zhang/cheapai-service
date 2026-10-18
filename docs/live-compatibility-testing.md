@@ -1,14 +1,13 @@
-# Q07 live compatibility testing
+# Live compatibility testing
 
 `scripts/verify-upstream-matrix.ts` is the preparation and execution tool for
-the post-acceptance Q07 check. It exercises the nine downstream/upstream
+live compatibility checks. It exercises the nine downstream/upstream
 protocol combinations through the gateway and records ordinary JSON, SSE and
 tool round-trip results in a redacted JSON report.
 
 The command is dry-run by default. It does not read credentials, load an SDK,
 open a socket, or contact a provider unless `--live` is present. `--mock` runs
-the same case selection and report bookkeeping with synthetic local usage; a
-mock pass is not supplier compatibility evidence.
+the same case selection and report bookkeeping with synthetic local usage.
 
 ## Fixed test matrix
 
@@ -53,8 +52,7 @@ operator must choose and record the published versions actually installed on
 the test date. The verifier reads each package's local `package.json`, loads
 only from `--sdk-dir`, and refuses a live run unless the installed version is
 exactly equal to the corresponding `--openai-sdk-version` or
-`--anthropic-sdk-version` argument. The dry-run report says `not_checked`; it
-does not imply that an SDK is installed or compatible.
+`--anthropic-sdk-version` argument. The dry-run report records SDK status as `not_checked`.
 
 The checked-in toolchain currently has no `openai` or `@anthropic-ai/sdk`
 dependency. The isolated directory is therefore a required external input for
@@ -100,8 +98,7 @@ Prices are local estimation inputs only. They must correspond to the supplier
 and model pricing record used for the run; the verifier cannot control supplier
 billing, discounts, minimum charges, cache pricing, or other fees that the
 provider does not expose in usage. The report estimates cost from observed
-input/output token counts and the supplied rates. It never presents that
-estimate as an invoice or a guarantee.
+input/output token counts and the supplied rates.
 
 After every completed case the runner adds the observed estimate. It stops
 before the next call when the hard request cap is reached, when the estimate
@@ -139,18 +136,5 @@ node scripts/verify-upstream-matrix.ts --help
 
 The JSON report contains the mode, selected limits, SDK package/version status,
 model matrix, per-case status, call counts, observed usage and a local cost
-estimate. `mode: mock` includes `syntheticUsage: true`; it must not be copied to
-`docs/evidence/live/` as a real-provider result. A live report is only one
-input to the `LIVE-*` evidence files and must be accompanied by the exact SDK
-versions, model/provider mapping, test date, pricing source, configured
-budget, and any skipped or failed cases.
-
-## Acceptance boundary
-
-Q07 prepares and bounds the real-client run. It does not make this repository
-claim that a supplier was reached. `LIVE-CC` through `LIVE-MM` remain post-
-acceptance tasks requiring the operator's chosen SDK versions, real upstream,
-model/channel mapping, usage records and billing evidence. The current local
-dry-run/mock checks do not validate supplier behavior, network TLS, provider
-pricing, cancellation, email delivery, or Cloudflare deployment state.
-
+estimate. Record the SDK versions, model/provider mapping, test date, pricing
+source, budget, and skipped or failed cases alongside the report.
