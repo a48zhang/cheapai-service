@@ -1,6 +1,6 @@
 # cheapai.dev Desktop：分模块开发与集中验证计划
 
-日期：2026-10-03（Asia/Shanghai），恢复：2026-10-04（UTC）。状态：**全计划可完成源码已交接：70项产物完成；F05/N09依赖与工具链受阻，7项集中验证报告已写，实际通过/未运行范围以evidence为准**。
+历史计划：2026-10-03（Asia/Shanghai），恢复记录：2026-10-04（UTC）。当时状态：**全计划可完成源码已交接：70项产物完成；F05/N09依赖与工具链受阻，7项集中验证报告已写，实际通过/未运行范围以evidence为准**。
 
 仓库：[a48zhang/sub2api-cloudflare](https://github.com/a48zhang/sub2api-cloudflare)。
 本计划基于已读取的 main 提交 `5b721891e89ff52e7293bdc03061ecc454e9084d`。
@@ -75,7 +75,7 @@
 - 网页 login 当前直接创建 Cookie session；桌面 90 天 Token 不能通过放宽网页 session 上限实现。
 - createPlatformKey 的幂等重放只返回元信息，不能直接拿它恢复 Key 明文；桌面绑定与 Key 创建必须原子组成。
 - D1 batch 是原子批次，但零行更新不会自动回滚；实现必须以 SQL 条件与结果保证业务原子性。
-- 当前迁移到 0023；计划使用 0024_desktop_sessions.sql，若执行时编号被占用仅顺延新文件。
+- 计划编写时迁移到 0023；Desktop 会话迁移随后以 `0024_desktop_sessions.sql` 实施。当前部署迁移范围见[部署步骤](../deployment.md)。
 - 现有共享 staging 已退役；使用本地隔离环境或现有 PR 独立预发，不重建旧 staging。
 - packages/model-catalog 当前不是显式 workspace 包，本轮不借桌面计划顺手做目录大调整。
 
