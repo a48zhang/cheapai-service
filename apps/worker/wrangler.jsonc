@@ -48,13 +48,9 @@
       "binding": "DB",
       "database_id": "f9719b76-adb4-4ebe-be98-6e784e2440a1"
     }],
-    "unsafe": {
-      "bindings": [{
-        "name": "GATE",
-        "type": "durable_object_namespace",
-        "class_name": "Gate",
-        "namespace_id": "9623e7b7ee3e4f31bea06618ac35d17c"
-      }]
+    // Native Previews allocate their own Gate namespace and storage.
+    "durable_objects": {
+      "bindings": [{ "name": "GATE", "class_name": "Gate" }]
     },
     "observability": {
       "logs": {
