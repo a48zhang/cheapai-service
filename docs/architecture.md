@@ -1,11 +1,8 @@
 # Sub2API on Cloudflare 一期完整技术方案
 
-版本：v1.0 · 2026-09-05  
-状态：设计实施基线，包含后续修订。本文不是当前完成清单或线上验收记录；“首批基础任务”阶段已过去，当前源码已包含注册、计费、三协议网关和网页聊天等实现。功能和验证范围以[仓库 README](../README.md)、[协议支持矩阵](protocol-support.md)及[实施记录](implementation-plan.md)为入口。设计中的目标或恢复策略只有在对应运行链路与测试接通后才能称为已实现。
+版本：v1.0 · 2026-09-05，附 2026-10-03 组件整理记录。
 
-后续使用与部署请优先阅读[用户指南](user-guide.md)、[管理员指南](admin-guide.md)和[部署步骤](deployment.md)。当前迁移已到 0023，聊天与分组倍率的追加背景见[聊天交付记录](web-chat-delivery.md)。
-
-本文是整体设计主文档，统一架构、数据、接口、运行时行为和验收标准。产品范围以 [一期核心目标](phase-1.md) 为准；[计费](billing-cache.md)、[注册](registration-auth.md)、[协议转换](protocol-compatibility.md) 文档提供专题细节。文中的初始数值是工程建议，可配置、须实测，不代表已经验证的容量或平台保证。
+本文保留一期设计和当时的实现决策。后续变更包括 React 前端、Desktop、Resend 邮件、明文渠道凭据、移除模型限制及渠道软删除。现行行为见[模块边界](frontend-react-module-boundaries.md)、[身份](registration-auth.md)、[计费](billing-cache.md)、[协议支持](protocol-support.md)和[部署步骤](deployment.md)。
 
 ## 2026-10-03 组件整理
 

@@ -1,73 +1,64 @@
 # 文档导航
 
-更新：2026-10-03。当前前端为 cheapai React；本地验收、GitHub Actions 与线上发布分别记录。
+使用者从[用户指南](user-guide.md)开始；管理员按[管理员指南](admin-guide.md)配置服务；部署和维护参考[部署步骤](deployment.md)、[备份与恢复](backup-restore.md)及[回滚](rollback.md)。
 
-## 按角色阅读
+## 使用与运维
 
-### 使用者
+- [用户指南](user-guide.md)：注册、登录、网页聊天、API Key 与 API 调用
+- [管理员指南](admin-guide.md)、[初始管理员](admin-bootstrap.md)：初始化与渠道、模型、用户管理
+- [协议支持矩阵](protocol-support.md)：请求、普通响应与流式转换的字段范围
+- [部署步骤](deployment.md)、[Worker 配置清单](worker-environment-inventory.md)：运行时配置、迁移和发布
+- [PR 预览](pr-previews.md)、[CI](ci.md)：分支检查、原生 Preview 配置与 main 自动发布
+- [备份与恢复](backup-restore.md)、[回滚](rollback.md)：数据恢复和版本兼容
+- [真实上游兼容测试](live-compatibility-testing.md)：供应商调用与费用控制
+- [已知问题](known-issues.md)：问题与验证记录
 
-1. [用户上手指南](user-guide.md)：注册/登录、网页聊天、API Key、第一次 API 调用与故障自查
-2. [协议支持矩阵](protocol-support.md)：普通响应和流式转换的实际字段边界
-3. [已知问题](known-issues.md)：本轮修复状态、浏览器受阻及尚未完成的发布验收
+## 开发
 
-### 管理员与部署者
+- [本地开发](development.md)、[工具链](toolchain.md)：安装、启动与检查命令
+- [技术方案](architecture.md)：系统设计
+- [身份与注册](registration-auth.md)、[计费与 KV](billing-cache.md)
+- [协议转换](protocol-compatibility.md)、[协议源码基线](protocol-baseline.md)、[第三方声明](../THIRD_PARTY_NOTICES.md)
+- [React 模块边界](frontend-react-module-boundaries.md)、[外观主题](appearance.md)
+- [当前校验与接入政策](policy-simplification.md)
+- [内置模型目录](builtin-models.md)
 
-1. [管理员上手指南](admin-guide.md)：从空库到第一个可用模型的配置顺序
-2. [初始管理员](admin-bootstrap.md)：首次初始化限制，不含密码重置
-3. [部署步骤](deployment.md)：环境、Secrets、迁移和发布后检查
-4. [备份与恢复](backup-restore.md)、[回滚](rollback.md)：版本与数据库兼容性判断
-5. [Worker 配置清单](worker-environment-inventory.md)：普通变量、Secrets、资源绑定和发布环境
-6. [真实上游兼容测试](live-compatibility-testing.md)：涉及真实供应商调用和费用，应在明确环境与预算后执行
+## Desktop
 
-### 开发者
+- [用户指南](desktop/user-guide.md)
+- [架构](desktop/architecture.md)、[DSH 集成](desktop/dsh-integration.md)
+- [运行时分发](desktop/runtime-distribution.md)、[发布](desktop/release.md)
+- [执行记录](desktop/execution-checkpoint.md)、[实现计划](desktop/implementation-plan.md)、[任务图](desktop/task-graph.json)
 
-1. [本地开发](development.md)：跨平台日常命令、完整本地环境及浏览器测试
-2. [工具链记录](toolchain.md)：固定版本、安装策略及历史 Windows 故障说明
-3. [技术方案](architecture.md)：整体设计基线；阅读时结合下方专题和现行源码
-4. [身份与注册](registration-auth.md)、[计费与 KV](billing-cache.md)、[协议转换设计](protocol-compatibility.md)
-5. [协议源码基线](protocol-baseline.md)、[第三方声明](../THIRD_PARTY_NOTICES.md)
-6. [React 面板设计](frontend-react-design.md)、[微任务开发计划](frontend-react-development-plan.md)、[模块边界](frontend-react-module-boundaries.md)
-7. [React 集中验收](validation/cheapai-react-final.md)、[目录切换](frontend-react-cutover-manifest.md)、[迁移回滚](frontend-react-rollback.md)
+## 实现与发布依据
 
-8. [Web 与 Desktop 外观主题](appearance.md)：共享主题、暗色设计、首屏初始化及验收范围
+仓库包含 `0001` 至 `0030` 共 30 个 D1 迁移。production 配置见 [wrangler.jsonc](../apps/worker/wrangler.jsonc)；原生 Preview 使用指定的预览 D1/KV，并分配独立 Gate。main 推送触发正式迁移和发布，PR 的 GitHub 检查不执行远程 SQL。
 
-9. [校验与密码学清单](validation-crypto-inventory.md)：变更前审计；[当前校验与接入政策](policy-simplification.md)：已实施的简化及必要保留项
-
-## 当前状态怎么看
-
-不要把“有设计”“有实现”“本地通过”和“已在线上验证”混为一项状态。
-
-| 问题 | 应查看的依据 |
+| 内容 | 依据 |
 | --- | --- |
-| 当前有哪些功能和入口？ | [仓库 README](../README.md)、当前源码和迁移 |
-| 接口支持哪些字段？ | [协议支持矩阵](protocol-support.md)及对应测试 |
-| 当前提交是否通过检查？ | 对应提交的 [Actions](https://github.com/a48zhang/sub2api-cloudflare/actions)；明确区分 Vitest、构建和独立 Playwright |
-| 本轮 React 迁移是否完成？ | [开发计划](frontend-react-development-plan.md)、[集中验收](validation/cheapai-react-final.md)；旧实施记录保留历史边界 |
-| 线上到底是什么版本？ | 目标环境的 Worker version/deployment ID、D1 migration list 和同一环境的新鲜验收记录；仓库文件不能单独证明 |
+| 当前功能、接口和数据结构 | 源码、迁移和对应使用指南 |
+| 提交检查结果 | 对应提交的 [Actions](https://github.com/a48zhang/cheapai-service/actions) |
+| 已发布版本与数据库结构 | 目标环境的 Worker deployment/version 和 D1 migration list |
+| 历史测试结果 | 记录中的提交、日期、环境和用例 |
 
-当前源码包含 0001–0026 共 26 个 D1 迁移。部署配置保留本地模拟与使用真实独立资源的 production（cheapai.dev）；分支验证使用独立的 PR Worker 与共享预览 D1/KV/Gate，详见[PR 预览](pr-previews.md)。旧共享 staging 已于 2026-10-03 完成永久退役，相关 Worker、D1、KV 和 Gate DO 已删除并回读确认，相关操作入口已移除。配置存在不等于已部署、可访问或已通过真实上游验收。
+## 设计与历史记录
 
-## 设计、变更和历史证据
+以下内容记录当时的方案、任务和验收结果。操作命令以现行使用与运维文档为准。
 
-以下文档保留原日期和验证边界，不删除历史失败，也不把旧失败当作当前故障：
-
-- [一期目标与验收](phase-1.md)：产品范围及验收要求
-- [本轮执行计划与状态](implementation-plan.md)：2026-10-03 的 27 项开发及独立验证；文末另存旧 507 节点历史
-- [桌面客户端详细计划](desktop/implementation-plan.md)、[机器可读任务图](desktop/task-graph.json)：Tauri、Bun/DSH、自有 React 界面和 Token + Key 接入；79 项小粒度任务，全部为待执行计划，测试与验证按完整模块集中进行
-- [旧微任务清单](task-breakdown.md)、[旧任务图](task-graph.json)：历史完成与未收口事项，不与本轮同名 ID 混算
-- [旧系统调研](evidence.md)：2026-09-05 对旧四个 Worker 的调查，不能直接代表本仓库当前实现
-- [9 月 6 日集成审计](integration-audit-2026-09-06.md)、[9 月 8 日集成审计](integration-audit-2026-09-08.md)
+- [一期目标](phase-1.md)、[实施计划](implementation-plan.md)、[微任务清单](task-breakdown.md)、[任务图](task-graph.json)
+- [旧系统调研](evidence.md)、[9 月 6 日集成审计](integration-audit-2026-09-06.md)、[9 月 8 日集成审计](integration-audit-2026-09-08.md)
+- [React 设计](frontend-react-design.md)、[开发计划](frontend-react-development-plan.md)、[结构审查](frontend-structure-review.md)、[接口映射](frontend-react-contract-map.md)
+- [React 验收](validation/cheapai-react-final.md)、[目录切换](frontend-react-cutover-manifest.md)、[迁移回滚](frontend-react-rollback.md)
 - [产品调整](product-adjustments-2026-09-09.md)、[界面调整](ui-redesign-2026-09-09.md)、[不限额策略](unlimited-limits-2026-09-10.md)
-- [内置模型目录](builtin-models.md)、[移除默认输出上限](remove-default-output.md)：参考模型信息与历史迁移说明；供应商能力和价格应在使用前重新核对
-- [聊天方案](web-chat-plan.md)、[聊天执行记录](web-chat-execution.md)、[聊天交付](web-chat-delivery.md)
-- [共享 staging 退役记录](staging-resources.md)、[staging 基础部署证据](evidence/staging-deploy.md)、[聊天验收证据](evidence/web-chat.json)
+- [聊天方案](web-chat-plan.md)、[执行记录](web-chat-execution.md)、[交付记录](web-chat-delivery.md)
+- [校验与密码学审计](validation-crypto-inventory.md)、[移除默认输出上限](remove-default-output.md)
+- [共享 staging 退役记录](staging-resources.md)、[staging 部署证据](evidence/staging-deploy.md)、[聊天验收证据](evidence/web-chat.json)
+- [预览验收汇总](validation/cheapai-preview-summary.md)、[渠道诊断方案](channel-diagnostics-prd.md)、[渠道诊断计划](channel-diagnostics-development-plan.md)
 
-`docs/evidence/` 中的截图、JSON 和文字记录只证明记录所注明的时间、版本、环境与用例。工作区里的未提交日志路径可能不在其他 checkout 中，不能当作可直接复现的交付文件。
+## 维护约定
 
-## 文档维护约定
-
-- 功能或路径变化时，优先更新 README、对应使用指南及运行手册
-- 修改迁移范围、环境开关、命令或版本号时，对照源码/配置；不改写已发布迁移来让文档“对齐”
-- 验收记录写明日期、提交、环境、执行命令、通过/失败/未运行项目，避免只写“全部通过”
-- 历史记录追加说明或新证据，不覆盖原始结果；`CHAT-RELEASE` 等发布任务仅在对应环境完成验证后关闭
-- 不把密钥、完整请求/响应正文、账户密码或数据库导出放入文档、截图或日志
+- 功能、路径或命令变化时，同步入口和使用指南。
+- 迁移范围、配置和版本以源码为依据；历史迁移保持原样。
+- 验收记录包含提交、日期、环境、命令和结果；后续结果另行记录。
+- 截图和 JSON 保留原始证据。未提交的工作区日志路径用于追溯，不能作为仓库中的交付文件。
+- 文档和日志不保存密钥、密码、完整请求正文或数据库导出。

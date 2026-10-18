@@ -28,12 +28,9 @@ checks. PR comparisons cover the entire proposed change, so a PR that changes
 desktop code continues to validate desktop on subsequent revisions.
 
 Run detector regressions with `node --test scripts/ci/desktop-changes.test.mjs`.
-Cloudflare automatic builds and previews are disabled. On 2026-10-17, the
-production Worker's native Preview switch was disabled and its Builds config
-removed. The parent and all 12 generated branch build configs were confirmed
-absent; deleting an individual branch trigger alone had left the parent enabled.
-GitHub Actions checks and desktop builds remain enabled. Main merges use the
-production release workflow below. See [PR previews](pr-previews.md).
+Cloudflare native Preview resource overrides are configured in `wrangler.jsonc`.
+Enablement and build commands are managed in Workers Builds; see [PR previews](pr-previews.md).
+GitHub PR checks do not deploy. Pushes to main use the production release workflow below.
 
 
 ## Production release entrypoint

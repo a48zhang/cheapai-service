@@ -2,7 +2,7 @@
 
 ## 固定输入
 
-工具链和目标记录在 `scripts/desktop/runtime-versions.json`，Node/pnpm 也由仓库根约束。Bun 是固定版本的比较候选，未完成兼容验证时不得称为已支持。必须先取得真实的 `pnpm-lock.yaml` 与 `apps/desktop/src-tauri/Cargo.lock`，遵守已有依赖年龄、构建脚本与严格 peer 策略；不能手写虚假 integrity 或 Cargo lock。
+工具链和目标记录在 `scripts/desktop/runtime-versions.json`，Node/pnpm 也由仓库根约束。Bun 是固定版本的比较候选，未完成兼容验证时不得称为已支持。使用已提交的 `pnpm-lock.yaml` 与 `apps/desktop/src-tauri/Cargo.lock` 安装依赖。
 
 ```sh
 pnpm install --frozen-lockfile --strict-peer-dependencies
@@ -18,13 +18,13 @@ package 命令依次构建桌面 workspace、准备固定 Runtime/DSH 资源和�
 
 ## CI 自动打包与验证
 
-`.github/workflows/desktop-package.yml` 在 `main` / `feat/cheapai-desktop` 推送桌面相关改动、相关 PR 和手动 Run workflow 时运行。三个任务分别构建 Windows x64 NSIS `.exe`、macOS Apple Silicon `.dmg`、macOS Intel `.dmg`，固定使用 Node Runtime。打开对应 Actions 运行的 Artifacts，下载 `desktop-installer-<target>-<commit>`；产物保留 14 天。
+`.github/workflows/desktop-package.yml` 在 `main` 推送桌面相关改动、相关 PR 和手动 Run workflow 时运行。三个任务分别构建 Windows x64 NSIS `.exe`、macOS Apple Silicon `.dmg`、macOS Intel `.dmg`，固定使用 Node Runtime。打开对应 Actions 运行的 Artifacts，下载 `desktop-installer-<target>-<commit>`；产物保留 14 天。
 
 真实 pnpm/Cargo 锁已补齐入库；CI 只执行 frozen + strict peers 安装和 cargo fetch --locked，不修改依赖锁或源码。各目标的实际锁同时上传为 `desktop-locks-<target>-<commit>`；安装包内的清单绑定触发构建的源码提交与锁文件 hash。
 
-安装包未签名、未公证；工作流只上传 Actions 产物，不创建公开 Release，也不证明安装后的任务链通过。需由 GitHub runner 实际完成构建后确认产物；本地 Linux 环境不能验证 macOS/Windows 安装。
+安装包未签名、未公证；工作流只上传 Actions 产物，不创建公开 Release，也不证明安装后的任务链通过。需由 GitHub runner 实际完成构建后确认产物；安装验收在对应目标系统执行。
 
-集中验收见 `evidence/runtime.md`、`conversation.md`、`backend-account.md`、`account-e2e.md`、`native-macos.md`、`native-windows.md` 与 `release.md`。目标机器应覆盖不预装 Node/Bun、中文和空格路径、工具停止及进程收尾、账号切换和历史保留。更新源、签名、macOS 公证与 Windows 交付条件缺失时逐项记录未运行。
+历史集中验收见 [Runtime](evidence/runtime.md)、[对话](evidence/conversation.md)、[账号后端](evidence/backend-account.md)、[账号端到端](evidence/account-e2e.md)、[macOS](evidence/native-macos.md)、[Windows](evidence/native-windows.md) 和[候选发布](evidence/release.md)。目标机器应覆盖不预装 Node/Bun、中文和空格路径、工具停止及进程收尾、账号切换和历史保留。更新源、签名、macOS 公证与 Windows 交付条件缺失时逐项记录未运行。
 
 验证环境使用本地隔离 Worker/D1 或现有 PR 独立预发环境，不使用退役的共享 staging。真实网关任务需要已有测试 Key 和预算；mock 不证明模型兼容。生产部署、生产迁移和公开发布需要单独授权，不随本开发计划自动执行。
 

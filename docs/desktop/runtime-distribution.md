@@ -12,18 +12,18 @@ Git、Python、项目编译器、包管理器和其他被 DSH 工具调用的项
 
 ## 准备与版本选择
 
-使用仓库固定 Node/pnpm、精确依赖策略和完整 pnpm lock；Rust/Cargo lock 也必须已存在。开发用 `dev:desktop`，原生打包用 `package:desktop -- --runtime <node|bun> --target <Rust target triple>`。构建流程不得隐式安装或验证；锁、编译输出或资源缺失时明确失败。运行时下载必须命中 `runtime-versions.json` 固定的官方 HTTPS URL 与 SHA-256，不能复用未校验二进制或伪造元数据。
+使用仓库固定 Node/pnpm、精确依赖策略和完整 pnpm lock；Rust/Cargo lock 也必须已存在。开发用 `dev:desktop`，原生打包用 `package:desktop -- --runtime <node|bun> --target <Rust target triple>`。依赖按锁文件预先安装；锁、编译输出或资源缺失时明确失败。运行时下载必须命中 `runtime-versions.json` 固定的官方 HTTPS URL 与 SHA-256，不能复用未校验二进制或伪造元数据。
 
 目标资源准备只在匹配 OS/架构的 runner 上执行，不把一个平台的 native dependency closure 复制到另一个平台。发行清单 CLI 为 `node scripts/desktop/release-manifest.mjs --runtime <node|bun> --target <Rust target triple>`；它读取已准备资源与前端 `dist`，检查 shell/frontend/Runtime 版本、目标、DSH/runtime pins、现有资源 checksum、完整 lock 输入和 Git source commit，再写入固定 runtime resource 目录。CI 的 `GITHUB_SHA` 必须与干净 checkout 的 HEAD 一致。清单列出实际 production package 版本/资源路径、native `.node` addon 与文件哈希；它不执行下载、安装、编译或测试。
 
-Node/Bun 为互斥选择，只改变 launcher/runtime executable，不维护第二套 Agent 或消息持久化实现。开发测试 Key 模式通过显式 `--development-key-mode` 开启，release/package 命令拒绝该选项；Runtime 也要求 startup.source 为 development 才接受静态 Key；发布入口默认要求账号。此边界已有源码接线，尚未经过真实安装包验收。
+Node/Bun 为互斥选择，只改变 launcher/runtime executable，不维护第二套 Agent 或消息持久化实现。开发测试 Key 模式通过显式 `--development-key-mode` 开启，release/package 命令拒绝该选项；Runtime 也要求 startup.source 为 development 才接受静态 Key；发布入口默认要求账号。
 
 ## 第三方声明
 
 仓库 [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md) 保留既有协议来源并增加桌面固定来源；[LICENSES/desktop](../../LICENSES/desktop) 保存 DSH、Bun 和 Node 的完整上游声明。`package-runtime.mjs` 将 notice 与三份完整文本复制到 `notices/THIRD_PARTY_NOTICES.md`、`notices/LICENSES/desktop/`，并完整复制每个已解析 npm package 内容，保留其 LICENSE/NOTICE/COPYING 文件。发行资源还须包含实际依赖包内的声明。
 
-Bun 的声明还覆盖 JavaScriptCore/WebKit 与多种静态链接库，并给出重链接说明；不能只保留“Bun 是 MIT”的一句话。Node 的保存文本同样包含其嵌入库声明。实际 npm/Rust/前端依赖以锁和发行清单为准；清单文件对资源和依赖文件列出路径与 SHA-256，但这不等于完成每个依赖的许可审查。网络阻塞时未取得的依赖不能伪记为已打包、已审计或已通过原生验证。
+Bun 的声明还覆盖 JavaScriptCore/WebKit 与多种静态链接库，并给出重链接说明；不能只保留“Bun 是 MIT”的一句话。Node 的保存文本同样包含其嵌入库声明。实际 npm/Rust/前端依赖以锁和发行清单为准；清单文件对资源和依赖文件列出路径与 SHA-256，但这不等于完成每个依赖的许可审查。
 
-## 当前验证范围
+## 验证与发行
 
-版本及固定来源文本已取得；完整 Runtime 下载/打包、发行清单生成、DSH 启动、Node/Bun 比较和 macOS/Windows 安装尚未验证。当前 `pnpm-lock.yaml` 缺 desktop/runtime/contracts importers，`apps/desktop/src-tauri/Cargo.lock`、Runtime dist 与 frontend dist 未生成，所以 package/release manifest 必须失败，不能称已有可发布 bundle 或完整依赖清单。生命周期纯 Node 测试与 Worker dry-run 的结果仅证明检查点列出的范围。后续结果写入 `docs/desktop/evidence/`；生产部署、公开安装包发布和签名/公证材料不由这些脚本自动完成。
+pnpm 与 Cargo 锁已提交。安装和打包命令、目标平台及 CI 产物见[桌面构建与发行](release.md)。Runtime 装配与 DSH 启动的历史结果见[依赖恢复记录](evidence/dependency-recovery.md)；Bun 兼容性和目标系统安装验收需分别记录。产物是否可获取以对应提交的 Actions 结果为准。

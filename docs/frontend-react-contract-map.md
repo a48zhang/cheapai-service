@@ -30,7 +30,7 @@
 
 | 操作 | Endpoint、输入或筛选 | DTO / 幂等与版本语义 |
 | --- | --- | --- |
-| 模型选择器 | GET /api/v1/chat/models；无筛选 | `{ items: [{ id,name,billingMultiplier,models:[{publicModelId,maxOutputTokens,sellPrices}] }] }`。仅返回当前用户获授权的组与可用模型。`billingMultiplier` 和 `sellPrices` 报价使用十进制字符串，`sellPrices` 是 USD/百万 Token 的基价。React 选择项按 `(groupId,publicModelId)` 保留身份；报价展示应用分组倍率。`maxOutputTokens` 仅作服务端兼容数据，不显示为聊天控件。 |
+| 模型选择器 | GET /api/v1/chat/models；无筛选 | `{ items: [{ id,name,billingMultiplier,models:[{publicModelId,sellPrices}] }] }`。仅返回当前用户获授权的组与可用模型。`billingMultiplier` 和 `sellPrices` 报价使用十进制字符串，`sellPrices` 是 USD/百万 Token 的基价。React 选择项按 `(groupId,publicModelId)` 保留身份；报价展示应用分组倍率。 |
 | 会话历史 | GET /api/v1/chat/conversations?cursor&limit | { items: Conversation[],nextCursor }。Conversation: id,title,groupId,modelId,version,createdAt,updatedAt。只支持 cursor/limit，不支持服务端搜索。 |
 | 新建会话 | POST /api/v1/chat/conversations，JSON { title?,groupId?,modelId? } | 返回 Conversation。组/模型可为 null（未选择）；服务端不要求 operationId。 |
 | 会话详情 | GET /api/v1/chat/conversations/:id | { conversation,messages }；仅当前用户所有权范围内。消息含 id,conversationId,turnIndex,role,content,status,variant,selected,requestId,groupId,modelId,createdAt,updatedAt。requestId/groupId/modelId 可为 null；状态为 generating/completed/stopped/failed。 |
@@ -41,7 +41,7 @@
 | 切换回答版本 | POST /api/v1/chat/conversations/:id/select，JSON { conversationVersion,messageId } | 返回最新 { conversation,messages }，使用会话版本 CAS。 |
 | 停止生成 | 无单独 cancel endpoint | 浏览器中止对应流式 fetch，服务端 request signal 收到取消。若结果不明，客户端核对会话状态；确认重试继续使用原 operationId。 |
 
-网页聊天路由为 `/` 与 `/chat/:id`。新对话先使用有效的最近选择，否则选目录中的首个授权项；已有会话保留原组和模型。匿名用户可以编辑草稿，登录后回到原地址，草稿恢复但不会自动发送。历史分页由滚动触底加载。
+网页聊天路由为 `/chat` 与 `/chat/:id`。新对话先使用有效的最近选择，否则选目录中的首个授权项；已有会话保留原组和模型。匿名用户可以编辑草稿，登录后回到原地址，草稿恢复但不会自动发送。历史分页由滚动触底加载。
 
 ## 个人费用、使用记录与 API 接入
 
@@ -85,14 +85,16 @@
 | 渠道详情 | GET /api/v1/admin/channels/:id | active admin；返回 ChannelView 安全投影，不含凭据明文。 |
 | 新建渠道 | POST /api/v1/admin/channels，JSON { name,baseUrl,upstreamKey,concurrencyLimit?,rpmLimit?,priority?,status? } | CSRF；返回 ChannelView。Worker 写审计 operationId 为内部生成 UUID，无调用方幂等键。 |
 | 更新渠道 | PATCH /api/v1/admin/channels/:id，JSON { version,name?,baseUrl?,upstreamKey?,concurrencyLimit?,rpmLimit?,priority?,status? } | version 必须是当前 configVersion，成功递增。省略 upstreamKey 表示保持原密钥；null/空字符串不能删除或清空密钥，空字段无“保持”特例。操作审计 ID 由 Worker 生成。 |
-| 主动渠道诊断 | POST /api/v1/admin/channels/:id/test，JSON { publicModelId,protocol,channelVersion,mappingVersion,priceVersion } | active admin + CSRF；提交的三个版本必须和现有资源匹配。返回 diagnosticId,channelId,publicModelId,protocol,outcome,upstreamStatus,channelVersion,mappingVersion,priceVersion,maxOutputTokens,mayIncurUpstreamCost:true,userBalanceCharged:false。只有用户显式操作可触发，可能花费上游余额；不会生成业务账单。 |
-| 模型列表 | GET /api/v1/admin/models，query cursor,status | status: active/disabled。返回 {items,nextCursor}。ModelView: publicModelId,status,sellPrices,priceVersion,admissionMinBalanceUnits,maxOutputTokens,createdAt,updatedAt。没有独立 version，priceVersion 同时作为所有模型字段修改的 CAS 版本。 |
+| 删除渠道 | DELETE /api/v1/admin/channels/:id，JSON { version } | CSRF + 当前 configVersion；返回 {deleted:true}。软删除渠道并移除关联和映射，保留历史请求引用；已删除渠道不能恢复启用。 |
+| 主动渠道诊断 | POST /api/v1/admin/channels/:id/test，JSON { publicModelId,protocol,channelVersion,mappingVersion,priceVersion,params? } | active admin + CSRF；提交的三个版本必须和现有资源匹配。返回 diagnosticId,channelId,publicModelId,protocol,outcome,upstreamStatus,channelVersion,mappingVersion,priceVersion,mayIncurUpstreamCost:true,userBalanceCharged:false,evidence。只有用户显式操作可触发，可能花费上游余额；不会生成业务账单。 |
+| 模型列表 | GET /api/v1/admin/models，query cursor,status | status: active/disabled。返回 {items,nextCursor}。ModelView: publicModelId,status,sellPrices,priceVersion,createdAt,updatedAt。没有独立 version，priceVersion 同时作为所有模型字段修改的 CAS 版本。 |
 | 模型详情 | GET /api/v1/admin/models/:id | active admin；返回 ModelView。 |
-| 创建模型 | POST /api/v1/admin/models，JSON { publicModelId,status?,sellPrices,admissionMinBalanceUnits,maxOutputTokens } | active admin + CSRF；sellPrices 至少含 input/output，可含 cacheRead/cacheWrite/cacheWrite5m/cacheWrite1h/reasoning；USD/百万 Token，精确十进制字符串，最多 8 位小数。admissionMinBalanceUnits 为整数单位字符串，maxOutputTokens 正整数。审计 operationId 由 Worker 生成。 |
-| 更新模型 | PATCH /api/v1/admin/models/:id，JSON { version,status?,sellPrices?,admissionMinBalanceUnits?,maxOutputTokens? } | version 实际等于 priceVersion。若发送 sellPrices，是完整替换，不是部分合并，不提供缺失 bucket 的隐式零价。路径 ID 需作为单段编码；公开模型 ID 可包含 /、:。 |
-| 模型渠道映射列表 | GET /api/v1/admin/models/:publicModelId/mappings，query protocol,activeOnly | protocol: chat/responses/messages；activeOnly 是字符串 boolean。返回 {items:ModelMappingView[]}；每项 channelId,publicModelId,protocol,upstreamModel,capabilities,configVersion。 |
-| 新建映射 | POST /api/v1/admin/models/:publicModelId/mappings，JSON { channelId,protocol,upstreamModel,capabilities } | 返回 ModelMappingView；审计 operationId Worker 内部生成。mapping configuration 不代表该组已授权或协议适配一定可运行。 |
-| 更新映射 | PATCH /api/v1/admin/models/:publicModelId/mappings/:channelId/:protocol，JSON { version,upstreamModel?,capabilities? } | version 必须等于 mapping configVersion，成功递增；路径中公开模型 ID 必须编码为单路径段，protocol 仍为 chat/responses/messages。 |
+| 创建模型 | POST /api/v1/admin/models，JSON { publicModelId,status?,sellPrices } | active admin + CSRF；sellPrices 至少含 input/output，可含 cacheRead/cacheWrite/cacheWrite5m/cacheWrite1h/reasoning；USD/百万 Token，精确十进制字符串，最多 8 位小数。审计 operationId 由 Worker 生成。 |
+| 更新模型 | PATCH /api/v1/admin/models/:id，JSON { version,status?,sellPrices? } | version 实际等于 priceVersion。若发送 sellPrices，是完整替换，不是部分合并，不提供缺失 bucket 的隐式零价。路径 ID 需作为单段编码；公开模型 ID 可包含 /、:。 |
+| 模型渠道映射列表 | GET /api/v1/admin/models/:publicModelId/mappings，query protocol,activeOnly | protocol: chat/responses/messages；activeOnly 是字符串 boolean。返回 {items:ModelMappingView[]}；每项 channelId,publicModelId,protocol,upstreamModel,configVersion。 |
+| 新建映射 | POST /api/v1/admin/models/:publicModelId/mappings，JSON { channelId,protocol,upstreamModel } | 返回 ModelMappingView；审计 operationId Worker 内部生成。mapping configuration 不代表该组已授权或协议适配一定可运行。 |
+| 更新映射 | PATCH /api/v1/admin/models/:publicModelId/mappings/:channelId/:protocol，JSON { version,upstreamModel? } | version 必须等于 mapping configVersion，成功递增；路径中公开模型 ID 必须编码为单路径段，protocol 仍为 chat/responses/messages。 |
+| 删除映射 | DELETE /api/v1/admin/models/:publicModelId/mappings/:channelId/:protocol，JSON { version } | CSRF + 当前映射 configVersion；返回 {deleted:true}。只删除指定映射，不删除公开模型或历史请求。 |
 | 访问组列表 | GET /api/v1/admin/groups，query cursor,status | status: active/disabled。返回 GroupView[]：id,name,status,version,createdAt,updatedAt,channelIds,billingMultiplier。倍率为最多 18 位小数的非负十进制字符串；channelIds 是关联集合。 |
 | 访问组详情 | GET /api/v1/admin/groups/:id | active admin；返回 GroupView。 |
 | 创建访问组 | POST /api/v1/admin/groups，JSON { name,status?,channelIds?,billingMultiplier? } | 返回 GroupView。默认 status active、channelIds 空、倍率 "1"；没有调用方 Idempotency-Key，audit operationId 使用 Worker request ID。 |
@@ -108,7 +110,7 @@ ChannelView.concurrencyLimit/rpmLimit 和用户 limits 在成功读取中是安�
 | 用户详情 | GET /api/v1/admin/users/:id | active admin；返回与列表一致的安全公开投影，未找到时 404。 |
 | 用户可分配组 | GET /api/v1/admin/groups?status=active&limit=100&cursor | 当前前端用作用户编辑选项；响应包括完整 GroupView，但 UI 仅可使用 id/name/status。循环 cursor 直到 null，不能把单页的 100 条假称全集。 |
 | 新建用户 | POST /api/v1/admin/users，JSON { email,password,groupId? } | active admin + CSRF；返回 PublicUser（snake_case），role/balance 不可由调用方设置；默认组来自 Worker 配置。审计 operationId 用 request ID。 |
-| 编辑用户 | PATCH /api/v1/admin/users/:id，JSON { version,status?,groupId?,concurrencyLimit?,rpmLimit?,allowedGroupIds? } | version 为 CAS。字段可以部分提交；若更改 groupId 且省略 allowedGroupIds，授权集合重置成新主组；若传 allowedGroupIds，必须含当前主组。不能停用最后一个 active admin。Worker 响应还含若干列表字段，但旧客户端只解成 PublicUser，改后须重新读取用户 row 才拿到新 version/limits。 |
+| 编辑用户 | PATCH /api/v1/admin/users/:id，JSON { version,status?,groupId?,concurrencyLimit?,rpmLimit?,allowedGroupIds? } | version 为 CAS。字段可以部分提交；若更改 groupId 且省略 allowedGroupIds，授权集合重置成新主组；若传 allowedGroupIds，必须含当前主组。不能停用最后一个 active admin。Worker 响应还含若干列表字段，修改后重新读取用户 row 获取新 version/limits。 |
 | 用户授额 | POST /api/v1/admin/users/:id/balance-adjustments，JSON { kind:'grant'|'adjustment',deltaUnits:string,reason:string,requestId?:string|null } | active admin + CSRF + Idempotency-Key。金额是有符号最小 USD 单位字符串；grant 必须正值。服务端把键摘要成稳定 operationId，返回 { entry,outcome:'inserted'|'existing' }；重试同一操作复用原键和 payload。entry.deltaUnits 保持字符串。 |
 | 管理员撤销用户 Key | POST /api/v1/admin/keys/:id/revoke，JSON { version } | active admin + CSRF。version CAS；结果 { kind:'revoked'|'already_revoked', key:{id,userId,status,version,createdAt,updatedAt} }。仅撤销 API Key，不展示 token。 |
 
@@ -138,7 +140,7 @@ ChannelView.concurrencyLimit/rpmLimit 和用户 limits 在成功读取中是安�
 
 1. **线格式命名不统一。** auth/user/request/audit DTO 含 snake_case；chat/channel/model/group/key/billing DTO 含 camelCase。不要以通用 adapter 全面 camelize。
 2. **两个“版本”语义。** model 写入 body version 实际 CAS priceVersion；mapping 的 configVersion 与 channel configVersion 独立。渠道诊断必须同时携带这三个版本，保存其中一个资源会使旧探测请求冲突。
-3. **limit 语义客户端与服务端不一致。** Worker 对 channel/user 接受 null/0 => unlimited 并对外输出 Number.MAX_SAFE_INTEGER 哨兵；旧 API TS 仅写 number 且 decode 强制 >=1。React 表单应将哨兵解释为无限制，并在接口边界规范化，不用 JS 浮点或巨大数字作为可见显示值。
+3. **limit 语义客户端与服务端不一致。** Worker 对 channel/user 接受 null/0 => unlimited 并对外输出 Number.MAX_SAFE_INTEGER 哨兵；响应 DTO 使用正整数。React 表单应将哨兵解释为无限制，并在接口边界规范化，不用 JS 浮点或巨大数字作为可见显示值。
 4. **幂等支持不统一。** API Key 创建、管理员授额、邀请码批次用 Idempotency-Key；chat 在 JSON body 用 operationId；其他配置写入一般由 Worker 生成审计 ID，没有重放语义。未知网络结果只在有幂等合同的接口上复用相同 key，不要自动生成新键重放。
 5. **列表快照不是通用 DB 快照。** request/audit/key/billing cursor 绑定查询和时间/行上界；admin users 的 snapshotAt 只筛掉之后创建的新用户，状态和组仍可能变化。切换筛选要重置 cursor；不能合并不同筛选的旧页。
 6. **价格/usage 都是证据快照。** request cost_units、price snapshot、usage 可能 null 或 invalid。执行成功并不说明已结算；usage 子计数可能是 input/output 子集，按 semantics 展示，不重新求和或估算权威金额。

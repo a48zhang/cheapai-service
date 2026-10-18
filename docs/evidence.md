@@ -1,8 +1,8 @@
 # 验证证据索引与旧系统调研
 
-## 2026-10-03 本轮状态
+## 2026-10-03 历史状态
 
-本轮实现仍在本地工作树，未推送或部署。当前状态与全部任务见[执行计划](implementation-plan.md)，剩余验证见[已知问题](known-issues.md)。
+当时实现位于本地工作树，尚未推送或部署。该次任务见[执行计划](implementation-plan.md)，该次问题记录见[历史问题清单](evidence/known-issues-2026-10-03.md)。
 
 - 请求可靠性 B01–B07：Workers 170 项、Chat Node 10 项及额外启动回归 10 项局部回归通过，使用隔离存储/mock 上游
 - 前端 FE-D01–FE-D11：Node 20 项、管理契约 7 项及 Web 类型检查/构建通过；Chromium socket EPERM 导致浏览器验收受阻
