@@ -1,6 +1,6 @@
 # cheapai React 前端 API 契约图
 
-本文件记录 React 前端使用的 Worker 字段与路由契约。输入/输出以 `packages/contracts`、`packages/api-client`、`apps/web/src/features` 中的解码器和查询适配器，以及 `apps/worker/routes.ts` 与领域路由为准。页面展示不扩展服务端未提供的事实。
+本文件记录 React 前端使用的 Worker 字段与路由契约。输入/输出以 `packages/contracts`、`packages/api-client`、`apps/web/src/features` 中的解码器和查询适配器，以及 `apps/worker/routes.ts` 与领域路由为准。
 
 ## 通用契约
 
@@ -22,7 +22,7 @@
 | 发送邮箱验证码 | POST /api/v1/auth/send-verify-code，JSON { email } | 匿名 + CSRF；邮件能力未就绪时不可用。返回 { status:'accepted', retry_after_ms }。5xx/网络错误不能推断邮件未送达；现有注册适配器将结果区分为 accepted / failed / unknown。 |
 | 退出 | POST /api/v1/auth/logout，空 JSON body | 需现存 session + CSRF；返回 { loggedOut:true } 并清除 Cookie。 |
 
-登录页按同一 PublicSettings.registrationMode 控制注册链接；关闭注册时隐藏入口，直接打开 `/register` 显示“当前未开放注册”。登录、注册之间以及注册成功后的跳转保留经本地路径校验的 `returnTo`。
+登录页按同一 PublicSettings.registrationMode 控制注册链接；关闭注册时隐藏入口，直接打开 `/register` 显示「当前未开放注册」。登录、注册之间以及注册成功后的跳转保留经本地路径校验的 `returnTo`。
 
 ## 网页聊天
 
@@ -73,7 +73,7 @@
 | POST /v1/responses | Bearer API Key；Responses 原生 JSON/SSE 协议。 |
 | POST /v1/messages | Bearer API Key；Messages 原生 JSON/SSE 协议。 |
 
-协议错误和流式数据不得经过管理 API envelope 解码器。当前 Server API 的 `owned_by:'sub2api'` 是兼容协议字段，不是产品品牌标题；重构品牌不改变协议值、cookie/key 前缀或云资源标识。
+协议错误和流式数据不得经过管理 API envelope 解码器。模型列表返回 `owned_by:'sub2api'`。
 
 ## 管理控制台：资源配置
 
@@ -92,7 +92,7 @@
 | 创建模型 | POST /api/v1/admin/models，JSON { publicModelId,status?,sellPrices } | active admin + CSRF；sellPrices 至少含 input/output，可含 cacheRead/cacheWrite/cacheWrite5m/cacheWrite1h/reasoning；USD/百万 Token，精确十进制字符串，最多 8 位小数。审计 operationId 由 Worker 生成。 |
 | 更新模型 | PATCH /api/v1/admin/models/:id，JSON { version,status?,sellPrices? } | version 实际等于 priceVersion。若发送 sellPrices，是完整替换，不是部分合并，不提供缺失 bucket 的隐式零价。路径 ID 需作为单段编码；公开模型 ID 可包含 /、:。 |
 | 模型渠道映射列表 | GET /api/v1/admin/models/:publicModelId/mappings，query protocol,activeOnly | protocol: chat/responses/messages；activeOnly 是字符串 boolean。返回 {items:ModelMappingView[]}；每项 channelId,publicModelId,protocol,upstreamModel,configVersion。 |
-| 新建映射 | POST /api/v1/admin/models/:publicModelId/mappings，JSON { channelId,protocol,upstreamModel } | 返回 ModelMappingView；审计 operationId Worker 内部生成。mapping configuration 不代表该组已授权或协议适配一定可运行。 |
+| 新建映射 | POST /api/v1/admin/models/:publicModelId/mappings，JSON { channelId,protocol,upstreamModel } | 返回 ModelMappingView；审计 operationId Worker 内部生成。分组授权与协议可转换性分别检查。 |
 | 更新映射 | PATCH /api/v1/admin/models/:publicModelId/mappings/:channelId/:protocol，JSON { version,upstreamModel? } | version 必须等于 mapping configVersion，成功递增；路径中公开模型 ID 必须编码为单路径段，protocol 仍为 chat/responses/messages。 |
 | 删除映射 | DELETE /api/v1/admin/models/:publicModelId/mappings/:channelId/:protocol，JSON { version } | CSRF + 当前映射 configVersion；返回 {deleted:true}。只删除指定映射，不删除公开模型或历史请求。 |
 | 访问组列表 | GET /api/v1/admin/groups，query cursor,status | status: active/disabled。返回 GroupView[]：id,name,status,version,createdAt,updatedAt,channelIds,billingMultiplier。倍率为最多 18 位小数的非负十进制字符串；channelIds 是关联集合。 |
@@ -136,7 +136,7 @@ ChannelView.concurrencyLimit/rpmLimit 和用户 limits 在成功读取中是安�
 
 渠道、模型、访问组和用户详情 GET 均已由 Worker 挂载，要求 active admin session 并返回安全投影；凭据明文和密码材料不出现在响应中。
 
-## 契约特别风险与 React 实施提醒
+## 客户端处理
 
 1. **线格式命名不统一。** auth/user/request/audit DTO 含 snake_case；chat/channel/model/group/key/billing DTO 含 camelCase。不要以通用 adapter 全面 camelize。
 2. **两个“版本”语义。** model 写入 body version 实际 CAS priceVersion；mapping 的 configVersion 与 channel configVersion 独立。渠道诊断必须同时携带这三个版本，保存其中一个资源会使旧探测请求冲突。
@@ -146,9 +146,3 @@ ChannelView.concurrencyLimit/rpmLimit 和用户 limits 在成功读取中是安�
 6. **价格/usage 都是证据快照。** request cost_units、price snapshot、usage 可能 null 或 invalid。执行成功并不说明已结算；usage 子计数可能是 input/output 子集，按 semantics 展示，不重新求和或估算权威金额。
 7. **密钥明文只出现一次。** API Key 与邀请码首次创建返回 plaintext；replayed 结果不带它。读取结果、React Query cache、日志和持久草稿均不能保存明文；仅临时显式结果态供用户复制。
 8. **服务端能力边界。** 尚无渠道实时健康、通用概览聚合、usage 图表、全量会话搜索或支付/充值。个人账单期间汇总只来自专门的 billing summary；不能从分页明细推算其他聚合。渠道 active 不是在线探测成功，mapping 存在也不表示用户授权。
-
-## 本图来源
-
-- Contracts 与 API client：packages/contracts/src/*.ts、packages/api-client/src/*.ts；React feature 查询适配器位于 apps/web/src/features/。
-- Worker 路由装配：apps/worker/routes.ts；领域合同：apps/worker/auth/**、apps/worker/chat/routes.ts、apps/worker/admin/**、apps/worker/billing/**、apps/worker/gateway/request-query-routes.ts。
-- 页面路由与实现边界：apps/web/src/app/router.tsx、docs/frontend-react-module-boundaries.md；UX 目标与文件级任务：docs/ux-redesign-plan.md。
