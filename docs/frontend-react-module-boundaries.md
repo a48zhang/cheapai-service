@@ -1,6 +1,6 @@
 # cheapai React module boundaries
 
-The React application lives in `apps/web/src` as the active `@cheapai/web` workspace. The former Vue application is archived outside the workspace at `/workspace/cheapai-legacy-archive/react-cutover/apps-web`. React modules follow one dependency direction: application composition selects pages, pages compose features, features own domain behavior, and shared modules provide stable cross-feature building blocks.
+The React application lives in `apps/web/src` as the active `@cheapai/web` workspace. React modules follow one dependency direction: application composition selects pages, pages compose features, features own domain behavior, and shared modules provide stable cross-feature building blocks.
 
 ```text
 app   ──► pages, features, shared, workspace packages
