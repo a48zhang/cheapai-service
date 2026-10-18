@@ -181,7 +181,7 @@ Resend 发送使用 `redirect: 'manual'` 并拒绝 3xx；Workers 原生 fetch �
 
 生产配置已启用 Cloudflare Workers Observability，`head_sampling_rate: 1` 保留所有调用的日志。部署后，在 Cloudflare Dashboard → Workers & Pages → `sub2api-cloudflare-production` → Observability → Logs 查看请求及其 console 日志；也可以从 `apps/worker` 运行 `pnpm exec wrangler tail --env production --format json` 实时观察。历史请求不会补产生日志。
 
-2026-10-05 补齐全局错误日志：生产显式启用 `observability.logs` 的持久化、invocation logs 和全量采样，并上传 source map。API 的 5xx 通过 `console.error` 输出请求 ID、错误码、状态、原始 Error、堆栈及 cause 链；4xx 使用 `console.warn`。HTTP 入口记录 method、path、状态和耗时。渠道/模型/用户管理、认证、聊天、账务等原先将异常改写为 503 的位置保留原始 cause，不改变客户端响应格式。
+生产启用 `observability.logs` 的持久化、invocation logs 和全量采样，并上传 source map。API 的 5xx 通过 `console.error` 输出请求 ID、错误码、状态、原始 Error、堆栈及 cause 链；4xx 使用 `console.warn`。HTTP 入口记录 method、path、状态和耗时。渠道、模型、用户管理、认证、聊天和账务错误保留原始 cause，客户端使用统一错误响应。
 
 上游请求、流式执行及结算、后台任务、KV 和租约续期失败也直接记录原始异常；JSON 上游 HTTP 拒绝记录已经读取的错误响应。请求体、Authorization 和配置 Secret 值不写入日志。
 
