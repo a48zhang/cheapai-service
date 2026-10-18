@@ -131,12 +131,10 @@ Exercise local selection/report logic without a network call or SDK:
 & node scripts/verify-upstream-matrix.ts --mock --max-requests 12 --max-output-tokens 64
 ```
 
-Node.js **24.19.0** is required by this repository. When running the TypeScript
-script directly, use the repository's Node runtime with type stripping as in
-the local checks:
+Use the Node.js version pinned in `.node-version`:
 
 ```powershell
-& 'C:/Users/a4871/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe' --experimental-strip-types scripts/verify-upstream-matrix.ts --help
+node scripts/verify-upstream-matrix.ts --help
 ```
 
 The JSON report contains the mode, selected limits, SDK package/version status,
