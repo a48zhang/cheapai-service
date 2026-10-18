@@ -1,8 +1,6 @@
 # 部署步骤
 
-更新：2026-10-03；配置基线为 main `fd6ce3d37de87239a7474a04ab85b83c96f7df11`，本次清理移除共享 staging 的可执行入口。共享 staging 已于 2026-10-03 完成永久退役，相关 Worker、D1、KV 和 Gate DO 已删除并回读确认；这次文档更新不是删除或发布成功证明。历史资源与证据见[退役记录](staging-resources.md)。
-
-先读[管理员配置顺序](admin-guide.md)。正式入口为 https://cheapai.dev 和 https://www.cheapai.dev；站内导航保留当前 host，两个入口分别使用 host-only 会话和 CSRF Cookie。自动预发已停用，当前状态见[PR 预发](pr-previews.md)；不要重建旧共享 staging，也不要以历史验证结果代替本次验收。
+先读[管理员配置顺序](admin-guide.md)。正式入口为 https://cheapai.dev 和 https://www.cheapai.dev；站内导航保留当前 host，两个入口分别使用 host-only 会话和 CSRF Cookie。原生 Preview 配置见[PR 预览](pr-previews.md)。
 
 ## 发布前准备
 
@@ -10,15 +8,15 @@
 
 ### Cloudflare 自动构建与手动发布
 
-2026-10-17 已关闭 Cloudflare 原生 Preview 总开关并移除 production Worker 的 Builds 配置，父配置及 12 个分支构建配置均回读确认不存在。自动预发停用；合并 main 后由下文的 GitHub Production release 工作流执行正式迁移与发布。GitHub 代码检查与 Desktop 安装包构建保留。
+main 推送触发 GitHub Production release 工作流，执行正式迁移与发布。Cloudflare 原生 Preview 的启用和资源配置见[PR 预览](pr-previews.md)。
 
 `pnpm run build` 只构建前端并对 Worker 执行 dry-run。`pnpm run deploy` 明确选择 `apps/worker/wrangler.jsonc` 的 `production` 环境，会执行正式发布，不能用作 PR Preview 的替代命令。Wrangler 安装在 Worker workspace；后续配置原生 Preview 时，需要从该 workspace 执行命令，并明确目标 Worker、配置文件和预发绑定。
 
-2026-10-11 已通过 Cloudflare API 只读核对真实生产配置：三个路由、workers.dev / Preview 开关、DB / CACHE / Gate、vars、日志及 cron 均与仓库一致，路由顺序按远端排列。运行时 Secrets 名称为 `EMAIL_HMAC_KEY` 和 `RESEND_API_KEY`，未读取值。Wrangler 4.129.0 的 Dashboard 差异比较会将 Gate 的 `undefined` 字段和 D1 的本地 `database_name` / `migrations_dir` 判为破坏性变化，因此实际发布命令不再使用 `--strict`，避免非交互构建因误判中断；生产账户、环境、资源及路由仍由配置明确指定。`--dry-run` 不执行这项远端比较，构建通过不能证明严格模式下能发布。
+手动发布命令显式选择 production 配置。发布前核对当前账户、绑定和路由；本地 dry-run 检查打包与配置，远端授权和资源状态需另行核对。
 
-重新配置 CI 时，不能仅靠替换 Worker 名称选择环境；名称变化不会同时切换 D1、KV、邮件或 vars。正式构建及发布日志中应确认 `ENVIRONMENT` 为 `production`、DB 为 `sub2api-cloudflare-production`、CACHE 为 `3da22af80f0946cdbb9cd85caee9810d`，且没有 local 邮件占位绑定。不能只依据 Worker 名称判断选中了生产环境。
+构建和发布日志应显示 `ENVIRONMENT=production`、生产 DB/CACHE，且不包含 local 邮件占位绑定。显式选择 `--env production` 才会加载对应绑定和变量。
 
-本地验证：在故意设置 `CLOUDFLARE_ENV=local` 时，`pnpm run build` 和 `pnpm run deploy --dry-run --outdir /tmp/cheapai-production-deploy` 均成功，解析为上述生产绑定。未实际发布，也未修改 Dashboard 配置。Wrangler 仍提示生产未继承顶层 `send_email`；这是 production 使用 Resend、明确设置 `send_email: []` 的现有配置，不应补入本地邮件绑定。
+production 使用 Resend，显式配置 `send_email: []`。Wrangler 的邮件绑定继承提示不需要通过添加本地邮件占位绑定处理。
 
 发布者必须核对目标账户及现有资源，不能重复创建或替换：
 
@@ -42,9 +40,9 @@ pnpm --filter @sub2api/worker exec wrangler secret list --env production
 pnpm --filter @sub2api/worker exec wrangler deployments list --env production
 ```
 
-发布前确认账户权限、备份、29 份迁移水位及邮件运行时 Secrets；只检查 Secret 名称不等于验证值。邮件启用前必须验证发件身份、投递与获批收件人，不能只改 readiness。真实上游调用、负载及恢复验证另行限定目标、权限和预算。
+发布前确认账户权限、备份、30 份迁移水位及邮件运行时 Secrets；只检查 Secret 名称不等于验证值。邮件启用前必须验证发件身份、投递与获批收件人，不能只改 readiness。真实上游调用、负载及恢复验证另行限定目标、权限和预算。
 
-先完成类型、测试、构建和 PR 验证，再核对生产目标、备份、迁移与发布授权；部署后核对真实域名和功能。PR 默认没有邮件或 cron，不能用其 smoke test 代替这些能力的验收。需要完整隔离验证环境时另行明确配置并授权，不能复用已删除的共享资源。本文后续命令是操作手册，不代表已执行。
+发布前完成提交检查，核对生产目标、备份和迁移；发布后执行第 7 节的功能验收。预览环境的邮件和定时任务需单独配置与验证。
 
 ## 正式 CI 发布入口与失败恢复
 
@@ -83,21 +81,21 @@ pnpm --filter @sub2api/worker exec wrangler d1 migrations list DB --config wrang
 
 | 项目 | 当前值 / 发布要求 |
 | --- | --- |
-| Node / pnpm / Wrangler | 24.19.0 / 11.19.0 / 4.129.0；遵守锁文件，不临时升级 |
+| Node / pnpm / Wrangler | 24.19.0 / 11.19.0 / 4.151.1；遵守锁文件，不临时升级 |
 | compatibility_date | `2026-08-15`；不要用 `--latest` 随发布漂移 |
 | 前端 | `apps/web/dist`；相对 Worker 配置为 `../web/dist`，必须先构建 |
-| 静态路由 | `ASSETS`；production 的 `run_worker_first: true` 确保可信 origin 选择和安全响应头先于静态资源；本地/PR 的 API 和 health 路径先运行 Worker，未知 API 不能落成 SPA HTML |
+| 静态路由 | `ASSETS`；production 的 `run_worker_first: true` 确保可信 origin 选择和安全响应头先于静态资源；本地的 API 和 health 路径先运行 Worker，未知 API 不能落成 SPA HTML |
 | D1 / KV | 每环境独立 `DB` / `CACHE`；配置中的零前缀 ID 均是占位符 |
 | DO | `GATE` → `Gate`，`migrations` 的 `v1` 使用 `new_sqlite_classes: ["Gate"]` |
 | 邮件 | `EMAIL` / `send_email`；所有 `.invalid` 发件人和收件人都是占位符 |
-| 定时任务 | 顶层本地配置和 production 显式配置每五分钟一次；PR previews 无 cron |
-| 公网入口 | local 为 `workers_dev: false`；production 与 Dashboard 同步为 `workers_dev: true`、`preview_urls: true`，保留 cheapai.dev、www.cheapai.dev 和 pre.cheapai.dev 路由；自动预发已停用 |
+| 定时任务 | 顶层本地配置和 production 显式配置每五分钟一次；Preview 定时任务需单独核对 |
+| 公网入口 | local 为 `workers_dev: false`；production 与 Dashboard 同步为 `workers_dev: true`、`preview_urls: true`，保留 cheapai.dev、www.cheapai.dev 和 pre.cheapai.dev 路由；分支预览见 PR 预览文档 |
 
 `remote: false` 描述本地开发 binding 行为，不会让发布后的 Worker 使用本地数据库。远程 D1 操作仍必须明确 `--remote --env ...`。这与已安装 Wrangler schema 及[开发 binding 模式](https://developers.cloudflare.com/workers/local-development/bindings-per-env/)一致。
 
 ## 2. 工具和本地发布检查
 
-以下 PowerShell 命令都从工程根目录执行。先按 [toolchain.md](toolchain.md) 选择固定 Node，并处理本机 pnpm 的 `Path` 大小写问题；不要依赖全局 Wrangler。
+以下 PowerShell 命令都从工程根目录执行。使用 `.node-version` 和 `package.json` 固定的 Node、pnpm，以及 Worker workspace 中的 Wrangler。Windows 命令查找故障见[工具链历史记录](toolchain.md)。
 
 ```powershell
 node --version
@@ -117,7 +115,7 @@ pnpm.cmd --filter @cheapai/web run build
 node $deploymentWrangler deploy --config $deploymentConfig --env production --dry-run --outdir .wrangler/build-production
 ```
 
-每一步失败都停止发布。保存提交标识、锁文件 SHA-256、命令退出码、测试结果、迁移清单和 dry-run 摘要；不要保存包含密码/Key 的终端转录。若测试池输出入口静态分析警告，记录警告及实际执行结果，不能把“启动测试命令”当成通过。dry-run 不验证远程权限、邮件投递、真实供应商或网络策略。
+每一步失败都停止发布。保存提交、锁文件 SHA-256、退出码、测试结果、迁移清单和 dry-run 摘要；记录不包含密码或 Key。
 
 本地 D1 与 Cron 可使用同一个明确的状态目录：
 
@@ -133,7 +131,7 @@ node $deploymentWrangler dev --config $deploymentConfig --local --persist-to $de
 
 ## 3. 环境选择
 
-production 已有独立资源和域名，bindings/vars 明确位于 `env.production`。Cloudflare 自动构建与预发已停用，详见[预发说明](pr-previews.md)。仓库 CI 不创建分支 Worker、执行预发部署或迁移。
+production 已有独立资源和域名，bindings/vars 明确位于 `env.production`。Cloudflare 原生 Preview 的配置见[预览说明](pr-previews.md)。GitHub PR 检查不执行部署或远程迁移。
 
 当前 Git 生产配置为 `send_email: []`、`EMAIL_VERIFICATION_READY: "true"`，通过 Resend 发信；这不证明线上 Secret 和实际投递已经通过验证。不要为消除 Wrangler 的 binding 继承提示添加虚假发件身份。
 
@@ -143,7 +141,7 @@ production 已有独立资源和域名，bindings/vars 明确位于 `env.product
 
 | 名称 | 类型与要求 |
 | --- | --- |
-| `ENVIRONMENT` | 环境 `vars`：生产为 production，独立 PR 为 staging（安全模式名，不表示旧共享资源） |
+| `ENVIRONMENT` | 环境 `vars`：生产为 production；预览环境需独立配置，不从父 Worker 变量推定 |
 | `PUBLIC_BASE_URL` | 环境 `vars`，实际控制台的 canonical HTTPS origin，可有一个尾斜杠；无账号密码、路径、query、fragment |
 | `EMAIL_VERIFICATION_READY` | `vars`，初始设 `"false"`；真实发件身份/投递能力验证后才设 `"true"` |
 | `EMAIL_FROM` | `vars`，与已验证发件身份一致的地址 |
@@ -161,7 +159,7 @@ production 已有独立资源和域名，bindings/vars 明确位于 `env.product
 
 旧版本曾因 `CHANNEL_KEYRING_JSON` 缺失而在渠道写入 D1 前失败；当前版本已移除这项依赖，无需再配置渠道主密钥。
 
-发布前依次应用 `0025`、`0026`，然后发布匹配的 Worker。`0025` 增加渠道 `upstream_key`，旧渠道密文及版本仍保留；这些旧渠道需要在管理界面重新填写真实上游 Key，新写入不再加密。没有明文 Key 的旧渠道会被明确拒绝，不能把旧密文当作上游凭据发送。
+从旧版本升级时，按迁移顺序处理 `0025`、`0026` 的凭据变化，再继续应用后续迁移。`0025` 增加渠道 `upstream_key`，旧渠道密文及版本仍保留；这些旧渠道需要在管理界面重新填写真实上游 Key，新写入不再加密。没有明文 Key 的旧渠道会被明确拒绝，不能把旧密文当作上游凭据发送。
 
 `0026` 增加 Desktop 会话的 `current_key`，撤销持有旧密文的会话及其活动 API Key，保留旧密文与历史记录。受影响 Desktop 用户重新登录后即可取得新凭据；未持有旧密文的会话、普通 API Key 和账务不受此迁移影响。退出或过期清理只清除新会话的可返回 Key，不删除历史密文。
 
@@ -170,10 +168,10 @@ production 已有独立资源和域名，bindings/vars 明确位于 `env.product
 当前 Git 生产配置为 `EMAIL_PROVIDER: "resend"`、`EMAIL_FROM: "noreply@mail.cheapai.dev"`、`EMAIL_VERIFICATION_READY: "true"`，`send_email` 保持空数组。仍需确认运行时 Secrets、发送域和实际投递；邮件配置不包含密码找回功能。
 
 1. 在 Resend 完成 `mail.cheapai.dev` 的发信域名验证；发件地址必须属于已验证域名。沿用可用于该域名的 Sending access key，无需为了接入再创建 key。不要将 key 粘贴到聊天、仓库、日志或 CheapAI 管理界面。
-2. 用户自行打开 Cloudflare Dashboard → Workers & Pages → `sub2api-cloudflare-production` → Settings → Variables and Secrets → Add，选择 **Secret**，名称填 **`RESEND_API_KEY`**，值由用户私下输入。`EMAIL_HMAC_KEY` 是原有验证码 HMAC Secret，需另行安全配置（canonical base64，解码 32–512 字节），不能复用 Resend key；已有值不需要读取或复制。Dashboard 保存部署和 CLI `secret put` 可能发布版本，应在获准的发布窗口操作；本次只准备代码和参数名。[Cloudflare Secret 配置](https://developers.cloudflare.com/workers/configuration/secrets/)
+2. 用户自行打开 Cloudflare Dashboard → Workers & Pages → `sub2api-cloudflare-production` → Settings → Variables and Secrets → Add，选择 **Secret**，名称填 **`RESEND_API_KEY`**，值由用户私下输入。`EMAIL_HMAC_KEY` 是原有验证码 HMAC Secret，需另行安全配置（canonical base64，解码 32–512 字节），不能复用 Resend key；已有值不需要读取或复制。Dashboard 保存部署和 CLI `secret put` 可能发布版本，应在获准的发布窗口操作。[Cloudflare Secret 配置](https://developers.cloudflare.com/workers/configuration/secrets/)
 3. 核对目标 Worker 的运行时 Secrets 并完成投递验收。当前 `env.production.vars` 已将 `EMAIL_VERIFICATION_READY` 设为 `"true"`；后续调整该开关时同步修改配置，避免被下次发布覆盖。`PUBLIC_BASE_URL` 为 `https://cheapai.dev`。不要将生产 Secrets 注入 PR 预览。
 4. CheapAI 现有管理后台继续控制 `registrationMode`（closed/open/invite）和 `emailVerificationEnabled`。要求邮箱验证时，只有 provider、from、HMAC 和 readiness 完整才允许依赖邮件的注册；发信还要求注册未关闭且验证开启。不要用关闭邮箱验证来绕过发信故障。
-5. 获准真实验收后检查验证码接受/收件、注册消费、旧码失效、60 秒重发限制和失败提示；服务 accepted 不等于已投递。当前不执行真实发送，不更改套餐或按量付费。需要停用邮件时关闭 readiness；已有用户登录不依赖邮件就绪状态。
+5. 获准真实验收后检查验证码接受/收件、注册消费、旧码失效、60 秒重发限制和失败提示；服务 accepted 不等于已投递。需要停用邮件时关闭 readiness；已有用户登录不依赖邮件就绪状态。
 
 协议参考：[Resend Send Email](https://resend.com/docs/api-reference/emails/send-email)、[错误语义](https://resend.com/docs/api-reference/errors)。HTTP provider 使用固定端点，不跟随重定向、不自动重试，错误响应详情和异常通过原生 `console.error` 写入 Cloudflare Workers Logs，对客户端仍返回通用错误。
 
@@ -191,7 +189,6 @@ production 已有独立资源和域名，bindings/vars 明确位于 `env.product
 
 排查渠道创建时，先用界面上的 `request_id` 找到 `API request failed`，再展开同一 invocation 的日志。数据库失败保留 D1 原始异常；旧渠道尚未重新填写 Key 时返回明确原因。这些新日志只在发布后的请求中生成，需要重新操作获取新的请求 ID。
 
-本轮本地验证：Node/React 1,858 项、Worker 2,089 项测试通过；最终渠道/配置/API Key/租约/JSON 网关定向回归 94 项通过，包含两项原始异常与响应请求 ID 关联测试。类型检查、production dry-run 和 diff 检查通过。未执行线上发布或核验 Cloudflare 历史日志。
 
 发码请求开始和结束使用 `console.debug` 记录 `request_id`，可以与浏览器响应匹配；同一次 Worker invocation 下的日志由 Cloudflare 关联。发送流程的 `catch` 使用 `console.error` 保留原始异常及堆栈，HTTP 拒绝包含 Resend 状态码及错误响应正文。还会记录请求开始、收到响应、耗时、超时或缺失 message ID，数据库和路由 catch 也会记录异常。没有自定义日志后端、诊断类型或回调。
 
@@ -199,7 +196,7 @@ production 已有独立资源和域名，bindings/vars 明确位于 `env.product
 
 ## 5. D1 迁移与初始管理员
 
-当前源码迁移为 `0001_groups_settings.sql` 至 `0029_remove_model_limits_and_capabilities.sql`，共 29 份。`pnpm run deploy` 只发布 Worker，不自动应用或核验 D1 迁移；测试夹具自动应用全部迁移也不代表生产已更新。新环境应用全部迁移；升级环境先查实际水位，再按顺序应用所有未应用文件，不只执行最后一份：
+当前源码迁移为 `0001_groups_settings.sql` 至 `0030_channel_soft_delete.sql`，共 30 份。`pnpm run deploy` 只发布 Worker，不自动应用或核验 D1 迁移；测试夹具自动应用全部迁移也不代表生产已更新。新环境应用全部迁移；升级环境先查实际水位，再按顺序应用所有未应用文件，不只执行最后一份：
 
 ```powershell
 Get-ChildItem migrations -Filter '*.sql' | Sort-Object Name | Select-Object Name
@@ -216,9 +213,8 @@ node $deploymentWrangler d1 execute DB --config $deploymentConfig --env producti
 
 关键结构包括注册原子触发器 `0012`、记账原子触发器 `0013`、默认数据 `0014`、注册码批次 `0015`、Key 创建幂等记录 `0016`、Key 分组 `0017`、内置模型 `0018`。`0019` 移除默认输出配置，`0020` 添加分组倍率，`0021` 调整 web_chat 内部 Key，`0022` 添加聊天存储，`0023` 添加请求来源/分组记录，`0024` 添加 Desktop 会话及 API Key 归属关系；`0025`、`0026` 移除渠道和 Desktop 的二次加密依赖。`0014` 不创建管理员、不授额；`0018` 不创建渠道映射或开放用户授权。
 
-从已应用 0018 的环境升级聊天时，需要依次应用 0019–0023，并发布匹配的 Worker/前端。0021 涉及 Key 表结构及关联约束，应先核对备份、外键与回滚兼容性；保留既有用户、密钥、价格和账务，不通过重新创建数据库升级。
 
-当前 Worker 的普通 API Key 查询也使用 `0024` 新增的 `desktop_session_id` 列，所以升级至包含 Desktop 的版本前必须应用 `0024`，不能因暂不使用 Desktop 而跳过。新版本还要求 `0025`、`0026` 的新凭据列。2026-10-05 本地真实 Worker/D1 的 Desktop 定向回归 21 项通过，包含旧密文迁移、新会话并发取 Key、过期轮换、网关计费和退出清理；迁移回归的 `PRAGMA foreign_key_check` 无结果。这不证明远程 D1 的实际迁移水位。
+当前版本依赖全部迁移。`0027` 允许上游模型名原样保存；`0028` 允许邀请码不设到期时间；`0029` 删除模型输出上限、最低余额与渠道能力字段；`0030` 增加渠道软删除。按顺序应用缺失迁移后发布匹配版本。
 
 仅首次空环境需要管理员初始化；现有生产管理员不重复 bootstrap。必要时在交互终端运行 A29：
 
@@ -246,7 +242,7 @@ production 发布前完成独立 PR 验证及生产专属检查；上述命令�
 
 ## 7. 发布后验证和维护
 
-下面是待执行验收，本文不将任何项目标记为远程通过：
+发布后在目标环境逐项验证：
 
 1. 实际 HTTPS 域名上的 `/healthz` 返回 JSON；静态页面可加载，未知 `/api/*`、`/v1/*` 返回结构化错误而非 HTML。
 2. 管理员登录/退出、安全 Cookie、Origin/CSRF 和普通用户越权拒绝通过；未配置邮件时注册保持 closed，不能用 readiness 标志冒充投递实测。

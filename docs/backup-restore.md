@@ -1,6 +1,6 @@
-# 备份与隔离恢复步骤（R05）
+# 备份与隔离恢复步骤
 
-核对日期：2026-10-05。本文交付 D1 备份、隔离副本恢复和恢复后只读核对的操作边界。本文没有创建远程 D1、导出云端数据、恢复数据库、读取 Secret 或切换任何 Worker binding。真实恢复演练属于后续 R06；渠道 Key 的可用性需要在恢复副本上单独验证。
+本流程将 D1 备份恢复到隔离数据库，并核对迁移、凭据和账务。恢复副本验证完成后，再安排生产切换。
 
 恢复的目标是得到一个可核对的隔离副本。不要把“代码回滚”当成“数据库恢复”：余额、账单、请求幂等记录和 Durable Object 状态不会随 Worker version 回退。D1 的 Time Travel restore 会在原库上覆盖数据，本文不把它用于生产恢复。
 
@@ -40,7 +40,7 @@ node $backupWrangler d1 export $sourceDatabase --config $backupConfig --env $sou
 Get-FileHash $backupFile -Algorithm SHA256
 ```
 
-The record for each export should contain UTC capture time, exact database name and UUID, Wrangler version, applied migration names, current Time Travel bookmark, SQL file SHA-256, retention expiry. Do not save terminal output that contains credentials or Secret values. The current Wrangler 4.129.0 help supports the `d1 export --remote --output ... --skip-confirmation` form above; recheck `node $backupWrangler d1 export --help` after a deliberate Wrangler upgrade.
+The record for each export should contain UTC capture time, exact database name and UUID, Wrangler version, applied migration names, current Time Travel bookmark, SQL file SHA-256, retention expiry. Do not save terminal output that contains credentials or Secret values. Run `node $backupWrangler d1 export --help` with the repository's pinned Wrangler before exporting.
 
 [D1 Wrangler commands](https://developers.cloudflare.com/d1/wrangler-commands/) documents `d1 export`, local/remote selection and the migration commands. [D1 migrations](https://developers.cloudflare.com/d1/reference/migrations/) explains the `d1_migrations` waterline and why database names are safer than mutable binding names.
 
@@ -48,7 +48,7 @@ The record for each export should contain UTC capture time, exact database name 
 
 D1 Time Travel is always enabled for databases on the production storage backend. It provides a bookmark/time point within the plan's retention window (currently up to 30 days on Workers Paid and 7 days on Workers Free). `wrangler d1 time-travel info` is a read-only way to capture a current or historical bookmark.
 
-`wrangler d1 time-travel restore` is destructive: it overwrites the named database and cancels in-flight work. Current D1 documentation also describes cloning/forking as a future capability, so a Time Travel bookmark is not an isolated copy. Do not run the following against this project's production database as part of R05:
+`wrangler d1 time-travel restore` is destructive: it overwrites the named database and cancels in-flight work. Current D1 documentation also describes cloning/forking as a future capability, so a Time Travel bookmark is not an isolated copy. Do not run the following against this project's production database as part of an isolated-copy restore:
 
 ```powershell
 # Destructive in-place operation; reserved for a separately approved incident runbook.
@@ -75,7 +75,7 @@ node $backupWrangler d1 migrations list $restoreDatabase --config $backupConfig 
 
 If the export was intentionally made with `--no-schema`, first compare its migration waterline with the backup record and apply only the reviewed checked-in migrations to the isolated database. Do not delete rows from `d1_migrations`, rewrite migration filenames, or apply a newer schema merely to make a command green. A restore made from a full export must still be compared with the source migration list because an SQL file does not prove that the application version can interpret every row.
 
-The SQL import restores D1 rows and indexes/triggers represented by the export. It does not restore KV, Gate Durable Object storage, Worker versions, routes, assets, or Secret bindings. Keep those resources disconnected; R05 has no cutover command.
+The SQL import restores D1 rows and indexes/triggers represented by the export. It does not restore KV, Gate Durable Object storage, Worker versions, routes, assets, or Secret bindings. Keep those resources disconnected; production cutover requires a separate procedure.
 
 ## 恢复后只读核对
 
@@ -102,10 +102,10 @@ node scripts/verify-restored-database.ts --remote --isolated `
 
 The `channel-credentials` check reports `readyChannels` and `needsKeyReentry`. Legacy encrypted rows remain preserved, but the report fails until their upstream keys are re-entered. It does not decrypt the legacy envelope or make an upstream API request.
 
-The JSON report exits 0 only when every check is `pass`. `negativeUsers` is reported but is not itself a failure: this service allows a bounded negative balance after a charge. Any `mismatchedUsers`, foreign-key violation, missing migration/trigger, duplicate idempotency identity, or channel requiring Key re-entry is a failure that stops the recovery review. Preserve the report, command versions, database UUID, SQL checksum and bookmark without adding row secrets.
+The JSON report exits 0 only when every check is `pass`. `negativeUsers` is reported but is not itself a failure: this service allows a negative balance after a charge. Any `mismatchedUsers`, foreign-key violation, missing migration/trigger, duplicate idempotency identity, or channel requiring Key re-entry is a failure that stops the recovery review. Preserve the report, command versions, database UUID, SQL checksum and bookmark without adding row secrets.
 
 ## 不能作为恢复证据的结果
 
-An HTTP 200 from a restored Worker, a successful `d1 execute --file`, a local Miniflare database, a KV hit, or a `wrangler deploy` result does not prove financial or identity recovery. The source database remains authoritative until the isolated report, migration compatibility review, and channel credential readiness checks are complete. If a check fails, retain the isolated copy and evidence for investigation; do not repair it with ad-hoc SQL or switch production traffic under the R05 procedure.
+An HTTP 200 from a restored Worker, a successful `d1 execute --file`, a local Miniflare database, a KV hit, or a `wrangler deploy` result does not prove financial or identity recovery. The source database remains authoritative until the isolated report, migration compatibility review, and channel credential readiness checks are complete. If a check fails, retain the isolated copy and evidence for investigation; do not repair it with ad-hoc SQL or switch production traffic under this isolated-restore procedure.
 
 For platform details, consult [D1 Time Travel and backups](https://developers.cloudflare.com/d1/reference/time-travel/), [D1 Wrangler commands](https://developers.cloudflare.com/d1/wrangler-commands/), and [D1 migrations](https://developers.cloudflare.com/d1/reference/migrations/). Secret values remain governed by the deployment process in [deployment.md](deployment.md) and [rollback.md](rollback.md).
