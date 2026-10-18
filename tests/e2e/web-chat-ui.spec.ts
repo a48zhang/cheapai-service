@@ -200,10 +200,13 @@ test('FE-V02 history automatically appends deduplicated pages and retries the sa
 
 test('FE-V02 history first-page failure is distinct from empty and supports retry', async ({ page }) => {
   const fixture = await mockedChat(page);
-  let calls = 0;
-  await page.route('**/api/v1/chat/conversations', route => ++calls === 1 ? route.fulfill({ status: 503, body: 'temporary' }) : fixture.fulfill(route, { items: [], nextCursor: null }));
+  // Keep the failure stable across cancelled/remounted initial reads until the user retries.
+  let failing = true;
+  await page.route('**/api/v1/chat/conversations', route => failing ? route.fulfill({ status: 503, body: 'temporary' }) : fixture.fulfill(route, { items: [], nextCursor: null }));
   await page.goto('/chat');
   await expect(page.getByText('还没有对话', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '重试', exact: true })).toBeVisible();
+  failing = false;
   await page.getByRole('button', { name: '重试', exact: true }).click();
   await expect(page.getByText('还没有对话', { exact: true })).toBeVisible();
 });

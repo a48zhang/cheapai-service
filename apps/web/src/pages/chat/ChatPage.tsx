@@ -35,22 +35,24 @@ export default function ChatPage() {
     }),
     [client, userId, epoch, session],
   );
-  const draft = useDraft({
-    identity: { status, userId: user?.id ?? null, expiredUserId: expiry?.userId ?? null },
-    conversationId,
-  });
-  const draftRef = useRef(draft);
-  draftRef.current = draft;
-  const history = useHistory({ context });
+  const draftRef = useRef<ReturnType<typeof useDraft> | null>(null);
+  const history = useHistory({ context, sessionStatus: status });
   const chat = useChatController({
     context,
     conversationId,
     onConversationCreated: (createdId) =>
       navigate(`/chat/${encodeURIComponent(createdId)}`, { replace: true }),
     onDraftRestore: (content, owner) => {
-      if (!draftRef.current.draft) draftRef.current.preservePending(content, owner);
+      if (draftRef.current && !draftRef.current.draft)
+        draftRef.current.preservePending(content, owner);
     },
   });
+  const draft = useDraft({
+    identity: { status, userId: user?.id ?? null, expiredUserId: expiry?.userId ?? null },
+    conversationId: chat.draftConversationId,
+    continuingNewConversation: chat.continuingNewConversation,
+  });
+  draftRef.current = draft;
   const detail = chat.state.detail;
   const selection = useModelSelection({
     context,
@@ -98,17 +100,16 @@ export default function ChatPage() {
       !selection.selection.modelId
     )
       return;
+    const result = chat.send({
+      content,
+      groupId: selection.selection.groupId,
+      modelId: selection.selection.modelId,
+    });
     draft.setDraft('');
-    void chat
-      .send({
-        content,
-        groupId: selection.selection.groupId,
-        modelId: selection.selection.modelId,
-      })
-      .then((result) => {
-        if (result === 'busy' || result === 'superseded')
-          draftRef.current.preservePending(content, userId);
-      });
+    void result.then((result) => {
+      if ((result === 'busy' || result === 'superseded') && !draftRef.current?.draft)
+        draftRef.current?.preservePending(content, userId);
+    });
   };
   const newConversation = () => {
     chat.controller.resetConversation();
@@ -135,11 +136,12 @@ export default function ChatPage() {
       ? '正在确认身份…'
       : chat.state.phase === 'interrupted'
         ? '请先确认上一次操作的结果。'
-        : authenticated && conversationId && (chat.loading || !detail)
+        : authenticated && chat.view === 'opening'
           ? '正在读取会话…'
-          : undefined;
-  const newChat =
-    !conversationId && !detail?.messages.length && !chat.busy && !chat.state.failure && !chat.error;
+          : authenticated && chat.view === 'error'
+            ? '会话读取失败，请重试。'
+            : undefined;
+  const newChat = chat.view === 'welcome';
   return (
     <ChatLayout
       onNew={newConversation}
@@ -147,7 +149,7 @@ export default function ChatPage() {
         <ConversationSidebar
           conversations={history.conversations}
           activeId={conversationId}
-          loading={authenticated && history.loading}
+          view={history.view}
           loadingMore={history.loadingMore}
           hasMore={history.hasMore}
           mobileOpen={mobile}
@@ -200,6 +202,9 @@ export default function ChatPage() {
           messages={detail?.messages ?? []}
           streamMessageId={chat.state.streamMessageId}
           streamText={chat.state.streamText}
+          submission={chat.state.submission}
+          phase={chat.state.phase}
+          onRestoreSubmission={draft.draft ? undefined : draft.setDraft}
           busy={chat.busy}
           loading={authenticated && chat.loading}
           {...(!selection.available && selection.unavailableReason
@@ -215,7 +220,7 @@ export default function ChatPage() {
                 modelId: selection.selection.modelId,
               });
           }}
-          emptyMessage="在下方输入消息，继续这段对话。"
+          emptyMessage={chat.view === 'error' ? null : '在下方输入消息，继续这段对话。'}
         />
         {chat.state.failure && (
           <div className="chat-notice-area">

@@ -10,9 +10,12 @@ import {
 } from '../api';
 import type { ChatApiContext } from '../api';
 import { chatQueryKeys } from '../query-keys';
+import { historyView } from '../model/view-state';
+import type { RuntimeSessionSnapshot } from '../../../shared/api/runtime';
 
 export interface UseHistoryOptions {
   readonly context: ChatApiContext;
+  readonly sessionStatus?: RuntimeSessionSnapshot['status'];
 }
 
 function hasRepeatedCursor(data: InfiniteData<ChatList, unknown> | undefined): boolean {
@@ -44,7 +47,10 @@ function mergeConversations(data: InfiniteData<ChatList, unknown> | undefined): 
 }
 
 /** Cursor-paged conversation history scoped by the current user and session epoch. */
-export function useHistory({ context }: UseHistoryOptions) {
+export function useHistory({
+  context,
+  sessionStatus = context.userId ? 'authenticated' : 'anonymous',
+}: UseHistoryOptions) {
   const queryClient = useQueryClient();
   const queryKey = chatQueryKeys.list(context.userId, context.epoch);
   const query = useInfiniteQuery(chatConversationListQueryOptions(context));
@@ -116,6 +122,12 @@ export function useHistory({ context }: UseHistoryOptions) {
   );
 
   return {
+    view: historyView({
+      sessionStatus,
+      hasData: data !== undefined,
+      hasItems: conversations.length > 0,
+      hasError: errorMessage !== null,
+    }),
     conversations,
     loading: isPending,
     refreshing: isRefetching && !isPending,

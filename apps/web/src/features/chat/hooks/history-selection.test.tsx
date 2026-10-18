@@ -86,6 +86,33 @@ class MemoryStorage implements Storage {
 afterEach(() => cleanup());
 
 describe('React chat history hook', () => {
+  it('does not report an empty history before identity and the first response are known', async () => {
+    let resolveHistory!: (value: unknown) => void;
+    const { context } = chatContext(
+      'preparing-user',
+      1,
+      () =>
+        new Promise((resolve) => {
+          resolveHistory = resolve;
+        }),
+    );
+    const { wrapper } = queryHarness();
+    const { result, rerender } = renderHook(
+      ({ sessionStatus }) => useHistory({ context, sessionStatus }),
+      {
+        wrapper,
+        initialProps: { sessionStatus: 'unknown' as 'unknown' | 'authenticated' | 'anonymous' },
+      },
+    );
+    expect(result.current.view).toBe('preparing');
+    rerender({ sessionStatus: 'authenticated' });
+    expect(result.current.view).toBe('loading');
+    await act(async () => resolveHistory({ items: [], nextCursor: null }));
+    await waitFor(() => expect(result.current.view).toBe('empty'));
+    rerender({ sessionStatus: 'anonymous' });
+    expect(result.current.view).toBe('guest');
+  });
+
   it('single-flights page loads and merges duplicate rows using the newest server version', async () => {
     let resolveNext!: (value: unknown) => void;
     const { context, get } = chatContext('history-user', 1, (_path, cursor) => {
@@ -241,6 +268,29 @@ describe('React chat history hook', () => {
 });
 
 describe('React chat model selection hook', () => {
+  it('selects the default in the same render that exposes a loaded catalog', async () => {
+    const { context } = chatContext('default-selection-user', 1, () => models);
+    const { wrapper } = queryHarness();
+    const renders: { count: number; available: boolean; view: string }[] = [];
+    const { result } = renderHook(
+      () => {
+        const selection = useModelSelection({ context, conversationId: null, storage: null });
+        renders.push({
+          count: selection.options.length,
+          available: selection.available,
+          view: selection.view.kind,
+        });
+        return selection;
+      },
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.available).toBe(true));
+    expect(renders.filter((render) => render.count > 0).every((render) => render.available)).toBe(
+      true,
+    );
+    expect(renders.some((render) => render.view === 'unavailable')).toBe(false);
+  });
+
   it('persists authorized selection per account and preserves an unavailable conversation model', async () => {
     const storage = new MemoryStorage();
     const first = chatContext('model-user', 1, () => models);

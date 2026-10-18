@@ -10,6 +10,9 @@ import {
 import { chatQueryKeys } from '../query-keys';
 import { createChatController, type ChatSendCommand } from '../model/controller';
 import { initialChatState, isChatBusy } from '../model/state';
+import { conversationView } from '../model/view-state';
+import { mergeConversationDetail } from '../model/reconcile';
+import type { ConversationDetail } from '@cheapai/contracts/chat';
 
 export interface UseChatControllerOptions {
   context: ChatApiContext;
@@ -18,11 +21,12 @@ export interface UseChatControllerOptions {
   onDraftRestore: (content: string, userId: string) => void;
 }
 export function useChatController(options: UseChatControllerOptions) {
-  const { session, queryClient, expiry } = useSession();
+  const { session, queryClient } = useSession();
   const { context, conversationId } = options;
   const callbacks = useRef(options);
   callbacks.current = options;
-  const pendingDraft = useRef<{ content: string; userId: string } | null>(null);
+  // Only a locally created conversation may remain visible while its URL catches up.
+  const createdRoute = useRef<{ id: string; userId: string; epoch: number } | null>(null);
   const api = useMemo(() => createChatFeatureApi(context), [context]);
   const controller = useMemo(
     () =>
@@ -30,10 +34,23 @@ export function useChatController(options: UseChatControllerOptions) {
         api,
         getOwner: session.requestIdentity,
         onConversationCreated: (conversation) => {
+          createdRoute.current = {
+            id: conversation.id,
+            userId: context.userId,
+            epoch: context.epoch,
+          };
+          queryClient.setQueryData<ConversationDetail>(
+            chatQueryKeys.detail(context.userId, context.epoch, conversation.id),
+            (previous) => mergeConversationDetail(previous ?? null, { conversation, messages: [] }),
+          );
           callbacks.current.onConversationCreated(conversation.id);
           void queryClient.invalidateQueries({
             queryKey: chatQueryKeys.lists(context.userId, context.epoch),
           });
+        },
+        onIdentityInterrupted: (content, owner) => {
+          if (session.getSnapshot().expiry?.userId === owner.userId)
+            callbacks.current.onDraftRestore(content, owner.userId);
         },
         onDetailConfirmed: (detail) => {
           queryClient.setQueryData(
@@ -76,16 +93,11 @@ export function useChatController(options: UseChatControllerOptions) {
   }, [controller, session]);
   useEffect(() => {
     controller.syncConversation(conversationId);
+    if (conversationId !== null) createdRoute.current = null;
   }, [controller, conversationId]);
   useEffect(() => {
     if (query.data && query.data.conversation.id === conversationId) controller.hydrate(query.data);
   }, [controller, query.data, conversationId]);
-  useEffect(() => {
-    const pending = pendingDraft.current;
-    if (expiry && pending?.userId === expiry.userId)
-      callbacks.current.onDraftRestore(pending.content, pending.userId);
-  }, [expiry]);
-
   const send = useCallback(
     async (command: ChatSendCommand) => {
       if (isChatBusy(controller.getSnapshot().phase)) return 'busy' as const;
@@ -96,7 +108,6 @@ export function useChatController(options: UseChatControllerOptions) {
         return 'busy' as const;
       const owner = session.requestIdentity();
       if (!owner) return 'superseded' as const;
-      pendingDraft.current = { content: command.content, userId: owner.userId };
       const result = await controller.send(command);
       if (
         result === 'interrupted' &&
@@ -105,27 +116,35 @@ export function useChatController(options: UseChatControllerOptions) {
         const currentOwner = session.requestIdentity();
         if (currentOwner?.userId === owner.userId && currentOwner.epoch === owner.epoch)
           callbacks.current.onDraftRestore(command.content, owner.userId);
-        pendingDraft.current = null;
       }
       if (result === 'rejected' && session.requestIdentity()?.userId === owner.userId)
         callbacks.current.onDraftRestore(command.content, owner.userId);
-      if (result === 'completed' || result === 'stopped' || result === 'failed')
-        pendingDraft.current = null;
       return result;
     },
     [controller, conversationId, session],
   );
-  const routeMatches = controller.getConversationId() === conversationId;
+  const continuingNewConversation =
+    (conversationId === null || conversationId === createdRoute.current?.id) &&
+    createdRoute.current?.userId === context.userId &&
+    createdRoute.current?.epoch === context.epoch &&
+    createdRoute.current?.id === state.detail?.conversation.id;
+  const routeMatches =
+    controller.getConversationId() === conversationId || continuingNewConversation;
   const visibleState =
-    routeMatches && (!state.detail || state.detail.conversation.id === conversationId)
+    routeMatches &&
+    (!state.detail || state.detail.conversation.id === controller.getConversationId())
       ? state
       : initialChatState;
+  const view = conversationView(conversationId, visibleState, query.error);
   return {
     controller,
     state: visibleState,
+    view,
+    draftConversationId: visibleState.detail?.conversation.id ?? conversationId,
+    continuingNewConversation,
     send,
     busy: isChatBusy(visibleState.phase),
-    loading: conversationId !== null && query.isPending,
+    loading: view === 'opening',
     error: query.error,
     reload: () => query.refetch(),
     retry: () => controller.retry(),

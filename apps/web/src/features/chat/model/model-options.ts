@@ -5,6 +5,36 @@ export interface ModelSelectionIdentity {
   readonly modelId: string;
 }
 
+export interface ChatSelection {
+  readonly groupId: string | null;
+  readonly modelId: string | null;
+}
+
+export type ModelSelectionView =
+  | { readonly kind: 'preparing' }
+  | { readonly kind: 'error' }
+  | { readonly kind: 'empty' }
+  | { readonly kind: 'unavailable' }
+  | { readonly kind: 'ready'; readonly option: ChatModelOption };
+
+/** Explicit choices stay explicit, even when authorization changes. Only a new chat falls back. */
+export function resolveModelSelection(
+  options: readonly ChatModelOption[],
+  explicit: ChatSelection | undefined,
+  preference: ChatSelection | null,
+): { selection: ChatSelection | null; option: ChatModelOption | undefined } {
+  const find = (selection: ChatSelection | null | undefined) =>
+    options.find(
+      (option) => option.groupId === selection?.groupId && option.modelId === selection?.modelId,
+    );
+  if (explicit !== undefined) return { selection: explicit, option: find(explicit) };
+  const option = find(preference) ?? options[0];
+  return {
+    selection: option ? { groupId: option.groupId, modelId: option.modelId } : null,
+    option,
+  };
+}
+
 export interface ChatModelOption extends ModelSelectionIdentity {
   readonly key: string;
   readonly group: ChatGroup;
