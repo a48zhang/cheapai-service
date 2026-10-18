@@ -14,10 +14,15 @@ import {
   prepareRegenerateOperation,
   prepareSendOperation,
 } from './operation';
-import type { ChatOperationOwner, ChatRegenerateOperation, ChatWriteOperation } from './operation';
+import type {
+  ChatOperationOwner,
+  ChatRegenerateOperation,
+  ChatSendOperation,
+  ChatWriteOperation,
+} from './operation';
 import { prepareRegenerateCommand, prepareSelectVersionCommand } from './regenerate';
 import type { RegenerateCommand } from './regenerate';
-import { mergeConversationDetail } from './reconcile';
+import { findOperationAssistant, mergeConversationDetail } from './reconcile';
 import {
   forgetPendingOperation,
   getPendingOperation,
@@ -28,7 +33,7 @@ import { asChatFailure, executeChatOperation } from './operation-executor';
 import { executeChatSelection } from './selection-executor';
 import { chatReducer } from './reducer';
 import { initialChatState } from './state';
-import type { ChatEvent, ChatState } from './state';
+import type { ChatEvent, ChatState, ChatSubmission } from './state';
 
 export interface ChatSendCommand {
   readonly content: string;
@@ -59,6 +64,7 @@ export interface ChatControllerOptions {
   readonly idFactory?: () => string;
   readonly onConversationCreated?: (conversation: Conversation) => void | Promise<void>;
   readonly onDetailConfirmed?: (detail: ConversationDetail) => void | Promise<void>;
+  readonly onIdentityInterrupted?: (content: string, owner: ChatOperationOwner) => void;
 }
 
 interface ActiveRun {
@@ -202,12 +208,27 @@ export function createChatController(options: ChatControllerOptions) {
       operationId: pending.operationId,
       operationKind: pending.kind,
       needsConversation: false,
+      ...(pending.kind === 'send' ? { submission: submissionForOperation(pending) } : {}),
     });
     dispatch({
       type: 'interrupted',
       operationId: pending.operationId,
       failure: { kind: 'interrupted', message: '上次请求的结果尚未确认，可使用原操作安全重试。' },
     });
+  }
+
+  function submissionForOperation(operation: ChatSendOperation): ChatSubmission {
+    const assistant = state.detail ? findOperationAssistant(state.detail, { operation }) : null;
+    const userMessage = assistant
+      ? state.detail?.messages.find(
+          (message) => message.role === 'user' && message.turnIndex === assistant.turnIndex,
+        )
+      : undefined;
+    return {
+      operationId: operation.operationId,
+      content: operation.input.content,
+      userMessageId: userMessage?.id ?? null,
+    };
   }
 
   function release(run: ActiveRun): void {
@@ -291,6 +312,7 @@ export function createChatController(options: ChatControllerOptions) {
             operationId: run.commandId,
             outcome: 'stopped',
             detail: state.detail,
+            keepSubmission: true,
           });
         else dispatch({ type: 'reset' });
       }
@@ -327,6 +349,7 @@ export function createChatController(options: ChatControllerOptions) {
                 operationId: run.commandId,
                 outcome: 'stopped',
                 detail,
+                keepSubmission: true,
               });
             }
           }
@@ -350,7 +373,13 @@ export function createChatController(options: ChatControllerOptions) {
     if (!detail || !isRunCurrent(run)) return 'superseded';
     if (run.abortController.signal.aborted) {
       if (canDispatchForRun(run)) {
-        dispatch({ type: 'settled', operationId: run.commandId, outcome: 'stopped', detail });
+        dispatch({
+          type: 'settled',
+          operationId: run.commandId,
+          outcome: 'stopped',
+          detail,
+          keepSubmission: true,
+        });
       }
       return run.disposeRequested ? 'interrupted' : 'stopped';
     }
@@ -434,6 +463,7 @@ export function createChatController(options: ChatControllerOptions) {
       operationId: commandId,
       operationKind: 'send',
       needsConversation,
+      submission: { operationId: commandId, content: command.content, userMessageId: null },
     });
     return execute(run, () => performSend(run, command));
   }
@@ -552,6 +582,7 @@ export function createChatController(options: ChatControllerOptions) {
       operationId: operation.operationId,
       operationKind: operation.kind,
       needsConversation: false,
+      ...(operation.kind === 'send' ? { submission: submissionForOperation(operation) } : {}),
     });
     return execute(run, () => performOperation(run, operation, true));
   }
@@ -601,6 +632,9 @@ export function createChatController(options: ChatControllerOptions) {
       return;
     }
     if (disposed || detail.conversation.id !== activeConversationId) return;
+    // A running command owns live messages until its own SSE/reconciliation confirms them.
+    // An ordinary GET cannot associate new rows with that command before meta arrives.
+    if (activeRun?.conversationId === detail.conversation.id) return;
     const current = state.detail?.conversation.id === detail.conversation.id ? state.detail : null;
     const latest = mergeConversationDetail(current, detail);
     if (latest !== current) {
@@ -638,6 +672,13 @@ export function createChatController(options: ChatControllerOptions) {
     observedOwner = nextOwner;
     const run = activeRun;
     if (run) {
+      if (state.submission?.operationId === run.commandId) {
+        try {
+          options.onIdentityInterrupted?.(state.submission.content, run.owner);
+        } catch {
+          /* Draft integration must not block identity isolation or aborting the request. */
+        }
+      }
       run.identityChanged = true;
       if (run.operation) {
         const unknown = markOperationUnknown(run.operation);

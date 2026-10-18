@@ -1,4 +1,5 @@
 import type { ChatMessage } from '@cheapai/api-client/chat';
+import type { ChatSubmission } from './state';
 
 export interface ChatMessageTurn {
   readonly turnIndex: number;
@@ -24,7 +25,12 @@ export interface UserRow {
   readonly message: ChatMessage;
 }
 
-export type MessageRow = AssistantRow | UserRow;
+export interface SubmissionRow {
+  readonly kind: 'submission';
+  readonly submission: ChatSubmission;
+}
+
+export type MessageRow = AssistantRow | UserRow | SubmissionRow;
 
 export interface MessageRows {
   readonly groups: readonly ChatMessageTurn[];
@@ -70,6 +76,7 @@ export function groupChatMessagesByTurn(messages: readonly ChatMessage[]): ChatM
 export function createMessageRows(
   messages: readonly ChatMessage[],
   streamMessageId: string | null,
+  submission: ChatSubmission | null = null,
 ): MessageRows {
   const groups = groupChatMessagesByTurn(messages);
   const rows: MessageRow[] = [];
@@ -95,5 +102,6 @@ export function createMessageRows(
       });
   }
 
+  if (submission && !submission.userMessageId) rows.push({ kind: 'submission', submission });
   return { groups, rows, latestAssistantTurnIndex };
 }

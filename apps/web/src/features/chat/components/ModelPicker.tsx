@@ -33,15 +33,14 @@ export function ModelPicker({ selection, disabled = false }: ModelPickerProps) {
       : '选择模型';
   const single = options.length === 1 && selectedOption?.key === options[0]?.key;
 
-  const message = error
-    ? '模型读取失败，请重试。'
-    : loading
-      ? '正在加载模型…'
-      : options.length === 0
-        ? '暂无可用模型，请稍后刷新重试。'
-        : !selectedOption
-          ? '原模型已不可用，请切换模型。'
-          : null;
+  const messages = {
+    preparing: '正在加载模型…',
+    error: '模型读取失败，请重试。',
+    empty: '暂无可用模型，请稍后刷新重试。',
+    unavailable: '原模型已不可用，请切换模型。',
+    ready: null,
+  };
+  const message = messages[selection.view.kind];
 
   return (
     <section aria-label="模型选择" className="chat-model-control">

@@ -25,6 +25,13 @@ export interface ChatFailure {
   readonly code?: string;
 }
 
+/** Local submission, owned by the command; never presented as a persisted server message. */
+export interface ChatSubmission {
+  readonly operationId: string;
+  readonly content: string;
+  readonly userMessageId: string | null;
+}
+
 export interface ChatState {
   readonly phase: ChatPhase;
   readonly detail: ConversationDetail | null;
@@ -35,6 +42,7 @@ export interface ChatState {
   readonly streamText: string;
   readonly billingStatus: string | null;
   readonly failure: ChatFailure | null;
+  readonly submission: ChatSubmission | null;
 }
 
 export type ChatEvent =
@@ -45,6 +53,7 @@ export type ChatEvent =
       readonly operationId: string;
       readonly operationKind: ChatOperationKind;
       readonly needsConversation: boolean;
+      readonly submission?: ChatSubmission;
     }
   | {
       readonly type: 'conversation-created';
@@ -63,6 +72,8 @@ export type ChatEvent =
       readonly outcome: ChatTerminalOutcome;
       readonly detail: ConversationDetail;
       readonly failure?: ChatFailure;
+      /** A stop before sending still leaves an unsent question to recover. */
+      readonly keepSubmission?: boolean;
     }
   | { readonly type: 'failed'; readonly operationId: string; readonly failure: ChatFailure }
   | { readonly type: 'interrupted'; readonly operationId: string; readonly failure: ChatFailure };
@@ -76,6 +87,7 @@ export const initialChatState: ChatState = Object.freeze({
   streamText: '',
   billingStatus: null,
   failure: null,
+  submission: null,
 });
 
 export function operationMatches(state: ChatState, operationId: string): boolean {

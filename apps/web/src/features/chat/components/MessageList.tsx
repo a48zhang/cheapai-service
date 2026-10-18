@@ -5,7 +5,8 @@ import type { ConversationDetail } from '@cheapai/api-client/chat';
 import { Button } from '../../../shared/ui/Button';
 import { createMessageRows } from '../model/message-rows';
 import { canRegenerateLastAssistant, canSelectAssistantVariant } from '../model/variants';
-import { Message } from './Message';
+import { Message, SubmissionMessage } from './Message';
+import type { ChatPhase, ChatSubmission } from '../model/state';
 import { useScrollAnchor } from '../hooks/useScrollAnchor';
 
 export interface MessageListProps {
@@ -14,6 +15,9 @@ export interface MessageListProps {
   readonly streamMessageId?: string | null | undefined;
   readonly streamText?: string | undefined;
   readonly busy?: boolean | undefined;
+  readonly submission?: ChatSubmission | null | undefined;
+  readonly phase?: ChatPhase | undefined;
+  readonly onRestoreSubmission?: ((content: string) => void) | undefined;
   readonly onRegenerate?: ((message: ChatMessage) => void) | undefined;
   readonly onSelectVersion?: ((messageId: string) => void) | undefined;
   readonly regenerateDisabledReason?: string | undefined;
@@ -33,6 +37,9 @@ export function MessageList({
   streamMessageId = null,
   streamText = '',
   busy = false,
+  submission = null,
+  phase = 'idle',
+  onRestoreSubmission,
   onRegenerate,
   onSelectVersion,
   regenerateDisabledReason,
@@ -41,14 +48,21 @@ export function MessageList({
   emptyMessage = '在下方输入消息开始对话。',
 }: MessageListProps) {
   const timeline = useMemo(
-    () => createMessageRows(messages, streamMessageId),
-    [messages, streamMessageId],
+    () => createMessageRows(messages, streamMessageId, submission),
+    [messages, streamMessageId, submission],
   );
   const rows = timeline.rows;
-  const messageIds = useMemo(() => rows.map((row) => row.message.id), [rows]);
+  const messageIds = useMemo(
+    () =>
+      rows.map((row) =>
+        row.kind === 'submission' ? `submission:${row.submission.operationId}` : row.message.id,
+      ),
+    [rows],
+  );
   const latestTurnIndex = timeline.latestAssistantTurnIndex;
   const regenerateAvailability = detail === undefined ? null : canRegenerateLastAssistant(detail);
-  const latestVisibleMessage = rows.at(-1)?.message;
+  const latestRow = rows.at(-1);
+  const latestVisibleMessage = latestRow?.kind === 'submission' ? undefined : latestRow?.message;
   const contentVersion = `${streamMessageId ?? ''}:${streamText.length}:${latestVisibleMessage?.updatedAt ?? 0}:${messages.length}`;
   const anchor = useScrollAnchor({
     messageIds,
@@ -77,12 +91,21 @@ export function MessageList({
             正在读取对话…
           </p>
         ) : null}
-        {!loading && rows.length === 0 ? (
+        {!loading && !busy && rows.length === 0 ? (
           <div className="mx-auto max-w-4xl px-4 py-4 text-center text-sm text-[var(--color-muted-foreground)]">
             {emptyMessage}
           </div>
         ) : null}
         {rows.map((row) => {
+          if (row.kind === 'submission')
+            return (
+              <SubmissionMessage
+                key={`submission:${row.submission.operationId}`}
+                submission={row.submission}
+                phase={phase}
+                onRestore={onRestoreSubmission}
+              />
+            );
           if (row.kind === 'user') return <Message key={row.message.id} message={row.message} />;
           const isLatestTurn = row.message.turnIndex === latestTurnIndex;
           const isCurrentSelection = row.selectedId === row.message.id;

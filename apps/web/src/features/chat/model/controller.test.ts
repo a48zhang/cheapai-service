@@ -11,6 +11,8 @@ import type {
 } from '@cheapai/contracts/chat';
 import { createChatController } from './controller';
 import { mergeConversationDetail } from './reconcile';
+import { createMessageRows } from './message-rows';
+import { conversationView } from './view-state';
 
 const timestamp = 1_700_000_000_000;
 
@@ -96,6 +98,76 @@ function regenerateCommand() {
 }
 
 describe('chat controller command lifecycle', () => {
+  it('keeps the first question visible from accepted command through server handoff', async () => {
+    const created = makeConversation('first-submission');
+    const prompt = makeMessage('first-prompt', 'user', 0, {
+      conversationId: created.id,
+      content: 'First question',
+    });
+    const answer = makeMessage('first-answer', 'assistant', 0, { conversationId: created.id });
+    const final = makeDetail(created.id, 2, [prompt, answer]);
+    let resolveCreate!: (value: Conversation) => void;
+    let resolveStream!: (value: ChatSendResult) => void;
+    let handlers: ChatStreamHandlers | undefined;
+    const controller = createChatController({
+      api: makeApi({
+        createConversation: vi.fn(
+          () =>
+            new Promise<Conversation>((resolve) => {
+              resolveCreate = resolve;
+            }),
+        ),
+        getConversation: vi.fn(async () => final),
+        sendMessage: vi.fn(
+          async (_id: string, _input: ChatSendInput, streamHandlers?: ChatStreamHandlers) => {
+            handlers = streamHandlers;
+            return new Promise<ChatSendResult>((resolve) => {
+              resolveStream = resolve;
+            });
+          },
+        ),
+      }),
+      getOwner: () => ({ userId: 'first-submission-user', epoch: 1 }),
+      idFactory: () => 'first-submission-operation',
+      onConversationCreated: (conversation) => controller.syncConversation(conversation.id),
+    });
+    const rows = () => {
+      const state = controller.getSnapshot();
+      return createMessageRows(
+        state.detail?.messages ?? [],
+        state.streamMessageId,
+        state.submission,
+      ).rows;
+    };
+    const pending = controller.send(sendCommand('First question'));
+    expect(controller.getSnapshot()).toMatchObject({
+      phase: 'creating',
+      submission: { content: 'First question' },
+    });
+    expect(conversationView(null, controller.getSnapshot(), null)).toBe('active');
+    expect(rows().map((row) => row.kind)).toEqual(['submission']);
+    await expect(controller.send(sendCommand('duplicate'))).resolves.toBe('busy');
+    resolveCreate(created);
+    await vi.waitFor(() => expect(handlers).toBeDefined());
+    controller.hydrate(final);
+    expect(rows().map((row) => row.kind)).toEqual(['submission']);
+    expect(conversationView(created.id, controller.getSnapshot(), null)).toBe('active');
+    await handlers?.onMeta?.({
+      conversation: created,
+      userMessage: prompt,
+      assistantMessage: { ...answer, status: 'generating', content: '' },
+    });
+    expect(rows().map((row) => row.kind)).toEqual(['user', 'assistant']);
+    resolveStream({ kind: 'stream', message: answer });
+    await expect(pending).resolves.toBe('completed');
+    expect(controller.getSnapshot()).toMatchObject({
+      phase: 'idle',
+      submission: null,
+      detail: final,
+    });
+    controller.dispose();
+  });
+
   it('takes the synchronous send lock before the stream can yield', async () => {
     const initial = makeDetail('controller-lock');
     const assistant = makeMessage('assistant-new', 'assistant', 1, {
@@ -187,6 +259,7 @@ describe('chat controller command lifecycle', () => {
     expect(controller.getSnapshot()).toMatchObject({
       phase: 'idle',
       detail: { conversation: created, messages: [] },
+      submission: { content: 'Do not send after stop', userMessageId: null },
     });
 
     await expect(controller.send(sendCommand('Send after route sync'))).resolves.toBe('completed');

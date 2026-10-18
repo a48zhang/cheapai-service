@@ -3,13 +3,14 @@ import { useQuery } from '@tanstack/react-query';
 import type { ChatGroup } from '@cheapai/api-client/chat';
 import { chatModelsQueryOptions } from '../api';
 import type { ChatApiContext } from '../api';
-import { flattenModelOptions } from '../model/model-options';
-import type { ChatModelOption, ModelSelectionIdentity } from '../model/model-options';
-
-export interface ChatSelection {
-  readonly groupId: string | null;
-  readonly modelId: string | null;
-}
+import { flattenModelOptions, resolveModelSelection } from '../model/model-options';
+import type {
+  ChatModelOption,
+  ChatSelection,
+  ModelSelectionIdentity,
+  ModelSelectionView,
+} from '../model/model-options';
+export type { ChatSelection } from '../model/model-options';
 
 export interface UseModelSelectionOptions {
   readonly context: ChatApiContext;
@@ -21,8 +22,7 @@ export interface UseModelSelectionOptions {
 
 interface SelectionRecord {
   readonly scopeKey: string;
-  readonly initialized: boolean;
-  readonly selection: ChatSelection | null;
+  readonly selection: ChatSelection;
 }
 
 const storagePrefix = 'cheapai.chat.selection.v1:';
@@ -102,77 +102,72 @@ export function useModelSelection({
   const explicitSelection = conversationSelection !== undefined;
   const conversationGroupId = conversationSelection?.groupId ?? null;
   const conversationModelId = conversationSelection?.modelId ?? null;
-  const selectionInput = explicitSelection
-    ? `${conversationGroupId ?? ''}:${conversationModelId ?? ''}`
-    : 'preference';
   const scopeKey = JSON.stringify([
     owner,
     context.epoch,
     conversationId,
-    explicitSelection ? ['conversation', conversationGroupId, conversationModelId] : selectionInput,
+    explicitSelection ? ['conversation', conversationGroupId, conversationModelId] : 'preference',
   ]);
-  const [record, setRecord] = useState<SelectionRecord>({
-    scopeKey: '',
-    initialized: false,
-    selection: null,
-  });
-  const activeRecord = record.scopeKey === scopeKey ? record : null;
-  const selection = activeRecord?.selection ?? null;
-  const selectedOption = useMemo(
-    () =>
-      selection?.groupId === null || selection?.modelId === null || selection === null
-        ? undefined
-        : options.find(
-            (option) =>
-              option.groupId === selection.groupId && option.modelId === selection.modelId,
-          ),
-    [options, selection],
+  // Keep user intent only. Catalog and conversation props are never copied into local state.
+  const [record, setRecord] = useState<SelectionRecord | null>(null);
+  const preference = readSelection(storage, owner);
+  const explicit = record?.scopeKey === scopeKey ? record.selection : conversationSelection;
+  const { selection, option: selectedOption } = resolveModelSelection(
+    options,
+    explicit,
+    preference,
   );
   const selectedGroup = selectedOption?.group;
   const selectedModel = selectedOption?.model;
-
+  const selectedGroupId = selectedOption?.groupId;
+  const selectedModelId = selectedOption?.modelId;
   useEffect(() => {
-    if (!explicitSelection) return;
-    setRecord({
-      scopeKey,
-      initialized: true,
-      selection: { groupId: conversationGroupId, modelId: conversationModelId },
-    });
-  }, [conversationGroupId, conversationModelId, explicitSelection, scopeKey]);
-
-  useEffect(() => {
-    if (explicitSelection || isPending || modelsData === undefined) return;
-    const saved = readSelection(storage, owner);
-    const savedOption =
-      saved?.groupId && saved.modelId
-        ? options.find(
-            (option) => option.groupId === saved.groupId && option.modelId === saved.modelId,
-          )
-        : undefined;
-    const fallback = savedOption ?? options[0];
-    const next = fallback ? { groupId: fallback.groupId, modelId: fallback.modelId } : null;
-    setRecord({ scopeKey, initialized: true, selection: next });
-    if (next) writeSelection(storage, owner, next);
-    else clearSelection(storage, owner);
-  }, [explicitSelection, isPending, modelsData, options, owner, scopeKey, storage]);
+    if (explicitSelection || isPending || modelsData === undefined || error) return;
+    if (selectedGroupId && selectedModelId)
+      writeSelection(storage, owner, { groupId: selectedGroupId, modelId: selectedModelId });
+    else if (options.length === 0) clearSelection(storage, owner);
+  }, [
+    explicitSelection,
+    isPending,
+    modelsData,
+    error,
+    options.length,
+    selectedGroupId,
+    selectedModelId,
+    owner,
+    storage,
+  ]);
 
   const selectOption = useCallback(
     (key: string) => {
       const option = options.find((candidate) => candidate.key === key);
       if (!option) return;
       const next = { groupId: option.groupId, modelId: option.modelId };
-      setRecord({ scopeKey, initialized: true, selection: next });
+      setRecord({ scopeKey, selection: next });
       writeSelection(storage, owner, next);
     },
     [options, owner, scopeKey, storage],
   );
 
+  const view: ModelSelectionView = error
+    ? { kind: 'error' }
+    : isPending
+      ? { kind: 'preparing' }
+      : selectedOption
+        ? { kind: 'ready', option: selectedOption }
+        : selection
+          ? { kind: 'unavailable' }
+          : { kind: 'empty' };
   const unavailableReason =
-    selection === null
-      ? '暂无可用模型'
-      : selectedOption === undefined
-        ? '此模型已不可用，请重新选择'
-        : null;
+    view.kind === 'ready'
+      ? null
+      : view.kind === 'preparing'
+        ? '正在加载模型…'
+        : view.kind === 'error'
+          ? '模型读取失败，请重试。'
+          : view.kind === 'unavailable'
+            ? '此模型已不可用，请重新选择'
+            : '暂无可用模型';
 
   const retry = useCallback(() => refetch(), [refetch]);
 
@@ -183,7 +178,8 @@ export function useModelSelection({
     selectedOption,
     selectedGroup,
     selectedModel,
-    available: selectedOption !== undefined,
+    view,
+    available: view.kind === 'ready',
     unavailableReason,
     loading: isPending,
     refreshing: isRefetching && !isPending,

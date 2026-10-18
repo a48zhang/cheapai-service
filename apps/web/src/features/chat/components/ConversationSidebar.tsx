@@ -4,11 +4,12 @@ import { PanelLeftClose, Plus } from 'lucide-react';
 import type { Conversation } from '@cheapai/api-client/chat';
 import { Button } from '../../../shared/ui/Button';
 import { ConversationRow } from './ConversationRow';
+import type { HistoryView } from '../model/view-state';
 
 export interface ConversationSidebarProps {
   readonly conversations: readonly Conversation[];
   readonly activeId: string | null;
-  readonly loading?: boolean;
+  readonly view: HistoryView;
   readonly loadingMore?: boolean;
   readonly hasMore?: boolean;
   readonly mobileOpen?: boolean;
@@ -26,7 +27,7 @@ export interface ConversationSidebarProps {
 export function ConversationSidebar({
   conversations,
   activeId,
-  loading = false,
+  view,
   loadingMore = false,
   hasMore = false,
   mobileOpen = false,
@@ -39,6 +40,7 @@ export function ConversationSidebar({
   onRetry,
   onClose,
 }: ConversationSidebarProps) {
+  const loading = view === 'preparing' || view === 'loading';
   const historyRootRef = useRef<HTMLElement | null>(null);
   const historyEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -98,7 +100,7 @@ export function ConversationSidebar({
         </p>
       ) : null}
 
-      {!loading && conversations.length === 0 && !error ? (
+      {view === 'empty' ? (
         <p className="mx-4 border-t border-[var(--color-line)] px-1 py-5 text-sm text-[var(--color-ink-muted)]">
           还没有对话
         </p>

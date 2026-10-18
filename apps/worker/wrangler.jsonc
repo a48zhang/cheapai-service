@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   // Top-level is local only. Builds/deploys must explicitly select --env production.
-  // Local uses placeholders; Cloudflare manages native Preview configuration.
+  // Local bindings use placeholders; native Preview overrides are inherited by production.
   "name": "sub2api-cloudflare-local",
   "main": "index.ts",
   "compatibility_date": "2026-08-15",
@@ -39,6 +39,36 @@
     "allowed_destination_addresses": ["local-recipient@example.invalid"],
     "remote": false
   }],
+  "previews": {
+    "kv_namespaces": [{
+      "binding": "CACHE",
+      "id": "2e433b90bb3a4bc4a1b890852384bc80"
+    }],
+    "d1_databases": [{
+      "binding": "DB",
+      "database_id": "f9719b76-adb4-4ebe-be98-6e784e2440a1"
+    }],
+    // Native Previews allocate their own Gate namespace and storage.
+    "durable_objects": {
+      "bindings": [{ "name": "GATE", "class_name": "Gate" }]
+    },
+    "observability": {
+      "logs": {
+        "enabled": true,
+        "head_sampling_rate": 1,
+        "invocation_logs": true,
+        "persist": true
+      },
+      "traces": {
+        "enabled": false,
+        "head_sampling_rate": 1,
+        "persist": true
+      },
+      "issues": {
+        "enabled": false
+      }
+    }
+  },
   "env": {
     // Match the production Worker settings maintained in the Cloudflare Dashboard.
     "production": {

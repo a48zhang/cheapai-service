@@ -16,6 +16,44 @@ function storage() {
   } as Storage;
 }
 describe('chat draft ownership', () => {
+  it('moves a newer draft into a locally created conversation, without leaking to history selections', () => {
+    const saved = storage();
+    const { result, rerender } = renderHook(
+      ({ conversationId, continuingNewConversation }) =>
+        useDraft({
+          identity: { status: 'authenticated', userId: 'one' },
+          conversationId,
+          continuingNewConversation,
+          storage: saved,
+        }),
+      { initialProps: { conversationId: null as string | null, continuingNewConversation: false } },
+    );
+    act(() => result.current.setDraft('next question while creating'));
+    rerender({ conversationId: 'created', continuingNewConversation: true });
+    expect(result.current.draft).toBe('next question while creating');
+    expect(createChatDraftStore(saved).read({ userId: 'one', conversationId: null })).toBeNull();
+    rerender({ conversationId: 'created', continuingNewConversation: false });
+    expect(result.current.draft).toBe('next question while creating');
+    rerender({ conversationId: 'history', continuingNewConversation: false });
+    expect(result.current.draft).toBe('');
+  });
+
+  it('does not overwrite input accepted in the same batch as a failed send', () => {
+    const saved = storage();
+    const { result } = renderHook(() =>
+      useDraft({
+        identity: { status: 'authenticated', userId: 'one' },
+        conversationId: null,
+        storage: saved,
+      }),
+    );
+    act(() => {
+      result.current.setDraft('new input');
+      result.current.preservePending('failed question', 'one');
+    });
+    expect(result.current.draft).toBe('new input');
+  });
+
   it('recovers the expired owner in the hook, hides content on account change, and clears logout', () => {
     const saved = storage();
     const { result, rerender } = renderHook(

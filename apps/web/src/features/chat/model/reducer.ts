@@ -29,6 +29,7 @@ export function chatReducer(state: ChatState = initialChatState, event: ChatEven
       streamText: '',
       billingStatus: null,
       failure: null,
+      submission: event.submission ?? null,
     };
   }
 
@@ -53,6 +54,10 @@ export function chatReducer(state: ChatState = initialChatState, event: ChatEven
         detail: mergeMetaDetail(state.detail, event.value),
         streamMessageId: event.value.assistantMessage.id,
         streamText: '',
+        submission:
+          state.submission && event.value.userMessage
+            ? { ...state.submission, userMessageId: event.value.userMessage.id }
+            : state.submission,
       };
     case 'delta':
       if (state.phase === 'stopping' || state.phase === 'finalizing') return state;
@@ -107,6 +112,7 @@ export function chatReducer(state: ChatState = initialChatState, event: ChatEven
         streamText: '',
         billingStatus: null,
         failure,
+        submission: event.keepSubmission ? state.submission : null,
       };
     }
     case 'failed':
