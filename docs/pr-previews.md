@@ -1,8 +1,8 @@
 # PR 预发
 
-GitHub PR 检查运行类型检查、测试、lint、构建和浏览器验收，不执行远程 SQL 或部署。main 推送由 [Production release](../.github/workflows/production-release.yml) 自动迁移并正式发布，详见[部署步骤](deployment.md)。
+GitHub PR 检查对非 docs-only 改动运行类型检查、测试、lint、构建和浏览器流程，不执行远程 SQL 或部署。main 推送包含 `docs/**` 和根 `README.md` 之外的改动时，由 [Production release](../.github/workflows/production-release.yml) 自动迁移并正式发布，详见[部署步骤](deployment.md)。
 
-仓库已提供 Cloudflare 原生 Preview 配置。启用分支预览需要配置 Workers Builds；实际启用状态在 Dashboard 核对。
+仓库使用 Cloudflare 原生 Preview。Workers Builds 独立监听仓库，生产分支与预览分支的构建设置在 Cloudflare Dashboard 管理。
 
 ## Cloudflare Workers Builds 配置
 
@@ -25,3 +25,16 @@ Builds 根目录为仓库根目录时，使用以下设置：
 旧 Builds 项目可能还需要在 Dashboard 完成 **Set up Worker Previews**，之后启用预览分支构建；详见 [Build branches](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/)。当前 `previews` 未显式配置 vars 或 Secrets，它们需要在 Preview base config / Preview Secrets 中具备，或通过预览专属配置提供。数据库迁移和指定资源的可访问性也需要确认。
 
 `preview` 会上传并创建或更新远端预览，没有 `--dry-run` 选项。Preview 创建后，核对预览 URL、绑定、迁移状态和所需 Secrets，再进行功能验收。
+
+## 构建路径过滤
+
+在 Worker → Settings → Build → Build watch paths 配置：
+
+- Include paths：`*`
+- Exclude paths：`docs/*`、`README.md`
+
+Cloudflare 的 `*` 可匹配目录分隔符，`docs/*` 覆盖整个文档目录。生产与 Preview 触发器均需使用这组规则。不要排除所有 Markdown：`THIRD_PARTY_NOTICES.md` 和 `LICENSES/desktop/**` 是打包输入。
+
+这些设置位于 Cloudflare，提交 GitHub workflow 或 Wrangler 配置不会替它们设置过滤。仅文档变更应显示跳过构建；混合代码变更仍会触发。详见 [Build watch paths](https://developers.cloudflare.com/workers/ci-cd/builds/build-watch-paths/)。
+
+Cloudflare 对空推送、单次 3000 个以上文件变化或 20 个以上提交会直接构建，绕过路径匹配。
