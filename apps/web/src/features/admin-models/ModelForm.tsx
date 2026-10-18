@@ -13,14 +13,26 @@ import { useModelForm } from './useModelForm';
 
 export interface ModelFormProps {
   readonly client: ApiClient;
+  readonly initialPublicModelId?: string | undefined;
   readonly model?: ModelView | undefined;
   readonly onSaved: (model: ModelView) => void;
   readonly onCancel?: (() => void) | undefined;
 }
 
 /** Model edits send only changed fields against the loaded priceVersion. */
-export function ModelForm({ client, model, onSaved, onCancel }: ModelFormProps) {
-  const { form, saving, saveError, submit } = useModelForm({ client, model, onSaved });
+export function ModelForm({
+  client,
+  model,
+  initialPublicModelId,
+  onSaved,
+  onCancel,
+}: ModelFormProps) {
+  const { form, saving, saveError, submit } = useModelForm({
+    client,
+    model,
+    initialPublicModelId,
+    onSaved,
+  });
   const publicModelId = form.watch('publicModelId');
   const reference = builtinModel(publicModelId);
   const errors = form.formState.errors;

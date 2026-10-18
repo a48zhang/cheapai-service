@@ -85,3 +85,23 @@ export function recordChannelSaved(
     }),
   ]).then(() => undefined);
 }
+
+export async function recordChannelDeleted(
+  queryClient: QueryClient,
+  actorId: string,
+  epoch: number,
+  channelId: string,
+): Promise<void> {
+  const detailKey = adminChannelsQueryKeys.detail(actorId, epoch, channelId);
+  await queryClient.cancelQueries({ queryKey: detailKey, exact: true });
+  queryClient.removeQueries({ queryKey: detailKey, exact: true });
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: adminChannelsQueryKeys.lists(actorId, epoch) }),
+    queryClient.invalidateQueries({
+      queryKey: channelOptionsQueryKey(actorId, epoch),
+      exact: true,
+    }),
+    queryClient.invalidateQueries({ queryKey: ['admin-models', actorId] }),
+    queryClient.invalidateQueries({ queryKey: ['admin-groups', actorId] }),
+  ]);
+}

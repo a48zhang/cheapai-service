@@ -139,22 +139,27 @@ export interface ChatValidationOptions {
 
 type ObjectValue = Record<string, unknown>;
 type Check = (value: unknown, path: string, options?: ChatValidationOptions) => string | undefined;
+function invalidField(path: string, value: unknown, expected: string, options?: ChatValidationOptions): string {
+  const actual = value === undefined ? 'missing' : value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
+  (options as ChatValidationOptions & { diagnosticIssue?: (reason: string) => void } | undefined)?.diagnosticIssue?.(`Expected ${expected}; received ${actual}.`);
+  return path;
+}
 const object = (value: unknown): value is ObjectValue => value !== null && typeof value === 'object' && !Array.isArray(value);
-const string: Check = (v, p) => typeof v === 'string' ? undefined : p;
-const nonempty: Check = (v, p) => typeof v === 'string' && v.trim().length > 0 ? undefined : p;
-const bool: Check = (v, p) => typeof v === 'boolean' ? undefined : p;
-const integer: Check = (v, p) => Number.isSafeInteger(v) ? undefined : p;
+const string: Check = (v, p, o) => typeof v === 'string' ? undefined : invalidField(p, v, 'string', o);
+const nonempty: Check = (v, p, o) => typeof v === 'string' && v.trim().length > 0 ? undefined : invalidField(p, v, 'nonempty string', o);
+const bool: Check = (v, p, o) => typeof v === 'boolean' ? undefined : invalidField(p, v, 'boolean', o);
+const integer: Check = (v, p, o) => Number.isSafeInteger(v) ? undefined : invalidField(p, v, 'safe integer', o);
 const positive: Check = (v, p) => typeof v === 'number' && Number.isSafeInteger(v) && v > 0 ? undefined : p;
 const range = (min: number, max: number): Check => (v, p) => typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? undefined : p;
 const nullable = (check: Check): Check => (v, p, options) => v === null ? undefined : check(v, p, options);
-const oneOf = (...values: readonly string[]): Check => (v, p) => typeof v === 'string' && values.includes(v) ? undefined : p;
+const oneOf = (...values: readonly string[]): Check => (v, p, o) => typeof v === 'string' && values.includes(v) ? undefined : invalidField(p, v, 'one of the supported enum values', o);
 const list = (check: Check, min = 0, max = Number.MAX_SAFE_INTEGER): Check => (v, p, options) => {
-  if (!Array.isArray(v) || v.length < min || v.length > max) return p;
+  if (!Array.isArray(v) || v.length < min || v.length > max) return invalidField(p, v, `array with ${min}..${max} elements`, options);
   for (let i = 0; i < v.length; i++) { const error = check(v[i], `${p}[${i}]`, options); if (error) return error; }
   return undefined;
 };
 const shape = (required: Record<string, Check>, optional: Record<string, Check> = {}): Check => (v, p, options) => {
-  if (!object(v)) return p;
+  if (!object(v)) return invalidField(p, v, 'object', options);
   for (const key of Object.keys(v)) if (!Object.hasOwn(required, key) && !Object.hasOwn(optional, key)
     && options?.unknownFields !== 'preserve' && !(p === '$' && options?.allowedExtensions?.includes(key))) return `${p}.${key}`;
   for (const [key, check] of Object.entries(required)) { const error = check(v[key], `${p}.${key}`, options); if (error) return error; }
@@ -270,7 +275,7 @@ export function parseChatRequest(input: unknown, options: ChatValidationOptions 
   return { ok: true, value: typed };
 }
 
-const nonnegative: Check = (v, p) => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 ? undefined : p;
+const nonnegative: Check = (v, p, o) => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 ? undefined : invalidField(p, v, 'nonnegative safe integer', o);
 const usage = shape({}, {
   prompt_tokens: nonnegative, completion_tokens: nonnegative, total_tokens: nonnegative,
   prompt_tokens_details: shape({}, { cached_tokens: nonnegative, audio_tokens: nonnegative }),
@@ -305,8 +310,12 @@ const chunkShape = shape({
 }, outputOptional);
 
 function parseOutput<T>(input: unknown, check: Check, options: ChatValidationOptions): ConversionResult<T> {
-  const param = jsonBoundary(input) ? check(input, '$', options) : '$';
-  if (param) return { ok: false, error: { kind: 'invalid_response', code: 'invalid_chat_response', message: 'Invalid Chat Completions response structure.', param } };
+  let reason = 'Field violates the Chat response schema.';
+  const checkedOptions = { ...options, diagnosticIssue: (detail: string) => { reason = detail; } };
+  const bounded = jsonBoundary(input);
+  const param = bounded ? check(input, '$', checkedOptions) : '$';
+  if (param) return { ok: false, error: { kind: 'invalid_response', code: 'invalid_chat_response',
+    message: bounded ? reason : 'Response exceeds JSON structure limits or contains non-JSON values.', param } };
   return { ok: true, value: input as T };
 }
 /** Preserving extensions does not validate their meaning or authorize forwarding. */

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ApiClientError } from '@cheapai/api-client/errors';
 import type { ChannelView } from '@cheapai/api-client/channels';
@@ -35,10 +35,34 @@ export function useChannelForm({
   const [saved, setSaved] = useState(false);
   const [creationUncertain, setCreationUncertain] = useState(false);
   const creating = channel === null;
+  const previous = useRef({ open: false, channel });
 
   useEffect(() => {
+    const prior = previous.current;
+    previous.current = { open, channel };
     if (!open || creationUncertain) return;
-    setDraft(createChannelDraft(channel));
+    const latest = createChannelDraft(channel);
+    if (prior.open && prior.channel && channel && prior.channel.id === channel.id) {
+      const baseline = createChannelDraft(prior.channel);
+      setDraft((current) => {
+        // Refresh untouched fields and the submit version without losing local edits.
+        const merged = { ...latest };
+        for (const field of Object.keys(current) as (keyof ChannelDraft)[]) {
+          if (current[field] !== baseline[field])
+            Object.assign(merged, { [field]: current[field] });
+        }
+        // Limit mode and value form one edit, even if only one input changed.
+        for (const limit of ['concurrency', 'rpm'] as const) {
+          const mode = `${limit}Mode` as const;
+          const value = `${limit}Value` as const;
+          if (current[mode] !== baseline[mode] || current[value] !== baseline[value]) {
+            merged[mode] = current[mode];
+            merged[value] = current[value];
+          }
+        }
+        return merged;
+      });
+    } else setDraft(latest);
     setErrors({});
     setSaveError(null);
   }, [open, channel, creationUncertain]);
@@ -70,6 +94,7 @@ export function useChannelForm({
         channel === null
           ? await api.create(buildChannelInput(draft))
           : await api.update(channel.id, channel.configVersion, buildChannelPatch(draft));
+      setDraft(createChannelDraft(saved));
       onSaved(saved);
       setSaved(true);
     } catch (cause) {

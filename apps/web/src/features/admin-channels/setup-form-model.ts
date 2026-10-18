@@ -1,6 +1,9 @@
 import { channelInputSchema } from '@cheapai/contracts/channels';
-import { modelMappingInputSchema, modelMappingViewSchema, protocolSchema } from '@cheapai/contracts/mappings';
-import { builtinModel } from '@cheapai/model-catalog';
+import {
+  modelMappingInputSchema,
+  modelMappingViewSchema,
+  protocolSchema,
+} from '@cheapai/contracts/mappings';
 import type { ChannelInput } from '@cheapai/api-client/channels';
 import type { Protocol } from '@cheapai/api-client/mappings';
 import type { ChannelMappingDraft } from './setup-controller';
@@ -14,7 +17,6 @@ export interface SetupChannelDraft {
 }
 
 export interface SetupMappingDraft {
-  builtinId: string;
   publicModelId: string;
   protocol: Protocol;
   upstreamModel: string;
@@ -25,7 +27,7 @@ export function initialSetupChannelDraft(): SetupChannelDraft {
 }
 
 export function initialSetupMappingDraft(): SetupMappingDraft {
-  return { builtinId: '', publicModelId: '', protocol: 'responses', upstreamModel: '' };
+  return { publicModelId: '', protocol: 'responses', upstreamModel: '' };
 }
 
 function readPriority(value: string): number | null {
@@ -61,10 +63,7 @@ export function buildSetupChannelInput(draft: SetupChannelDraft): ChannelInput {
 export function validateSetupMappingDraft(draft: SetupMappingDraft): string | null {
   const validId = (value: string) =>
     modelMappingViewSchema.shape.publicModelId.safeParse(value).success;
-  if (
-    !validId(draft.publicModelId) ||
-    !protocolSchema.safeParse(draft.protocol).success
-  ) {
+  if (!validId(draft.publicModelId) || !protocolSchema.safeParse(draft.protocol).success) {
     return '公开模型 ID 必须使用有效标识格式。';
   }
   return null;
@@ -74,19 +73,4 @@ export function buildSetupMappingDraft(draft: SetupMappingDraft): ChannelMapping
   const protocol = protocolSchema.parse(draft.protocol);
   const upstreamModel = modelMappingInputSchema.shape.upstreamModel.parse(draft.upstreamModel);
   return { protocol, upstreamModel };
-}
-
-export function selectBuiltinReference(draft: SetupMappingDraft, value: string): SetupMappingDraft {
-  const model = builtinModel(value);
-  return {
-    ...draft,
-    builtinId: value,
-    ...(model
-      ? { publicModelId: model.id, protocol: model.protocol, upstreamModel: model.id }
-      : {}),
-  };
-}
-
-export function selectedBuiltinReference(draft: SetupMappingDraft) {
-  return builtinModel(draft.builtinId);
 }

@@ -1,3 +1,5 @@
+import { deleteChannel, getChannelById, updateChannel } from '../../apps/worker/admin/channel-repository';
+import { deleteModelMapping } from '../../apps/worker/admin/model-mappings';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { commitRequestRegistration, finishRequest, getRequest, markRequestStarted, prepareRequestRegistration } from '../../apps/worker/gateway/request-repository';
 import type { RequestRegistrationInput } from '../../apps/worker/gateway/request-repository';
@@ -138,4 +140,25 @@ describe('pre-send request registration on native D1', () => {
     expect(await finishRequest(testEnv.DB, row.id, 'b11-other', { status: 'failed' }, now + 1)).toBe(false);
     expect(await finishRequest(testEnv.DB, row.id, 'b11-user', { status: 'failed' }, now - 1)).toBe(false);
   });
+});
+
+it.each(['channel', 'mapping'])('preserves historical requests and rejects stale routes after deleting a %s', async target => {
+  const historical = await register();
+  const pending = prepareRequestRegistration(testEnv.DB, input());
+  const context = { actorId: 'b11-user', operationId: 'delete-test', now: 2000 };
+  if (target === 'channel') {
+    await deleteChannel(testEnv.DB, 'b11-channel', 1, context);
+    expect(await getChannelById(testEnv.DB, 'b11-channel')).toBeNull();
+    expect(await testEnv.DB.prepare("SELECT status,deleted_at FROM channels WHERE id='b11-channel'").first()).toEqual({ status: 'disabled', deleted_at: 2000 });
+    expect(await testEnv.DB.prepare("SELECT count(*) AS n FROM channel_groups WHERE channel_id='b11-channel'").first('n')).toBe(0);
+    await expect(updateChannel(testEnv.DB, 'b11-channel', 2, { status: 'active' }, context)).rejects.toMatchObject({ code: 'not_found' });
+    await expect(testEnv.DB.prepare("INSERT INTO channel_groups(channel_id,group_id) VALUES('b11-channel','b11-group')").run()).rejects.toThrow();
+  } else {
+    await deleteModelMapping(testEnv.DB, { channelId: 'b11-channel', publicModelId: 'b11-model', protocol: 'chat' }, 1, context);
+    expect(await getChannelById(testEnv.DB, 'b11-channel')).toMatchObject({ status: 'active', configVersion: 2 });
+  }
+  expect(await getRequest(testEnv.DB, historical.id, 'b11-user')).toEqual(historical);
+  expect(await testEnv.DB.prepare("SELECT count(*) AS n FROM models WHERE public_model_id='b11-model'").first('n')).toBe(1);
+  expect((await testEnv.DB.prepare('PRAGMA foreign_key_check').all()).results).toEqual([]);
+  await expect(commitRequestRegistration(testEnv.DB, pending)).rejects.toMatchObject({ code: 'conflict' });
 });

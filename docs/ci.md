@@ -28,7 +28,39 @@ checks. PR comparisons cover the entire proposed change, so a PR that changes
 desktop code continues to validate desktop on subsequent revisions.
 
 Run detector regressions with `node --test scripts/ci/desktop-changes.test.mjs`.
-The failing Cloudflare Workers Builds branch trigger was removed on 2026-10-17.
-Automatic previews are disabled pending maintainer reconfiguration. GitHub Actions
-checks and desktop builds remain enabled. Repository workflows do not manage
-Cloudflare's Dashboard build triggers. See [PR previews](pr-previews.md).
+Cloudflare automatic builds and previews are disabled. On 2026-10-17, the
+production Worker's native Preview switch was disabled and its Builds config
+removed. The parent and all 12 generated branch build configs were confirmed
+absent; deleting an individual branch trigger alone had left the parent enabled.
+GitHub Actions checks and desktop builds remain enabled. Main merges use the
+production release workflow below. See [PR previews](pr-previews.md).
+
+
+## Production release entrypoint
+
+`pnpm run deploy:ci` is the production CI release command. It builds the cloud
+workspaces, applies pending remote D1 migrations to `DB`, deploys the Worker and
+its assets, then checks `https://cheapai.dev/healthz` for a successful JSON health
+response. Wrangler runs through `@sub2api/worker` with `--config wrangler.jsonc
+--env production`; D1 additionally uses `--remote`. Each command must succeed
+before the next runs. A failed migration stops publication, and a failed health
+check fails the release without an automatic rollback.
+
+[Production release](../.github/workflows/production-release.yml) runs automatically
+on pushes to `main`, including merged PRs. It checks out that merged commit,
+installs locked dependencies, then calls `pnpm run deploy:ci`. Releases share one
+concurrency group and do not cancel an active migration/publication when a newer
+commit arrives. PR branch checks do not run remote SQL or deploy.
+
+Set the repository Actions secret `CLOUDFLARE_API_TOKEN` to a token that can migrate
+the configured D1 database and deploy the production Worker and its bindings.
+The account and resource IDs come from the checked-in production Wrangler config.
+The workflow does not require a new environment approval or enable the removed
+Cloudflare Builds trigger. The existing `pnpm run deploy` remains a manual
+Worker-only publication command and does not apply migrations.
+
+`pnpm run deploy:ci --dry-run` builds and bundles the production Worker locally;
+it skips remote migrations, publication and live health requests. It does not
+verify remote authorization or the database migration state. Back up the database
+and review the incompatible schema window before a real release, especially
+migration 0029. See [deployment and failure recovery](deployment.md).

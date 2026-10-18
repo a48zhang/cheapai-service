@@ -16,3 +16,5 @@ export type {
   Protocol,
 } from './mapping-api';
 export { modelListQueryOptions } from './api';
+
+export { PublicModelPicker } from './PublicModelPicker';

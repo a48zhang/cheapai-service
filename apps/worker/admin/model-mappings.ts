@@ -12,9 +12,10 @@ export type { ModelMappingKey, ModelMappingInput, ModelMappingView, ModelMapping
 export interface ModelMappingPatch { upstreamModel?: string }
 export interface ModelMappingAuditContext { actorId: string; operationId: string; now: number }
 
-async function parents(database: D1Database, identity: ModelMappingKey): Promise<void> {
+async function parents(database: D1Database, identity: ModelMappingKey) {
   const [channel, model] = await Promise.all([getChannelById(database, identity.channelId), getModelById(database, identity.publicModelId)]);
   if (!channel || !model) throw new ApiError('not_found');
+  return channel;
 }
 async function audit(database: D1Database, identity: ModelMappingKey, version: number, context: ModelMappingAuditContext, action: string) {
   const values = object(context, ['actorId', 'operationId', 'now']);
@@ -22,7 +23,7 @@ async function audit(database: D1Database, identity: ModelMappingKey, version: n
   return buildAuditStatement(database, { actor_id: text(values.actorId), operation_id: text(values.operationId), created_at: integer(values.now, 0),
     action, target_type: 'channel_model', target_id: Array.from(digest, (value) => value.toString(16).padStart(2, '0')).join(''),
     changes: { channel_id: identity.channelId, public_model_id: identity.publicModelId, protocol: identity.protocol,
-      config_version: { before: version === 1 ? null : version - 1, after: version } } });
+      config_version: { before: action === 'channel_model.delete' ? version : action === 'channel_model.create' ? null : version - 1, after: action === 'channel_model.delete' ? null : version } } });
 }
 function guard(database: D1Database) { return prepare(database, "SELECT CASE WHEN changes()=1 THEN 1 ELSE json_extract('{}','model_mapping_conflict') END AS matched"); }
 function writeError(error: unknown): never {
@@ -36,13 +37,14 @@ export async function createModelMapping(database: D1Database, input: ModelMappi
   const fields = object(input, ['channelId', 'publicModelId', 'protocol', 'upstreamModel']);
   const identity = key({ channelId: fields.channelId as string, publicModelId: fields.publicModelId as string, protocol: fields.protocol as Protocol });
   const upstreamModel = upstreamModelValue(fields.upstreamModel);
-  await parents(database, identity);
-  const statement = await audit(database, identity, 1, context, 'channel_model.create');
+  const channel = await parents(database, identity);
+  const statement = await audit(database, identity, channel.configVersion, context, 'channel_model.create');
   try {
     const result = await batch(database, [
-      prepare<Row>(database, `INSERT INTO channel_models (${projection}) VALUES (?,?,?,?,1)
+      prepare<Row>(database, `INSERT INTO channel_models (${projection}) SELECT ?,?,?,?,config_version FROM channels
+        WHERE id=? AND deleted_at IS NULL AND config_version=?
         ON CONFLICT(channel_id,public_model_id,protocol) DO NOTHING RETURNING ${projection}`,
-      [identity.channelId, identity.publicModelId, identity.protocol, upstreamModel]), guard(database), statement,
+      [identity.channelId, identity.publicModelId, identity.protocol, upstreamModel, identity.channelId, channel.configVersion]), guard(database), statement,
     ] as const);
     if (!result[0].rows[0]) throw new ApiError('service_unavailable');
     return view(result[0].rows[0]);
@@ -66,5 +68,26 @@ export async function updateModelMapping(database: D1Database, input: ModelMappi
     [upstreamModel, identity.channelId, identity.publicModelId, identity.protocol, expectedVersion]), guard(database), statement] as const);
     if (!result[0].rows[0]) throw new ApiError('service_unavailable');
     return view(result[0].rows[0]);
+  } catch (error) { return writeError(error); }
+}
+
+/** Removing a route never removes its public model or request/billing snapshots. */
+export async function deleteModelMapping(database: D1Database, input: ModelMappingKey, expectedVersion: number, context: ModelMappingAuditContext): Promise<void> {
+  const identity = key(input);
+  integer(expectedVersion);
+  if (expectedVersion >= Number.MAX_SAFE_INTEGER) throw new ApiError('conflict');
+  const current = await getModelMapping(database, identity);
+  if (!current) throw new ApiError('not_found');
+  if (current.configVersion !== expectedVersion) throw new ApiError('conflict');
+  await parents(database, identity);
+  const statement = await audit(database, identity, expectedVersion, context, 'channel_model.delete');
+  try {
+    await batch(database, [
+      prepare(database, `DELETE FROM channel_models WHERE channel_id=? AND public_model_id=? AND protocol=? AND config_version=?`,
+        [identity.channelId, identity.publicModelId, identity.protocol, expectedVersion]), guard(database),
+      // Invalidate cached/admitted selections even if the same mapping is later re-created.
+      prepare(database, `UPDATE channels SET config_version=max(config_version,?)+1,updated_at=max(updated_at,?)
+        WHERE id=? AND deleted_at IS NULL AND config_version<9007199254740991`, [expectedVersion, context.now, identity.channelId]), guard(database), statement,
+    ]);
   } catch (error) { return writeError(error); }
 }

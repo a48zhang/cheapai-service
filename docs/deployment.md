@@ -2,7 +2,7 @@
 
 更新：2026-10-03；配置基线为 main `fd6ce3d37de87239a7474a04ab85b83c96f7df11`，本次清理移除共享 staging 的可执行入口。共享 staging 已于 2026-10-03 完成永久退役，相关 Worker、D1、KV 和 Gate DO 已删除并回读确认；这次文档更新不是删除或发布成功证明。历史资源与证据见[退役记录](staging-resources.md)。
 
-先读[管理员配置顺序](admin-guide.md)。正式入口为 https://cheapai.dev 和 https://www.cheapai.dev；站内导航保留当前 host，两个入口分别使用 host-only 会话和 CSRF Cookie。自动预发待维护者重新配置，当前状态见[PR 预发](pr-previews.md)；不要重建旧共享 staging，也不要以历史验证结果代替本次验收。
+先读[管理员配置顺序](admin-guide.md)。正式入口为 https://cheapai.dev 和 https://www.cheapai.dev；站内导航保留当前 host，两个入口分别使用 host-only 会话和 CSRF Cookie。自动预发已停用，当前状态见[PR 预发](pr-previews.md)；不要重建旧共享 staging，也不要以历史验证结果代替本次验收。
 
 ## 发布前准备
 
@@ -10,7 +10,7 @@
 
 ### Cloudflare 自动构建与手动发布
 
-2026-10-17 移除失效的 Cloudflare Workers Builds 分支触发器，自动构建与预发暂不启用，后续由维护者重新配置。GitHub Actions 的代码检查与 Desktop 安装包构建继续保留；修改仓库工作流不会自动修改 Dashboard 的 Builds 设置。
+2026-10-17 已关闭 Cloudflare 原生 Preview 总开关并移除 production Worker 的 Builds 配置，父配置及 12 个分支构建配置均回读确认不存在。自动预发停用；合并 main 后由下文的 GitHub Production release 工作流执行正式迁移与发布。GitHub 代码检查与 Desktop 安装包构建保留。
 
 `pnpm run build` 只构建前端并对 Worker 执行 dry-run。`pnpm run deploy` 明确选择 `apps/worker/wrangler.jsonc` 的 `production` 环境，会执行正式发布，不能用作 PR Preview 的替代命令。Wrangler 安装在 Worker workspace；后续配置原生 Preview 时，需要从该 workspace 执行命令，并明确目标 Worker、配置文件和预发绑定。
 
@@ -42,9 +42,40 @@ pnpm --filter @sub2api/worker exec wrangler secret list --env production
 pnpm --filter @sub2api/worker exec wrangler deployments list --env production
 ```
 
-发布前确认账户权限、备份、26 份迁移水位及邮件运行时 Secrets；只检查 Secret 名称不等于验证值。邮件启用前必须验证发件身份、投递与获批收件人，不能只改 readiness。真实上游调用、负载及恢复验证另行限定目标、权限和预算。
+发布前确认账户权限、备份、29 份迁移水位及邮件运行时 Secrets；只检查 Secret 名称不等于验证值。邮件启用前必须验证发件身份、投递与获批收件人，不能只改 readiness。真实上游调用、负载及恢复验证另行限定目标、权限和预算。
 
 先完成类型、测试、构建和 PR 验证，再核对生产目标、备份、迁移与发布授权；部署后核对真实域名和功能。PR 默认没有邮件或 cron，不能用其 smoke test 代替这些能力的验收。需要完整隔离验证环境时另行明确配置并授权，不能复用已删除的共享资源。本文后续命令是操作手册，不代表已执行。
+
+## 正式 CI 发布入口与失败恢复
+
+合并到 `main` 后，GitHub Actions 自动执行 `pnpm run deploy:ci`，顺序为：
+
+1. `pnpm run build:cloud` 成功，产出匹配的前端和 Worker。
+2. 从 Worker workspace 执行 `wrangler d1 migrations apply DB --config wrangler.jsonc --env production --remote`。
+3. 迁移成功后执行 `wrangler deploy --config wrangler.jsonc --env production`。
+4. 请求 `https://cheapai.dev/healthz`，检查成功响应及 JSON 的 `status: "ok"`。该入口只证明存活，不证明 D1、登录、邮件或真实上游可用；继续执行第 7 节的验收。
+
+脚本位置为 [`scripts/release-production.mjs`](../scripts/release-production.mjs)。任一步失败即退出，不继续后续步骤，不自动回滚数据库或 Worker。`pnpm run deploy:ci --dry-run` 只构建并执行本地 production 打包，明确跳过远程迁移、正式发布和线上 health 请求。原 `pnpm run deploy` 保持仅发布 Worker 的手动语义；不要把它配置成需要自动迁移的 CI 入口。[Production release 工作流](../.github/workflows/production-release.yml) 在 PR 合并到 `main` 后自动运行此入口，使用该次合并的提交；实际触发事件是 `push` 到 `main`。D1 自动跳过已执行的迁移，依次应用尚未执行的 SQL。运行中的迁移和发布不会因后续提交被取消。PR 分支的检查不执行远程 SQL。
+
+在 GitHub 仓库 Settings → Secrets and variables → Actions 中配置 `CLOUDFLARE_API_TOKEN`，需要能迁移目标 D1 并发布 production Worker 及其绑定。工作流从 Secret 注入凭据，目标账户和资源 ID 使用仓库 production 配置。未配置或权限不足时发布会失败，不能将本地 dry-run 当作线上授权已通过。工作流不设置额外环境审批，也不重新启用 Dashboard Builds 触发器。
+
+发布前保存当前 Worker version/deployment ID、D1 实际迁移清单及备份恢复点。从仓库根目录核对远端数据库，并将导出文件保存到仓库外的受控位置（含渠道与 Desktop 凭据，不提交 Git）：
+
+```sh
+pnpm --filter @sub2api/worker exec wrangler d1 time-travel info DB --config wrangler.jsonc --env production
+pnpm --filter @sub2api/worker exec wrangler d1 export DB --config wrangler.jsonc --env production --remote --output /controlled-backups/cheapai-before-release.sql
+pnpm --filter @sub2api/worker exec wrangler d1 migrations list DB --config wrangler.jsonc --env production --remote
+```
+
+导出成功或拿到 Time Travel bookmark 不等于恢复已经验证。按既有恢复流程在隔离数据库验证备份；发布记录保留恢复点、时间、迁移水位与校验结果，不记录凭据。正式 CI 执行环境需要具备 Wrangler 所用的 Cloudflare 账户凭据；备份和恢复点在执行真实发布前由发布者准备。
+
+**0029 存在不兼容窗口。** 它删除 `models.max_output_tokens`、`models.admission_min_balance_units` 与 `channel_models.capabilities_json`。迁移提交后到新 Worker 完成流量切换前，旧 Worker 仍可能查询已删除的列；反过来先发布新 Worker 也不能替代完整迁移核验。此发布序列不是零停机兼容发布。使用已有入口控制安排维护窗口，处理在途请求与待结算工作；当前项目没有可直接开启的通用 `MAINTENANCE_MODE`。如果需要零停机，另行设计并审阅兼容过渡版本，不能声称现有脚本已经消除窗口。
+
+迁移失败时，Wrangler 回滚失败的那一份迁移，之前成功的迁移仍保留。流水线停止发布；先回读真实迁移水位和故障，保留数据库与备份，通过修复后继续向前应用。若 0029 尚未应用，也要确认 0027/0028 后的数据仍与运行中的旧版本兼容，尤其是已经接受的空上游模型名或无到期时间邀请码。
+
+迁移成功但发布失败时，数据库已经处于新结构，旧 Worker 不会因此恢复兼容。保持维护窗口，优先重试同一已构建提交的发布，或发布能够读取当前结构的修复版本。发布成功但 health 失败时，保存新 version/deployment ID，核对路由、配置和日志，再完成数据库及业务验收；单个 health 失败不自动证明需要数据库恢复。
+
+0029 后不能直接把 Worker 回滚到依赖旧列的版本。按[兼容回滚步骤](rollback.md)判断目标代码；数据库恢复会影响恢复点之后的用户、凭据、请求及账务，不能把恢复旧 D1 当作普通代码回滚。确需恢复时保持入口受控，核对恢复点后的写入与账务事实，走已有隔离恢复和对账流程，再切换匹配的 Worker，保留故障现场与数据。
 
 ## 1. 发布单元和配置基线
 
@@ -60,7 +91,7 @@ pnpm --filter @sub2api/worker exec wrangler deployments list --env production
 | DO | `GATE` → `Gate`，`migrations` 的 `v1` 使用 `new_sqlite_classes: ["Gate"]` |
 | 邮件 | `EMAIL` / `send_email`；所有 `.invalid` 发件人和收件人都是占位符 |
 | 定时任务 | 顶层本地配置和 production 显式配置每五分钟一次；PR previews 无 cron |
-| 公网入口 | local 为 `workers_dev: false`；production 与 Dashboard 同步为 `workers_dev: true`、`preview_urls: true`，保留 cheapai.dev、www.cheapai.dev 和 pre.cheapai.dev 路由；自动预发待重新配置 |
+| 公网入口 | local 为 `workers_dev: false`；production 与 Dashboard 同步为 `workers_dev: true`、`preview_urls: true`，保留 cheapai.dev、www.cheapai.dev 和 pre.cheapai.dev 路由；自动预发已停用 |
 
 `remote: false` 描述本地开发 binding 行为，不会让发布后的 Worker 使用本地数据库。远程 D1 操作仍必须明确 `--remote --env ...`。这与已安装 Wrangler schema 及[开发 binding 模式](https://developers.cloudflare.com/workers/local-development/bindings-per-env/)一致。
 
@@ -102,7 +133,7 @@ node $deploymentWrangler dev --config $deploymentConfig --local --persist-to $de
 
 ## 3. 环境选择
 
-production 已有独立资源和域名，bindings/vars 明确位于 `env.production`。Cloudflare 自动预发触发器已移除，待维护者重新配置，详见[预发说明](pr-previews.md)。仓库 CI 不创建分支 Worker、执行预发部署或迁移。
+production 已有独立资源和域名，bindings/vars 明确位于 `env.production`。Cloudflare 自动构建与预发已停用，详见[预发说明](pr-previews.md)。仓库 CI 不创建分支 Worker、执行预发部署或迁移。
 
 当前 Git 生产配置为 `send_email: []`、`EMAIL_VERIFICATION_READY: "true"`，通过 Resend 发信；这不证明线上 Secret 和实际投递已经通过验证。不要为消除 Wrangler 的 binding 继承提示添加虚假发件身份。
 
@@ -168,7 +199,7 @@ production 已有独立资源和域名，bindings/vars 明确位于 `env.product
 
 ## 5. D1 迁移与初始管理员
 
-当前源码迁移为 `0001_groups_settings.sql` 至 `0026_desktop_plaintext_keys.sql`，共 26 份。`pnpm run deploy` 只发布 Worker，不自动应用或核验 D1 迁移；测试夹具自动应用全部迁移也不代表生产已更新。新环境应用全部迁移；升级环境先查实际水位，再按顺序应用所有未应用文件，不只执行最后一份：
+当前源码迁移为 `0001_groups_settings.sql` 至 `0029_remove_model_limits_and_capabilities.sql`，共 29 份。`pnpm run deploy` 只发布 Worker，不自动应用或核验 D1 迁移；测试夹具自动应用全部迁移也不代表生产已更新。新环境应用全部迁移；升级环境先查实际水位，再按顺序应用所有未应用文件，不只执行最后一份：
 
 ```powershell
 Get-ChildItem migrations -Filter '*.sql' | Sort-Object Name | Select-Object Name
@@ -204,7 +235,7 @@ node scripts/bootstrap-admin.ts --remote --env production
 
 ```powershell
 $deploymentSecretsFile = Read-Host '输入仓库外受控 production Secrets 文件的绝对路径'
-node $deploymentWrangler deploy --config $deploymentConfig --env production --strict --secrets-file $deploymentSecretsFile --message 'Reviewed production release'
+node $deploymentWrangler deploy --config $deploymentConfig --env production --secrets-file $deploymentSecretsFile --message 'Reviewed production release'
 node $deploymentWrangler deployments list --config $deploymentConfig --env production --json
 node $deploymentWrangler versions list --config $deploymentConfig --env production --json
 ```
@@ -220,7 +251,7 @@ production 发布前完成独立 PR 验证及生产专属检查；上述命令�
 1. 实际 HTTPS 域名上的 `/healthz` 返回 JSON；静态页面可加载，未知 `/api/*`、`/v1/*` 返回结构化错误而非 HTML。
 2. 管理员登录/退出、安全 Cookie、Origin/CSRF 和普通用户越权拒绝通过；未配置邮件时注册保持 closed，不能用 readiness 标志冒充投递实测。
 3. 对三个协议入口完成普通与增量 SSE、小输出、取消、超时、原生 usage 和账单一致性检查。当前源码已挂载 Chat Completions、Responses、Messages 和模型列表，但实际供应商/SDK/部署环境仍需独立验证，不能从模块测试推定线上可用。
-4. 管理员渠道诊断只有显式 POST 才会调用真实上游，最多 16 输出 token，但仍可能花费供应商额度；需要事先限定测试账户和预算，不把 `userBalanceCharged:false` 解读为供应商免费。
+4. 管理员渠道诊断只有显式 POST 才会调用真实上游，参数由调用方填写，平台不再设置固定输出预算，但仍可能花费供应商额度；需要事先限定测试账户和预算，不把 `userBalanceCharged:false` 解读为供应商免费。
 5. 验证网页聊天：首页和历史会话、分组倍率、停止/重新生成、请求来源与计费；内部 web_chat Key 不应出现在普通 Key 列表或被用作 Bearer 凭据。
 6. 验证 `scheduled_maintenance` 三项报告：到期身份清理、异常请求扫描、待结算重试。日志只看状态/计数，禁用调试原始正文日志。
 

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createGroupsApi } from '@cheapai/api-client/groups';
 import { createMappingsApi } from '@cheapai/api-client/mappings';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import type { ChannelView } from '@cheapai/api-client/channels';
 import { ChannelDiagnostics } from '../../features/admin-channels/ChannelDiagnostics';
 import { ChannelSetup } from '../../features/admin-channels/ChannelSetup';
@@ -40,6 +40,8 @@ export function ChannelsPage() {
   const { user, epoch, client, isAdmin } = useSession();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const location = useLocation();
+  const notice = (location.state as { notice?: string } | null)?.notice;
   const [searchParams, setSearchParams] = useSearchParams();
   const [formChannel, setFormChannel] = useState<ChannelView | null | undefined>(undefined);
   const [managementChannel, setManagementChannel] = useState<ChannelView | null>(null);
@@ -118,6 +120,11 @@ export function ChannelsPage() {
         }
       />
 
+      {notice && (
+        <p role="status" className="console-muted">
+          {notice}
+        </p>
+      )}
       <FilterBar onReset={() => updateStatus('all')}>
         <Field label="状态">
           <Select
@@ -205,6 +212,8 @@ export function ChannelsPage() {
       )}
 
       <ChannelSetup
+        client={client}
+        actorId={userId}
         key={`${userId}:${epoch}`}
         open={setupOpen}
         onOpenChange={setSetupOpen}

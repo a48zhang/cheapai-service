@@ -1,6 +1,7 @@
 import { useId, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
+import type { ApiClient } from '@cheapai/api-client/types';
 import type { GroupView } from '@cheapai/api-client/groups';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { Button } from '../../shared/ui/Button';
@@ -15,14 +16,14 @@ import {
   buildSetupMappingDraft,
   initialSetupChannelDraft,
   initialSetupMappingDraft,
-  selectBuiltinReference,
-  selectedBuiltinReference,
   validateSetupChannelDraft,
   validateSetupMappingDraft,
 } from './setup-form-model';
 import type { SetupChannelDraft, SetupMappingDraft } from './setup-form-model';
 
 export interface ChannelSetupProps {
+  readonly client: ApiClient;
+  readonly actorId: string;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
   readonly commands: ChannelSetupCommands;
@@ -63,6 +64,8 @@ function stepLabel(
 
 /** Guided setup records each successful resource and resumes at the next unfinished step. */
 export function ChannelSetup({
+  client,
+  actorId,
   open,
   onOpenChange,
   commands,
@@ -84,7 +87,7 @@ export function ChannelSetup({
   const [busy, setBusy] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const selectedGroup = groups.find((group) => group.id === groupId) ?? null;
-  const selectedBuiltin = selectedBuiltinReference(mappingDraft);
+  const [upstreamEdited, setUpstreamEdited] = useState(false);
 
   const run = async (operation: () => Promise<ChannelSetupProgress>) => {
     if (busy) return;
@@ -106,7 +109,14 @@ export function ChannelSetup({
     key: K,
     value: SetupMappingDraft[K],
   ) => {
-    setMappingDraft((current) => ({ ...current, [key]: value }));
+    if (key === 'upstreamModel') setUpstreamEdited(true);
+    setMappingDraft((current) => ({
+      ...current,
+      [key]: value,
+      ...(key === 'publicModelId' && !current.publicModelId && !upstreamEdited
+        ? { upstreamModel: value as string }
+        : {}),
+    }));
   };
 
   const submitChannel = (event: FormEvent<HTMLFormElement>) => {
@@ -146,10 +156,6 @@ export function ChannelSetup({
     if (!selectedGroup || busy || groupsLoading || groupsError) return;
     setValidationError(null);
     void run(() => controller.updateGroup(selectedGroup));
-  };
-
-  const selectBuiltin = (value: string) => {
-    setMappingDraft((current) => selectBuiltinReference(current, value));
   };
 
   const currentStep = progress.step;
@@ -217,23 +223,24 @@ export function ChannelSetup({
             {progress.channel && (
               <div className="min-w-0">
                 <dt className="console-muted">已保存渠道</dt>
-                <dd className="mt-1 break-all font-mono">
-                  {progress.channel.name}
-                </dd>
+                <dd className="mt-1 break-all font-mono">{progress.channel.name}</dd>
               </div>
             )}
             {progress.mapping && (
               <div className="min-w-0">
                 <dt className="console-muted">已保存映射</dt>
-                <dd className="mt-1 break-all"><ModelIdentity modelId={progress.mapping.publicModelId} secondary={progress.mapping.protocol} /></dd>
+                <dd className="mt-1 break-all">
+                  <ModelIdentity
+                    modelId={progress.mapping.publicModelId}
+                    secondary={progress.mapping.protocol}
+                  />
+                </dd>
               </div>
             )}
             {progress.group && (
               <div className="min-w-0">
                 <dt className="console-muted">已更新访问组</dt>
-                <dd className="mt-1 break-all">
-                  {progress.group.name}
-                </dd>
+                <dd className="mt-1 break-all">{progress.group.name}</dd>
               </div>
             )}
           </dl>
@@ -259,6 +266,8 @@ export function ChannelSetup({
         )}
 
         <ChannelSetupSteps
+          client={client}
+          actorId={actorId}
           step={progress.step}
           channelFormId={channelFormId}
           mappingFormId={mappingFormId}
@@ -271,14 +280,12 @@ export function ChannelSetup({
           groupsError={groupsError}
           onRetryGroups={onRetryGroups}
           selectedGroup={selectedGroup}
-          selectedBuiltin={selectedBuiltin}
           progressError={progress.error}
           busy={busy}
           onSubmitChannel={submitChannel}
           onChannelDraftChange={updateChannelDraft}
           onSubmitMapping={submitMapping}
           onMappingDraftChange={updateMappingDraft}
-          onSelectBuiltin={selectBuiltin}
           onSubmitGroup={submitGroup}
           onGroupIdChange={setGroupId}
         />
