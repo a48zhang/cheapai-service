@@ -1,4 +1,4 @@
-import type { CSSProperties, InputHTMLAttributes } from 'react';
+import type { InputHTMLAttributes } from 'react';
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   /** Applies the same invalid state used by Field when an error is present. */
@@ -16,20 +16,15 @@ export function Input({
 }: InputProps) {
   const isInvalid =
     invalid || (ariaInvalid !== undefined && ariaInvalid !== false && ariaInvalid !== 'false');
-  const inputStyle: CSSProperties = {
-    borderColor: isInvalid ? 'var(--color-destructive)' : 'var(--color-border)',
-    backgroundColor: disabled ? 'var(--color-muted)' : 'var(--color-surface)',
-    color: 'var(--color-foreground)',
-    ...style,
-  };
 
   return (
     <input
       {...props}
       disabled={disabled}
       aria-invalid={isInvalid ? true : ariaInvalid}
-      className={`block min-h-10 w-full rounded-md border px-3 py-2 text-[15px] leading-6 outline-none transition-colors placeholder:text-[var(--color-muted-foreground)] focus-visible:border-[var(--color-ring)] focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--color-surface)] disabled:cursor-not-allowed disabled:opacity-60 ${className ?? ''}`}
-      style={inputStyle}
+      data-slot="input"
+      className={`h-9 w-full min-w-0 rounded-md border border-input bg-transparent dark:bg-input/30 px-3 py-1 text-base shadow-xs outline-none placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 ${className ?? ''}`}
+      style={style}
     />
   );
 }

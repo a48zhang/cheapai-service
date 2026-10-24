@@ -1,5 +1,18 @@
 @import 'tailwindcss';
 
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+@theme inline {
+  --color-muted-foreground: var(--color-ink-muted);
+  --color-background: var(--color-canvas);
+  --color-primary: var(--color-accent);
+  --color-secondary: var(--color-surface-hover);
+  --color-secondary-foreground: var(--color-ink);
+  --color-accent-foreground: var(--color-ink);
+  --color-input: var(--color-line);
+  --color-ring: var(--color-focus);
+  --color-destructive: var(--color-danger);
+}
+
 @layer base {
   *,
   *::before,
@@ -100,7 +113,7 @@
   }
 }
 
-/* Console building blocks stay opt-in so conversation and marketing layouts retain their scale. */
+/* Shared console content styles. */
 @layer components {
   .console-panel {
     border: 1px solid var(--color-line);
@@ -160,5 +173,23 @@
   .console-table th,
   .console-table td {
     min-width: 0;
+  }
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 100dvh;
+  background: var(--color-surface);
+}
+.app-shell-main {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+@media (min-width: 768px) {
+  .app-shell--open {
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   }
 }

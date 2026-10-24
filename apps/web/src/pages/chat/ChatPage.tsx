@@ -144,6 +144,7 @@ export default function ChatPage() {
   const newChat = chat.view === 'welcome';
   return (
     <ChatLayout
+      title={detail?.conversation.title || '新对话'}
       onNew={newConversation}
       sidebar={(close, mobile) => (
         <ConversationSidebar

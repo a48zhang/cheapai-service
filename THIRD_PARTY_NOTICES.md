@@ -63,3 +63,20 @@ Runtime 打包复制 npm production 依赖及传递闭包时，应保留各包�
 P02 的 `package-runtime.mjs` 将本节表中的三份完整 desktop license 与本文件复制到 `resources/generated/runtime/notices/LICENSES/desktop/` 和 `resources/generated/runtime/notices/THIRD_PARTY_NOTICES.md`。它按目标 runner 复制实际 Runtime production dependency closure，并保留各已解析包的许可文件；`release-manifest.json` 将记录实际包名、版本、路径、native addon 和资源文件哈希。该资源清单是组成记录，不等于逐包许可证审查。
 
 截至 2026-10-04，锁文件仍缺 desktop/runtime/contracts workspace importers，Tauri `Cargo.lock` 和前端/Runtime 编译输出也未生成。打包器会在这些前置条件缺失时失败；本仓库尚无本轮生成的 `release-manifest.json`、完整随包依赖闭包或安装包，因此不能将未来清单描述成已生成或已审计结果。
+
+## shadcn/ui component styles
+
+The web Button and Input styles adapt the official shadcn/ui `new-york-v4`
+registry sources, retaining the application's existing prop and busy-state APIs.
+The shared neutral theme and dialog/menu spacing follow shadcn/ui defaults.
+
+- Sources: https://ui.shadcn.com/r/styles/new-york-v4/button.json and https://ui.shadcn.com/r/styles/new-york-v4/input.json
+- Reference layouts: https://ui.shadcn.com/docs/ai-elements/radix/chat and https://ui.shadcn.com/docs/ai-elements/radix/prompt-input
+- License: MIT; see [LICENSES/shadcn-ui-MIT.txt](LICENSES/shadcn-ui-MIT.txt).
+
+## Favicon
+
+`apps/web/public/favicon.svg` uses the Lucide/Feather `message-circle` outline in
+neutral gray, replacing the custom brand mark. The icon is covered by the ISC
+notices in [LICENSES/lucide-ISC.txt](LICENSES/lucide-ISC.txt), copied from the pinned
+`lucide-react` package already used by this application.
