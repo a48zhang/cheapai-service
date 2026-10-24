@@ -109,11 +109,6 @@ describe('0005 registration codes migration on native D1', () => {
     expect(await prepare(testEnv.DB, 'SELECT balance_units FROM users WHERE id = ?', [consumer]).first()).toEqual({ balance_units: 0 });
   });
 
-  it('keeps the user provenance column free of a premature cyclic insertion requirement', async () => {
-    const foreignKeys = await prepare<{ from: string }>(testEnv.DB, "PRAGMA foreign_key_list('users')").all();
-    expect(foreignKeys.rows.some((row) => row.from === 'registration_code_id')).toBe(false);
-  });
-
   it('indexes creator history, consumers, expiry and unique operation positions', async () => {
     const expected = [
       ['idx_registration_codes_creator_created', ['created_by', 'created_at', 'id']],

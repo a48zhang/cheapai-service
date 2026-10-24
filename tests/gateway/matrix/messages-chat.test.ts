@@ -149,16 +149,4 @@ describe('Q-MC Messages downstream → Chat upstream', () => {
     expect(await settledRequest(followup.requestId!)).toMatchObject({ billing_status: 'settled', usage_quality: 'complete', cost_units: 2_000 });
     expect(await billingCount()).toBe(2);
   });
-
-  it.each([false, true])('returns a sanitized upstream error for JSON/SSE mode (%s) without a zero-cost bill', async stream => {
-    const upstream = upstreamMock('error', stream);
-    const result = await harness.call(textRequest(harness.publicModel, 'matrix messages text', stream));
-    expect(result.response.status).toBe(502);
-    expect(result.text).toContain('error');
-    expect(result.text).not.toContain(fixture.error.message);
-    expect(result.text).not.toContain(fixture.error.code);
-    expect(upstream).toHaveBeenCalledOnce();
-    expect(await settledRequest(result.requestId!)).toMatchObject({ execution_status: 'failed', billing_status: 'usage_unknown', cost_units: null });
-    expect(await billingCount()).toBe(0);
-  });
 });

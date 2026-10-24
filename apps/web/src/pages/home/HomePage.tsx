@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, ArrowUpRight, Check, Copy, Menu, Plus, X } from 'lucide-react';
 import { BrandLink } from '../../shared/ui/BrandLink';
-import { BrandMark } from '../../shared/ui/BrandMark';
+import { Button } from '../../shared/ui/Button';
 import { useSession } from '../../features/session/useSession';
 import './home.css';
 
@@ -25,8 +25,8 @@ print(response.choices[0].message.content)`;
 
 const questions = [
   [
-    'CheapAI 有什么不同？',
-    'CheapAI 以极低价格提供多种主流旗舰模型，让你以更低成本使用强大的 AI 能力。你可以直接在网页中对话，也可以通过 API 接入自己的应用；两种方式共用账户余额。',
+    'CheapAI 提供什么？',
+    '你可以直接在网页中对话，也可以通过 API 接入自己的应用；两种方式共用账户余额。',
   ],
   [
     '支持哪些模型？',
@@ -75,10 +75,12 @@ export default function HomePage() {
               {isAuthenticated ? '控制台' : '登录'}
               <ArrowUpRight size={15} aria-hidden="true" />
             </Link>
-            <Link className="home-button home-button-primary home-header-cta" to="/chat">
-              开始对话
-              <ArrowUpRight size={15} aria-hidden="true" />
-            </Link>
+            <Button asChild variant="outline">
+              <Link to="/chat">
+                开始对话
+                <ArrowUpRight size={15} aria-hidden="true" />
+              </Link>
+            </Button>
             <button
               type="button"
               className="home-menu-toggle"
@@ -121,99 +123,43 @@ export default function HomePage() {
       <main id="home-main">
         <section className="home-hero" aria-labelledby="hero-title">
           <div className="home-hero-copy">
-            <h1 id="hero-title">
-              旗舰模型，<span>极低价格。</span>
-            </h1>
+            <h1 id="hero-title">对话与 API 接入</h1>
             <p className="home-hero-description">
-              CheapAI 以极低价格提供多种主流旗舰模型。直接开始对话，或通过 API 接入你的应用和工具。
+              选择可用模型开始对话，或在自己的应用中调用 API。用量与费用统一在控制台查看。
             </p>
             <div className="home-hero-actions">
-              <Link className="home-button home-button-primary" to="/chat">
-                开始对话 <ArrowRight size={18} aria-hidden="true" />
-              </Link>
-              <Link className="home-button home-button-secondary" to="/keys">
-                API 接入 <ArrowUpRight size={18} aria-hidden="true" />
-              </Link>
-            </div>
-          </div>
-          <div className="home-art" aria-label="网页对话界面示意">
-            <div className="home-orbit" aria-hidden="true" />
-            <div className="home-preview">
-              <div className="home-preview-header">
-                <BrandMark className="home-mini-brand" />
-                <span>CheapAI 对话</span>
-                <span className="home-preview-label">界面示意</span>
-              </div>
-              <div className="home-preview-body">
-                <p className="home-preview-question">帮我整理一下这个项目的开发思路。</p>
-                <div className="home-preview-answer">
-                  <BrandMark className="home-mini-brand" />
-                  <div>
-                    <p>可以先从目标、功能和实现顺序入手。</p>
-                    <ul>
-                      <li>明确用户需要解决的问题</li>
-                      <li>整理核心功能与页面结构</li>
-                      <li>分阶段实现并验证使用体验</li>
-                    </ul>
-                  </div>
-                </div>
-                <div className="home-chat-input" aria-hidden="true">
-                  <span>继续提问…</span>
-                  <span className="home-send">
-                    <ArrowUpRight size={18} />
-                  </span>
-                </div>
-              </div>
+              <Button asChild variant="outline">
+                <Link to="/chat">
+                  开始对话 <ArrowRight size={18} aria-hidden="true" />
+                </Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link to="/keys">
+                  API 接入 <ArrowUpRight size={18} aria-hidden="true" />
+                </Link>
+              </Button>
             </div>
           </div>
         </section>
 
         <section id="possibilities" className="home-section" aria-labelledby="products-title">
           <div className="home-section-heading">
-            <h2 id="products-title">选择适合你的使用方式</h2>
+            <h2 id="products-title">使用方式</h2>
             <p>日常对话与 API 调用，共用一个账户。</p>
           </div>
           <div className="home-products">
             <Link className="home-product" to="/chat">
-              <div className="home-product-art home-chat-art" aria-hidden="true">
-                <span className="home-demo-label">对话示意</span>
-                <div className="home-chat-question">帮我梳理这份文档的重点。</div>
-                <div className="home-chat-answer">
-                  <BrandMark className="home-mini-brand" />
-                  <div>
-                    我们可以从主要结论开始。
-                    <span className="home-answer-line" />
-                    <span className="home-answer-line short" />
-                  </div>
-                </div>
-                <div className="home-chat-input">
-                  <span>继续提问…</span>
-                  <span className="home-send">
-                    <ArrowUpRight size={18} />
-                  </span>
-                </div>
-              </div>
               <div className="home-product-title">
                 <h3>网页对话</h3>
                 <ArrowUpRight size={25} aria-hidden="true" />
               </div>
-              <p>在浏览器中选择模型，进行写作、编程和文档分析。</p>
+              <p>在浏览器中选择模型，发送消息并管理历史对话。</p>
               <span className="home-product-link">
                 开始对话
                 <ArrowRight size={16} aria-hidden="true" />
               </span>
             </Link>
             <Link className="home-product" to="/keys">
-              <div className="home-product-art home-api-art" aria-hidden="true">
-                <span className="home-demo-label">连接你的应用</span>
-                <div className="home-api-line" />
-                <div className="home-api-node home-api-source">你的应用</div>
-                <div className="home-api-hub">
-                  <BrandMark className="home-hub-mark" />
-                  <span>CheapAI</span>
-                </div>
-                <div className="home-api-node home-api-target">旗舰模型</div>
-              </div>
               <div className="home-product-title">
                 <h3>API 接入</h3>
                 <ArrowUpRight size={25} aria-hidden="true" />
@@ -232,10 +178,12 @@ export default function HomePage() {
             <div className="home-developer-copy">
               <h2 id="developers-title">用熟悉的方式接入模型</h2>
               <p>兼容常用 API 协议。配置接口地址、密钥和模型，即可在现有应用中开始调用。</p>
-              <Link className="home-button home-button-light" to="/keys">
-                获取 API Key
-                <ArrowUpRight size={17} aria-hidden="true" />
-              </Link>
+              <Button asChild variant="outline">
+                <Link to="/keys">
+                  获取 API Key
+                  <ArrowUpRight size={17} aria-hidden="true" />
+                </Link>
+              </Button>
               <div className="home-protocols">
                 <span>Chat Completions</span>
                 <span>Responses</span>
@@ -288,7 +236,7 @@ export default function HomePage() {
       </main>
       <footer className="home-footer">
         <BrandLink className="home-brand" />
-        <p>多种旗舰模型，极低价格。</p>
+        <p>对话 · API · 用量与费用</p>
         <nav aria-label="页脚导航">
           <Link to="/chat">对话</Link>
           <Link to="/keys">API 接入</Link>

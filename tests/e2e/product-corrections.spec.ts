@@ -219,7 +219,9 @@ for (const kind of ['group', 'mapping'] as const) {
     expect(state.unexpected).toEqual([]);
   });
 
-  for (const failure of ['middle-page', 'repeated-cursor'] as const) {
+  // Candidate decoding is shared; retain one distinct failure per form entry.
+  {
+    const failure = kind === 'group' ? 'middle-page' : 'repeated-cursor';
     test(`channel selector ${kind} blocks partial ${failure} results and retries without writes @resources`, async ({ page }) => {
       const state = await setupPicker(page);
       state.channels = async cursor => cursor === null ? pickerPage(cursor)
@@ -334,8 +336,14 @@ test('model creation route leaves new and create IDs reachable @review-fixes', a
   }
 });
 
-for (const wizard of [false, true]) {
-  for (const outcome of ['network', 'invalid-response', 'server-error']) {
+// Both entry points retain network uncertainty; malformed success and HTTP failure
+// cover the remaining shared outcome classifications without a full cross-product.
+for (const { wizard, outcome } of [
+  { wizard: false, outcome: 'network' },
+  { wizard: false, outcome: 'invalid-response' },
+  { wizard: true, outcome: 'network' },
+  { wizard: true, outcome: 'server-error' },
+]) {
     test(`channel ${wizard ? 'wizard' : 'form'} blocks ${outcome} retry and retains draft @review-fixes`, async ({ page }) => {
       await setupPicker(page);
       let posts = 0;
@@ -372,5 +380,4 @@ for (const wizard of [false, true]) {
       await expect(dialog.getByRole('link', { name: '在新标签页核对渠道' })).toHaveAttribute('target', '_blank');
       expect(posts).toBe(2);
     });
-  }
 }

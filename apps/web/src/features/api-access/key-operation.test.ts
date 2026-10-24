@@ -1,13 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ApiClientError } from '@cheapai/api-client/errors';
 import type { KeyCreation, KeyInput, KeyMetadata, KeysApi } from '@cheapai/api-client/keys';
-import {
-  canEditAfterKeyCreateFailure,
-  createKeyIntent,
-  executeKeyCreate,
-  idleKeyCreateOperation,
-  reduceKeyCreateOperation,
-} from './key-operation';
+import { canEditAfterKeyCreateFailure, createKeyIntent, executeKeyCreate } from './key-operation';
 
 const key = {
   id: 'key-1',
@@ -41,17 +35,6 @@ describe('API key create operation recovery', () => {
     await expect(executeKeyCreate(api, retry)).resolves.toEqual(replay);
     expect(api.create).toHaveBeenNthCalledWith(1, input, first.operationId);
     expect(api.create).toHaveBeenNthCalledWith(2, input, first.operationId);
-  });
-
-  it('keeps created and replayed metadata states distinct without storing the one-time token', () => {
-    const submitting = reduceKeyCreateOperation(idleKeyCreateOperation, { type: 'submit', intent });
-    const created = reduceKeyCreateOperation(submitting, { type: 'created', key });
-    const replayed = reduceKeyCreateOperation(submitting, { type: 'replayed', key });
-
-    expect(created).toEqual({ status: 'created', key });
-    expect(replayed).toEqual({ status: 'replayed', key });
-    expect(created).not.toHaveProperty('token');
-    expect(replayed).not.toHaveProperty('token');
   });
 
   it('allows correction only after definitive client-side rejection', () => {

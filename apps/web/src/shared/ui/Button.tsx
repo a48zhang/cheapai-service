@@ -1,5 +1,5 @@
 import { Slot, Slottable } from '@radix-ui/react-slot';
-import type { ButtonHTMLAttributes, CSSProperties, MouseEventHandler, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, MouseEventHandler, ReactNode } from 'react';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
 export type ButtonSize = 'sm' | 'md' | 'lg' | 'icon';
@@ -15,39 +15,21 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
 }
 
-const variantStyles: Record<ButtonVariant, CSSProperties> = {
-  primary: {
-    backgroundColor: 'var(--color-primary)',
-    borderColor: 'var(--color-primary)',
-    color: 'var(--color-primary-foreground)',
-  },
-  secondary: {
-    backgroundColor: 'var(--color-muted)',
-    borderColor: 'var(--color-border)',
-    color: 'var(--color-foreground)',
-  },
-  outline: {
-    backgroundColor: 'var(--color-surface)',
-    borderColor: 'var(--color-border)',
-    color: 'var(--color-foreground)',
-  },
-  ghost: {
-    backgroundColor: 'var(--button-ghost-background, transparent)',
-    borderColor: 'transparent',
-    color: 'var(--color-foreground)',
-  },
-  danger: {
-    backgroundColor: 'var(--color-destructive)',
-    borderColor: 'var(--color-destructive)',
-    color: 'var(--color-danger-foreground)',
-  },
+// shadcn/ui new-york-v4 button styles, mapped to the existing public variants.
+const variantClasses: Record<ButtonVariant, string> = {
+  primary: 'bg-primary text-[var(--color-primary-foreground)] hover:bg-primary/90',
+  secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+  outline:
+    'border border-input bg-background shadow-xs hover:bg-secondary hover:text-accent-foreground dark:bg-input/30 dark:hover:bg-input/50',
+  ghost: 'hover:bg-secondary hover:text-accent-foreground dark:hover:bg-secondary/50',
+  danger:
+    'bg-destructive text-[var(--color-danger-foreground)] hover:bg-destructive/90 focus-visible:ring-destructive/20',
 };
-
 const sizeClasses: Record<ButtonSize, string> = {
-  sm: 'min-h-9 px-3 text-sm',
-  md: 'min-h-10 px-4 text-[15px]',
-  lg: 'min-h-11 px-5 text-base',
-  icon: 'size-10 p-0',
+  sm: 'h-8 gap-1.5 px-3',
+  md: 'h-9 px-4 py-2',
+  lg: 'h-10 px-6',
+  icon: 'size-9',
 };
 
 /** Shared button with explicit intent, sizing, and asynchronous busy state. */
@@ -81,12 +63,8 @@ export function Button({
     }
     onClick?.(event as unknown as Parameters<NonNullable<typeof onClick>>[0]);
   };
-  const sharedClassName = `inline-flex items-center justify-center gap-2 rounded-lg border font-medium leading-6 whitespace-nowrap outline-none transition-colors hover:opacity-90 data-[variant=ghost]:hover:[--button-ghost-background:var(--color-muted)] focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-surface)] disabled:pointer-events-none disabled:opacity-50 ${sizeClasses[size]} ${className ?? ''}`;
-  const sharedStyle = {
-    ...variantStyles[variant],
-    ...(unavailable ? { opacity: 0.55 } : {}),
-    ...style,
-  };
+  const sharedClassName = `inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-disabled:opacity-50 aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 ${variantClasses[variant]} ${sizeClasses[size]} ${className ?? ''}`;
+  const sharedStyle = style;
   const content = (
     <>
       {busy && (
@@ -105,6 +83,7 @@ export function Button({
         {...props}
         aria-disabled={unavailable ? true : props['aria-disabled']}
         aria-busy={busy || undefined}
+        data-slot="button"
         data-variant={variant}
         data-busy={busy ? '' : undefined}
         onClick={handleSlotClick}
@@ -129,6 +108,7 @@ export function Button({
       disabled={unavailable}
       aria-disabled={props['aria-disabled']}
       aria-busy={busy || undefined}
+      data-slot="button"
       data-variant={variant}
       data-busy={busy ? '' : undefined}
       onClick={handleClick}

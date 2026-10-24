@@ -27,11 +27,11 @@ export function PageHeader({
         {eyebrow && (
           <p className="mb-2 text-sm font-medium text-[var(--color-ink-muted)]">{eyebrow}</p>
         )}
-        <h1 className="m-0 break-words text-2xl font-semibold leading-9 text-[var(--color-ink)] sm:text-[28px]">
+        <h1 className="m-0 break-words text-xl font-semibold leading-8 text-[var(--color-ink)] sm:text-2xl">
           {heading}
         </h1>
         {description && (
-          <div className="mt-2 max-w-3xl break-words text-[15px] leading-7 text-[var(--color-ink-secondary)]">
+          <div className="mt-2 max-w-3xl break-words text-sm leading-6 text-[var(--color-ink-secondary)]">
             {description}
           </div>
         )}

@@ -6,7 +6,6 @@ import {
   formatDiagnosticCurl,
   formatDiagnosticExport,
   formatDiagnosticHeaders,
-  formatDiagnosticRequestBody,
   formatDiagnosticResponseBody,
 } from './diagnostic-format';
 import {
@@ -109,13 +108,6 @@ describe('diagnostic formatting', () => {
       '[REDACTED]',
       '[REDACTED]',
     ]);
-  });
-
-  it('pretty-prints complete JSON requests and leaves plain text unchanged', () => {
-    const formatted = formatDiagnosticRequestBody('{"model":"vendor-model-a","stream":false}');
-    expect(JSON.parse(formatted)).toEqual({ model: 'vendor-model-a', stream: false });
-    expect(formatDiagnosticRequestBody('not-json\nbody')).toBe('not-json\nbody');
-    expect(formatDiagnosticRequestBody(null)).toBe('');
   });
 
   it('formats only complete JSON responses and preserves text, fragments, and truncation verbatim', () => {

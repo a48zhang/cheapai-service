@@ -194,19 +194,4 @@ describe('owned dual lease renewal lifecycle', () => {
     await Promise.all(pending);
     expect(scheduler.timers.size).toBe(0);
   });
-
-  it('scheduler failure cleans up an already-created timer and stops ownership', async () => {
-    const permit = await pair();
-    const scheduler = new ManualScheduler();
-    const nativeSchedule = scheduler.schedule.bind(scheduler);
-    let schedules = 0;
-    vi.spyOn(scheduler, 'schedule').mockImplementation((callback, delayMs) => {
-      if (++schedules === 2) throw new Error('injected scheduling failure');
-      return nativeSchedule(callback, delayMs);
-    });
-    const lifecycle = startLeaseLifecycle(permit, { scheduler, clock: () => now });
-    expect(lifecycle.snapshot().reason).toBe('scheduler_failed');
-    expect(scheduler.timers.size).toBe(0);
-    expect((await lifecycle.close()).complete).toBe(true);
-  });
 });

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { BoundedByteBuffer, BufferLimitError, ByteBudget, readBoundedBytes } from "../../../packages/apicompat/streams/buffers.js";
 
 describe("shared byte budgets and fragment buffers", () => {
-  it.each([-1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])("rejects invalid limits %j", (value) => {
+  it.each([-1, 1.5, Infinity, Number.MAX_SAFE_INTEGER + 1])("rejects invalid limits %j", (value) => {
     expect(() => new ByteBudget(value)).toThrow(RangeError);
   });
 

@@ -286,7 +286,14 @@ describe('BV02 logical RPM and production cooldown wiring', () => {
     } finally { clock.mockRestore(); }
   });
 
-  it.each([401, 403, 429].flatMap(status => [false, true].flatMap(stream => ['json', 'html', 'empty'].map(format => ({ status, stream, format })))))
+  it.each([
+    { status: 401, stream: false, format: 'json' },
+    { status: 401, stream: true, format: 'html' },
+    { status: 403, stream: false, format: 'empty' },
+    { status: 403, stream: true, format: 'json' },
+    { status: 429, stream: false, format: 'html' },
+    { status: 429, stream: true, format: 'empty' },
+  ])
   ('observes $status stream=$stream format=$format before decoding and skips the cooled channel on the next call', async ({ status, stream, format }) => {
     await testEnv.DB.prepare("UPDATE users SET balance_units=10000 WHERE id='g14-user'").run();
     await addChannel('chat', 'spare-chat', 0);

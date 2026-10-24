@@ -1,7 +1,7 @@
 @import '@cheapai/theme/tokens.css';
 
 :root {
-  --font-size-base: 0.9375rem;
+  --font-size-base: 0.875rem;
   --line-height-normal: 1.6;
   --font-weight-regular: 400;
   --font-weight-medium: 500;
@@ -9,10 +9,10 @@
 
   /* These names feed Tailwind's rounded-* and shadow-* utilities. */
   --radius-sm: 0.375rem;
-  --radius-md: 0.625rem;
-  --radius-lg: 0.875rem;
-  --radius-xl: 1.125rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.875rem;
   --radius-full: 9999px;
 
-  --sidebar-width: 14.5rem;
+  --sidebar-width: 16rem;
 }

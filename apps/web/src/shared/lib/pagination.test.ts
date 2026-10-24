@@ -18,18 +18,6 @@ describe('cursor pages', () => {
     ).toBeUndefined();
   });
 
-  it('lets an imperative pager report why a repeated cursor stopped', () => {
-    const errors: Error[] = [];
-    const next = nextPageCursor(
-      { nextCursor: 'a' },
-      [{ nextCursor: 'a' }, { nextCursor: 'b' }, { nextCursor: 'a' }],
-      '请求',
-      (error) => errors.push(error),
-    );
-    expect(next).toBeUndefined();
-    expect(errors).toHaveLength(1);
-  });
-
   it('keeps each resource once and protects newer versions across overlapping pages', () => {
     const pages = [
       {

@@ -93,10 +93,8 @@ describe('0022 web chat storage state machine', () => {
     expect(recovered?.messages.find(message => message.id === orphan.assistantMessage.id)?.status).toBe('failed');
   });
 
-  it('keeps the two-table schema and rejects malformed state through the database constraints', async () => {
+  it('rejects a second generating message through the database constraint', async () => {
     await seed();
-    const tables = await testEnv.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'chat_%' ORDER BY name").all<{ name: string }>();
-    expect(tables.results.map(row => row.name)).toEqual(['chat_conversations', 'chat_messages']);
     await testEnv.DB.prepare(`INSERT INTO chat_conversations(id,user_id,title,version,created_at,updated_at)
       VALUES('bad-chat','chat-test-user','',1,0,0)`).run();
     await testEnv.DB.prepare(`INSERT INTO chat_messages(id,conversation_id,turn_index,role,content,status,variant,selected,created_at,updated_at)

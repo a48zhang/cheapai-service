@@ -41,7 +41,7 @@ async function fillRegistration(page: Page, email: string, code?: string) {
 }
 
 for (const mode of ['closed', 'open', 'invite'] as const) {
-  for (const verify of [false, true]) {
+  for (const verify of mode === 'closed' ? [false] : [false, true]) {
     test(`${mode} registration, email verification ${verify}`, async ({ page }) => {
       await policy(mode, verify);
       await page.goto('/register');
@@ -77,27 +77,31 @@ for (const mode of ['closed', 'open', 'invite'] as const) {
       expect(user.role).toBe('user'); expect(user.balance_units).toBe('0');
       expect(user.email_verified_at === null).toBe(!verify);
 
-      await page.goto('/keys');
-      await page.getByRole('button', { name: '创建密钥', exact: true }).click();
-      const dialog = page.getByRole('dialog');
-      await dialog.getByLabel('名称', { exact: true }).fill('Browser fixture key');
-      await expect(dialog.locator('input[name="groupId"]')).toHaveValue('default');
-      await expect(dialog.getByRole('combobox', { name: '分组', exact: true })).toHaveCount(0);
-      await dialog.getByRole('button', { name: '创建密钥', exact: true }).click();
-      const secret = dialog.getByLabel('完整 API Key', { exact: true });
-      await expect(secret).toBeVisible();
-      expect((await secret.inputValue()).startsWith('s2a_key_')).toBe(true);
-      await dialog.getByRole('button', { name: '完成', exact: true }).click();
-      await expect(page.getByLabel('完整 API Key', { exact: true })).toHaveCount(0);
-      expect(await page.evaluate(() => Object.values(localStorage).some(value => value.includes('s2a_key_')))).toBe(false);
-      await page.getByRole('button', { name: '账户菜单', exact: true }).click();
-      await page.getByRole('menuitem', { name: '退出登录', exact: true }).click();
-      await expect(page).toHaveURL(/\/login$/);
-      expect((await page.context().request.get('/api/v1/auth/me')).status()).toBe(401);
-      await page.getByLabel('邮箱', { exact: true }).fill(email);
-      await page.getByLabel('密码', { exact: true }).fill(password);
-      await page.getByRole('button', { name: '登录', exact: true }).click();
-      await expect(page).toHaveURL(connection.baseURL + "/");
+      // Key creation and logout/login do not depend on the registration mode.
+      // Exercise them once; each mode above still verifies its new session.
+      if (mode === 'open' && !verify) {
+        await page.goto('/keys');
+        await page.getByRole('button', { name: '创建密钥', exact: true }).click();
+        const dialog = page.getByRole('dialog');
+        await dialog.getByLabel('名称', { exact: true }).fill('Browser fixture key');
+        await expect(dialog.locator('input[name="groupId"]')).toHaveValue('default');
+        await expect(dialog.getByRole('combobox', { name: '分组', exact: true })).toHaveCount(0);
+        await dialog.getByRole('button', { name: '创建密钥', exact: true }).click();
+        const secret = dialog.getByLabel('完整 API Key', { exact: true });
+        await expect(secret).toBeVisible();
+        expect((await secret.inputValue()).startsWith('s2a_key_')).toBe(true);
+        await dialog.getByRole('button', { name: '完成', exact: true }).click();
+        await expect(page.getByLabel('完整 API Key', { exact: true })).toHaveCount(0);
+        expect(await page.evaluate(() => Object.values(localStorage).some(value => value.includes('s2a_key_')))).toBe(false);
+        await page.getByRole('button', { name: '账户菜单', exact: true }).click();
+        await page.getByRole('menuitem', { name: '退出登录', exact: true }).click();
+        await expect(page).toHaveURL(/\/login$/);
+        expect((await page.context().request.get('/api/v1/auth/me')).status()).toBe(401);
+        await page.getByLabel('邮箱', { exact: true }).fill(email);
+        await page.getByLabel('密码', { exact: true }).fill(password);
+        await page.getByRole('button', { name: '登录', exact: true }).click();
+        await expect(page).toHaveURL(connection.baseURL + "/");
+      }
     });
   }
 }

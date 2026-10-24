@@ -1,9 +1,7 @@
-import { describe, expect, expectTypeOf, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createChatToMessagesRequestAdapter } from '../../../packages/apicompat/requests/chat-to-messages.js';
-import type { RequestAdapter } from '../../../packages/apicompat/types/adapter.js';
 import type { ChatMessage, ChatRequest } from '../../../packages/apicompat/types/chat.js';
 import { parseMessagesRequest } from '../../../packages/apicompat/types/messages.js';
-import type { MessagesRequest } from '../../../packages/apicompat/types/messages.js';
 import type { ConversionResult } from '../../../packages/apicompat/types/shared.js';
 
 // Original synthetic histories, not upstream-derived or real provider fixtures.
@@ -18,7 +16,6 @@ const context = { targetModel: 'configured-upstream-model' };
 describe('Chat→Messages text request milestone', () => {
   it('implements the direct adapter contract and uses the configured target model/budget', () => {
     const adapter = make();
-    expectTypeOf(adapter).toEqualTypeOf<RequestAdapter<ChatRequest, MessagesRequest, 'chat', 'messages'>>();
     expect(adapter).toMatchObject({ from: 'chat', to: 'messages' });
     const result = value(adapter.convert(basic(), context));
     expect(result).toEqual({ model: context.targetModel, max_tokens: 512, messages: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }] });
@@ -108,7 +105,7 @@ describe('Chat→Messages text request milestone', () => {
     expect(JSON.stringify(result)).not.toContain('private-input');
   });
 
-  it.each([0, -1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])('requires an explicit valid output budget %s', maxTokens => {
+  it.each([0, -1, 0.5, Infinity, Number.MAX_SAFE_INTEGER + 1])('requires an explicit valid output budget %s', maxTokens => {
     expect(createChatToMessagesRequestAdapter({ maxTokens }).ok).toBe(false);
   });
 

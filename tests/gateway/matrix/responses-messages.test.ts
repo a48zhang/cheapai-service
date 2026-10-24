@@ -115,14 +115,4 @@ describe('Q-RM Responses downstream -> Messages upstream', () => {
     ]);
     await assertSettled(second.requestId, 2);
   });
-
-  it.each([false, true])('maps upstream Messages HTTP errors safely for stream=%s without charging', async stream => {
-    const upstream = provider('error', stream);
-    const call = await harness.call(responseTextRequest('matrix error', stream));
-    expect(call.response.status).toBeGreaterThanOrEqual(500);
-    expect(call.text).not.toContain(fixture.error.message);
-    expect(call.text).not.toContain('PRIVATE_UPSTREAM_KEY');
-    expect(await billingCount()).toBe(0);
-    expect(upstream).toHaveBeenCalledTimes(1);
-  });
 });

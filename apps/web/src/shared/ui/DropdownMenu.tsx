@@ -56,7 +56,7 @@ export function DropdownMenu({
           align={align}
           side={side}
           sideOffset={6}
-          className={`z-[60] min-w-48 overflow-hidden rounded-lg border p-1 shadow-[var(--shadow-md)] outline-none ${className ?? ''}`}
+          className={`z-[60] min-w-48 overflow-hidden rounded-md border p-1 shadow-[var(--shadow-md)] outline-none ${className ?? ''}`}
           style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
         >
           {items.map((item, index) => {
@@ -76,7 +76,7 @@ export function DropdownMenu({
                 asChild={!!item.to}
                 {...(item.onSelect ? { onSelect: item.onSelect } : {})}
                 disabled={item.disabled ?? false}
-                className={`flex min-h-10 cursor-pointer select-none items-center justify-between gap-5 rounded px-3 py-2 text-[15px] leading-6 outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-45 data-[highlighted]:bg-[var(--color-muted)] ${item.destructive ? 'text-[var(--color-destructive)] data-[highlighted]:bg-[var(--color-destructive-soft)]' : 'text-[var(--color-foreground)]'}`}
+                className={`flex min-h-8 cursor-pointer select-none items-center justify-between gap-5 rounded px-2 py-1.5 text-sm leading-6 outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-45 data-[highlighted]:bg-[var(--color-muted)] ${item.destructive ? 'text-[var(--color-destructive)] data-[highlighted]:bg-[var(--color-destructive-soft)]' : 'text-[var(--color-foreground)]'}`}
               >
                 {item.to ? (
                   <Link to={item.to}>{item.label}</Link>

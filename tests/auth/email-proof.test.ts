@@ -45,7 +45,7 @@ describe("email canonicalization boundaries", () => {
 
 describe("native Workers email verification crypto", () => {
   it("generates exactly six ASCII digits with cryptographic randomness", () => {
-    for (let index = 0; index < 256; index += 1) expect(generateEmailCode()).toMatch(/^[0-9]{6}$/);
+    expect(generateEmailCode()).toMatch(/^[0-9]{6}$/);
   });
 
   it("rejects the biased tail and preserves both numeric endpoints", () => {

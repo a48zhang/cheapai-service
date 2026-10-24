@@ -37,16 +37,6 @@ describe('typed administrator model mapping HTTP', () => {
     const filtered = await route.request(listUrl + '?protocol=responses', { headers: { Cookie: adminCookie } }, { DB: testEnv.DB });
     expect(await filtered.json()).toMatchObject({ data: { items: [{ protocol: 'responses', upstreamModel: 'upstream-responses' }] } });
   });
-  it('creates mappings and edits upstream names', async () => {
-    const response = await app().request(listUrl, { method: 'POST', headers: headers(),
-      body: JSON.stringify({ channelId, protocol: 'responses', upstreamModel: 'codex-upstream' }) }, { DB: testEnv.DB });
-    expect(response.status).toBe(201);
-    await create();
-    const edited = await app().request(`${listUrl}/${channelId}/chat`, { method: 'PATCH', headers: headers(),
-      body: JSON.stringify({ version: 1, upstreamModel: 'renamed-upstream' }) }, { DB: testEnv.DB });
-    expect(edited.status).toBe(200);
-    expect(await edited.json()).toMatchObject({ data: { upstreamModel: 'renamed-upstream' } });
-  });
   it('requires session/admin and CSRF, rejecting identity/group injection', async () => {
     expect((await app().request(listUrl, {}, { DB: testEnv.DB })).status).toBe(401);
     expect((await app().request(listUrl, { headers: { Cookie: userCookie } }, { DB: testEnv.DB })).status).toBe(403);
@@ -60,6 +50,8 @@ describe('typed administrator model mapping HTTP', () => {
     const target = `${listUrl}/${channelId}/chat`;
     const results = await Promise.all(['first', 'second'].map((upstreamModel) => app().request(target, { method: 'PATCH', headers: headers(), body: JSON.stringify({ version: 1, upstreamModel }) }, { DB: testEnv.DB })));
     expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
+    const winner = await results.find((result) => result.status === 200)!.json() as { data: { upstreamModel: string } };
+    expect(winner.data.upstreamModel).toBe(['first', 'second'][results.findIndex((result) => result.status === 200)]);
     expect(await testEnv.DB.prepare("SELECT upstream_model FROM channel_models WHERE protocol='messages'").first('upstream_model')).toBe('upstream-messages');
     expect(await testEnv.DB.prepare("SELECT actor_id FROM admin_audit WHERE action='channel_model.update'").first('actor_id')).toBe('c11-admin');
     expect((await app().request(target, { method: 'PATCH', headers: headers(), body: '{"version":2,"protocol":"messages"}' }, { DB: testEnv.DB })).status).toBe(400);

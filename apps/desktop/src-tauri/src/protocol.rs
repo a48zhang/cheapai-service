@@ -375,73 +375,16 @@ fn validate_private_connection(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{
-        collections::VecDeque,
-        pin::Pin,
-        task::{Context, Poll},
-    };
-    use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader, ReadBuf};
-
-    struct ChunkedInput {
-        chunks: VecDeque<Vec<u8>>,
-        offset: usize,
-    }
-
-    impl AsyncRead for ChunkedInput {
-        fn poll_read(
-            self: Pin<&mut Self>,
-            _context: &mut Context<'_>,
-            output: &mut ReadBuf<'_>,
-        ) -> Poll<std::io::Result<()>> {
-            let input = self.get_mut();
-            loop {
-                let Some(chunk_length) = input.chunks.front().map(Vec::len) else {
-                    return Poll::Ready(Ok(()));
-                };
-                if input.offset == chunk_length {
-                    input.chunks.pop_front();
-                    input.offset = 0;
-                    continue;
-                }
-                let start = input.offset;
-                let remaining = chunk_length - start;
-                let amount = remaining.min(output.remaining());
-                if amount == 0 {
-                    return Poll::Ready(Ok(()));
-                }
-                {
-                    let chunk = input.chunks.front().expect("chunk length was present");
-                    output.put_slice(&chunk[start..start + amount]);
-                }
-                input.offset += amount;
-                return Poll::Ready(Ok(()));
-            }
-        }
-    }
-
     #[test]
-    fn decodes_control_message_split_across_input_chunks() {
-        let input = ChunkedInput {
-            chunks: VecDeque::from(vec![
-                br#"{"type":"runtime."#.to_vec(),
-                br#"event","event":"bootstrapped","source":"sidecar","runtime":"bun"}"#.to_vec(),
-                b"\n".to_vec(),
-            ]),
-            offset: 0,
-        };
-
-        tauri::async_runtime::block_on(async {
-            let mut reader = BufReader::new(input);
-            let mut line = String::new();
-            reader.read_line(&mut line).await.expect("read control line");
-            match decode_runtime_message(line.trim_end()).expect("decode full line") {
-                RuntimeMessage::Event(RuntimeEvent::Bootstrapped { source, runtime }) => {
-                    assert_eq!(source, "sidecar");
-                    assert_eq!(runtime, "bun");
-                }
-                _ => panic!("unexpected decoded control message"),
+    fn decodes_bootstrapped_control_message() {
+        let line = r#"{"type":"runtime.event","event":"bootstrapped","source":"sidecar","runtime":"bun"}"#;
+        match decode_runtime_message(line).expect("decode control message") {
+            RuntimeMessage::Event(RuntimeEvent::Bootstrapped { source, runtime }) => {
+                assert_eq!(source, "sidecar");
+                assert_eq!(runtime, "bun");
             }
-        });
+            _ => panic!("unexpected decoded control message"),
+        }
     }
 
     #[test]

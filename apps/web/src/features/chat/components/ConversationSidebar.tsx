@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { PanelLeftClose, Plus } from 'lucide-react';
+import { NavLink } from 'react-router-dom';
+import { BrandLink } from '../../../shared/ui/BrandLink';
+import { PanelLeftClose, Plus, MessageSquare, KeyRound, ReceiptText, Activity } from 'lucide-react';
 import type { Conversation } from '@cheapai/api-client/chat';
 import { Button } from '../../../shared/ui/Button';
 import { ConversationRow } from './ConversationRow';
@@ -72,10 +74,10 @@ export function ConversationSidebar({
     <aside
       aria-label="聊天记录"
       data-mobile-open={mobileOpen ? 'true' : undefined}
-      className={`chat-sidebar fixed inset-y-14 left-0 z-40 flex w-[min(86vw,18rem)] -translate-x-full flex-col border-r border-[var(--color-line)] bg-[var(--color-surface-subtle)] shadow-[var(--shadow-md)] transition-transform md:static md:z-auto md:w-60 md:translate-x-0 md:shadow-none ${mobileOpen ? 'translate-x-0' : ''}`}
+      className="chat-sidebar flex h-full w-full flex-col border-r border-[var(--color-line)] bg-[var(--color-surface-subtle)]"
     >
       <header className="flex h-14 shrink-0 items-center justify-between px-5">
-        <h2 className="text-sm font-semibold text-[var(--color-ink)]">最近对话</h2>
+        <BrandLink className="text-base font-semibold" />
         <Button
           aria-label="关闭聊天记录"
           className="md:hidden"
@@ -94,6 +96,27 @@ export function ConversationSidebar({
         </Button>
       </div>
 
+      <nav aria-label="个人导航" className="space-y-1 px-2 pb-6">
+        {[
+          { to: '/chat', label: '对话', icon: MessageSquare },
+          { to: '/keys', label: 'API 接入', icon: KeyRound },
+          { to: '/billing', label: '费用', icon: ReceiptText },
+          { to: '/requests', label: '请求记录', icon: Activity },
+        ].map(({ to, label, icon: Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            onClick={onClose}
+            className={({ isActive }) =>
+              `flex h-9 items-center gap-2 rounded-md px-2 text-sm hover:bg-[var(--color-surface-hover)] ${isActive ? 'bg-[var(--color-surface-hover)] font-medium' : ''}`
+            }
+          >
+            <Icon size={16} aria-hidden="true" />
+            {label}
+          </NavLink>
+        ))}
+      </nav>
+      <h2 className="px-4 pb-2 text-xs font-medium text-[var(--color-ink-muted)]">最近对话</h2>
       {loading && conversations.length === 0 && !error ? (
         <p className="px-5 py-4 text-sm text-[var(--color-ink-muted)]" role="status">
           正在读取对话…

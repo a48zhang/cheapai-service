@@ -93,18 +93,30 @@ describe('G19 four native /v1 entries through the Worker', () => {
   });
 
   it('keeps authentication native and does not turn unsupported/missing routes into SPA HTML', async () => {
-    for (const [path, method] of [['/v1/chat/completions', 'POST'], ['/v1/responses', 'POST'], ['/v1/messages', 'POST']] as const) {
-      const result = await call(path, { method, headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const fetcher = vi.fn();
+    vi.stubGlobal('fetch', fetcher);
+    for (const protocol of protocols) {
+      const path = protocol === 'chat' ? '/v1/chat/completions' : `/v1/${protocol}`;
+      const result = await call(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       expect(result.response.status).toBe(401); expect(result.response.headers.get('Content-Type')).toMatch(/application\/json/);
       expect(JSON.parse(result.text)).toHaveProperty('error'); expect(result.text).not.toContain('<!doctype');
+      expect(result.response.headers.get('Cache-Control')).toBe('no-store');
+      const headers = { 'Content-Type': 'application/json', ...(protocol === 'messages' ? { 'x-api-key': token } : { Authorization: `Bearer ${token}` }) };
+      const malformed = await call(path, { method: 'POST', headers, body: '{}' });
+      expect(malformed.response.status).toBe(400);
+      expect(JSON.parse(malformed.text)).toHaveProperty('error');
+      expect(malformed.response.headers.get('Cache-Control')).toBe('no-store');
+      const methodMismatch = await call(path, { method: 'GET' });
+      expect(methodMismatch.response.status).toBe(404);
+      expect(JSON.parse(methodMismatch.text)).toHaveProperty('error');
+      expect(methodMismatch.response.headers.get('Cache-Control')).toBe('no-store');
     }
     const models = await call('/v1/models');
     expect(models.response.status).toBe(401); expect(JSON.parse(models.text)).toHaveProperty('error');
-    const methodMismatch = await call('/v1/chat/completions', { method: 'GET' });
-    expect(methodMismatch.response.status).toBe(404); expect(JSON.parse(methodMismatch.text)).toHaveProperty('error');
     const unknown = await call('/v1/unknown');
     expect(unknown.response.status).toBe(404); expect(unknown.response.headers.get('Content-Type')).toMatch(/application\/json/);
     expect(unknown.text).not.toContain('<!doctype');
+    expect(fetcher).not.toHaveBeenCalled();
   });
 
   it('keeps streaming on the native chat entry and attaches completion to the Worker context', async () => {
