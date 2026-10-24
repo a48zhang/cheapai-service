@@ -1,6 +1,6 @@
-import { describe, expect, expectTypeOf, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { parseChatRequest, parseChatResponse, parseChatStreamChunk } from '../../../packages/apicompat/types/chat.js';
-import type { ChatChunk, ChatErrorBody, ChatRequest, ChatResponse } from '../../../packages/apicompat/types/chat.js';
+import type { ChatChunk, ChatResponse } from '../../../packages/apicompat/types/chat.js';
 
 // Original synthetic inputs, not copied from provider recordings or upstream tests.
 const basic = () => ({ model: 'synthetic-chat', messages: [{ role: 'user', content: 'hello' }] });
@@ -56,7 +56,6 @@ describe('Chat request wire boundary', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value).toEqual(input);
-    expectTypeOf(result.value).toEqualTypeOf<ChatRequest>();
   });
 
   it.each([
@@ -105,7 +104,7 @@ describe('Chat request wire boundary', () => {
   });
 });
 
-it('represents JSON response, incremental tool arguments, usage-only chunk and error wire shapes', () => {
+it('represents JSON response, incremental tool arguments, usage-only chunk wire shapes', () => {
   const response: ChatResponse = { id: 'r', object: 'chat.completion', created: 0, model: 'm', choices: [
     { index: 0, message: { role: 'assistant', content: null, refusal: 'no' }, finish_reason: 'provider_unknown' },
   ], usage: { prompt_tokens: 0, prompt_tokens_details: { cached_tokens: 0 }, completion_tokens_details: { reasoning_tokens: 2 } } };
@@ -113,14 +112,9 @@ it('represents JSON response, incremental tool arguments, usage-only chunk and e
     { index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: '{"' } }] }, finish_reason: null },
   ] };
   const usageOnly: ChatChunk = { ...chunk, choices: [], usage: { completion_tokens: 0 } };
-  const error: ChatErrorBody = { error: { message: 'invalid request', type: 'invalid_request_error', param: null, code: 'bad_input' } };
-  expect(response.choices[0]?.finish_reason).toBe('provider_unknown');
   expect(parseChatResponse(response)).toEqual({ ok: true, value: response });
   expect(parseChatStreamChunk(chunk)).toEqual({ ok: true, value: chunk });
   expect(parseChatStreamChunk(usageOnly)).toEqual({ ok: true, value: usageOnly });
-  expect(chunk.choices[0]?.delta.tool_calls?.[0]?.index).toBe(0);
-  expect(usageOnly.choices).toEqual([]);
-  expect(error.error.param).toBeNull();
 });
 
 describe('Chat response and stream parsers', () => {

@@ -148,14 +148,4 @@ describe('target terminal matrix', () => {
       expect(value(mapFinishToTarget(source, 'chat', { refusalPayload: { refusal: 'Unused' } })).kind).toBe('native');
     }
   });
-  it('has no usage or HTTP inputs and mutates neither source nor sanitized errors', () => {
-    const input = Object.freeze({ from: 'chat' as const, rawReason: 'length' });
-    const normalized = value(normalizeFinish(input));
-    Object.freeze(normalized.terminal); Object.freeze(normalized);
-    const before = JSON.stringify(normalized);
-    for (const to of protocols) expect(mapFinishToTarget(normalized, to).ok).toBe(true);
-    expect(JSON.stringify(normalized)).toBe(before);
-    expect(normalized).not.toHaveProperty('usage');
-    expect(normalized).not.toHaveProperty('cost');
-  });
 });

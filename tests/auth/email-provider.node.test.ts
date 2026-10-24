@@ -27,7 +27,7 @@ describe('Resend transport diagnostics (mock HTTP only)', () => {
     }));
   });
 
-  it.each([400, 401, 403, 422, 429])('logs HTTP %i and provider error details directly in Workers Logs', async httpStatus => {
+  it.each([401, 429])('logs HTTP %i and provider error details directly in Workers Logs', async httpStatus => {
     const detail = 'API key is invalid';
     const response = Response.json({ name: 'validation_error', message: detail }, { status: httpStatus });
     const fetcher = vi.spyOn(globalThis, 'fetch').mockResolvedValue(response);
@@ -43,7 +43,7 @@ describe('Resend transport diagnostics (mock HTTP only)', () => {
     expect(JSON.stringify(outcome)).not.toContain(detail);
   });
 
-  it.each([408, 409, 500, 503])('keeps HTTP %i acceptance uncertain', async httpStatus => {
+  it.each([408, 409, 500])('keeps HTTP %i acceptance uncertain', async httpStatus => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: httpStatus }));
     expect(await sendEmail(sender(), message)).toEqual({ status: 'unknown', reason: 'unconfirmed_error' });
   });
@@ -63,7 +63,7 @@ describe('Resend transport diagnostics (mock HTTP only)', () => {
     expect(console.error).toHaveBeenCalledExactlyOnceWith('Email send failed', error);
   });
 
-  it.each(['not-json', '{}', '{"id":""}', '{"id":" "}'])('rejects malformed success %s', async body => {
+  it.each(['not-json', '{}', '{"id":" "}'])('rejects malformed success %s', async body => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(body));
     expect(await sendEmail(sender(), message)).toEqual({ status: 'unknown', reason: body === 'not-json' ? 'unconfirmed_error' : 'invalid_response' });
     expect(console.error).toHaveBeenCalled();

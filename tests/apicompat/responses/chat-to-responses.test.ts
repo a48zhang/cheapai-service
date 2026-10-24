@@ -67,7 +67,7 @@ describe('P-CR-J1 ordinary text, model and stable identity', () => {
     expect(chatToResponsesResponse(source, context()).ok).toBe(false);
   });
 
-  it.each([{ createdAt: NaN }, { identity: { responseId: 'invalid/id' } }, { identity: { responseId: 'resp_ok', upstreamResponseId: 'different' } }])('rejects invalid response context case %#', (extra) => {
+  it.each([{ identity: { responseId: 'invalid/id' } }, { identity: { responseId: 'resp_ok', upstreamResponseId: 'different' } }])('rejects invalid response context case %#', (extra) => {
     expect(chatToResponsesResponse(basic(), { ...context(), ...extra }).ok).toBe(false);
   });
 

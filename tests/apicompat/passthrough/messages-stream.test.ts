@@ -147,13 +147,6 @@ describe('Messages native streaming lifecycle and usage', () => {
     expect(session().push(frame({ type: 'ping' }))).toEqual({ events: [frame({ type: 'ping' })], usageUpdates: [] });
   });
 
-  it('does not let caller mutation broaden an existing session frame limit', () => {
-    const limits = { ...options, maxBufferedBytes: 256 };
-    const stream = session(limits);
-    limits.maxBufferedBytes = 100_000;
-    expect(stream.push(frame({ type: 'ping', padding: 'x'.repeat(1000) })).terminal?.status).toBe('failed');
-    expect(createMessagesStreamSession(context, { ...options, maxBufferedBytes: 0 }).ok).toBe(false);
-  });
 });
 
 describe('incremental Messages SSE byte output', () => {

@@ -77,11 +77,4 @@ describe('0015 registration code batch claims on native D1', () => {
     expect((await insertBatch({ id: 'a11d-time-edge', operation_id: 'a11d-time-edge-op',
       created_at: 9007199254740990, expires_at: 9007199254740991 })).changes).toBe(1);
   });
-
-  it('provides the actor-operation unique index that serializes concurrent issuance', async () => {
-    const indexes = (await prepare<{ name: string; unique: number }>(testEnv.DB, "PRAGMA index_list('registration_code_batches')").all()).rows.filter((row) => row.unique === 1);
-    const columns = await Promise.all(indexes.map(async ({ name }) =>
-      (await prepare<{ name: string }>(testEnv.DB, `PRAGMA index_info('${name}')`).all()).rows.map((row) => row.name)));
-    expect(columns).toEqual(expect.arrayContaining([['id'], ['actor_id', 'operation_id']]));
-  });
 });

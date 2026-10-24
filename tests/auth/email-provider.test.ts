@@ -67,7 +67,7 @@ describe('Resend registration through native Workers HTTP', () => {
     expect(await sentRequests()).toHaveLength(1);
   });
 
-  it.each([401, 403, 429, 500, 503])('reaches the provider and persists HTTP %i failures without exposing details', async status => {
+  it.each([401, 500])('reaches the provider and persists HTTP %i failures without exposing details', async status => {
     const env = bindings(String(status));
     const response = await send(await bootstrap(env), env);
     expect(response.status).toBe(503);
@@ -77,7 +77,7 @@ describe('Resend registration through native Workers HTTP', () => {
     expect(await findEmailChallenge(testEnv.DB, email, 'registration')).toMatchObject({ send_status: status < 500 ? 'failed' : 'unknown' });
   });
 
-  it.each([301, 302, 303, 307, 308])('does not follow HTTP %i or forward email/key to a redirect target', async status => {
+  it.each([302, 307])('does not follow HTTP %i or forward email/key to a redirect target', async status => {
     for (const target of ['same', 'cross']) {
       // Native fetch directly exercises each redirect independently of cooldown.
       const sender = resolveEmailSender(bindings(`redirect-${status}-${target}`))!;

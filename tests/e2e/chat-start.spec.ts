@@ -133,7 +133,7 @@ for (const viewport of [
 ]) {
   test(`home to first answer retains content and composer position at width ${viewport.width}`, async ({
     page,
-  }, testInfo) => {
+  }) => {
     await page.setViewportSize(viewport);
     const api = await fixture(page);
     await page.goto('/');
@@ -175,7 +175,6 @@ for (const viewport of [
     await expect(input).toHaveValue('');
     await input.fill('下一条草稿');
     const inputTop = await input.evaluate((element) => element.getBoundingClientRect().top);
-    await page.screenshot({ path: testInfo.outputPath('creating.png') });
     api.create.release();
     await expect(page).toHaveURL(/\/chat\/start-conversation$/);
     await expect(log.getByRole('article', { name: '待确认的消息' })).toContainText('第一条问题');
@@ -194,7 +193,6 @@ for (const viewport of [
       inputTop,
       0,
     );
-    await page.screenshot({ path: testInfo.outputPath('completed.png') });
     expect(
       await page.evaluate(
         () => (window as unknown as { chatStartViolations: string[] }).chatStartViolations,

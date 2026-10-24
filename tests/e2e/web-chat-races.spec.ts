@@ -104,6 +104,10 @@ test('coalesces rapid sends while the initial conversation create is delayed', a
     });
     const textbox = fixture.page.getByRole('textbox', { name: '消息内容', exact: true });
     await textbox.fill('rapid create race');
+    await fixture.page.getByRole('button', { name: '发送', exact: true }).evaluate(button => {
+      (button as HTMLButtonElement).click();
+      (button as HTMLButtonElement).click();
+    });
     await textbox.press('Enter');
     await textbox.press('Enter');
     await expect.poll(() => createRequests).toBe(1);

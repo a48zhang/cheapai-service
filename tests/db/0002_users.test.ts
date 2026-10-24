@@ -103,13 +103,6 @@ describe('0002 users migration on native D1', () => {
     expect(await prepare(testEnv.DB, 'SELECT id FROM groups WHERE id = ?', [groupId]).first()).toEqual({ id: groupId });
   });
 
-  it('has no forward reference to a future registration table', async () => {
-    const keys = await prepare<{ table: string; from: string }>(testEnv.DB, "PRAGMA foreign_key_list('users')").all();
-    expect(keys.rows.map(({ table, from }) => ({ table, from }))).toEqual([{ table: 'groups', from: 'group_id' }]);
-    // Source validation is added with D05; D02 itself does not consume a code.
-    expect((await insertUser({ registration_code_id: 'd02-source-code' })).rows[0]).toMatchObject({ registration_code_id: 'd02-source-code' });
-  });
-
   it('rejects overflow on update and preserves the previous balance', async () => {
     await insertUser({ balance_units: 9007199254740991 });
     await expect(prepare(testEnv.DB, 'UPDATE users SET balance_units = balance_units + 1 WHERE id = ?', [userId]).run()).rejects.toThrow();

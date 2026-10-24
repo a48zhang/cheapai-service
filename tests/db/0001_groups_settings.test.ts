@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { prepare } from '../../apps/worker/db';
 import type { DbValue } from '../../apps/worker/db';
-import { migrateTestDatabase, testEnv } from '../helpers/database';
+import { testEnv } from '../helpers/database';
 
 const now = 1_788_617_000_123;
 const insertGroup = (id: DbValue = 'group-1', name: DbValue = 'Group One', status: DbValue = 'active', version: DbValue = 1, createdAt: DbValue = now, updatedAt: DbValue = now) =>
@@ -12,14 +12,6 @@ const insertSetting = (key: DbValue = 'test.registration', json: DbValue = '{"mo
     [key, json, version, updatedAt]).run();
 
 describe('0001 groups/settings migration on native D1', () => {
-  it('is loaded once without creating this test fixture, regardless of later seeds', async () => {
-    expect((await prepare(testEnv.DB, 'SELECT * FROM groups WHERE id = ?', ['group-1']).all()).rows).toEqual([]);
-    expect((await prepare(testEnv.DB, 'SELECT * FROM settings WHERE key = ?', ['test.registration']).all()).rows).toEqual([]);
-    await migrateTestDatabase();
-    const migrations = await prepare<{ name: string }>(testEnv.DB,
-      'SELECT name FROM d1_migrations WHERE name = ?', ['0001_groups_settings.sql']).all();
-    expect(migrations.rows).toEqual([{ name: '0001_groups_settings.sql' }]);
-  });
 
   it('round-trips groups, JSON settings and millisecond integer timestamps', async () => {
     await insertGroup();

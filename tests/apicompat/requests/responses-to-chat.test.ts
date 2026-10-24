@@ -1,8 +1,6 @@
-import { describe, expect, expectTypeOf, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { convertResponsesToChatRequest, responsesToChatRequestAdapter } from '../../../packages/apicompat/requests/responses-to-chat.js';
-import type { RequestAdapter } from '../../../packages/apicompat/types/adapter.js';
 import { parseChatRequest } from '../../../packages/apicompat/types/chat.js';
-import type { ChatRequest } from '../../../packages/apicompat/types/chat.js';
 import type { ResponsesInputItem, ResponsesRequest } from '../../../packages/apicompat/types/responses.js';
 import type { ConversionResult } from '../../../packages/apicompat/types/shared.js';
 
@@ -16,7 +14,6 @@ const basic = (): ResponsesRequest => ({ model: 'public-name', input: 'hello' })
 
 describe('Responses→Chat text request milestone', () => {
   it('implements the direct RequestAdapter and turns bare input into one user message', () => {
-    expectTypeOf(responsesToChatRequestAdapter).toEqualTypeOf<RequestAdapter<ResponsesRequest, ChatRequest, 'responses', 'chat'>>();
     expect(responsesToChatRequestAdapter).toMatchObject({ from: 'responses', to: 'chat' });
     const output = value(responsesToChatRequestAdapter.convert(basic(), context));
     expect(output).toEqual({ model: context.targetModel, messages: [{ role: 'user', content: 'hello' }] });

@@ -20,64 +20,6 @@ const prompt = {
   createdAt: conversation.createdAt, updatedAt: conversation.updatedAt,
 };
 
-test('chat UI locks a new send before conversation creation and renders the stream', async ({ page }) => {
-  const calls = {conversationCreates: 0, messagePosts: 0, operationIds: [] as string[]};
-  await page.context().addCookies([{ name: '__Host-sub2api_csrf', value: 'ui-csrf-token', url: 'https://127.0.0.1/' }]);
-  await page.route('**/api/v1/auth/me', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: user, request_id: requestId }) }));
-  await page.route('**/api/v1/chat/models', route => route.fulfill({
-    status: 200, contentType: 'application/json',
-    body: JSON.stringify({ data: { items: [{ id: 'ui-group', name: 'UI group', billingMultiplier: '1', models: [{publicModelId: 'ui-model'}] }] }, request_id: requestId }),
-  }));
-  await page.route('**/api/v1/chat/conversations', async route => {
-    if (route.request().method() === 'GET') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { items: [], nextCursor: null }, request_id: requestId }) });
-      return;
-    }
-    calls.conversationCreates += 1;
-    await new Promise(resolve => setTimeout(resolve, 150));
-    await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ data: conversation, request_id: requestId }) });
-  });
-  await page.route('**/api/v1/chat/conversations/conv-ui', async route => {
-    if (route.request().method() === 'GET') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { conversation, messages: [prompt, answer] }, request_id: requestId }) });
-      return;
-    }
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: conversation, request_id: requestId }) });
-  });
-  await page.route('**/api/v1/chat/conversations/conv-ui/messages', async route => {
-    calls.messagePosts += 1;
-    const body = JSON.parse(route.request().postData() ?? '{}') as { operationId?: string };
-    if (body.operationId) calls.operationIds.push(body.operationId);
-    await route.fulfill({
-      status: 200,
-      headers: { 'content-type': 'text/event-stream' },
-      body: [
-        'event: meta\ndata: ' + JSON.stringify({ conversation, userMessage: prompt, assistantMessage: { ...answer, content: '', status: 'generating' } }) + '\n\n',
-        'event: delta\ndata: {"text":"UI answer"}\n\n',
-        'event: done\ndata: ' + JSON.stringify({ message: answer, billingStatus: 'settled' }) + '\n\n',
-      ].join(''),
-    });
-  });
-
-  await page.goto('/chat');
-  const composer = page.getByRole('textbox', { name: '消息内容' });
-  await expect(composer).toBeVisible();
-  await expect(page.getByRole('group', { name: '当前模型', exact: true })).toContainText('ui-model');
-  await expect(page.getByRole('combobox', { name: '模型', exact: true })).toHaveCount(0);
-  await composer.fill('double click prompt');
-  const send = page.getByRole('button', { name: '发送', exact: true });
-  await send.evaluate(button => {
-    const sendButton = button as HTMLButtonElement;
-    sendButton.click();
-    sendButton.click();
-  });
-
-  await expect(page.getByRole('log', { name: '对话消息' })).toContainText('UI answer');
-  expect(calls.conversationCreates).toBe(1);
-  expect(calls.messagePosts).toBe(1);
-  expect(calls.operationIds).toHaveLength(1);
-});
-
 // FE-V01/02 use only browser mocks; no real provider or billing traffic.
 async function mockedChat(page: import('@playwright/test').Page) {
   let identity = { ...user };

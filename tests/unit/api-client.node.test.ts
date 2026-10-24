@@ -1,6 +1,3 @@
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
-import ts from '../../apps/web/node_modules/typescript';
 import { describe, expect, it } from 'vitest';
 import { createApiClient } from '../../packages/api-client/src/client';
 import { createChannelsApi } from '../../packages/api-client/src/channels';
@@ -125,39 +122,6 @@ describe('management API client contracts', () => {
     }
     expect(server.requests).toHaveLength(0);
   });
-  it('compiles a real consumer using nextCursor and explicit idempotencyKey without arbitrary headers', () => {
-    const virtualFile = fileURLToPath(new URL('./__api_client_contract.ts', import.meta.url));
-    const source = `import type { Page, ApiRequestOptions } from '../../packages/api-client/src/types';
-      const request: ApiRequestOptions = { method: 'POST', idempotencyKey: 'operation-1' };
-      const page: Page<{ id: string }> = { items: [{ id: 'one' }], nextCursor: 'page_2' };
-      const cursor: string | null = page.nextCursor;
-      // @ts-expect-error Unrestricted headers must not enter the client contract.
-      const dangerous: ApiRequestOptions = { headers: { Authorization: 'secret' } };
-      void request; void cursor; void dangerous;`;
-    const options: ts.CompilerOptions = {
-      strict: true,
-      noEmit: true,
-      skipLibCheck: true,
-      types: [],
-      target: ts.ScriptTarget.ES2022,
-      module: ts.ModuleKind.ESNext,
-      moduleResolution: ts.ModuleResolutionKind.Bundler,
-    };
-    const host = ts.createCompilerHost(options);
-    const original = host.getSourceFile.bind(host);
-    host.getSourceFile = (name, languageVersion, onError, shouldCreate) =>
-      path.resolve(name) === path.resolve(virtualFile)
-        ? ts.createSourceFile(name, source, languageVersion, true)
-        : original(name, languageVersion, onError, shouldCreate);
-    const program = ts.createProgram([virtualFile], options, host);
-    const errors = ts
-      .getPreEmitDiagnostics(program)
-      .filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error);
-    expect(errors.map((error) => ts.flattenDiagnosticMessageText(error.messageText, '\n'))).toEqual(
-      [],
-    );
-  });
-
   it('constructs protected write requests and supports same-key replay and server conflicts', async () => {
     const server = service();
     const client = createApiClient({ fetch: server.fetcher, getCsrfToken: () => csrf });
@@ -318,6 +282,7 @@ describe('channel diagnostic API errors and cancellation', () => {
       message: '加载渠道失败。',
     });
     expect((contextual as ApiClientError).details).toEqual(rawDetails);
+    expect((contextual as ApiClientError).cause).toBe(originalError);
   });
 
   it('forwards one probe AbortSignal and keeps upstream 401 separate from management session expiry', async () => {

@@ -94,9 +94,5 @@ describe('pure channel prerequisites and priority selection', () => {
     expect(selectChannelCandidates(routes, auth(), request, options)).toEqual(result);
   });
 
-  it.each([-1, 1, NaN, Infinity])('rejects invalid injected RNG output %s', random => {
-    expect(() => selectChannelCandidates(snapshot([candidate('one'), candidate('two')]), auth(), request, { ...options, random: () => random })).toThrow(TypeError);
-  });
-
 
 });

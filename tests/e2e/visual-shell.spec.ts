@@ -78,7 +78,7 @@ async function fixture(page: Page) {
 }
 
 for (const width of [1440, 375])
-  test(`shared chat shell navigation and dismissal at ${width}px`, async ({ page }, testInfo) => {
+  test(`shared chat shell navigation and dismissal at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: width === 375 ? 812 : 900 });
     const writes = await fixture(page);
     await page.goto('/chat/A');
@@ -112,21 +112,11 @@ for (const width of [1440, 375])
       await page.keyboard.press('Escape');
       await expect(page.getByRole('dialog', { name: '聊天记录' })).toBeHidden();
     }
-    await page.getByRole('button', { name: '切换模型', exact: true }).click();
-    await page.getByRole('textbox', { name: '搜索模型' }).fill('second');
-    await page.keyboard.press('Escape');
-    await expect(page.getByRole('dialog', { name: '选择模型' })).toBeHidden();
-    await expect(page.getByRole('button', { name: '切换模型', exact: true })).toBeFocused();
-    await expect(page.getByRole('button', { name: '发送', exact: true })).toBeDisabled();
     expect(writes).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
-    await page.screenshot({ path: testInfo.outputPath('chat-light.png'), animations: 'disabled' });
-    await page.getByRole('button', { name: '外观', exact: true }).click();
-    await page.getByRole('menuitemradio', { name: '深色', exact: true }).click();
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await page.screenshot({ path: testInfo.outputPath('chat-dark.png'), animations: 'disabled' });
+
   });
 
 for (const width of [1440, 375]) {

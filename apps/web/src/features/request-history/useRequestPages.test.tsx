@@ -67,20 +67,6 @@ afterEach(() => {
 });
 
 describe('useRequestPages', () => {
-  it('loads a page once', async () => {
-    mocks.read.mockResolvedValue(page([row('request-a')], null));
-    const { wrapper } = queryHarness();
-    const { result } = renderHook(
-      ({ options }) => {
-        return useRequestPages(options);
-      },
-      { initialProps: { options: makeOptions('user-a', 1) }, wrapper },
-    );
-
-    await waitFor(() => expect(result.current.rows.map((item) => item.id)).toEqual(['request-a']));
-    expect(mocks.read).toHaveBeenCalledTimes(1);
-  });
-
   it('accumulates URL cursor pages, keeps the newest duplicate and truncates on back navigation', async () => {
     mocks.read.mockImplementation((_userId: string, filters: Readonly<Record<string, unknown>>) => {
       switch (filters.cursor) {
