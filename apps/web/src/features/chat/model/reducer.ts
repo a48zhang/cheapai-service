@@ -8,7 +8,8 @@ import {
 import type { ChatEvent, ChatFailure, ChatState } from './state';
 
 export function chatReducer(state: ChatState = initialChatState, event: ChatEvent): ChatState {
-  if (event.type === 'reset') return initialChatState;
+  if (event.type === 'reset')
+    return event.keepUnsent ? { ...initialChatState, unsent: state.unsent } : initialChatState;
   if (event.type === 'hydrate') {
     return { ...initialChatState, detail: event.detail };
   }
@@ -30,6 +31,7 @@ export function chatReducer(state: ChatState = initialChatState, event: ChatEven
       billingStatus: null,
       failure: null,
       submission: event.submission ?? null,
+      unsent: state.unsent.filter((item) => item.operationId !== event.retrySubmissionId),
     };
   }
 
@@ -112,7 +114,11 @@ export function chatReducer(state: ChatState = initialChatState, event: ChatEven
         streamText: '',
         billingStatus: null,
         failure,
-        submission: event.keepSubmission ? state.submission : null,
+        submission: null,
+        unsent:
+          event.keepSubmission && state.submission
+            ? [...state.unsent, state.submission]
+            : state.unsent,
       };
     }
     case 'failed':
@@ -124,6 +130,11 @@ export function chatReducer(state: ChatState = initialChatState, event: ChatEven
         streamMessageId: null,
         streamText: '',
         failure: event.failure,
+        unsent:
+          state.submission && !state.submission.userMessageId
+            ? [...state.unsent, state.submission]
+            : state.unsent,
+        submission: null,
       };
     case 'interrupted':
       return {

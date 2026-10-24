@@ -39,6 +39,7 @@ export interface ChatSendCommand {
   readonly content: string;
   readonly groupId: string;
   readonly modelId: string;
+  readonly retrySubmissionId?: string;
 }
 
 export type ChatRegenerateCommand = RegenerateCommand;
@@ -429,7 +430,8 @@ export function createChatController(options: ChatControllerOptions) {
     return settled;
   }
 
-  function send(command: ChatSendCommand): Promise<ChatCommandResult> {
+  // Clear the caller’s draft only after validation and ownership checks accept this command.
+  function send(command: ChatSendCommand, onAccepted?: () => void): Promise<ChatCommandResult> {
     if (disposed) return Promise.resolve('disposed');
     if (activeRun) return Promise.resolve('busy');
     if (state.failure?.code === 'conversation_creation_unknown')
@@ -452,7 +454,7 @@ export function createChatController(options: ChatControllerOptions) {
       return Promise.resolve(canRetryOperation(pending) ? 'interrupted' : 'busy');
     }
     const commandId = options.idFactory?.() ?? createChatOperationId();
-    if (!operationIdentifier.test(commandId)) {
+    if (!validSendCommand(command, commandId)) {
       return Promise.resolve('rejected');
     }
     const run = makeRun(owner, commandId, 'send');
@@ -464,7 +466,9 @@ export function createChatController(options: ChatControllerOptions) {
       operationKind: 'send',
       needsConversation,
       submission: { operationId: commandId, content: command.content, userMessageId: null },
+      ...(command.retrySubmissionId ? { retrySubmissionId: command.retrySubmissionId } : {}),
     });
+    onAccepted?.();
     return execute(run, () => performSend(run, command));
   }
 
@@ -650,12 +654,12 @@ export function createChatController(options: ChatControllerOptions) {
     }
   }
 
-  function resetConversation(): void {
+  function resetConversation(keepUnsent = false): void {
     if (disposed) return;
     loadEpoch += 1;
     cancelRunForRouteChange();
     activeConversationId = null;
-    dispatch({ type: 'reset' });
+    dispatch({ type: 'reset', keepUnsent });
   }
 
   function subscribe(listener: () => void): () => void {

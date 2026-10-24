@@ -48,6 +48,17 @@ export function ChatLayout({
         <AppTopbar
           sidebarToggle={
             <>
+              {onNew && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="md:!hidden"
+                  aria-label="新对话"
+                  onClick={onNew}
+                >
+                  <SquarePen size={19} />
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
@@ -74,7 +85,7 @@ export function ChatLayout({
             <>
               <span className="truncate text-sm font-medium">{title}</span>
               {!desktopOpen && onNew && (
-                <Button variant="ghost" size="sm" onClick={onNew}>
+                <Button variant="ghost" size="sm" className="max-md:!hidden" onClick={onNew}>
                   <SquarePen size={16} aria-hidden="true" />
                   新对话
                 </Button>

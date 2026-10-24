@@ -98,6 +98,58 @@ function regenerateCommand() {
 }
 
 describe('chat controller command lifecycle', () => {
+  it('signals acceptance only for commands it can start', async () => {
+    const accepted = vi.fn();
+    const controller = createChatController({
+      api: makeApi(),
+      getOwner: () => null,
+    });
+    await expect(controller.send(sendCommand(), accepted)).resolves.toBe('rejected');
+    expect(accepted).not.toHaveBeenCalled();
+    controller.dispose();
+    const loading = createChatController({
+      api: makeApi(),
+      getOwner: () => ({ userId: 'accept-user', epoch: 1 }),
+      conversationId: 'not-loaded',
+    });
+    await expect(loading.send(sendCommand(), accepted)).resolves.toBe('busy');
+    expect(accepted).not.toHaveBeenCalled();
+    loading.dispose();
+  });
+
+  it('retains rejected A across B and retries only the chosen unsent question', async () => {
+    const accepted = vi.fn();
+    let sequence = 0;
+    const api = makeApi({
+      sendMessage: vi.fn(async () => {
+        throw new ApiClientError('api', 'not sent', { status: 403, code: 'forbidden' });
+      }),
+    });
+    const controller = createChatController({
+      api,
+      getOwner: () => ({ userId: 'unsent-user', epoch: 1 }),
+      initialDetail: makeDetail(),
+      idFactory: () => `unsent-${++sequence}`,
+    });
+    await expect(controller.send(sendCommand(''), accepted)).resolves.toBe('rejected');
+    expect(accepted).not.toHaveBeenCalled();
+    const a = controller.send(sendCommand('A'), accepted);
+    expect(accepted).toHaveBeenCalledTimes(1);
+    await expect(controller.send(sendCommand('duplicate'), accepted)).resolves.toBe('busy');
+    expect(accepted).toHaveBeenCalledTimes(1);
+    await a;
+    await controller.send(sendCommand('B'));
+    expect(controller.getSnapshot().unsent.map((item) => item.content)).toEqual(['A', 'B']);
+    const original = controller.getSnapshot().unsent[0]!;
+    await controller.send({
+      ...sendCommand(original.content),
+      retrySubmissionId: original.operationId,
+    });
+    expect(controller.getSnapshot().unsent.map((item) => item.content)).toEqual(['B', 'A']);
+    expect(api.sendMessage).toHaveBeenCalledTimes(3);
+    controller.dispose();
+  });
+
   it('keeps the first question visible from accepted command through server handoff', async () => {
     const created = makeConversation('first-submission');
     const prompt = makeMessage('first-prompt', 'user', 0, {
@@ -259,7 +311,7 @@ describe('chat controller command lifecycle', () => {
     expect(controller.getSnapshot()).toMatchObject({
       phase: 'idle',
       detail: { conversation: created, messages: [] },
-      submission: { content: 'Do not send after stop', userMessageId: null },
+      unsent: [expect.objectContaining({ content: 'Do not send after stop', userMessageId: null })],
     });
 
     await expect(controller.send(sendCommand('Send after route sync'))).resolves.toBe('completed');
@@ -292,7 +344,8 @@ describe('chat controller command lifecycle', () => {
     await expect(controller.send(sendCommand('Do not create twice'))).resolves.toBe('interrupted');
     expect(createConversation).toHaveBeenCalledTimes(1);
 
-    controller.resetConversation();
+    controller.resetConversation(true);
+    expect(controller.getSnapshot().unsent[0]?.content).toBe('Keep this draft');
     await expect(controller.send(sendCommand('Explicit new conversation'))).resolves.toBe(
       'rejected',
     );

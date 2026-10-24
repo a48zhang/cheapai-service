@@ -25,7 +25,7 @@ export function conversationView(
   state: ChatState,
   error: unknown,
 ): ConversationView {
-  if (state.detail || state.submission) return 'active';
+  if (state.detail || state.submission || state.unsent.length) return 'active';
   if (conversationId) return error ? 'error' : 'opening';
   return 'welcome';
 }

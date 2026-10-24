@@ -29,6 +29,15 @@ describe('chat composer input safety', () => {
     expect(props.onSend).toHaveBeenCalledWith('输入中的中文');
   });
 
+  it('disables Stop once cancellation has been accepted', async () => {
+    const props = composerProps({ busy: true, stopping: true });
+    render(<Composer {...props} />);
+    const stop = screen.getByRole('button', { name: '正在确认结果' });
+    expect(stop).toBeDisabled();
+    await userEvent.click(stop);
+    expect(props.onStop).not.toHaveBeenCalled();
+  });
+
   it('keeps Stop available during generation and never sends a second message', async () => {
     const user = userEvent.setup();
     const props = composerProps({ busy: true });
