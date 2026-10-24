@@ -27,6 +27,17 @@ export function ChatLayout({ sidebar, children, controls, onNew }: ChatLayoutPro
       <AppTopbar
         sidebarToggle={
           <>
+            {onNew && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:!hidden"
+                aria-label="新对话"
+                onClick={onNew}
+              >
+                <SquarePen size={19} />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"

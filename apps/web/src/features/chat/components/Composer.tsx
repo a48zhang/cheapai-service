@@ -9,6 +9,7 @@ export interface ComposerProps {
   readonly onSend: (content: string) => void;
   readonly onStop: () => void;
   readonly busy?: boolean | undefined;
+  readonly stopping?: boolean | undefined;
   readonly disabled?: boolean | undefined;
   readonly disabledReason?: string | undefined;
   readonly error?: string | null | undefined;
@@ -24,6 +25,7 @@ export function Composer({
   onSend,
   onStop,
   busy = false,
+  stopping = false,
   disabled = false,
   disabledReason,
   error,
@@ -97,13 +99,12 @@ export function Composer({
             value={value}
           />
           <div className="chat-compose-tools">
-            <div className="chat-compose-model">
-              {modelPicker ?? <span className="chat-guest-hint">登录后发送</span>}
-            </div>
+            <div className="chat-compose-model">{modelPicker}</div>
             {busy ? (
               <Button
                 className="chat-send"
-                aria-label="停止生成"
+                aria-label={stopping ? '正在确认结果' : '停止生成'}
+                disabled={stopping}
                 title="停止生成"
                 onClick={onStop}
                 size="icon"
