@@ -25,10 +25,10 @@ const kindLabels: Record<BillingKind, string> = {
   adjustment: '余额调整',
 };
 
-function amountLabel(value: string): string {
+function amountLabel(value: string, showPositiveSign = false): string {
   try {
     const units = BigInt(value);
-    return `${units > 0n ? '+' : ''}${formatConsumptionUsd(units)}`;
+    return `${showPositiveSign && units > 0n ? '+' : ''}${formatConsumptionUsd(units)}`;
   } catch {
     return '金额未知';
   }
@@ -204,7 +204,7 @@ export function BillingTable({
       meta: { align: 'right', numeric: true },
       cell: ({ row }) => (
         <span className="whitespace-nowrap console-number text-[15px] font-medium text-[var(--color-ink)]">
-          {amountLabel(row.original.deltaUnits)}
+          {amountLabel(row.original.deltaUnits, true)}
         </span>
       ),
     },
@@ -236,9 +236,9 @@ export function BillingTable({
                   <span className="font-medium">{kindLabels[entry.kind]}</span>
                   <span
                     className="console-number font-semibold"
-                    aria-label={`余额变动 ${amountLabel(entry.deltaUnits)} USD`}
+                    aria-label={`余额变动 ${amountLabel(entry.deltaUnits, true)} USD`}
                   >
-                    {amountLabel(entry.deltaUnits)} USD
+                    {amountLabel(entry.deltaUnits, true)} USD
                   </span>
                 </div>
                 {entry.modelId && <p className="break-all text-sm">{entry.modelId}</p>}
