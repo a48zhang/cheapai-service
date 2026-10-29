@@ -179,12 +179,20 @@ for (const viewport of [
     await send.click();
     const log = page.getByRole('log', { name: '对话消息' });
     await expect(log.getByRole('article', { name: '待确认的消息' })).toContainText('第一条问题');
+    const response = log.getByRole('article', { name: 'CheapAI 的回答' });
+    await expect(response).toHaveCount(1);
+    await expect(response.getByText('正在等待回复…', { exact: true })).toBeInViewport();
+    await test.info().attach('waiting-for-response', {
+      body: await page.screenshot(),
+      contentType: 'image/png',
+    });
     await expect(input).toHaveValue('');
     await input.fill('下一条草稿');
     const inputTop = await input.evaluate((element) => element.getBoundingClientRect().top);
     api.create.release();
     await expect(page).toHaveURL(/\/chat\/start-conversation$/);
     await expect(log.getByRole('article', { name: '待确认的消息' })).toContainText('第一条问题');
+    await expect(response.getByText('正在等待回复…', { exact: true })).toBeInViewport();
     await expect(input).toHaveValue('下一条草稿');
     expect(await input.evaluate((element) => element.getBoundingClientRect().top)).toBeCloseTo(
       inputTop,
@@ -193,6 +201,8 @@ for (const viewport of [
     api.send.release();
     await expect(log.getByRole('article', { name: '你的消息', exact: true })).toHaveCount(1);
     await expect(log).toContainText('首次回答已完成');
+    await expect(response).toHaveCount(1);
+    await expect(response.getByText('正在等待回复…', { exact: true })).toHaveCount(0);
     await expect(log.getByRole('article', { name: '待确认的消息' })).toHaveCount(0);
     await expect(input).toHaveValue('下一条草稿');
     await expect(send).toBeEnabled();

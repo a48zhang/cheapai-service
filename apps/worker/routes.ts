@@ -33,6 +33,7 @@ import { createResponsesRoute, RESPONSES_PATH } from './gateway/responses-route'
 import { createMessagesRoute, MESSAGES_PATH } from './gateway/messages-route';
 import { createModelsRoute, MODELS_PATH } from './gateway/models-route';
 import { createChatRoutes as createWebChatRoutes, CHAT_API_PATH } from './chat/routes';
+import { createImageRoutes, IMAGE_API_PATH, IMAGE_ADMIN_PATH } from './images/routes';
 import { reconcileBalances } from './billing/reconciliation';
 import { requireSession } from './auth/middleware';
 import type { AuthEnv } from './auth/middleware';
@@ -197,6 +198,10 @@ function mountedExecutionContext(context: { executionCtx: unknown }): ExecutionC
 function forwardMounted(route: MountedRoute, context: { req: { raw: Request }; env: unknown; executionCtx: unknown }): Promise<Response> {
   const executionCtx = mountedExecutionContext(context) ?? detachedExecutionContext;
   return Promise.resolve(route.fetch(context.req.raw, context.env, executionCtx));
+}
+const imageRoutes=createImageRoutes();
+for(const path of [IMAGE_API_PATH,`${IMAGE_API_PATH}/*`,IMAGE_ADMIN_PATH,`${IMAGE_ADMIN_PATH}/*`]) {
+  routes.all(path,c=>forwardMounted(imageRoutes,c));
 }
 routes.get(ACCOUNT_BALANCE_PATH, c => accountBalances.fetch(c.req.raw, { DB: c.env.DB }));
 routes.get(BILLING_ENTRIES_PATH, c => billingEntries.fetch(c.req.raw, { DB: c.env.DB }));

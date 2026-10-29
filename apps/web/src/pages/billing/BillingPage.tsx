@@ -1,7 +1,7 @@
 import { Button } from '../../shared/ui/Button';
 import { useEffect, useMemo, useState } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { billingKindSchema } from '@cheapai/contracts/billing';
 import type { BillingKind } from '@cheapai/contracts/billing';
 import {
@@ -20,9 +20,11 @@ import { BillingTable } from '../../features/billing/BillingTable';
 import { useSession } from '../../features/session/useSession';
 import { PageHeader } from '../../shared/patterns/PageHeader';
 import { mergePageItems } from '../../shared/lib/pagination';
+import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 
 const kindLabels: Record<BillingKind, string> = {
   consumption: '模型消费',
+  image_generation: '图片生成',
   grant: '管理员授额',
   adjustment: '余额调整',
 };
@@ -45,6 +47,8 @@ function searchParamsForFilters(
   requestId: string | undefined,
 ): URLSearchParams {
   const next = new URLSearchParams();
+  if (bounds.createdFrom === undefined && bounds.createdBefore === undefined)
+    next.set('period', 'all');
   if (bounds.createdFrom !== undefined) next.set('createdFrom', String(bounds.createdFrom));
   if (bounds.createdBefore !== undefined) next.set('createdBefore', String(bounds.createdBefore));
   if (kind) next.set('kind', kind);
@@ -138,7 +142,22 @@ export function BillingPage() {
 
   return (
     <section className="space-y-4">
-      <PageHeader heading="费用" />
+      <PageHeader
+        heading="费用"
+        description="查看账户余额、消费汇总与每笔余额变动。"
+        actions={
+          <Button
+            variant="outline"
+            busy={query.isFetching || balanceQuery.isFetching}
+            onClick={() => {
+              void query.refetch();
+              void balanceQuery.refetch();
+            }}
+          >
+            刷新费用
+          </Button>
+        }
+      />
       <BillingSummary
         balance={balanceQuery.data}
         balanceLoading={balanceQuery.isPending}
@@ -148,7 +167,19 @@ export function BillingPage() {
         summaryLoading={query.isPending}
         summaryError={query.isFetchNextPageError ? undefined : query.error}
         onRetrySummary={retryBilling}
+        periodLabel={
+          dateRange.startDate && dateRange.endDate
+            ? `${dateRange.startDate} 至 ${dateRange.endDate}`
+            : dateRange.startDate
+              ? `${dateRange.startDate} 起`
+              : dateRange.endDate
+                ? `截至 ${dateRange.endDate}`
+                : '全部时间'
+        }
       />
+      <p className="text-sm leading-6 text-[var(--color-muted-foreground)]">
+        汇总包含所选日期内的全部对话、API 与生图消费；类型和请求筛选仅作用于下方明细。
+      </p>
       <form
         className="flex flex-wrap items-end gap-3 console-panel p-5"
         aria-label="费用筛选"
@@ -157,7 +188,7 @@ export function BillingPage() {
           applyFilters();
         }}
       >
-        <fieldset className="flex flex-wrap items-end gap-3 border-0 p-0">
+        <fieldset className="flex min-w-0 flex-wrap items-end gap-3 border-0 p-0">
           <legend className="sr-only">日期范围</legend>
           <label className="grid gap-2 console-label">
             开始日期
@@ -182,15 +213,29 @@ export function BillingPage() {
         <Button
           variant="outline"
           aria-pressed={
-            dateDraft.startDate === defaultMonth.startDate &&
-            dateDraft.endDate === defaultMonth.endDate
+            dateRange.startDate === defaultMonth.startDate &&
+            dateRange.endDate === defaultMonth.endDate
           }
           onClick={() => {
             setDateDraft({ startDate: defaultMonth.startDate, endDate: defaultMonth.endDate });
             setDateError('');
+            setSearchParams(
+              searchParamsForFilters(defaultMonth, kindDraft || undefined, requestId),
+            );
           }}
         >
           本月
+        </Button>
+        <Button
+          variant="outline"
+          aria-pressed={!dateRange.startDate && !dateRange.endDate}
+          onClick={() => {
+            setDateDraft({ startDate: '', endDate: '' });
+            setDateError('');
+            setSearchParams(searchParamsForFilters({}, kindDraft || undefined, requestId));
+          }}
+        >
+          全部时间
         </Button>
         <label className="grid gap-2 console-label">
           类型
@@ -212,8 +257,8 @@ export function BillingPage() {
           筛选
         </Button>
         {requestId && (
-          <div className="flex min-h-10 items-center gap-2 rounded-md bg-[var(--color-surface-subtle)] px-3 text-[15px] text-[var(--color-ink-secondary)]">
-            <span>请求 ID 筛选：{requestId}</span>
+          <div className="flex min-h-10 min-w-0 items-center gap-2 rounded-md bg-[var(--color-surface-subtle)] px-3 text-[15px] text-[var(--color-ink-secondary)]">
+            <span className="min-w-0 break-all">请求 ID 筛选：{requestId}</span>
             <Button
               variant="ghost"
               size="sm"
@@ -233,6 +278,9 @@ export function BillingPage() {
           </p>
         )}
       </form>
+      {query.error && !query.isFetchNextPageError && (
+        <ApiErrorNotice error={query.error} onRetry={retryBilling} />
+      )}
       {(!query.error || rows.length > 0) && (
         <BillingTable
           rows={rows}
@@ -246,6 +294,16 @@ export function BillingPage() {
             void query.fetchNextPage();
           }}
         />
+      )}
+      {query.isSuccess && rows.length === 0 && !hasActiveFilters && (
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link to="/chat">开始对话</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link to="/images">生成图片</Link>
+          </Button>
+        </div>
       )}
     </section>
   );

@@ -209,6 +209,7 @@ export function createChatController(options: ChatControllerOptions) {
       operationId: pending.operationId,
       operationKind: pending.kind,
       needsConversation: false,
+      assistantMessageId: pending.assistantMessageId,
       ...(pending.kind === 'send' ? { submission: submissionForOperation(pending) } : {}),
     });
     dispatch({
@@ -586,6 +587,7 @@ export function createChatController(options: ChatControllerOptions) {
       operationId: operation.operationId,
       operationKind: operation.kind,
       needsConversation: false,
+      assistantMessageId: operation.assistantMessageId,
       ...(operation.kind === 'send' ? { submission: submissionForOperation(operation) } : {}),
     });
     return execute(run, () => performOperation(run, operation, true));

@@ -1,10 +1,11 @@
 import { ArrowLeft, Menu, MessageSquare, PanelLeft, PanelLeftClose } from 'lucide-react';
-import { type ReactNode, useState } from 'react';
-import { Link, NavLink, Outlet } from 'react-router-dom';
+import { type ReactNode, Suspense, useState } from 'react';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useDesktopNavigation } from '../../shared/patterns/NavigationState';
 import { AccountMenu } from '../../features/session/public';
 import { useSession } from '../../features/session/useSession';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
+import { AsyncState } from '../../shared/patterns/AsyncState';
 import { AppShell } from '../../shared/patterns/AppShell';
 import { BrandLink } from '../../shared/ui/BrandLink';
 import { AppTopbar } from '../../shared/patterns/AppTopbar';
@@ -29,6 +30,10 @@ export function ConsoleLayout({
   const [desktopOpen, setDesktopOpen] = useDesktopNavigation();
   const isManagement = mode === 'admin';
   const title = isManagement ? '管理控制台' : '个人控制台';
+  const { pathname } = useLocation();
+  const currentItem = (
+    isManagement ? adminNavigation.flatMap((group) => group.items) : personalNavigation
+  ).find((item) => pathname === item.path || pathname.startsWith(`${item.path}/`));
 
   function renderItem(item: NavigationItem) {
     const Icon = item.icon;
@@ -145,9 +150,25 @@ export function ConsoleLayout({
             </>
           }
           context={
-            <span className="truncate text-sm font-medium text-[var(--color-muted-foreground)]">
-              {title}
-            </span>
+            <nav aria-label="当前位置" className="flex min-w-0 items-center gap-2 text-sm">
+              <span className="hidden shrink-0 text-[var(--color-muted-foreground)] sm:inline">
+                {title}
+              </span>
+              {currentItem && (
+                <>
+                  <span
+                    aria-hidden="true"
+                    className="hidden text-[var(--color-muted-foreground)] sm:inline"
+                  >
+                    /
+                  </span>
+                  <span aria-current="page" className="truncate font-medium">
+                    {currentItem.label}
+                    {pathname !== currentItem.path ? '详情' : ''}
+                  </span>
+                </>
+              )}
+            </nav>
           }
           account={<AccountMenu compact showTheme={false} showShortcut={false} />}
         />
@@ -160,7 +181,17 @@ export function ConsoleLayout({
           tabIndex={-1}
         >
           {error && <ApiErrorNotice error={error} />}
-          {children ?? <Outlet />}
+          <Suspense
+            fallback={
+              <AsyncState
+                status="loading"
+                loadingLabel="正在加载页面…"
+                className="flex min-h-60 items-center justify-center"
+              />
+            }
+          >
+            {children ?? <Outlet />}
+          </Suspense>
         </main>
       </div>
     </AppShell>

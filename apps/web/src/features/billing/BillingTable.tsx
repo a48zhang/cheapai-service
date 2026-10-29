@@ -1,5 +1,5 @@
 import { Button } from '../../shared/ui/Button';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { BillingEntry, BillingKind } from '@cheapai/contracts/billing';
 import { formatDateTime } from '../../shared/lib/datetime';
@@ -20,17 +20,27 @@ export interface BillingTableProps {
 
 const kindLabels: Record<BillingKind, string> = {
   consumption: '模型消费',
+  image_generation: '图片生成',
   grant: '管理员授额',
   adjustment: '余额调整',
 };
 
-function amountLabel(value: string, kind: BillingKind, showConsumptionAsCost = false): string {
+function amountLabel(value: string): string {
   try {
-    const units = showConsumptionAsCost && kind === 'consumption' ? -BigInt(value) : BigInt(value);
-    return formatConsumptionUsd(units);
+    const units = BigInt(value);
+    return `${units > 0n ? '+' : ''}${formatConsumptionUsd(units)}`;
   } catch {
     return '金额未知';
   }
+}
+function sourceLabel(source: BillingEntry['source']) {
+  return source === 'web_image'
+    ? '网页生图'
+    : source === 'web_chat'
+      ? '网页聊天'
+      : source === 'api'
+        ? 'API'
+        : '—';
 }
 
 /** Ledger rows link back to their source request when one exists. */
@@ -45,6 +55,26 @@ export function BillingTable({
   onLoadMore,
   onRetry,
 }: BillingTableProps) {
+  const location = useLocation();
+  const returnTo = location.pathname + location.search;
+  const recordLink = (entry: BillingEntry) => {
+    const query = new URLSearchParams({ returnTo });
+    if (entry.requestId)
+      return (
+        <Button asChild variant="outline" size="sm">
+          <Link to={`/requests/${encodeURIComponent(entry.requestId)}?${query}`}>查看记录</Link>
+        </Button>
+      );
+    if (entry.imageGenerationId) {
+      query.set('job', entry.imageGenerationId);
+      return (
+        <Button asChild variant="outline" size="sm">
+          <Link to={`/images?${query}`}>查看图片</Link>
+        </Button>
+      );
+    }
+    return <span className="text-[var(--color-ink-muted)]">—</span>;
+  };
   const adminColumns: ColumnDef<BillingEntry, unknown>[] = [
     {
       id: 'kind',
@@ -63,7 +93,7 @@ export function BillingTable({
       meta: { align: 'right', numeric: true },
       cell: ({ row }) => (
         <span className="whitespace-nowrap console-number text-[15px] font-medium text-[var(--color-ink)]">
-          {amountLabel(row.original.deltaUnits, row.original.kind)}
+          {amountLabel(row.original.deltaUnits)}
         </span>
       ),
     },
@@ -163,36 +193,25 @@ export function BillingTable({
       header: '来源',
       cell: ({ row }) => (
         <span className="whitespace-nowrap text-[var(--color-ink-secondary)]">
-          {row.original.source === 'web_chat'
-            ? '网页聊天'
-            : row.original.source === 'api'
-              ? 'API'
-              : '—'}
+          {sourceLabel(row.original.source)}
         </span>
       ),
     },
     {
       id: 'amount',
-      header: '金额（USD）',
+      header: '余额变动（USD）',
       size: 180,
       meta: { align: 'right', numeric: true },
       cell: ({ row }) => (
         <span className="whitespace-nowrap console-number text-[15px] font-medium text-[var(--color-ink)]">
-          {amountLabel(row.original.deltaUnits, row.original.kind, true)}
+          {amountLabel(row.original.deltaUnits)}
         </span>
       ),
     },
     {
       id: 'request',
       header: '记录',
-      cell: ({ row }) =>
-        row.original.requestId ? (
-          <Button asChild variant="outline" size="sm">
-            <Link to={`/requests/${encodeURIComponent(row.original.requestId)}`}>查看记录</Link>
-          </Button>
-        ) : (
-          <span className="text-[var(--color-ink-muted)]">—</span>
-        ),
+      cell: ({ row }) => recordLink(row.original),
     },
   ];
 
@@ -209,6 +228,29 @@ export function BillingTable({
       onRetry={onRetry}
       emptyMessage={emptyMessage ?? '当前筛选下没有账单记录。'}
       caption={scope === 'admin' ? '全局账单明细' : '个人账单明细'}
+      renderMobileRow={
+        scope === 'personal'
+          ? (entry) => (
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium">{kindLabels[entry.kind]}</span>
+                  <span
+                    className="console-number font-semibold"
+                    aria-label={`余额变动 ${amountLabel(entry.deltaUnits)} USD`}
+                  >
+                    {amountLabel(entry.deltaUnits)} USD
+                  </span>
+                </div>
+                {entry.modelId && <p className="break-all text-sm">{entry.modelId}</p>}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--color-muted-foreground)]">
+                  <time dateTime={entry.createdAt}>{formatDateTime(entry.createdAt)}</time>
+                  {entry.source && <span>{sourceLabel(entry.source)}</span>}
+                </div>
+                {(entry.requestId || entry.imageGenerationId) && recordLink(entry)}
+              </div>
+            )
+          : undefined
+      }
     />
   );
 }

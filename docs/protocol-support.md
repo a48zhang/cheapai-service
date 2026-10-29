@@ -18,7 +18,7 @@
 | Messages → Responses | ✓ Messages→Responses | ✓ Responses→Messages | ✓ Responses→Messages | 文本、tool_use、公开 thinking、refusal、缓存 usage 展示按目标协议映射；签名/redacted thinking、不可表达 cache/图片/历史引用拒绝 |
 | Messages → Messages | 原生 | ✓ 原生 | ✓ 原生 | Messages 原生 block、thinking signature、cache 和 usage 由自身基本结构及真实供应商处理 |
 
-上述“图片”只表示对话输入中的 URL/base64/file 引用转换。独立图片生成接口、Realtime/WebSocket、后台任务和供应商内置服务端工具不在支持范围内；跨协议无法表达的约束在请求转换前拒绝，同协议扩展不使用渠道能力白名单。
+上述“图片”只表示对话输入中的 URL/base64/file 引用转换。网页生图通过独立的 `/api/v1/images` 服务接入，见[网页生图](image-generation.md)，不经过本页的文本协议转换矩阵。面向 API Key 的独立图片生成代理、Realtime/WebSocket、后台任务和供应商内置服务端工具不在本矩阵支持范围内；跨协议无法表达的约束在请求转换前拒绝，同协议扩展不使用渠道能力白名单。
 
 ## 字段族边界
 

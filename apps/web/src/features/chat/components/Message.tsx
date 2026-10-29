@@ -3,6 +3,8 @@ import { MessageContent } from './MessageContent';
 import { MessageActions } from './MessageActions';
 import { Button } from '../../../shared/ui/Button';
 import type { ChatPhase, ChatSubmission } from '../model/state';
+import { LoaderCircle } from 'lucide-react';
+import { getChatPresentation } from '../model/presentation';
 
 /** Separate from ChatMessage: an accepted local command is not yet a saved message. */
 export function SubmissionMessage({
@@ -42,7 +44,8 @@ export function SubmissionMessage({
 }
 
 export interface MessageProps {
-  readonly message: ChatMessage;
+  readonly message: ChatMessage | null;
+  readonly phase?: ChatPhase;
   readonly variants?: readonly ChatMessage[] | undefined;
   readonly streaming?: boolean | undefined;
   readonly streamText?: string | undefined;
@@ -62,6 +65,7 @@ const statusLabel: Partial<Record<ChatMessage['status'], string>> = {
 /** A single user or assistant turn with its message-scoped actions. */
 export function Message({
   message,
+  phase,
   variants = [],
   streaming = false,
   streamText = '',
@@ -71,40 +75,63 @@ export function Message({
   onSelectVersion,
   onRegenerate,
 }: MessageProps) {
-  const isUser = message.role === 'user';
-  const content = streaming ? streamText || '正在生成…' : message.content;
-  const assistantStatus = isUser ? undefined : streaming ? '生成中' : statusLabel[message.status];
+  const isUser = message?.role === 'user';
+  const content =
+    streaming && message?.status === 'generating'
+      ? streamText || message.content
+      : message?.content || (streaming ? streamText : '');
+  const activity = isUser
+    ? null
+    : getChatPresentation(phase ?? (streaming ? 'streaming' : 'idle'), null, content.length > 0)
+        .response;
+  const assistantStatus = isUser
+    ? undefined
+    : (activity?.label ?? (message ? statusLabel[message.status] : undefined));
 
   return (
     <article
       aria-label={isUser ? '你的消息' : 'CheapAI 的回答'}
       className={`chat-message mx-auto flex w-full max-w-4xl gap-3 px-3 py-4 sm:px-5 ${isUser ? 'flex-row-reverse' : ''}`}
-      data-message-id={message.id}
-      data-message-role={message.role}
+      data-message-id={message?.id}
+      data-message-role={message?.role ?? 'assistant'}
     >
       <div className={`min-w-0 flex-1 ${isUser ? 'max-w-[86%] text-right' : ''}`}>
         {!isUser && (
           <header className="chat-answer-meta">
-            {message.modelId ? (
+            {message?.modelId ? (
               <span aria-label="使用模型" className="chat-answer-model" title={message.modelId}>
                 {message.modelId}
               </span>
             ) : null}
-            {assistantStatus ? <span role="status">{assistantStatus}</span> : null}
+            {assistantStatus ? (
+              <span className="chat-answer-status" role="status">
+                {activity?.animated && (
+                  <LoaderCircle
+                    aria-hidden="true"
+                    className="animate-spin motion-reduce:animate-none"
+                    size={16}
+                  />
+                )}
+                {assistantStatus}
+              </span>
+            ) : null}
           </header>
         )}
         <div className={isUser ? 'chat-user-bubble' : 'chat-answer-body'}>
-          <MessageContent content={content} />
+          {content && <MessageContent content={content} />}
         </div>
-        <MessageActions
-          actionsBusy={busy || streaming}
-          canRegenerate={canRegenerate}
-          canSelectVersion={canSelectVersion}
-          message={message}
-          onRegenerate={onRegenerate}
-          onSelectVersion={onSelectVersion}
-          variants={variants}
-        />
+        {message && (
+          <MessageActions
+            actionsBusy={busy || streaming}
+            canRegenerate={canRegenerate}
+            canSelectVersion={canSelectVersion}
+            message={message}
+            copyContent={content}
+            onRegenerate={onRegenerate}
+            onSelectVersion={onSelectVersion}
+            variants={variants}
+          />
+        )}
       </div>
     </article>
   );

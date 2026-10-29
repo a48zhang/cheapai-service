@@ -1,5 +1,6 @@
 import {
   Activity,
+  ImagePlus,
   Boxes,
   Cable,
   FileClock,
@@ -26,9 +27,10 @@ export interface NavigationGroup {
 
 export const personalNavigation: NavigationItem[] = [
   { path: '/chat', label: '对话', icon: MessageSquare },
+  { path: '/images', label: '生图', icon: ImagePlus },
   { path: '/keys', label: 'API 接入', icon: KeyRound },
   { path: '/billing', label: '费用', icon: ReceiptText },
-  { path: '/requests', label: '请求记录', icon: Activity },
+  { path: '/requests', label: '使用记录', icon: Activity },
 ];
 
 export const adminNavigation: NavigationGroup[] = [
@@ -37,6 +39,7 @@ export const adminNavigation: NavigationGroup[] = [
     items: [
       { path: '/admin/channels', label: '渠道', icon: Cable },
       { path: '/admin/models', label: '模型与价格', icon: Boxes },
+      { path: '/admin/image-models', label: '生图模型', icon: ImagePlus },
       { path: '/admin/groups', label: '访问组', icon: Layers },
     ],
   },

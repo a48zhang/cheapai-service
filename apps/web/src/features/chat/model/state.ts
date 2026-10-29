@@ -55,6 +55,8 @@ export type ChatEvent =
       readonly operationId: string;
       readonly operationKind: ChatOperationKind;
       readonly needsConversation: boolean;
+      /** Preserve only an assistant ID already established by this operation's response. */
+      readonly assistantMessageId?: string | null;
       readonly submission?: ChatSubmission;
       readonly retrySubmissionId?: string;
     }

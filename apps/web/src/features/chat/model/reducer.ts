@@ -26,7 +26,7 @@ export function chatReducer(state: ChatState = initialChatState, event: ChatEven
       phase: event.needsConversation ? 'creating' : 'submitting',
       operationId: event.operationId,
       operationKind: event.operationKind,
-      streamMessageId: null,
+      streamMessageId: event.assistantMessageId ?? null,
       streamText: '',
       billingStatus: null,
       failure: null,

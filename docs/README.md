@@ -19,6 +19,8 @@
 - [身份与注册](registration-auth.md)、[计费与 KV](billing-cache.md)
 - [协议转换](protocol-compatibility.md)、[协议源码基线](protocol-baseline.md)、[第三方声明](../THIRD_PARTY_NOTICES.md)
 - [React 模块边界](frontend-react-module-boundaries.md)、[外观主题](appearance.md)
+- [聊天交互设计与复用基线](chat-interaction-design.md)：参考项目、状态呈现、操作规则与回归边界
+- [网页生图](image-generation.md)：组件来源、渠道配置、图片存储、计费与恢复行为
 - [接入政策](policy-simplification.md)、[前端接口映射](frontend-react-contract-map.md)
 - [内置模型目录](builtin-models.md)
 

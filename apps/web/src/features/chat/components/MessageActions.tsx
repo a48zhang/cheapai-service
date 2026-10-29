@@ -1,10 +1,11 @@
-import { useState } from 'react';
 import { Check, ChevronLeft, ChevronRight, Copy, RotateCcw } from 'lucide-react';
 import type { ChatMessage } from '@cheapai/api-client/chat';
 import { Button } from '../../../shared/ui/Button';
+import { useCopyText } from '../hooks/useCopyText';
 
 export interface MessageActionsProps {
   readonly message: ChatMessage;
+  readonly copyContent?: string;
   readonly variants?: readonly ChatMessage[] | undefined;
   readonly actionsBusy?: boolean | undefined;
   readonly canSelectVersion?: boolean | undefined;
@@ -15,6 +16,7 @@ export interface MessageActionsProps {
 
 export function MessageActions({
   message,
+  copyContent = message.content,
   variants = [],
   actionsBusy = false,
   canSelectVersion = false,
@@ -22,21 +24,11 @@ export function MessageActions({
   onSelectVersion,
   onRegenerate,
 }: MessageActionsProps) {
-  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const { copy, copyState } = useCopyText(copyContent);
   const orderedVariants = [...variants].sort((left, right) => left.variant - right.variant);
   const currentIndex = orderedVariants.findIndex((item) => item.id === message.id);
   const hasVariants = message.role === 'assistant' && orderedVariants.length > 1;
   const showRegenerate = message.role === 'assistant' && canRegenerate;
-
-  const copy = async () => {
-    try {
-      if (!navigator.clipboard?.writeText) throw new Error('Clipboard is unavailable');
-      await navigator.clipboard.writeText(message.content);
-      setCopyState('copied');
-    } catch {
-      setCopyState('failed');
-    }
-  };
 
   return (
     <div
@@ -45,7 +37,7 @@ export function MessageActions({
       <Button
         aria-label={copyState === 'copied' ? '已复制消息' : '复制消息'}
         title={copyState === 'copied' ? '已复制' : '复制消息'}
-        disabled={message.content.length === 0}
+        disabled={copyContent.length === 0}
         onClick={() => void copy()}
         size="icon"
         variant="ghost"

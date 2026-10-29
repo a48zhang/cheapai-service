@@ -201,6 +201,8 @@ export default function ChatPage() {
           streamText={chat.state.streamText}
           submission={chat.state.submission}
           phase={chat.state.phase}
+          operationId={chat.state.operationId}
+          operationKind={chat.state.operationKind}
           unsent={chat.state.unsent}
           onRetrySubmission={(submission) => {
             if (selection.available && selection.selection?.groupId && selection.selection.modelId)
@@ -270,8 +272,8 @@ export default function ChatPage() {
             )
           }
           sendLabel={authenticated ? '发送' : '登录后发送'}
-          busy={chat.busy}
-          stopping={chat.state.phase === 'stopping' || chat.state.phase === 'finalizing'}
+          phase={chat.state.phase}
+          operationKind={chat.state.operationKind}
           disabled={
             Boolean(disabledReason) ||
             chat.state.phase === 'interrupted' ||

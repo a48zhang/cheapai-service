@@ -24,6 +24,8 @@ const BillingPage = lazy(() =>
 );
 const KeysPage = lazy(() => import('../pages/keys/KeysPage'));
 const ChatPage = lazy(() => import('../pages/chat/ChatPage'));
+const ImagesPage = lazy(() => import('../pages/images/ImagesPage'));
+const ImageModelsPage = lazy(() => import('../pages/admin/ImageModelsPage'));
 const HomePage = lazy(() => import('../pages/home/HomePage'));
 const ChannelsPage = lazy(() => import('../pages/admin/ChannelsPage'));
 const ChannelDetailPage = lazy(() => import('../pages/admin/ChannelDetailPage'));
@@ -59,6 +61,7 @@ export function AppRoutes() {
         </Route>
         <Route element={<SessionBoundary />}>
           <Route element={<PersonalLayout />}>
+            <Route path="/images" element={<ImagesPage />} />
             <Route path="/dashboard" element={<Navigate replace to="/billing" />} />
             <Route path="/keys" element={<KeysPage />} />
             <Route path="/requests" element={<RequestsPage />} />
@@ -71,6 +74,7 @@ export function AppRoutes() {
               <Route path="/admin/channels" element={<ChannelsPage />} />
               <Route path="/admin/channels/:channelId" element={<ChannelDetailPage />} />
               <Route path="/admin/models" element={<ModelsPage />} />
+              <Route path="/admin/image-models" element={<ImageModelsPage />} />
               <Route path="/admin/models/actions/create" element={<ModelDetailPage createMode />} />
               <Route path="/admin/models/:id" element={<ModelDetailPage />} />
               <Route path="/admin/groups" element={<GroupsPage />} />

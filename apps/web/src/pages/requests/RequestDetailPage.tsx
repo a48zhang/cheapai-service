@@ -26,11 +26,13 @@ export function RequestDetailPage() {
   const { client, user, state: session } = useSession();
   const scope = location.pathname.startsWith('/admin/') ? 'admin' : 'personal';
   const listPath = scope === 'admin' ? '/admin/requests' : '/requests';
+  const billingPath = scope === 'admin' ? '/admin/billing' : '/billing';
   const requestedReturn = safeReturnPath(searchParams.get('returnTo'), listPath);
-  const returnTo =
-    requestedReturn === listPath || requestedReturn.startsWith(`${listPath}?`)
-      ? requestedReturn
-      : listPath;
+  const returnTo = [listPath, billingPath].some(
+    (path) => requestedReturn === path || requestedReturn.startsWith(`${path}?`),
+  )
+    ? requestedReturn
+    : listPath;
   const context = { client, userId: user?.id ?? 'anonymous', scope } as const;
   const detailQuery = requestDetailQueryOptions(context, id);
   const query = useQuery({
@@ -61,7 +63,11 @@ export function RequestDetailPage() {
             className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm font-medium"
             to={returnTo}
           >
-            {scope === 'admin' ? '返回请求列表' : '返回使用记录'}
+            {returnTo.startsWith(billingPath)
+              ? '返回费用明细'
+              : scope === 'admin'
+                ? '返回请求列表'
+                : '返回使用记录'}
           </Link>
         }
       />
@@ -136,14 +142,18 @@ export function RequestDetailPage() {
                   复制失败，请手动选择复制。
                 </span>
               )}
-              {scope === 'admin' && (
+              {
                 <Link
                   className="ml-auto text-sm text-[var(--color-accent)] hover:underline"
-                  to={`/admin/billing?${new URLSearchParams({ userId: item.user_id, requestId: item.id })}`}
+                  to={
+                    scope === 'admin'
+                      ? `/admin/billing?${new URLSearchParams({ userId: item.user_id, requestId: item.id })}`
+                      : `/billing?${new URLSearchParams({ period: 'all', requestId: item.id })}`
+                  }
                 >
-                  相关账单
+                  {scope === 'admin' ? '相关账单' : '相关费用'}
                 </Link>
-              )}
+              }
             </div>
             {item.error && (
               <div

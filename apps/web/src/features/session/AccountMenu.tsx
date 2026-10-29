@@ -56,6 +56,7 @@ export function AccountMenu({
       )}
       {user ? (
         <DropdownMenu
+          label={user.email_normalized}
           trigger={
             <button
               type="button"
@@ -91,7 +92,7 @@ export function AccountMenu({
           items={[
             ...(!showShortcut ? [{ label: 'API 接入', to: '/keys' }] : []),
             { label: '费用', to: '/billing' },
-            { label: '请求记录', to: '/requests' },
+            { label: '使用记录', to: '/requests' },
             ...(isAdmin ? [{ label: '管理控制台', to: '/admin/channels' }] : []),
             { type: 'separator' },
             {

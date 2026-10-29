@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import type { ColumnDef, RowData } from '@tanstack/react-table';
 import { AsyncState } from './AsyncState';
@@ -27,6 +27,8 @@ export interface CursorTableProps<T> {
   onRowClick?: ((row: T) => void) | undefined;
   emptyMessage?: string | undefined;
   caption?: string | undefined;
+  /** Keep primary information and actions visible on narrow screens. */
+  renderMobileRow?: ((row: T) => ReactNode) | undefined;
 }
 
 /** Display only: pagination is controlled by the feature's server cursor. */
@@ -43,6 +45,7 @@ export function CursorTable<T>({
   onRowClick,
   emptyMessage = '暂无记录',
   caption = '记录列表',
+  renderMobileRow,
 }: CursorTableProps<T>) {
   const data = useMemo(() => [...rows], [rows]);
   const displayColumns = useMemo(
@@ -65,7 +68,23 @@ export function CursorTable<T>({
   });
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
-      <div className="overflow-x-auto">
+      {renderMobileRow && rows.length > 0 && (
+        <ul
+          aria-label={caption}
+          className="m-0 list-none divide-y divide-[var(--color-border)] p-0 lg:hidden"
+        >
+          {rows.map((row, index) => (
+            <li key={getRowId?.(row) ?? index} className="min-w-0 p-4">
+              {renderMobileRow(row)}
+            </li>
+          ))}
+        </ul>
+      )}
+      <div
+        className={
+          renderMobileRow && rows.length > 0 ? 'hidden overflow-x-auto lg:block' : 'overflow-x-auto'
+        }
+      >
         <table className="console-table w-full text-left text-sm leading-6">
           <caption className="sr-only">{caption}</caption>
           <thead className="bg-[var(--color-surface-subtle)] text-[var(--color-ink-secondary)]">
