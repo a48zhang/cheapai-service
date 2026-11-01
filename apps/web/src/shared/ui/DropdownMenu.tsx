@@ -27,6 +27,7 @@ export interface DropdownMenuProps {
   align?: 'start' | 'center' | 'end';
   side?: 'top' | 'right' | 'bottom' | 'left';
   className?: string;
+  label?: ReactNode;
 }
 
 function isSeparator(item: DropdownMenuItem): item is DropdownMenuSeparator {
@@ -43,6 +44,7 @@ export function DropdownMenu({
   align = 'end',
   side = 'bottom',
   className,
+  label,
 }: DropdownMenuProps) {
   return (
     <DropdownMenuPrimitive.Root
@@ -59,6 +61,11 @@ export function DropdownMenu({
           className={`z-[60] min-w-48 overflow-hidden rounded-md border p-1 shadow-[var(--shadow-md)] outline-none ${className ?? ''}`}
           style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
         >
+          {label && (
+            <DropdownMenuPrimitive.Label className="max-w-72 break-all border-b border-[var(--color-border)] px-2 py-2 text-sm text-[var(--color-muted-foreground)]">
+              {label}
+            </DropdownMenuPrimitive.Label>
+          )}
           {items.map((item, index) => {
             if (isSeparator(item)) {
               return (

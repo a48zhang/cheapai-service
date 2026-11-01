@@ -2,7 +2,15 @@ import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { BrandLink } from '../../../shared/ui/BrandLink';
-import { PanelLeftClose, Plus, MessageSquare, KeyRound, ReceiptText, Activity } from 'lucide-react';
+import {
+  PanelLeftClose,
+  Plus,
+  MessageSquare,
+  KeyRound,
+  ReceiptText,
+  Activity,
+  ImagePlus,
+} from 'lucide-react';
 import type { Conversation } from '@cheapai/api-client/chat';
 import { Button } from '../../../shared/ui/Button';
 import { ConversationRow } from './ConversationRow';
@@ -99,6 +107,7 @@ export function ConversationSidebar({
       <nav aria-label="个人导航" className="space-y-1 px-2 pb-6">
         {[
           { to: '/chat', label: '对话', icon: MessageSquare },
+          { to: '/images', label: '生图', icon: ImagePlus },
           { to: '/keys', label: 'API 接入', icon: KeyRound },
           { to: '/billing', label: '费用', icon: ReceiptText },
           { to: '/requests', label: '请求记录', icon: Activity },

@@ -34,7 +34,7 @@ function queryOptions(request: Request, admin = false): EntryQueryOptions {
     if (!Number.isSafeInteger(milliseconds) || milliseconds > MAX_LEDGER_TIME_MS) throw new ApiError('invalid_request');
     times[key] = milliseconds;
   }
-  if (kind !== null && kind !== 'consumption' && kind !== 'grant' && kind !== 'adjustment') throw new ApiError('invalid_request');
+  if (kind !== null && kind !== 'consumption' && kind !== 'grant' && kind !== 'adjustment' && kind !== 'image_generation') throw new ApiError('invalid_request');
   return { limit: page.limit, ...(page.cursor === null ? {} : { cursor: page.cursor }), ...(kind === null ? {} : { kind }),
     ...(requestId === null ? {} : { requestId }), ...(userId === null ? {} : { userId }), ...times };
 }

@@ -4,11 +4,14 @@ export interface UseScrollAnchorOptions {
   readonly messageIds: readonly string[];
   readonly contentVersion: string;
   readonly announcementText?: string;
+  /** A new user-initiated run reveals its response; subsequent deltas respect reading position. */
+  readonly followKey?: string | null;
 }
 
 interface ScrollSnapshot {
   readonly ids: readonly string[];
   readonly height: number;
+  readonly followKey: string | null;
 }
 
 /** Follows new output only while the reader is already at the end of the list. */
@@ -16,9 +19,10 @@ export function useScrollAnchor({
   messageIds,
   contentVersion,
   announcementText = '',
+  followKey = null,
 }: UseScrollAnchorOptions) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const previousSnapshot = useRef<ScrollSnapshot>({ ids: [], height: 0 });
+  const previousSnapshot = useRef<ScrollSnapshot>({ ids: [], height: 0, followKey: null });
   const atBottomRef = useRef(true);
   const announcementTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingAnnouncement = useRef('');
@@ -59,13 +63,13 @@ export function useScrollAnchor({
       container.scrollTop = 0;
       atBottomRef.current = true;
       setShowJumpToLatest(false);
-    } else if (atBottomRef.current) {
+    } else if (atBottomRef.current || (followKey !== null && followKey !== previous.followKey)) {
       jumpToLatest();
     } else if (prependedHistory) {
       container.scrollTop += height - previous.height;
     }
-    previousSnapshot.current = { ids: [...messageIds], height };
-  }, [contentVersion, jumpToLatest, messageIds]);
+    previousSnapshot.current = { ids: [...messageIds], height, followKey };
+  }, [contentVersion, followKey, jumpToLatest, messageIds]);
 
   useEffect(() => {
     if (announcementText.length === 0) return;

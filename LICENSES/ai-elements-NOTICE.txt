@@ -1,0 +1,33 @@
+Copyright 2023 Vercel, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+cheapai adaptation (2026-10-29)
+Source: https://github.com/vercel/ai-elements/blob/ca8be600bfd01b3131f9bf6134b51602a71f4374/packages/elements/src/prompt-input.tsx
+Source symbol: PromptInputSubmit (lines 1211-1263 in the pinned file).
+Local file: apps/web/src/features/chat/components/ChatSubmitButton.tsx
+Changes: use the existing Button API and lucide icons; localize labels; map the
+existing chat lifecycle to send, cancellable wait, streaming, stopping,
+confirmation and interrupted controls. No AI SDK runtime was imported.
+The complete Apache-2.0 license is in LICENSES/Apache-2.0.txt.
+
+Image integration adaptation (2026-10-29)
+Source: https://github.com/vercel/ai-elements/blob/ca8be600bfd01b3131f9bf6134b51602a71f4374/packages/elements/src/image.tsx
+Source blob: 4c812b6efab2cbe7cac43c41af7a5a848de5caca
+Source symbol: Image and ImageProps.
+Local file: apps/web/src/features/images/GeneratedImage.tsx
+Changes: native image props, private same-origin asset URLs alongside base64,
+existing styles, and removal of the AI SDK-only type dependency.
+The official Image usage example informed the prompt/loading/result flow:
+apps/docs/content/components/(utilities)/image.mdx at the same pinned commit.
+The application supplies its own authenticated generation, storage and billing.

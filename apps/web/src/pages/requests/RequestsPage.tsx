@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { billingStatusSchema, executionStatusSchema } from '@cheapai/contracts/requests';
 import type { BillingStatus, ExecutionStatus } from '@cheapai/contracts/requests';
 import { useRequestPages } from '../../features/request-history/useRequestPages';
+import { requestListQueryOptions } from '../../features/request-history/api';
 import type { RequestFilters } from '../../features/request-history/filters';
 import {
   parseRequestListUrl,
@@ -16,6 +17,7 @@ import { useSession } from '../../features/session/useSession';
 import { formatLocalDateTime, parseLocalDateRange } from '../../shared/lib/datetime';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { PageHeader } from '../../shared/patterns/PageHeader';
+import { Button } from '../../shared/ui/Button';
 
 interface FilterDraft {
   readonly status: string;
@@ -40,7 +42,7 @@ function draftFrom(filters: RequestFilters): FilterDraft {
 }
 
 export function RequestsPage() {
-  const { client, user, epoch: sessionEpoch, state: session } = useSession();
+  const { client, user, epoch: sessionEpoch, state: session, queryClient } = useSession();
   const [searchParams, setSearchParams] = useSearchParams();
   const urlState = useMemo(() => parseRequestListUrl(searchParams, 'personal'), [searchParams]);
   const filterKey = JSON.stringify(urlState.filters);
@@ -115,20 +117,100 @@ export function RequestsPage() {
 
   return (
     <section className="space-y-5">
-      <PageHeader heading="使用记录" />
+      <PageHeader
+        heading="使用记录"
+        description={
+          <>
+            查看网页对话与 API 调用的用量和费用。图片记录见{' '}
+            <Link to="/images" className="underline underline-offset-4">
+              生图
+            </Link>
+            。
+          </>
+        }
+        actions={
+          <Button
+            variant="outline"
+            busy={query.isFetching}
+            onClick={() => {
+              if (urlState.cursor !== null) {
+                void queryClient.invalidateQueries({
+                  queryKey: requestListQueryOptions(
+                    { client, userId, scope: 'personal', epoch: sessionEpoch },
+                    { ...urlState.filters, cursor: null },
+                  ).queryKey,
+                  exact: true,
+                  refetchType: 'none',
+                });
+                setSearchParams(serializeRequestFilters(urlState.filters));
+              } else void query.refetch();
+            }}
+          >
+            刷新记录
+          </Button>
+        }
+      />
+      <div className="flex flex-wrap items-center gap-2" aria-label="常用筛选">
+        <span className="text-sm text-[var(--color-muted-foreground)]">时间</span>
+        {[
+          ['今天', 1],
+          ['近 7 天', 7],
+          ['近 30 天', 30],
+          ['全部时间', 0],
+        ].map(([label, days]) => (
+          <Button
+            key={label}
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              const filters = { ...urlState.filters };
+              delete filters.from;
+              delete filters.to;
+              const end = new Date();
+              const start = new Date(end);
+              start.setHours(0, 0, 0, 0);
+              start.setDate(start.getDate() - Number(days) + 1);
+              setSearchParams(
+                serializeRequestFilters(
+                  Number(days) ? { ...filters, from: start.getTime(), to: end.getTime() } : filters,
+                ),
+              );
+            }}
+          >
+            {label}
+          </Button>
+        ))}
+        <Button
+          size="sm"
+          variant={urlState.filters.status === 'failed' ? 'primary' : 'outline'}
+          aria-pressed={urlState.filters.status === 'failed'}
+          onClick={() => {
+            const filters = { ...urlState.filters };
+            delete filters.status;
+            setSearchParams(
+              serializeRequestFilters(
+                urlState.filters.status === 'failed' ? filters : { ...filters, status: 'failed' },
+              ),
+            );
+          }}
+        >
+          只看失败
+        </Button>
+      </div>
       <form
         onSubmit={applyFilters}
         className="flex flex-wrap items-end gap-3 console-panel p-5"
         aria-label="使用记录筛选"
       >
         <label className="grid gap-2 console-label">
-          模型
+          模型 ID
           <input
             value={draft.model}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, model: event.currentTarget.value }))
-            }
-            placeholder="按模型名称筛选"
+            onChange={(event) => {
+              const value = event.currentTarget.value;
+              setDraft((current) => ({ ...current, model: value }));
+            }}
+            placeholder="输入完整模型 ID"
             maxLength={128}
             autoComplete="off"
             className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
@@ -145,9 +227,10 @@ export function RequestsPage() {
               aria-label="开始时间"
               type="datetime-local"
               value={draft.from}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, from: event.currentTarget.value }))
-              }
+              onChange={(event) => {
+                const value = event.currentTarget.value;
+                setDraft((current) => ({ ...current, from: value }));
+              }}
               className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
             />
             <span aria-hidden="true" className="text-[var(--color-muted-foreground)]">
@@ -161,9 +244,10 @@ export function RequestsPage() {
               aria-label="结束时间"
               type="datetime-local"
               value={draft.to}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, to: event.currentTarget.value }))
-              }
+              onChange={(event) => {
+                const value = event.currentTarget.value;
+                setDraft((current) => ({ ...current, to: value }));
+              }}
               className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
             />
           </div>
@@ -199,9 +283,10 @@ export function RequestsPage() {
               执行状态
               <select
                 value={draft.status}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, status: event.currentTarget.value }))
-                }
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  setDraft((current) => ({ ...current, status: value }));
+                }}
                 className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
               >
                 <option value="">全部</option>
@@ -216,9 +301,10 @@ export function RequestsPage() {
               计费状态
               <select
                 value={draft.billingStatus}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, billingStatus: event.currentTarget.value }))
-                }
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  setDraft((current) => ({ ...current, billingStatus: value }));
+                }}
                 className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
               >
                 <option value="">全部</option>
@@ -251,6 +337,16 @@ export function RequestsPage() {
               : '还没有使用记录。'
           }
         />
+      )}
+      {query.isSuccess && rows.length === 0 && !hasActiveFilters && (
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link to="/chat">开始对话</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link to="/keys">接入 API</Link>
+          </Button>
+        </div>
       )}
     </section>
   );

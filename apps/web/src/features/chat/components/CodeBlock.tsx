@@ -1,6 +1,6 @@
-import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { Check, Copy } from 'lucide-react';
+import { useCopyText } from '../hooks/useCopyText';
 
 export interface CodeBlockProps {
   readonly children: ReactNode;
@@ -18,7 +18,7 @@ function codeText(children: ReactNode): string {
 export function CodeBlock({ children, className, inline }: CodeBlockProps) {
   const text = codeText(children);
   const block = inline ?? Boolean(className?.startsWith('language-') || text.includes('\n'));
-  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const { copy, copyState } = useCopyText(text);
 
   if (!block) {
     return (
@@ -29,16 +29,6 @@ export function CodeBlock({ children, className, inline }: CodeBlockProps) {
   }
 
   const language = className?.match(/language-([\w-]+)/u)?.[1];
-  const copy = async () => {
-    try {
-      if (!navigator.clipboard?.writeText) throw new Error('Clipboard is unavailable');
-      await navigator.clipboard.writeText(text);
-      setCopyState('copied');
-    } catch {
-      setCopyState('failed');
-    }
-  };
-
   return (
     <div className="my-4 overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-surface-subtle)]">
       <div className="flex min-h-9 items-center justify-between gap-3 border-b border-[var(--color-line)] px-3">

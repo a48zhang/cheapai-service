@@ -411,6 +411,77 @@ describe('chat controller command lifecycle', () => {
     controller.dispose();
   });
 
+  it.each(['send', 'regenerate'] as const)(
+    'restores the known response for an interrupted %s without a second placeholder',
+    async (kind) => {
+      const initial = makeDetail(`known-response-${kind}`);
+      const owner = { userId: `known-response-user-${kind}`, epoch: 1 };
+      const prompt = makeMessage('known-prompt', 'user', 1, {
+        conversationId: initial.conversation.id,
+      });
+      const answer = makeMessage('known-answer', 'assistant', kind === 'send' ? 1 : 0, {
+        conversationId: initial.conversation.id,
+        variant: kind === 'send' ? 1 : 2,
+        selected: false,
+        status: 'generating',
+        content: 'Partial answer',
+      });
+      const interruptedResponse = vi.fn(
+        async (
+          _id: string,
+          _input: ChatSendInput | ChatRegenerateInput,
+          handlers?: ChatStreamHandlers,
+        ) => {
+          await handlers?.onMeta?.({
+            conversation: initial.conversation,
+            userMessage: kind === 'send' ? prompt : null,
+            assistantMessage: answer,
+          });
+          throw new ApiClientError('network', 'response lost');
+        },
+      );
+      const api = makeApi({
+        getConversation: vi.fn(async () => initial),
+        sendMessage: interruptedResponse,
+        regenerate: interruptedResponse,
+      });
+      const previous = createChatController({
+        api,
+        getOwner: () => owner,
+        initialDetail: initial,
+        idFactory: () => `known-response-operation-${kind}`,
+      });
+      await expect(
+        kind === 'send' ? previous.send(sendCommand()) : previous.regenerate(regenerateCommand()),
+      ).resolves.toBe('interrupted');
+      const savedDetail = previous.getSnapshot().detail;
+      previous.dispose();
+
+      const restored = createChatController({
+        api,
+        getOwner: () => owner,
+        initialDetail: savedDetail,
+      });
+      const state = restored.getSnapshot();
+      expect(state).toMatchObject({ phase: 'interrupted', streamMessageId: answer.id });
+      const { rows } = createMessageRows(
+        state.detail?.messages ?? [],
+        state.streamMessageId,
+        state.submission,
+        {
+          operationId: state.operationId!,
+          kind,
+        },
+      );
+      expect(rows.some((row) => row.kind === 'response-placeholder')).toBe(false);
+      expect(rows.some((row) => row.kind === 'assistant' && row.message.id === answer.id)).toBe(
+        true,
+      );
+      expect(rows.some((row) => row.kind === 'submission')).toBe(false);
+      restored.dispose();
+    },
+  );
+
   it('recovers an unknown send after a same-user epoch change with the original operation and body', async () => {
     const initial = makeDetail('controller-same-user-recovery');
     const owner = { userId: 'recover-user', epoch: 1 };

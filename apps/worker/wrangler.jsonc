@@ -31,6 +31,7 @@
   "durable_objects": {
     "bindings": [{ "name": "GATE", "class_name": "Gate" }]
   },
+  "r2_buckets": [{ "binding": "IMAGE_ASSETS", "bucket_name": "cheapai-images-local", "remote": false }],
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Gate"] }],
   // Email Service uses send_email / SendEmail. Local simulation never delivers mail.
   "send_email": [{
@@ -40,6 +41,7 @@
     "remote": false
   }],
   "previews": {
+    "r2_buckets": [{ "binding": "IMAGE_ASSETS", "bucket_name": "cheapai-generated-images-preview" }],
     "kv_namespaces": [{
       "binding": "CACHE",
       "id": "2e433b90bb3a4bc4a1b890852384bc80"
@@ -73,6 +75,8 @@
     // Match the production Worker settings maintained in the Cloudflare Dashboard.
     "production": {
       "name": "sub2api-cloudflare-production",
+      // Create this private bucket before the first image-enabled deployment.
+      "r2_buckets": [{ "binding": "IMAGE_ASSETS", "bucket_name": "cheapai-generated-images" }],
       "upload_source_maps": true,
       "observability": {
         "enabled": true,

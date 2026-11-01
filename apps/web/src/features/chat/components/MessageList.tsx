@@ -6,7 +6,8 @@ import { Button } from '../../../shared/ui/Button';
 import { createMessageRows } from '../model/message-rows';
 import { canRegenerateLastAssistant, canSelectAssistantVariant } from '../model/variants';
 import { Message, SubmissionMessage } from './Message';
-import type { ChatPhase, ChatSubmission } from '../model/state';
+import type { ChatOperationKind, ChatPhase, ChatSubmission } from '../model/state';
+import { getChatPresentation } from '../model/presentation';
 import { useScrollAnchor } from '../hooks/useScrollAnchor';
 
 export interface MessageListProps {
@@ -17,6 +18,8 @@ export interface MessageListProps {
   readonly busy?: boolean | undefined;
   readonly submission?: ChatSubmission | null | undefined;
   readonly phase?: ChatPhase | undefined;
+  readonly operationId?: string | null;
+  readonly operationKind?: ChatOperationKind | null;
   readonly unsent?: readonly ChatSubmission[] | undefined;
   readonly onRetrySubmission?: ((submission: ChatSubmission) => void) | undefined;
   readonly retryDisabled?: boolean | undefined;
@@ -41,6 +44,8 @@ export function MessageList({
   busy = false,
   submission = null,
   phase = 'idle',
+  operationId = null,
+  operationKind = null,
   unsent = [],
   onRetrySubmission,
   retryDisabled,
@@ -51,27 +56,46 @@ export function MessageList({
   loading = false,
   emptyMessage = '在下方输入消息开始对话。',
 }: MessageListProps) {
+  const activeOperationId = operationId ?? submission?.operationId ?? null;
+  const activeOperationKind = operationKind ?? (submission ? 'send' : null);
+  const presentation = getChatPresentation(phase, activeOperationKind);
+  const hasPendingResponse = presentation.response !== null;
+  const pendingResponse = useMemo(
+    () =>
+      hasPendingResponse &&
+      activeOperationId &&
+      (activeOperationKind === 'send' || activeOperationKind === 'regenerate')
+        ? { operationId: activeOperationId, kind: activeOperationKind }
+        : null,
+    [hasPendingResponse, activeOperationId, activeOperationKind],
+  );
   const timeline = useMemo(
-    () => createMessageRows(messages, streamMessageId, submission),
-    [messages, streamMessageId, submission],
+    () => createMessageRows(messages, streamMessageId, submission, pendingResponse),
+    [messages, streamMessageId, submission, pendingResponse],
   );
   const rows = timeline.rows;
   const messageIds = useMemo(
     () =>
       rows.map((row) =>
-        row.kind === 'submission' ? `submission:${row.submission.operationId}` : row.message.id,
+        row.kind === 'submission'
+          ? `submission:${row.submission.operationId}`
+          : row.kind === 'response-placeholder' || row.kind === 'assistant'
+            ? row.renderKey
+            : row.message.id,
       ),
     [rows],
   );
   const latestTurnIndex = timeline.latestAssistantTurnIndex;
   const regenerateAvailability = detail === undefined ? null : canRegenerateLastAssistant(detail);
   const latestRow = rows.at(-1);
-  const latestVisibleMessage = latestRow?.kind === 'submission' ? undefined : latestRow?.message;
+  const latestVisibleMessage =
+    latestRow?.kind === 'assistant' || latestRow?.kind === 'user' ? latestRow.message : undefined;
   const contentVersion = `${streamMessageId ?? ''}:${streamText.length}:${latestVisibleMessage?.updatedAt ?? 0}:${messages.length}`;
   const anchor = useScrollAnchor({
     messageIds,
     contentVersion,
     announcementText: streamText || latestVisibleMessage?.content || '',
+    followKey: busy && pendingResponse ? pendingResponse.operationId : null,
   });
 
   return (
@@ -110,6 +134,8 @@ export function MessageList({
           />
         ))}
         {rows.map((row) => {
+          if (row.kind === 'response-placeholder')
+            return <Message key={row.renderKey} message={null} phase={phase} />;
           if (row.kind === 'submission')
             return (
               <SubmissionMessage
@@ -147,7 +173,7 @@ export function MessageList({
             onSelectVersion !== undefined;
           return (
             <Message
-              key={row.message.id}
+              key={row.renderKey}
               busy={busy}
               canRegenerate={canRegenerate}
               canSelectVersion={canSelectVersion}
@@ -156,6 +182,7 @@ export function MessageList({
               onSelectVersion={onSelectVersion}
               streamText={streamText}
               streaming={streaming}
+              {...(streaming ? { phase } : {})}
               variants={selectableVariants}
             />
           );

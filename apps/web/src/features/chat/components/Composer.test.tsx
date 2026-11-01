@@ -30,9 +30,9 @@ describe('chat composer input safety', () => {
   });
 
   it('disables Stop once cancellation has been accepted', async () => {
-    const props = composerProps({ busy: true, stopping: true });
+    const props = composerProps({ phase: 'stopping' });
     render(<Composer {...props} />);
-    const stop = screen.getByRole('button', { name: '正在确认结果' });
+    const stop = screen.getByRole('button', { name: '正在停止' });
     expect(stop).toBeDisabled();
     await userEvent.click(stop);
     expect(props.onStop).not.toHaveBeenCalled();
@@ -40,7 +40,7 @@ describe('chat composer input safety', () => {
 
   it('keeps Stop available during generation and never sends a second message', async () => {
     const user = userEvent.setup();
-    const props = composerProps({ busy: true });
+    const props = composerProps({ phase: 'streaming' });
     render(<Composer {...props} />);
     const stop = screen.getByRole('button', { name: '停止生成' });
 
@@ -50,5 +50,43 @@ describe('chat composer input safety', () => {
     expect(props.onStop).toHaveBeenCalledTimes(1);
     expect(props.onSend).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: '发送' })).not.toBeInTheDocument();
+  });
+
+  it.each(['creating', 'submitting'] as const)(
+    'can cancel while %s and explains the next draft',
+    async (phase) => {
+      const user = userEvent.setup();
+      const props = composerProps({ phase });
+      render(<Composer {...props} />);
+      expect(screen.getByText(/可先写下一条消息/)).not.toHaveClass('sr-only');
+      fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+      expect(props.onSend).not.toHaveBeenCalled();
+      await user.click(screen.getByRole('button', { name: '停止生成' }));
+      expect(props.onStop).toHaveBeenCalledOnce();
+    },
+  );
+
+  it('shows version selection as a waiting operation with no ineffective Stop action', () => {
+    const props = composerProps({ phase: 'submitting', operationKind: 'select' });
+    render(<Composer {...props} />);
+    expect(screen.getByRole('button', { name: '正在切换版本' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: '停止生成' })).toBeNull();
+  });
+
+  it('returns focus to the draft after clicking Send', async () => {
+    const user = userEvent.setup();
+    const props = composerProps();
+    render(<Composer {...props} />);
+    await user.click(screen.getByRole('button', { name: '发送' }));
+    expect(props.onSend).toHaveBeenCalledOnce();
+    expect(screen.getByRole('textbox')).toHaveFocus();
+  });
+
+  it('stops the version selection spinner when its result is unknown', () => {
+    render(<Composer {...composerProps({ phase: 'interrupted', operationKind: 'select' })} />);
+    const control = screen.getByRole('button', { name: '版本切换待确认' });
+    expect(control).toBeDisabled();
+    expect(control.querySelector('.animate-spin')).toBeNull();
+    expect(screen.getByText(/请重新读取对话/)).toBeVisible();
   });
 });

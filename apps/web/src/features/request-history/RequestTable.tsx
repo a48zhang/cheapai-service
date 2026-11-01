@@ -226,6 +226,35 @@ export function RequestTable({
         emptyMessage ?? (scope === 'admin' ? '当前筛选下没有请求记录。' : '还没有使用记录。')
       }
       caption={scope === 'admin' ? '全局请求列表' : '个人使用记录列表'}
+      renderMobileRow={
+        scope === 'personal'
+          ? (item) => (
+              <div className="space-y-3">
+                <Link
+                  className="block break-all font-medium text-[var(--color-accent)] hover:underline"
+                  aria-label={`查看 ${item.public_model_id} 使用详情`}
+                  to={detailHref(item.id, detailPath, listLocation)}
+                >
+                  {item.public_model_id}
+                </Link>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <RequestStatus
+                    executionStatus={item.execution_status}
+                    billingStatus={item.billing_status}
+                  />
+                  <span className="console-number font-semibold">{requestCostLabel(item)}</span>
+                </div>
+                <p className="text-sm text-[var(--color-ink-secondary)]">{usageText(item)}</p>
+                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--color-muted-foreground)]">
+                  <time dateTime={new Date(item.created_at).toISOString()}>
+                    {formatDateTime(item.created_at)}
+                  </time>
+                  <span>{requestSourceLabel(item.source)}</span>
+                </div>
+              </div>
+            )
+          : undefined
+      }
     />
   );
 }

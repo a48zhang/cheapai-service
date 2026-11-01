@@ -1,15 +1,16 @@
 import { useId, useLayoutEffect, useRef } from 'react';
 import type { FormEvent, KeyboardEvent, ReactNode, RefObject } from 'react';
-import { ArrowUp, Square } from 'lucide-react';
-import { Button } from '../../../shared/ui/Button';
+import type { ChatOperationKind, ChatPhase } from '../model/state';
+import { getChatPresentation } from '../model/presentation';
+import { ChatSubmitButton } from './ChatSubmitButton';
 
 export interface ComposerProps {
   readonly value: string;
   readonly onChange: (value: string) => void;
   readonly onSend: (content: string) => void;
   readonly onStop: () => void;
-  readonly busy?: boolean | undefined;
-  readonly stopping?: boolean | undefined;
+  readonly phase?: ChatPhase;
+  readonly operationKind?: ChatOperationKind | null;
   readonly disabled?: boolean | undefined;
   readonly disabledReason?: string | undefined;
   readonly error?: string | null | undefined;
@@ -24,8 +25,8 @@ export function Composer({
   onChange,
   onSend,
   onStop,
-  busy = false,
-  stopping = false,
+  phase = 'idle',
+  operationKind = null,
   disabled = false,
   disabledReason,
   error,
@@ -37,7 +38,8 @@ export function Composer({
   const localRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = textareaRef ?? localRef;
   const helpId = useId();
-  const canSend = !disabled && !busy && value.trim().length > 0;
+  const presentation = getChatPresentation(phase, operationKind);
+  const canSend = !disabled && presentation.submit.action === 'send' && value.trim().length > 0;
   useLayoutEffect(() => {
     const input = inputRef.current;
     if (!input) return;
@@ -48,6 +50,7 @@ export function Composer({
   const send = () => {
     if (!canSend) return;
     onSend(value);
+    inputRef.current?.focus();
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -95,40 +98,22 @@ export function Composer({
               compositionRef.current = true;
             }}
             onKeyDown={handleKeyDown}
-            placeholder="发送消息…"
+            placeholder={presentation.submit.action === 'send' ? '发送消息…' : '可继续编辑草稿…'}
             value={value}
           />
           <div className="chat-compose-tools">
             <div className="chat-compose-model">{modelPicker}</div>
-            {busy ? (
-              <Button
-                className="chat-send"
-                aria-label={stopping ? '正在确认结果' : '停止生成'}
-                disabled={stopping}
-                title="停止生成"
-                onClick={onStop}
-                size="icon"
-                variant="outline"
-              >
-                <Square aria-hidden="true" size={14} />
-              </Button>
-            ) : (
-              <Button
-                className="chat-send"
-                aria-label={sendLabel}
-                title={`${sendLabel}（Enter）；Shift+Enter 换行`}
-                disabled={!canSend}
-                size="icon"
-                type="submit"
-              >
-                <ArrowUp aria-hidden="true" size={16} />
-              </Button>
-            )}
+            <ChatSubmitButton
+              presentation={presentation.submit}
+              canSend={canSend}
+              sendLabel={sendLabel}
+              onStop={onStop}
+            />
           </div>
         </div>
-        <div className="sr-only">
-          <span id={`${helpId}-hint`}>Enter 发送 · Shift+Enter 换行</span>
-        </div>
+        <p className="chat-composer-hint" id={`${helpId}-hint`}>
+          {presentation.inputHint}
+        </p>
         {disabledReason ? (
           <p
             id={`${helpId}-disabled`}

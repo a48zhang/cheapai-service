@@ -83,6 +83,7 @@ export default function BillingPage() {
           >
             <option value="">全部</option>
             <option value="consumption">模型消费</option>
+            <option value="image_generation">图片生成</option>
             <option value="grant">授额</option>
             <option value="adjustment">余额调整</option>
           </select>

@@ -103,6 +103,38 @@ export function KeyTable({
     }
   };
 
+  const renderActions = (key: KeyMetadata) => (
+    <div className="flex items-center gap-2 whitespace-nowrap">
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={!canUseForExamples(key) || selectedKeyId === key.id}
+        onClick={() => onSelectKey(key)}
+      >
+        {selectedKeyId === key.id ? '已选用' : '用于接入'}
+      </Button>
+      {key.status !== 'revoked' && (
+        <DropdownMenu
+          trigger={
+            <Button variant="ghost" size="sm" aria-label={`密钥操作：${key.name}`}>
+              <MoreHorizontal size={19} aria-hidden="true" />
+            </Button>
+          }
+          items={[
+            { label: '编辑', onSelect: () => onEdit(key) },
+            {
+              label: '撤销',
+              destructive: true,
+              onSelect: () => {
+                setConfirmingKey(key);
+              },
+            },
+          ]}
+        />
+      )}
+    </div>
+  );
+
   const columns: ColumnDef<KeyMetadata, unknown>[] = [
     {
       id: 'name',
@@ -147,37 +179,7 @@ export function KeyTable({
     {
       id: 'actions',
       header: '操作',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2 whitespace-nowrap">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!canUseForExamples(row.original) || selectedKeyId === row.original.id}
-            onClick={() => onSelectKey(row.original)}
-          >
-            {selectedKeyId === row.original.id ? '已选用' : '用于接入'}
-          </Button>
-          {row.original.status !== 'revoked' && (
-            <DropdownMenu
-              trigger={
-                <Button variant="ghost" size="sm" aria-label={`密钥操作：${row.original.name}`}>
-                  <MoreHorizontal size={19} aria-hidden="true" />
-                </Button>
-              }
-              items={[
-                { label: '编辑', onSelect: () => onEdit(row.original) },
-                {
-                  label: '撤销',
-                  destructive: true,
-                  onSelect: () => {
-                    setConfirmingKey(row.original);
-                  },
-                },
-              ]}
-            />
-          )}
-        </div>
-      ),
+      cell: ({ row }) => renderActions(row.original),
     },
   ];
 
@@ -235,6 +237,29 @@ export function KeyTable({
           rows={rows}
           columns={columns}
           caption="个人 API 密钥列表"
+          renderMobileRow={(key) => {
+            const status = statusFor(key);
+            return (
+              <div className="space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="min-w-0 break-words font-medium">{key.name}</p>
+                  <StatusBadge tone={status.tone} className="shrink-0">
+                    {status.label}
+                  </StatusBadge>
+                </div>
+                <code className="block break-all text-sm text-[var(--color-muted-foreground)]">
+                  {key.displayPrefix}…
+                </code>
+                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                  <dt className="text-[var(--color-muted-foreground)]">授权分组</dt>
+                  <dd className="min-w-0 break-words">{key.groupName}</dd>
+                  <dt className="text-[var(--color-muted-foreground)]">到期时间</dt>
+                  <dd>{key.expiresAt === null ? '不过期' : formatDateTime(key.expiresAt)}</dd>
+                </dl>
+                {renderActions(key)}
+              </div>
+            );
+          }}
           emptyMessage="暂无密钥"
           loading={query.isPending}
           error={query.isError ? errorMessage(query.error) : null}

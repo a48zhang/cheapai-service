@@ -4,6 +4,8 @@ import type { Gate } from './limits/gate';
 export interface Env {
   DB: D1Database;
   CACHE: KVNamespace;
+  /** Private generated images; authorization is enforced by owner-scoped download routes. */
+  IMAGE_ASSETS?: R2Bucket;
   GATE: DurableObjectNamespace<Gate>;
   EMAIL?: SendEmail;
   /** Defaults to Cloudflare for existing deployments. */

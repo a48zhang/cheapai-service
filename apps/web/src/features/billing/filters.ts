@@ -43,7 +43,10 @@ export function billingDateRangeFromSearch(
 ): BillingDateRange {
   const hasFrom = params.has('createdFrom');
   const hasBefore = params.has('createdBefore');
-  if (!hasFrom && !hasBefore) return currentBillingMonthRange(now);
+  if (!hasFrom && !hasBefore)
+    return params.get('period') === 'all'
+      ? { startDate: '', endDate: '' }
+      : currentBillingMonthRange(now);
 
   const from = timestampParam(params.get('createdFrom'));
   const before = timestampParam(params.get('createdBefore'));

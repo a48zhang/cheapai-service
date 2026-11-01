@@ -16,7 +16,7 @@ const nonNegativeAmount = z
   .regex(/^(?:0|[1-9][0-9]*)$/u);
 const count = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
-export const billingKindSchema = z.enum(['consumption', 'grant', 'adjustment']);
+export const billingKindSchema = z.enum(['consumption', 'grant', 'adjustment', 'image_generation']);
 
 /** Signed delta in integer USD units; never decode to a floating point number. */
 export const billingEntrySchema = z.object({
@@ -26,8 +26,9 @@ export const billingEntrySchema = z.object({
   userId: text(),
   userEmail: z.string().nullable().optional(),
   requestId: text().nullable(),
+  imageGenerationId: text().nullable().optional(),
   modelId: text().nullable().optional(),
-  source: z.enum(['api', 'web_chat']).nullable().optional(),
+  source: z.enum(['api', 'web_chat', 'web_image']).nullable().optional(),
   currency: z.literal('USD'),
   deltaUnits: amount,
   createdBy: text().nullable(),

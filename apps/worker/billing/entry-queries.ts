@@ -4,7 +4,7 @@ import { ApiError, DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '../http';
 import { parseUnits } from './money';
 
 export type EntryQueryScope = { readonly kind: 'owner'; readonly userId: string } | { readonly kind: 'admin'; readonly actorId: string };
-export type BillingEntryKind = 'consumption' | 'adjustment' | 'grant';
+export type BillingEntryKind = 'consumption' | 'adjustment' | 'grant' | 'image_generation';
 export interface EntryQueryOptions {
   readonly limit?: number;
   readonly cursor?: string;
@@ -23,8 +23,9 @@ export interface BillingEntrySummary {
   readonly userId: string;
   readonly userEmail?: string | null;
   readonly requestId: string | null;
+  readonly imageGenerationId?: string;
   readonly modelId: string | null;
-  readonly source: 'api' | 'web_chat' | null;
+  readonly source: 'api' | 'web_chat' | 'web_image' | null;
   readonly currency: 'USD';
   readonly deltaUnits: string;
   readonly createdBy: string | null;
@@ -38,7 +39,7 @@ export interface BillingEntryPeriodSummary {
   readonly createdBefore: number | null;
 }
 export interface BillingEntryPage { readonly items: readonly BillingEntrySummary[]; readonly nextCursor: string | null; readonly summary?: BillingEntryPeriodSummary }
-interface Row { user_email: string | null; id: string; operation_id: string; kind: BillingEntryKind; user_id: string; request_id: string | null; model_id: string | null; source: 'api' | 'web_chat' | null; currency: string; delta_units: string; created_by: string | null; reason: string | null; created_at: number }
+interface Row { user_email: string | null; id: string; operation_id: string; kind: BillingEntryKind; user_id: string; request_id: string | null; image_generation_id: string | null; model_id: string | null; source: 'api' | 'web_chat' | 'web_image' | null; currency: string; delta_units: string; created_by: string | null; reason: string | null; created_at: number }
 type Cursor = [2, 'owner' | 'admin', string, string | null, BillingEntryKind | null, string | null, number | null, number | null, number, number, string];
 export const MAX_LEDGER_TIME_MS = 8_640_000_000_000_000;
 const validId = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$/.test(value) && value.length <= 128;
@@ -78,7 +79,7 @@ export async function queryBillingEntries(database: D1Database, scope: EntryQuer
   const createdBefore = input.createdBefore ?? null;
   for (const value of [createdFrom, createdBefore]) if (value !== null && (!integer(value) || value > MAX_LEDGER_TIME_MS)) throw new ApiError('invalid_request');
   if (typeof createdFrom === 'number' && typeof createdBefore === 'number' && createdFrom > createdBefore) throw new ApiError('invalid_request');
-  if ((owner !== null && !validId(owner)) || (kind !== null && !['consumption', 'adjustment', 'grant'].includes(kind as string))
+  if ((owner !== null && !validId(owner)) || (kind !== null && !['consumption', 'adjustment', 'grant', 'image_generation'].includes(kind as string))
     || (requestId !== null && !validId(requestId)) || !integer(limit) || limit < 1 || limit > MAX_PAGE_LIMIT) throw new ApiError('invalid_request');
   // Explicit null option values are invalid, unlike absent optional filters.
   if ([input.limit, input.cursor, input.userId, input.kind, input.requestId, input.createdFrom, input.createdBefore].some(value => value === null)) throw new ApiError('invalid_request');
@@ -88,7 +89,7 @@ export async function queryBillingEntries(database: D1Database, scope: EntryQuer
   const parameters: DbValue[] = [];
   if (owner !== null) { clauses.push('b.user_id=?'); parameters.push(owner as string); }
   if (kind !== null) { clauses.push('b.kind=?'); parameters.push(kind as string); }
-  if (requestId !== null) { clauses.push('b.request_id=?'); parameters.push(requestId as string); }
+  if (requestId !== null) { clauses.push('(b.request_id=? OR b.image_generation_id=?)'); parameters.push(requestId as string, requestId as string); }
   if (createdFrom !== null) { clauses.push('b.created_at>=?'); parameters.push(createdFrom as number); }
   if (createdBefore !== null) { clauses.push('b.created_at<?'); parameters.push(createdBefore as number); }
   try {
@@ -98,7 +99,7 @@ export async function queryBillingEntries(database: D1Database, scope: EntryQuer
     }
     let summary: BillingEntryPeriodSummary | undefined;
     if (trusted.kind === 'owner' && cursor === undefined) {
-      const summaryClauses = ["kind='consumption'", 'user_id=?'];
+      const summaryClauses = ["kind IN ('consumption','image_generation')", 'user_id=?'];
       const summaryParameters: DbValue[] = [owner as string];
       if (createdFrom !== null) { summaryClauses.push('created_at>=?'); summaryParameters.push(createdFrom as number); }
       if (createdBefore !== null) { summaryClauses.push('created_at<?'); summaryParameters.push(createdBefore as number); }
@@ -116,19 +117,19 @@ export async function queryBillingEntries(database: D1Database, scope: EntryQuer
     clauses.push('b.rowid<=?'); parameters.push(watermark);
     if (cursor) { clauses.push('(b.created_at<? OR (b.created_at=? AND b.id>?))'); parameters.push(cursor[9], cursor[9], cursor[10]); }
     parameters.push(limit + 1);
-    const result = await prepare<Row>(database, `SELECT b.id,b.operation_id,b.kind,b.user_id,b.request_id,
-        r.public_model_id AS model_id,r.source, ${trusted.kind === 'admin' ? 'u.email_normalized' : 'NULL'} AS user_email, b.currency,CAST(b.delta_units AS TEXT) AS delta_units,
+    const result = await prepare<Row>(database, `SELECT b.id,b.operation_id,b.kind,b.user_id,b.request_id,b.image_generation_id,
+        COALESCE(r.public_model_id,ij.model_name) AS model_id,CASE WHEN b.kind='image_generation' THEN 'web_image' ELSE r.source END AS source, ${trusted.kind === 'admin' ? 'u.email_normalized' : 'NULL'} AS user_email, b.currency,CAST(b.delta_units AS TEXT) AS delta_units,
         b.created_by,b.reason,b.created_at
-      FROM billing_entries b LEFT JOIN requests r ON r.id=b.request_id
+      FROM billing_entries b LEFT JOIN requests r ON r.id=b.request_id LEFT JOIN image_generations ij ON ij.id=b.image_generation_id
       ${trusted.kind === 'admin' ? 'LEFT JOIN users u ON u.id=b.user_id' : ''}
       WHERE ${clauses.join(' AND ')}
       ORDER BY b.created_at DESC,b.id ASC LIMIT ?`, parameters).all();
     const rows = result.rows.slice(0, limit);
     const items = rows.map(row => {
-      if (!validId(row.id) || !integer(row.created_at) || row.currency !== 'USD' || !['consumption', 'adjustment', 'grant'].includes(row.kind)) throw new ApiError('service_unavailable');
+      if (!validId(row.id) || !integer(row.created_at) || row.currency !== 'USD' || !['consumption', 'adjustment', 'grant', 'image_generation'].includes(row.kind)) throw new ApiError('service_unavailable');
       const deltaUnits = parseUnits(row.delta_units).toString();
-      if (row.source !== null && row.source !== 'api' && row.source !== 'web_chat') throw new ApiError('service_unavailable');
-      return Object.freeze({ id: row.id, operationId: row.operation_id, kind: row.kind, userId: row.user_id, requestId: row.request_id,
+      if (row.source !== null && row.source !== 'api' && row.source !== 'web_chat' && row.source !== 'web_image') throw new ApiError('service_unavailable');
+      return Object.freeze({ id: row.id, operationId: row.operation_id, kind: row.kind, userId: row.user_id, requestId: row.request_id, ...(row.image_generation_id ? { imageGenerationId: row.image_generation_id } : {}),
         ...(trusted.kind === 'admin' ? { userEmail: row.user_email } : {}), modelId: row.model_id, source: row.source, currency: 'USD' as const, deltaUnits, createdBy: row.created_by,
         reason: row.reason, createdAt: row.created_at });
     });

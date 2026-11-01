@@ -12,6 +12,7 @@ export interface BillingSummaryProps {
   readonly summaryLoading: boolean;
   readonly summaryError?: unknown;
   readonly onRetrySummary: () => void;
+  readonly periodLabel?: string;
 }
 
 interface AmountProps {
@@ -22,9 +23,19 @@ interface AmountProps {
   readonly loading: boolean;
   readonly error?: unknown;
   readonly onRetry: () => void;
+  readonly description?: string | undefined;
 }
 
-function Amount({ label, units, currency, loading, error, onRetry, wallet }: AmountProps) {
+function Amount({
+  label,
+  units,
+  currency,
+  loading,
+  error,
+  onRetry,
+  wallet,
+  description,
+}: AmountProps) {
   let amount: string | null = null;
   if (units !== undefined) {
     try {
@@ -37,6 +48,9 @@ function Amount({ label, units, currency, loading, error, onRetry, wallet }: Amo
   return (
     <section className="console-panel min-w-0 p-5 sm:p-6">
       <h2 className="m-0 text-sm font-medium text-[var(--color-ink-secondary)]">{label}</h2>
+      {description && (
+        <p className="mt-1 text-xs leading-5 text-[var(--color-muted-foreground)]">{description}</p>
+      )}
       {amount !== null ? (
         <>
           <p className="mb-0 mt-2 console-number overflow-x-auto whitespace-nowrap text-3xl font-semibold text-[var(--color-ink)]">
@@ -83,6 +97,7 @@ export function BillingSummary({
   summaryLoading,
   summaryError,
   onRetrySummary,
+  periodLabel,
 }: BillingSummaryProps) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
@@ -97,6 +112,7 @@ export function BillingSummary({
       />
       <Amount
         label="期间消费（已结算）"
+        description={periodLabel}
         units={summary?.consumptionUnits}
         currency={summary?.currency ?? 'USD'}
         loading={summaryLoading}

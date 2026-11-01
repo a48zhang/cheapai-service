@@ -76,7 +76,7 @@ export default function KeysPage() {
     <section className="space-y-6">
       <PageHeader
         heading="API 接入"
-        description="管理密钥，将模型接入你的应用。"
+        description="管理外部应用的接入密钥。网页对话与生图使用当前登录账号。"
         actions={
           <Button
             onClick={() => {

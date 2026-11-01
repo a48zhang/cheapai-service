@@ -18,6 +18,7 @@ export interface AssistantRow {
   readonly message: ChatMessage;
   readonly variants: readonly ChatMessage[];
   readonly selectedId: string | null;
+  readonly renderKey: string;
 }
 
 export interface UserRow {
@@ -30,7 +31,17 @@ export interface SubmissionRow {
   readonly submission: ChatSubmission;
 }
 
-export type MessageRow = AssistantRow | UserRow | SubmissionRow;
+export interface PendingResponse {
+  readonly operationId: string;
+  readonly kind: 'send' | 'regenerate';
+}
+
+export interface ResponsePlaceholderRow {
+  readonly kind: 'response-placeholder';
+  readonly renderKey: string;
+}
+
+export type MessageRow = AssistantRow | UserRow | SubmissionRow | ResponsePlaceholderRow;
 
 export interface MessageRows {
   readonly groups: readonly ChatMessageTurn[];
@@ -77,6 +88,7 @@ export function createMessageRows(
   messages: readonly ChatMessage[],
   streamMessageId: string | null,
   submission: ChatSubmission | null = null,
+  pendingResponse: PendingResponse | null = null,
 ): MessageRows {
   const groups = groupChatMessagesByTurn(messages);
   const rows: MessageRow[] = [];
@@ -99,9 +111,33 @@ export function createMessageRows(
         message,
         variants,
         selectedId: group.selectedAssistant?.id ?? null,
+        renderKey:
+          activeStream && pendingResponse ? `response:${pendingResponse.operationId}` : message.id,
       });
   }
 
   if (submission && !submission.userMessageId) rows.push({ kind: 'submission', submission });
+  if (
+    pendingResponse &&
+    !rows.some((row) => row.kind === 'assistant' && row.message.id === streamMessageId)
+  ) {
+    // A local response slot exists before the server assigns an assistant ID.
+    // It is a view row, never a fabricated persisted ChatMessage.
+    const placeholder: ResponsePlaceholderRow = {
+      kind: 'response-placeholder',
+      renderKey: `response:${pendingResponse.operationId}`,
+    };
+    let previousAnswer = -1;
+    if (pendingResponse.kind === 'regenerate') {
+      for (let index = rows.length - 1; index >= 0; index -= 1) {
+        if (rows[index]?.kind === 'assistant') {
+          previousAnswer = index;
+          break;
+        }
+      }
+    }
+    if (previousAnswer >= 0) rows.splice(previousAnswer, 1, placeholder);
+    else rows.push(placeholder);
+  }
   return { groups, rows, latestAssistantTurnIndex };
 }

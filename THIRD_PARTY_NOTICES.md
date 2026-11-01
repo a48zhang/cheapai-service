@@ -80,3 +80,37 @@ The shared neutral theme and dialog/menu spacing follow shadcn/ui defaults.
 neutral gray, replacing the custom brand mark. The icon is covered by the ISC
 notices in [LICENSES/lucide-ISC.txt](LICENSES/lucide-ISC.txt), copied from the pinned
 `lucide-react` package already used by this application.
+
+## AI Elements chat submit control (2026-10-29)
+
+`apps/web/src/features/chat/components/ChatSubmitButton.tsx` adapts the
+`PromptInputSubmit` component from Vercel AI Elements, under Apache-2.0.
+
+- Repository: https://github.com/vercel/ai-elements
+- Pinned commit: `ca8be600bfd01b3131f9bf6134b51602a71f4374`.
+- Source: `packages/elements/src/prompt-input.tsx`, `PromptInputSubmit` and its props
+  (lines 1211–1263); source blob `412c846d35502d18970b1eb729a52c09de76a622`.
+- Modifications: the application's Button API, lucide icons and Chinese labels;
+  explicit stopping, result-confirmation and version-selection states; existing
+  controller ownership instead of an AI SDK runtime.
+- Copyright and modification notice: [ai-elements-NOTICE.txt](LICENSES/ai-elements-NOTICE.txt).
+- Full license: [Apache-2.0.txt](LICENSES/Apache-2.0.txt). The standard text was
+  obtained from `spdx/license-list-data/text/Apache-2.0.txt`, blob
+  `137069b823873b8bcf42979bcf8e9371052d26a2`. The Vercel root license notice is
+  preserved verbatim in the accompanying notice file.
+
+The scope of this adaptation is the submit control. Other reviewed projects and
+the integration choices are documented in [Chat interaction design](docs/chat-interaction-design.md).
+No new-api, NextChat or assistant-ui source files were imported into the product.
+
+## AI Elements image generation UI (2026-10-29)
+
+`apps/web/src/features/images/GeneratedImage.tsx` adapts `Image` and `ImageProps`
+from `vercel/ai-elements/packages/elements/src/image.tsx`, commit
+`ca8be600bfd01b3131f9bf6134b51602a71f4374`, blob
+`4c812b6efab2cbe7cac43c41af7a5a848de5caca`, under Apache-2.0.
+The official Image example at `apps/docs/content/components/(utilities)/image.mdx`
+informed the prompt/loading/result flow. The existing adapted submit control is reused.
+Changes and copyright are retained in [ai-elements-NOTICE.txt](LICENSES/ai-elements-NOTICE.txt);
+the full license is [Apache-2.0.txt](LICENSES/Apache-2.0.txt).
+The Worker generation service and accounting are application-specific implementations.
