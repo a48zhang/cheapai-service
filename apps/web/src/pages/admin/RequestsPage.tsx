@@ -1,3 +1,4 @@
+import { DateInput } from '../../shared/ui/DateInput';
 import { Disclosure } from '../../shared/ui/Disclosure';
 import { Select } from '../../shared/ui/Select';
 import { useState } from 'react';
@@ -55,6 +56,7 @@ export default function RequestsPage() {
     <section className="space-y-5">
       <PageHeader heading="全局请求" />
       <form
+        noValidate
         key={serializeRequestFilters(filters, 'admin')}
         className="flex flex-wrap items-end gap-3 console-panel p-5"
         aria-label="请求筛选"
@@ -64,20 +66,10 @@ export default function RequestsPage() {
           <Input name="model" defaultValue={filters.model} />
         </Field>
         <Field label="开始时间">
-          <Input
-            type="datetime-local"
-            name="from"
-            step="0.001"
-            defaultValue={formatLocalDateTime(filters.from, true)}
-          />
+          <DateInput name="from" defaultValue={formatLocalDateTime(filters.from, true)} />
         </Field>
         <Field label="结束时间">
-          <Input
-            type="datetime-local"
-            name="to"
-            step="0.001"
-            defaultValue={formatLocalDateTime(filters.to, true)}
-          />
+          <DateInput name="to" defaultValue={formatLocalDateTime(filters.to, true)} />
         </Field>
         <Button type="submit" variant="secondary">
           筛选

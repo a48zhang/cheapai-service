@@ -122,9 +122,9 @@ test('desktop sidebar toggles preserve drafts', async ({ page }) => {
   await input.fill('保留这段草稿');
   await expect(input).toBeFocused();
   expect(api.sent).toHaveLength(0);
-  await page.getByRole('button', { name: '收起侧栏' }).click();
+  await page.getByRole('button', { name: '收起导航' }).click();
   await expect(page.getByRole('complementary', { name: '聊天记录' })).toBeHidden();
-  await page.getByRole('button', { name: '展开侧栏' }).click();
+  await page.getByRole('button', { name: '展开导航' }).click();
   await expect(input).toHaveValue('保留这段草稿');
   await input.fill('一行很长的草稿\n'.repeat(40));
   await expect.poll(() => input.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);

@@ -13,8 +13,10 @@ const BillingPage = lazy(() =>
 );
 const KeysPage = lazy(() => import('../pages/keys/KeysPage'));
 const ImagesPage = lazy(() => import('../pages/images/ImagesPage'));
+const ModelCatalogPage = lazy(() => import('../pages/catalog/ModelCatalogPage'));
 
 export const personalPageRoutes = [
+  { path: '/console/models', Page: ModelCatalogPage },
   { path: '/images', Page: ImagesPage },
   { path: '/keys', Page: KeysPage },
   { path: '/billing', Page: BillingPage },

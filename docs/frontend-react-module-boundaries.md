@@ -9,7 +9,7 @@ features ──► own feature internals, other feature public APIs, shared, wor
 shared ──► shared, workspace packages, external dependencies
 ```
 
-`app` owns routing, providers, navigation, layouts, and identity guards. It may import page modules to construct routes. Features and pages do not import application composition.
+`app` owns routing, providers, layouts, and identity guards. It may import page modules to construct routes. Shared navigation definitions live in `shared/navigation.ts`; chat and console use the same `shared/patterns/AppNavigation.tsx` components. Features and pages do not import application composition.
 
 `pages` own route-level composition and URL state. They may import the feature modules they need and reuse another page module when route composition calls for it. Common page shells belong in `app/layouts` or `shared/patterns`.
 
@@ -26,3 +26,9 @@ Formatting uses the root `.prettierrc.json` across React source, API client, and
 Public pages share `app/layouts/PublicLayout.tsx` and the existing top navigation. `/models` is the canonical catalog route; the old `/#models` link redirects there. Group and search selection belong to URL state. Catalog query keys and loading belong to `features/model-catalog`; public listing requires an active group explicitly published through `isPublic`. Migration 0033 defaults existing groups to private. Prices are calculated on the server for the selected group using shared exact decimal arithmetic, with image rounding matching billing.
 
 Web and desktop compose personal pages from `app/personal-routes.tsx`. The public `@cheapai/web/desktop` entry bundles those pages locally with an injected native transport and HashRouter. Platform differences live in `shared/platform.tsx`; pages do not import Tauri. Desktop excludes admin routes and uses the same session/query lifecycle. Shared Web, contract, API client, and model catalog changes trigger desktop CI checks.
+
+The public catalog remains `/models` in the original top navigation. `/console/models` renders the same catalog page inside the authenticated web console, so entering it from chat retains personal navigation. Desktop keeps its public catalog at `/models`. Returning to native chat uses the platform callback without replacing the embedded console location. Web personal navigation remembers the selected conversation for the current account until reload; new-conversation actions still navigate to `/chat`. Account changes reset that navigation memory. Drawers close on route changes, including history traversal.
+
+Application actions use `Button`; actions that change pages use `RouteButton`. Menus use `NavigationButton` and `PersonalNavigation`. Do not recreate these with styled anchors or separate per-page menu arrays. `TextLink` is for references, documentation and links in message content. Skip-to-content uses focus, never a hash URL, because desktop uses HashRouter. Login return paths preserve search and hash and exclude authentication loops and API destinations.
+
+`Input` accepts text entry types only. Use `DateInput` (DayPicker with Radix Popover) for local dates/times, `Checkbox` for toggles, and `Select` for choices. Numeric text uses `inputMode` with domain validation, without native spinners. Date text remains editable and preserves seconds/milliseconds from URL filters. Forms validate incomplete dates; the calendar does not silently normalize them. ESLint rejects browser picker inputs and per-page `Link`/`NavLink` controls. UI tests cover keyboard access, native form values, routing, and matching chat/console navigation.

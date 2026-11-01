@@ -9,7 +9,8 @@ export function safeReturnPath(value: unknown, fallback = '/'): string {
     return fallback;
   let decoded: string;
   try {
-    decoded = decodeURIComponent(value);
+    // Query/hash values may legitimately contain encoded spaces (for example filters).
+    decoded = decodeURIComponent(value.split(/[?#]/u)[0]!);
   } catch {
     return fallback;
   }
@@ -17,7 +18,7 @@ export function safeReturnPath(value: unknown, fallback = '/'): string {
   // Normalize dot segments before checking application-only destinations.
   let path: string;
   try {
-    path = new URL(decoded, 'https://app.invalid').pathname;
+    path = new URL(decoded, 'https://app.invalid').pathname.replace(/\/+$/u, '').toLowerCase();
   } catch {
     return fallback;
   }
@@ -27,6 +28,7 @@ export function safeReturnPath(value: unknown, fallback = '/'): string {
     path === '/v1' ||
     path.startsWith('/v1/') ||
     path === '/login' ||
+    path === '/register' ||
     path === '/session-unavailable'
   )
     return fallback;

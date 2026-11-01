@@ -128,6 +128,22 @@ export default tseslint.config(
             'Use the shared Select, Disclosure or TextLink component instead of a browser-default control.',
         },
         {
+          selector: 'JSXOpeningElement[name.name=/^(Link|NavLink)$/]',
+          message: 'Use RouteButton for page actions or the shared NavigationButton for menus.',
+        },
+        {
+          selector:
+            'JSXOpeningElement[name.name="form"]:not(:has(JSXAttribute[name.name="noValidate"]))',
+          message:
+            'Use noValidate and inline form validation instead of browser validation popups.',
+        },
+        {
+          selector:
+            'JSXOpeningElement[name.name=/^(input|Input)$/] > JSXAttribute[name.name="type"] > Literal[value=/^(date|datetime-local|time|month|week|number|checkbox|radio|color)$/]',
+          message:
+            'Use the shared DateInput or Checkbox; numeric text uses Input with inputMode and explicit validation.',
+        },
+        {
           selector:
             'CallExpression[callee.object.name="window"][callee.property.name=/^(alert|confirm|prompt)$/]',
           message: 'Use the shared Dialog or ConfirmAction component instead of a browser dialog.',

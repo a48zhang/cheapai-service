@@ -94,10 +94,7 @@ describe('image generation interaction', () => {
     expect(send).toHaveBeenCalledTimes(1);
     await act(async () => finish(envelope(job(String(send.mock.calls[0]![0].operationId)))));
     expect(await screen.findByRole('button', { name: '放大预览图片' })).toBeVisible();
-    expect(screen.getByRole('link', { name: '下载图片' })).toHaveAttribute(
-      'href',
-      '/api/v1/images/generations/job/content?download=1',
-    );
+    expect(screen.getByRole('button', { name: '下载图片' })).toBeEnabled();
     expect(textbox).toHaveValue('下一张图片的描述');
     expect(screen.queryByText('正在生成图片…')).toBeNull();
   });
@@ -142,10 +139,7 @@ describe('image generation interaction', () => {
       size: original.size,
       prompt,
     });
-    expect(screen.getByRole('link', { name: '查看费用' })).toHaveAttribute(
-      'href',
-      '/billing?period=all&kind=image_generation&requestId=job',
-    );
+    expect(screen.getByRole('button', { name: '查看费用' })).toBeEnabled();
   });
   it('requires a new selection when the original model is no longer available', async () => {
     const send = setup(

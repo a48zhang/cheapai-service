@@ -194,3 +194,19 @@
     grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   }
 }
+
+/* Identical mobile navigation geometry in chat and console. */
+.app-navigation-sheet {
+  max-width: min(18rem, 86vw);
+}
+.app-navigation-sheet > div:first-child {
+  height: 3.5rem;
+  align-items: center;
+  padding: 0 1rem;
+}
+.app-navigation-sheet > div:first-child h2 {
+  font-size: 1rem;
+}
+.app-navigation-sheet > div:nth-child(2) {
+  padding: 0;
+}

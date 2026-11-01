@@ -329,11 +329,7 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
   await expect(requestRow).toBeVisible();
   await expect(requestRow).toContainText('失败');
   await expect(requestRow).toContainText('用量未知');
-  const requestLink = requestRow.getByRole('link', { name: modelId, exact: true });
-  await expect(requestLink).toHaveAttribute(
-    'href',
-    new RegExp(`/admin/requests/${requestId}(?:\\?|$)`),
-  );
+  const requestLink = requestRow.getByRole('button', { name: modelId, exact: true });
   await requestLink.click();
   await expect(page).toHaveURL(new RegExp(`/admin/requests/${requestId}`));
   await expect(page.getByRole('heading', { name: '请求详情' })).toBeVisible();

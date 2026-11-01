@@ -31,7 +31,7 @@ test('home links into anonymous chat and preserves the login destination', async
     }),
   );
   await page.goto('/');
-  await page.getByRole('main').getByRole('link', { name: '开始对话', exact: true }).first().click();
+  await page.getByRole('main').getByRole('button', { name: '开始对话', exact: true }).first().click();
   await expect(page).toHaveURL(/\/chat$/);
   await expect(page.getByRole('textbox', { name: '消息内容' })).toBeEnabled();
   await page.getByRole('textbox', { name: '消息内容' }).fill('一个新想法');
@@ -50,7 +50,7 @@ for (const width of [320, 375, 1440]) {
     await page.goto('/');
     await expect(page.getByRole('banner').getByText('用户', { exact: true })).toHaveCount(0);
     await expect(page.getByRole('banner').getByText('开发者', { exact: true })).toHaveCount(0);
-    await page.getByRole('main').getByRole('link', { name: '接入 Agent', exact: true }).click();
+    await page.getByRole('main').getByRole('button', { name: '接入 Agent', exact: true }).click();
     await expect(page).toHaveURL(/#agent-tools$/);
     const guide = page.getByRole('region', { name: '把常用 Agent 接入 CheapAI' });
     const panel = guide.getByRole('tabpanel');
@@ -89,7 +89,7 @@ for (const width of [320, 375, 1440]) {
         true,
       );
     }
-    await guide.getByRole('link', { name: '创建 API Key' }).click();
+    await guide.getByRole('button', { name: '创建 API Key' }).click();
     await expect(page).toHaveURL(
       (url) => url.pathname === '/login' && url.searchParams.get('returnTo') === '/keys',
     );

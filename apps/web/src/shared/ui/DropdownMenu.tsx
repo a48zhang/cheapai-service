@@ -1,5 +1,5 @@
+import { RouteButton } from './RouteButton';
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
-import { Link } from 'react-router-dom';
 import type { ReactElement, ReactNode } from 'react';
 
 export interface DropdownMenuAction {
@@ -86,7 +86,13 @@ export function DropdownMenu({
                 className={`flex min-h-8 cursor-pointer select-none items-center justify-between gap-5 rounded px-2 py-1.5 text-sm leading-6 outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-45 data-[highlighted]:bg-[var(--color-muted)] ${item.destructive ? 'text-[var(--color-destructive)] data-[highlighted]:bg-[var(--color-destructive-soft)]' : 'text-[var(--color-foreground)]'}`}
               >
                 {item.to ? (
-                  <Link to={item.to}>{item.label}</Link>
+                  <RouteButton
+                    to={item.to}
+                    variant="ghost"
+                    className="w-full justify-start font-normal"
+                  >
+                    {item.label}
+                  </RouteButton>
                 ) : (
                   <>
                     <span>{item.label}</span>

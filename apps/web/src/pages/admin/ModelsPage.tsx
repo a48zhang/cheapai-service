@@ -1,5 +1,6 @@
+import { RouteButton } from '../../shared/ui/RouteButton';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import type { ModelStatus } from '@cheapai/api-client/models';
 import { useSession } from '../../features/session/useSession';
 import { modelListQueryOptions } from '../../features/admin-models/api';
@@ -7,7 +8,6 @@ import { ModelTable } from '../../features/admin-models/ModelTable';
 import { FilterBar } from '../../shared/patterns/FilterBar';
 import { PageHeader } from '../../shared/patterns/PageHeader';
 import { Select } from '../../shared/ui/Select';
-import { Button } from '../../shared/ui/Button';
 import { mergePageItems } from '../../shared/lib/pagination';
 
 const statusItems = [
@@ -57,9 +57,9 @@ export default function ModelsPage() {
       <PageHeader
         heading="模型与价格"
         actions={
-          <Button asChild>
-            <Link to="/admin/models/actions/create">新增模型</Link>
-          </Button>
+          <RouteButton variant="primary" to="/admin/models/actions/create">
+            新增模型
+          </RouteButton>
         }
       />
       <FilterBar onReset={() => changeStatus('all')}>

@@ -1,3 +1,5 @@
+import { DateInput } from '../../shared/ui/DateInput';
+import { parseLocalDateTime } from '../../shared/lib/datetime';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { createAdminRegistrationApi } from '@cheapai/api-client/registration-admin';
 import type { CodeBatch } from '@cheapai/contracts/registration-admin';
@@ -52,7 +54,15 @@ export function CodeBatchDialog({
     let current = intent;
     if (!current) {
       const amount = Number(quantity);
-      const deadline = expires ? new Date(expires).getTime() : null;
+      const deadline = expires ? parseLocalDateTime(expires) : null;
+      if (!Number.isSafeInteger(amount) || amount < 1) {
+        setError(new Error('生成数量必须是正整数。'));
+        return;
+      }
+      if (deadline === undefined || (deadline !== null && deadline <= Date.now())) {
+        setError(new Error('到期时间必须是有效的未来时间。'));
+        return;
+      }
       current = createCodeIntent({ quantity: amount, expiresAt: deadline });
       setIntent(current);
     }
@@ -134,20 +144,14 @@ export function CodeBatchDialog({
           <>
             <Field label="生成数量">
               <Input
-                type="number"
-                min={1}
+                inputMode="numeric"
                 value={quantity}
                 onChange={(event) => setQuantity(event.target.value)}
                 disabled={busy || !!intent}
               />
             </Field>
             <Field label="到期时间" description="留空表示永不过期">
-              <Input
-                type="datetime-local"
-                value={expires}
-                onChange={(event) => setExpires(event.target.value)}
-                disabled={busy || !!intent}
-              />
+              <DateInput value={expires} onValueChange={setExpires} disabled={busy || !!intent} />
             </Field>
             {intent && (
               <p className="text-sm text-[var(--color-warning)]">

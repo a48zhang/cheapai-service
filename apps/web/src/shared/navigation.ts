@@ -28,7 +28,7 @@ export interface NavigationGroup {
 export const personalNavigation: NavigationItem[] = [
   { path: '/chat', label: '对话', icon: MessageSquare },
   { path: '/images', label: '生图', icon: ImagePlus },
-  { path: '/models', label: '模型目录', icon: Boxes },
+  { path: '/console/models', label: '模型目录', icon: Boxes },
   { path: '/keys', label: 'API 接入', icon: KeyRound },
   { path: '/billing', label: '费用', icon: ReceiptText },
   { path: '/requests', label: '使用记录', icon: Activity },

@@ -1,3 +1,4 @@
+import { RouteButton } from '../../shared/ui/RouteButton';
 import { useProductEnvironment } from '../../shared/platform';
 import { useState } from 'react';
 import { Button } from '../../shared/ui/Button';
@@ -5,7 +6,7 @@ import { Dialog } from '../../shared/ui/Dialog';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { ThemePicker } from '@cheapai/theme';
 import { ArrowUpRight, ChevronsUpDown } from 'lucide-react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { safeReturnPath } from '../../shared/lib/return-path';
 import { DropdownMenu } from '../../shared/ui/DropdownMenu';
 import { useSession } from './useSession';
@@ -28,7 +29,7 @@ export function AccountMenu({
   const { user, isAdmin, session, pending } = useSession();
   const location = useLocation();
   const navigate = useNavigate();
-  const returnTo = safeReturnPath(location.pathname + location.search);
+  const returnTo = safeReturnPath(location.pathname + location.search + location.hash);
 
   const logout = async () => {
     setLogoutError(null);
@@ -47,14 +48,14 @@ export function AccountMenu({
     >
       {!isSidebar && showTheme && <ThemePicker />}
       {!isSidebar && showShortcut && (
-        <Link
+        <RouteButton
           to="/keys"
           aria-label="API 接入"
           title="API 接入"
           className="inline-flex min-h-9 items-center gap-1 text-sm font-medium text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] sm:text-sm"
         >
           {compact ? 'API' : 'API 接入'} <ArrowUpRight aria-hidden="true" size={14} />
-        </Link>
+        </RouteButton>
       )}
       {user ? (
         <DropdownMenu
@@ -109,12 +110,12 @@ export function AccountMenu({
           ]}
         />
       ) : (
-        <Link
+        <RouteButton
           to={`/login?returnTo=${encodeURIComponent(returnTo)}`}
           className="inline-flex min-h-9 shrink-0 items-center whitespace-nowrap rounded-md border border-[var(--color-border)] px-3 text-sm font-medium text-[var(--color-foreground)] hover:bg-[var(--color-surface-subtle)]"
         >
           登录
-        </Link>
+        </RouteButton>
       )}
       <Dialog
         open={logoutError !== null}

@@ -1,7 +1,7 @@
+import { RouteButton } from '../../shared/ui/RouteButton';
 import { ModelIdentity } from '../../shared/ui/ModelIdentity';
 import { useMemo } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Link } from 'react-router-dom';
 import type { ChannelView } from '@cheapai/api-client/channels';
 import { CursorTable } from '../../shared/patterns/CursorTable';
 import { Button } from '../../shared/ui/Button';
@@ -41,13 +41,13 @@ export function ChannelTable({
         header: '渠道',
         cell: ({ row }) => (
           <div className="min-w-40 max-w-64">
-            <Link
+            <RouteButton
               to={`/admin/channels/${encodeURIComponent(row.original.id)}`}
-              className="block truncate font-medium text-[var(--color-primary)] hover:underline underline-offset-4"
+              className="block truncate font-medium text-[var(--color-primary)]"
               title={row.original.name}
             >
               {row.original.name}
-            </Link>
+            </RouteButton>
             <code className="mt-1 block truncate console-muted" title={row.original.baseUrl}>
               {row.original.baseUrl}
             </code>

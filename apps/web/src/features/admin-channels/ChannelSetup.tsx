@@ -1,7 +1,7 @@
-import { TextLink } from '../../shared/ui/TextLink';
+import { RouteButton } from '../../shared/ui/RouteButton';
+import { NewTabButton } from '../../shared/ui/NewTabButton';
 import { useId, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link } from 'react-router-dom';
 import type { ApiClient } from '@cheapai/api-client/types';
 import type { GroupView } from '@cheapai/api-client/groups';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
@@ -193,9 +193,12 @@ export function ChannelSetup({
         {progress.error ? '重试关联访问组' : '关联访问组并完成'}
       </Button>
     ) : progress.channel ? (
-      <Button asChild variant="outline">
-        <Link to={`/admin/channels/${encodeURIComponent(progress.channel.id)}`}>打开渠道详情</Link>
-      </Button>
+      <RouteButton
+        variant="outline"
+        to={`/admin/channels/${encodeURIComponent(progress.channel.id)}`}
+      >
+        打开渠道详情
+      </RouteButton>
     ) : null;
 
   return (
@@ -251,13 +254,13 @@ export function ChannelSetup({
         {progress.creationUncertain && (
           <div role="alert" className="space-y-2 text-sm">
             <p>{uncertainChannelCreationMessage}</p>
-            <TextLink href="/admin/channels" target="_blank" rel="noreferrer" className="underline">
+            <NewTabButton href="/admin/channels" className="">
               在新标签页核对渠道
-            </TextLink>
+            </NewTabButton>
             {' · '}
-            <TextLink href="/admin/audit" target="_blank" rel="noreferrer" className="underline">
+            <NewTabButton href="/admin/audit" className="">
               查看审计记录
-            </TextLink>
+            </NewTabButton>
           </div>
         )}
         {validationError && (
@@ -298,17 +301,21 @@ export function ChannelSetup({
           >
             <h3 className="font-semibold">渠道设置已完成</h3>
             <div className="flex flex-wrap gap-3">
-              <Button asChild variant="outline" size="sm">
-                <Link to={`/admin/channels/${encodeURIComponent(progress.channel.id)}`}>
-                  渠道详情
-                </Link>
-              </Button>
+              <RouteButton
+                variant="outline"
+                size="sm"
+                to={`/admin/channels/${encodeURIComponent(progress.channel.id)}`}
+              >
+                渠道详情
+              </RouteButton>
               {progress.group && (
-                <Button asChild variant="outline" size="sm">
-                  <Link to={`/admin/groups/${encodeURIComponent(progress.group.id)}`}>
-                    访问组详情
-                  </Link>
-                </Button>
+                <RouteButton
+                  variant="outline"
+                  size="sm"
+                  to={`/admin/groups/${encodeURIComponent(progress.group.id)}`}
+                >
+                  访问组详情
+                </RouteButton>
               )}
             </div>
           </section>

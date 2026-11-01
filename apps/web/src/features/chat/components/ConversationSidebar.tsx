@@ -1,22 +1,15 @@
+import { PersonalNavigation } from '../../../shared/patterns/AppNavigation';
 import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { NavLink } from 'react-router-dom';
 import { BrandLink } from '../../../shared/ui/BrandLink';
-import {
-  PanelLeftClose,
-  Plus,
-  MessageSquare,
-  KeyRound,
-  ReceiptText,
-  Activity,
-  ImagePlus,
-} from 'lucide-react';
+import { Plus } from 'lucide-react';
 import type { Conversation } from '@cheapai/api-client/chat';
 import { Button } from '../../../shared/ui/Button';
 import { ConversationRow } from './ConversationRow';
 import type { HistoryView } from '../model/view-state';
 
 export interface ConversationSidebarProps {
+  readonly isAdmin?: boolean;
   readonly conversations: readonly Conversation[];
   readonly activeId: string | null;
   readonly view: HistoryView;
@@ -35,6 +28,7 @@ export interface ConversationSidebarProps {
 
 /** Conversation navigation and actions; all writes are supplied by its owner. */
 export function ConversationSidebar({
+  isAdmin = false,
   conversations,
   activeId,
   view,
@@ -82,49 +76,24 @@ export function ConversationSidebar({
     <aside
       aria-label="聊天记录"
       data-mobile-open={mobileOpen ? 'true' : undefined}
-      className="chat-sidebar flex h-full w-full flex-col border-r border-[var(--color-line)] bg-[var(--color-surface-subtle)]"
+      className="chat-sidebar flex h-full w-full flex-col border-r border-[var(--color-border)] bg-[var(--color-surface-subtle)]"
     >
-      <header className="flex h-14 shrink-0 items-center justify-between px-5">
-        <BrandLink className="text-base font-semibold" />
-        <Button
-          aria-label="关闭聊天记录"
-          className="md:hidden"
-          onClick={onClose}
-          size="icon"
-          variant="ghost"
-        >
-          <PanelLeftClose aria-hidden="true" size={18} />
-        </Button>
-      </header>
+      {!mobileOpen && (
+        <header className="flex h-14 shrink-0 items-center justify-between px-4">
+          <BrandLink className="text-base font-semibold" />
+        </header>
+      )}
 
-      <div className="px-3 pb-4">
+      <div className="px-2 py-3">
         <Button className="w-full justify-start" onClick={onNew} variant="outline">
           <Plus aria-hidden="true" size={17} />
           新对话
         </Button>
       </div>
 
-      <nav aria-label="个人导航" className="space-y-1 px-2 pb-6">
-        {[
-          { to: '/chat', label: '对话', icon: MessageSquare },
-          { to: '/images', label: '生图', icon: ImagePlus },
-          { to: '/keys', label: 'API 接入', icon: KeyRound },
-          { to: '/billing', label: '费用', icon: ReceiptText },
-          { to: '/requests', label: '请求记录', icon: Activity },
-        ].map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            onClick={onClose}
-            className={({ isActive }) =>
-              `flex h-9 items-center gap-2 rounded-md px-2 text-sm hover:bg-[var(--color-surface-hover)] ${isActive ? 'bg-[var(--color-surface-hover)] font-medium' : ''}`
-            }
-          >
-            <Icon size={16} aria-hidden="true" />
-            {label}
-          </NavLink>
-        ))}
-      </nav>
+      <div className="px-2 pb-4">
+        <PersonalNavigation isAdmin={isAdmin} onNavigate={onClose} />
+      </div>
       <h2 className="px-4 pb-2 text-xs font-medium text-[var(--color-ink-muted)]">最近对话</h2>
       {loading && conversations.length === 0 && !error ? (
         <p className="px-5 py-4 text-sm text-[var(--color-ink-muted)]" role="status">
@@ -133,7 +102,7 @@ export function ConversationSidebar({
       ) : null}
 
       {view === 'empty' ? (
-        <p className="mx-4 border-t border-[var(--color-line)] px-1 py-5 text-sm text-[var(--color-ink-muted)]">
+        <p className="mx-4 border-t border-[var(--color-border)] px-1 py-5 text-sm text-[var(--color-ink-muted)]">
           还没有对话
         </p>
       ) : null}

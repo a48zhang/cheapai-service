@@ -1,8 +1,11 @@
+import { useNavigationSheet } from '../../shared/patterns/useNavigationSheet';
+import { RouteButton } from '../../shared/ui/RouteButton';
+import { PersonalNavigation, NavigationButton } from '../../shared/patterns/AppNavigation';
 import { useProductEnvironment } from '../../shared/platform';
-import { TextLink } from '../../shared/ui/TextLink';
+import { SkipToContent } from '../../shared/ui/SkipToContent';
 import { ArrowLeft, Menu, MessageSquare, PanelLeft, PanelLeftClose } from 'lucide-react';
-import { type ReactNode, Suspense, useState } from 'react';
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { type ReactNode, Suspense } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import { useDesktopNavigation } from '../../shared/patterns/NavigationState';
 import { AccountMenu } from '../../features/session/public';
 import { useSession } from '../../features/session/useSession';
@@ -12,13 +15,8 @@ import { AppShell } from '../../shared/patterns/AppShell';
 import { BrandLink } from '../../shared/ui/BrandLink';
 import { AppTopbar } from '../../shared/patterns/AppTopbar';
 import { Button } from '../../shared/ui/Button';
-import { Sheet } from '../../shared/ui/Sheet';
-import {
-  adminEntry,
-  adminNavigation,
-  personalNavigation,
-  type NavigationItem,
-} from '../navigation';
+import { NavigationSheet } from '../../shared/patterns/NavigationSheet';
+import { adminNavigation, personalNavigation, type NavigationItem } from '../../shared/navigation';
 
 export function ConsoleLayout({
   children,
@@ -29,45 +27,41 @@ export function ConsoleLayout({
 }) {
   const { kind } = useProductEnvironment();
   const { isAdmin, error } = useSession();
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useNavigationSheet();
   const [desktopOpen, setDesktopOpen] = useDesktopNavigation();
   const isManagement = mode === 'admin';
   const title = isManagement ? '管理控制台' : '个人控制台';
   const { pathname } = useLocation();
   const currentItem = (
     isManagement ? adminNavigation.flatMap((group) => group.items) : personalNavigation
-  ).find((item) => pathname === item.path || pathname.startsWith(`${item.path}/`));
+  ).find(
+    (item) =>
+      pathname === item.path ||
+      pathname.startsWith(`${item.path}/`) ||
+      (kind === 'desktop' && pathname === '/models' && item.path === '/console/models'),
+  );
 
   function renderItem(item: NavigationItem) {
-    const Icon = item.icon;
-    return (
-      <NavLink
-        key={item.path}
-        to={item.path}
-        onClick={() => setMobileOpen(false)}
-        className={({ isActive }) =>
-          `flex min-h-9 items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${isActive ? 'bg-[var(--color-accent-soft)] font-medium text-[var(--color-ink)]' : 'text-[var(--color-muted-foreground)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-foreground)]'}`
-        }
-      >
-        <Icon aria-hidden="true" size={16} strokeWidth={1.8} className="shrink-0" />
-        <span>{item.label}</span>
-      </NavLink>
-    );
+    return <NavigationButton key={item.path} item={item} onNavigate={() => setMobileOpen(false)} />;
   }
 
   const navigation = (
-    <nav aria-label={isManagement ? '管理导航' : '个人导航'} className="space-y-4">
+    <div
+      role={isManagement ? 'navigation' : undefined}
+      aria-label={isManagement ? '管理导航' : undefined}
+      className="space-y-4"
+    >
       {isManagement ? (
         <>
           <div className="space-y-1">
-            <Link
+            <RouteButton
               to="/keys"
               onClick={() => setMobileOpen(false)}
               className="flex min-h-9 items-center gap-3 rounded-md px-3 text-sm text-[var(--color-muted-foreground)] hover:bg-[var(--color-surface-subtle)] hover:text-[var(--color-foreground)]"
             >
               <ArrowLeft aria-hidden="true" size={16} strokeWidth={1.8} />
               个人控制台
-            </Link>
+            </RouteButton>
             {renderItem({ path: '/chat', label: '对话', icon: MessageSquare })}
           </div>
           {adminNavigation.map((group) => (
@@ -80,28 +74,14 @@ export function ConsoleLayout({
           ))}
         </>
       ) : (
-        <>
-          <div className="space-y-1">{personalNavigation.map(renderItem)}</div>
-          {isAdmin && kind !== 'desktop' && (
-            <div className="border-t border-[var(--color-border)] pt-4">
-              {renderItem(adminEntry)}
-            </div>
-          )}
-        </>
+        <PersonalNavigation isAdmin={isAdmin} onNavigate={() => setMobileOpen(false)} />
       )}
-    </nav>
+    </div>
   );
 
   return (
     <AppShell
-      skipLink={
-        <TextLink
-          href="#main-content"
-          className="sr-only focus:not-sr-only focus:fixed focus:z-[70] focus:rounded-md focus:bg-[var(--color-surface)] focus:p-4"
-        >
-          跳到主要内容
-        </TextLink>
-      }
+      skipLink={<SkipToContent target="main-content" />}
       open={desktopOpen}
       sidebar={
         <aside
@@ -113,7 +93,10 @@ export function ConsoleLayout({
           }
         >
           <div className="flex h-14 shrink-0 items-center px-4">
-            <BrandLink className="text-base font-semibold" />
+            <BrandLink
+              to={kind === 'desktop' ? '/models' : '/'}
+              className="text-base font-semibold"
+            />
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-2 py-3">{navigation}</div>
         </aside>
@@ -137,19 +120,18 @@ export function ConsoleLayout({
                   <PanelLeft aria-hidden="true" size={16} />
                 )}
               </Button>
-              <Sheet
+              <NavigationSheet
                 open={mobileOpen}
                 onOpenChange={setMobileOpen}
-                title={title}
-                side="left"
+                title={isManagement ? '管理导航' : '个人导航'}
                 trigger={
                   <Button variant="ghost" size="icon" className="md:!hidden" aria-label="打开导航">
                     <Menu aria-hidden="true" size={21} />
                   </Button>
                 }
               >
-                {navigation}
-              </Sheet>
+                <div className="px-2 py-3">{navigation}</div>
+              </NavigationSheet>
             </>
           }
           context={
@@ -167,7 +149,11 @@ export function ConsoleLayout({
                   </span>
                   <span aria-current="page" className="truncate font-medium">
                     {currentItem.label}
-                    {pathname !== currentItem.path ? '详情' : ''}
+                    {pathname.endsWith('/actions/create')
+                      ? ' · 新建'
+                      : pathname.startsWith(`${currentItem.path}/`)
+                        ? '详情'
+                        : ''}
                   </span>
                 </>
               )}

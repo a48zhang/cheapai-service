@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { RouteButton } from '../../shared/ui/RouteButton';
 import type { CodeListItem } from '@cheapai/contracts/registration-admin';
 import { CursorTable } from '../../shared/patterns/CursorTable';
 import { ConfirmAction } from '../../shared/ui/ConfirmAction';
@@ -77,13 +77,13 @@ export function CodeTable({
               row.original.usedAt !== null || row.original.usedBy ? (
                 <div className="space-y-1">
                   {row.original.usedBy ? (
-                    <Link
+                    <RouteButton
                       className="block max-w-52 truncate text-[var(--color-accent)]"
                       title={row.original.usedByEmail ?? row.original.usedBy}
                       to={`/admin/users/${encodeURIComponent(row.original.usedBy)}`}
                     >
                       {row.original.usedByEmail ?? '查看使用者'}
-                    </Link>
+                    </RouteButton>
                   ) : (
                     <span className="text-[var(--color-ink-secondary)]">使用者已删除</span>
                   )}

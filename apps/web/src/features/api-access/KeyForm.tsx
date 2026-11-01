@@ -1,3 +1,4 @@
+import { DateInput } from '../../shared/ui/DateInput';
 import { Controller } from 'react-hook-form';
 import { Select } from '../../shared/ui/Select';
 import { formatCreditsPerMillionTokens } from '../../shared/lib/model-price';
@@ -103,6 +104,7 @@ export function KeyForm(props: KeyFormProps) {
       {mode === 'create' && createPhase === 'replayed' ? null : mode === 'create' &&
         createPhase === 'created' ? null : (
         <form
+          noValidate
           id="key-form"
           className="space-y-4"
           onSubmit={(event) => {
@@ -214,9 +216,15 @@ export function KeyForm(props: KeyFormProps) {
                 )}
               </div>
             )}
-            <Field label="到期时间（留空不过期）" error={errors.expiresAt?.message}>
-              <Input type="datetime-local" {...register('expiresAt')} />
-            </Field>
+            <Controller
+              control={form.control}
+              name="expiresAt"
+              render={({ field: { onChange, ...field } }) => (
+                <Field label="到期时间（留空不过期）" error={errors.expiresAt?.message}>
+                  <DateInput {...field} onValueChange={onChange} />
+                </Field>
+              )}
+            />
           </fieldset>
         </form>
       )}

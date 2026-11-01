@@ -16,6 +16,33 @@ const catalog = {
 };
 const envelope = (data: unknown) => JSON.stringify({ data, request_id: 'catalog-test' });
 
+test('login returns to the public catalog query instead of forcing chat', async ({ page }) => {
+  let signedIn = false;
+  const account = { id: 'catalog-user', email_normalized: 'catalog@example.invalid', role: 'user', status: 'active', group_id: 'standard', group_status: 'active', balance_units: '0', email_verified_at: null };
+  await page.route('**/api/v1/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    const reply = (data: unknown) => route.fulfill({ contentType: 'application/json', body: envelope(data) });
+    if (path === '/api/v1/auth/me') return signedIn ? reply(account) : route.fulfill({ status: 401, body: '{}' });
+    if (path === '/api/v1/auth/login') { signedIn = true; return reply(account); }
+    if (path === '/api/v1/settings/public') return reply({ registrationMode: 'closed', emailVerificationEnabled: false, csrfToken: 'a'.repeat(42) + 'A' });
+    if (path === '/api/v1/catalog/groups') return reply({ items: [{ id: 'standard', name: '标准组' }] });
+    if (path === '/api/v1/catalog/models') return reply(catalog);
+    return reply({ items: [], nextCursor: null });
+  });
+  await page.goto('/models?group=standard&q=custom%20model#prices');
+  await page.getByRole('banner').getByRole('button', { name: '登录', exact: true }).click();
+  await expect(page).toHaveURL(url => url.pathname === '/login' && url.searchParams.get('returnTo') === '/models?group=standard&q=custom%20model#prices');
+  await page.getByRole('textbox', { name: '邮箱', exact: true }).fill('invalid');
+  await page.getByLabel('密码', { exact: true }).fill('fixture-password');
+  await page.getByRole('button', { name: '登录', exact: true }).click();
+  await expect(page.getByRole('alert')).toBeVisible();
+  await page.getByRole('textbox', { name: '邮箱', exact: true }).fill('catalog@example.invalid');
+  await page.getByRole('button', { name: '登录', exact: true }).click();
+  await expect(page).toHaveURL('/models?group=standard&q=custom%20model#prices');
+  await page.goto('/login?returnTo=%2Fmodels');
+  await expect(page).toHaveURL(/\/models$/);
+});
+
 async function publicHome(page: Page) {
   await page.route('**/api/v1/**', (route) => route.fulfill({ status: 503, body: 'Unavailable' }));
   await page.route('**/api/v1/catalog/groups', (route) => route.fulfill({ contentType: 'application/json', body: envelope({ items: [{ id: 'standard', name: '标准组' }, { id: 'discount', name: '折扣组' }] }) }));
@@ -59,13 +86,13 @@ for (const width of [320, 375, 1440]) {
       await expect(page.getByRole('menu')).toHaveCount(0);
     } else {
       const navigation = banner.getByRole('navigation', { name: '首页导航' });
-      await expect(navigation.getByRole('link')).toHaveText([
+      await expect(navigation.getByRole('button')).toHaveText([
         '产品',
         '模型目录',
         'Agent 接入',
         '常见问题',
       ]);
-      await navigation.getByRole('link', { name: '模型目录' }).click();
+      await navigation.getByRole('button', { name: '模型目录' }).click();
     }
     await expect(page).toHaveURL(/\/models$/);
     const directory = page.getByRole('region', { name: '模型目录' });
@@ -92,7 +119,7 @@ for (const width of [320, 375, 1440]) {
     const image = directory.getByRole('article', { name: 'GPT Image', exact: true });
     await expect(image).toContainText('积分 / 张');
     await expect(image.locator('dd')).toHaveText('0.04');
-    await expect(image.getByRole('link', { name: '去生图' })).toHaveAttribute('href', '/images');
+    await expect(image.getByRole('button', { name: '去生图' })).toBeEnabled();
     await expect(directory).not.toContainText(
       /最大输出|上下文窗口|contextWindow|max_output_tokens/,
     );
@@ -123,7 +150,7 @@ test('header navigation, catalog deep links and overview anchors survive reload 
   );
   await page.goto('/#models');
   const navigation = page.getByRole('banner').getByRole('navigation', { name: '首页导航' });
-  await expect(navigation.getByRole('link', { name: '模型目录' })).toHaveAttribute(
+  await expect(navigation.getByRole('button', { name: '模型目录' })).toHaveAttribute(
     'aria-current',
     'page',
   );
@@ -133,19 +160,19 @@ test('header navigation, catalog deep links and overview anchors survive reload 
   await expect(page).toHaveURL(/\/models$/);
   await expect(page.getByRole('main')).toBeFocused();
   await page.reload();
-  await expect(navigation.getByRole('link', { name: '模型目录' })).toHaveAttribute(
+  await expect(navigation.getByRole('button', { name: '模型目录' })).toHaveAttribute(
     'aria-current',
     'page',
   );
-  await navigation.getByRole('link', { name: '产品', exact: true }).focus();
+  await navigation.getByRole('button', { name: '产品', exact: true }).focus();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { name: '对话与 API 接入' })).toBeVisible();
   await page.goBack();
-  await expect(navigation.getByRole('link', { name: '模型目录' })).toHaveAttribute(
+  await expect(navigation.getByRole('button', { name: '模型目录' })).toHaveAttribute(
     'aria-current',
     'page',
   );
-  await page.getByRole('link', { name: 'Agent 接入指南', exact: true }).click();
+  await page.getByRole('button', { name: 'Agent 接入指南', exact: true }).click();
   await expect(page).toHaveURL(/#agent-tools$/);
   const guide = page.getByRole('region', { name: '把常用 Agent 接入 CheapAI' });
   await expect(guide.getByRole('heading', { name: '把常用 Agent 接入 CheapAI' })).toBeInViewport();

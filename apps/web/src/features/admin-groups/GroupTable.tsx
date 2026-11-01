@@ -1,5 +1,5 @@
+import { RouteButton } from '../../shared/ui/RouteButton';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Link } from 'react-router-dom';
 import type { GroupView } from '@cheapai/api-client/groups';
 import { CursorTable } from '../../shared/patterns/CursorTable';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
@@ -21,13 +21,13 @@ const columns: ColumnDef<GroupView, unknown>[] = [
     header: '访问组',
     cell: ({ row }) => (
       <div className="grid min-w-40 gap-1">
-        <Link
+        <RouteButton
           to={`/admin/groups/${encodeURIComponent(row.original.id)}`}
           title={row.original.name}
-          className="block max-w-80 truncate font-medium text-[var(--color-primary)] underline-offset-4 hover:underline"
+          className="block max-w-80 truncate font-medium text-[var(--color-primary)]"
         >
           {row.original.name}
-        </Link>
+        </RouteButton>
       </div>
     ),
   },
@@ -51,14 +51,14 @@ const columns: ColumnDef<GroupView, unknown>[] = [
     accessorKey: 'channelIds',
     header: '关联渠道',
     cell: ({ row }) => (
-      <Link
+      <RouteButton
         to={`/admin/groups/${encodeURIComponent(row.original.id)}`}
-        className="text-[var(--color-primary)] hover:underline underline-offset-4"
+        className="text-[var(--color-primary)]"
       >
         {row.original.channelIds.length > 0
           ? `${row.original.channelIds.length} 个渠道`
           : '未关联渠道'}
-      </Link>
+      </RouteButton>
     ),
   },
 ];

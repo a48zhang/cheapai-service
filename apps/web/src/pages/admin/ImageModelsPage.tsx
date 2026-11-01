@@ -1,7 +1,8 @@
+import { RouteButton } from '../../shared/ui/RouteButton';
+import { Checkbox } from '../../shared/ui/Checkbox';
 import { Disclosure } from '../../shared/ui/Disclosure';
 import { Select } from '../../shared/ui/Select';
 import { useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createImagesApi } from '@cheapai/api-client/images';
 import { imageModelInputSchema, imageSizes } from '@cheapai/contracts/images';
@@ -132,9 +133,9 @@ export default function ImageModelsPage() {
       {models.data?.items.length === 0 && (
         <div className="rounded-lg border border-[var(--color-border)] border-dashed p-8 text-center text-sm leading-7">
           还没有生图模型。先在
-          <Link to="/admin/channels" className="mx-1 underline">
+          <RouteButton to="/admin/channels" className="mx-1">
             渠道
-          </Link>
+          </RouteButton>
           配置供应商地址和密钥，再添加生图模型。
         </div>
       )}
@@ -147,6 +148,7 @@ export default function ImageModelsPage() {
         className="!max-w-2xl"
       >
         <form
+          noValidate
           className="space-y-5"
           onSubmit={(event) => {
             event.preventDefault();
@@ -255,13 +257,12 @@ export default function ImageModelsPage() {
                     key={value}
                     className="flex items-center gap-2 rounded-md border border-[var(--color-border)] px-3 py-2 text-sm"
                   >
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={draft.sizes.includes(value)}
-                      onChange={(event) =>
+                      onCheckedChange={(checked) =>
                         update(
                           'sizes',
-                          event.target.checked
+                          checked === true
                             ? [...draft.sizes, value]
                             : draft.sizes.filter((size) => size !== value),
                         )

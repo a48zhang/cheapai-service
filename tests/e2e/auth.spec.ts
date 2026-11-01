@@ -47,7 +47,7 @@ for (const mode of ['closed', 'open', 'invite'] as const) {
       await page.goto('/register');
       const email = `q03-${randomUUID()}@example.invalid`;
       if (mode === 'closed') {
-        const loginLink = page.getByRole('link', { name: '登录', exact: true });
+        const loginLink = page.getByRole('button', { name: '登录', exact: true });
         await expect(loginLink).toHaveCount(1);
         await expect(loginLink).toBeVisible();
         await expect(page.locator('form')).toHaveCount(0);
@@ -139,9 +139,9 @@ test('a session outage offers recovery without treating it as logout', async ({ 
   await page.route('**/api/v1/auth/me', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'service_unavailable', message: 'Unavailable' }, request_id: 'identity-outage' }) }));
   await page.goto('/dashboard');
   await expect(page).toHaveURL(url => url.pathname === '/session-unavailable' && url.searchParams.get('returnTo') === '/dashboard');
-  await expect(page.getByRole('main').getByRole('button')).toBeVisible();
+  await expect(page.getByRole('main').getByRole('button', { name: '重新连接', exact: true })).toBeVisible();
   await page.unroute('**/api/v1/auth/me');
-  await page.getByRole('main').getByRole('button').click();
+  await page.getByRole('main').getByRole('button', { name: '重新连接', exact: true }).click();
   await expect(page).toHaveURL(url => url.pathname === '/login' && url.searchParams.get('returnTo') === '/dashboard');
 });
 
@@ -165,10 +165,10 @@ test('login rejects an external return target and mobile navigation remains oper
   await page.goto('/dashboard');
   await expect(page).toHaveURL(url => url.pathname === '/billing');
   await page.getByRole('button', { name: '打开导航', exact: true }).click();
-  await page.getByRole('dialog').locator('a[href="/keys"]').click();
+  await page.getByRole('dialog').getByRole('button', { name: 'API 接入', exact: true }).click();
   await expect(page).toHaveURL(url => url.pathname === '/keys');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByRole('button', { name: '账户菜单', exact: true }).click();
-  await page.locator('[role="menuitem"][href="/requests"]').click();
+  await page.getByRole('menuitem', { name: '使用记录', exact: true }).click();
   await expect(page).toHaveURL(url => url.pathname === '/requests');
 });

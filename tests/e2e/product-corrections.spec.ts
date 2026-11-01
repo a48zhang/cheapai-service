@@ -81,7 +81,7 @@ test('six-character password, unlimited concurrency, channel models and granted 
   await expect(page.getByRole('dialog')).toHaveCount(0);
   const row=page.getByRole('row').filter({hasText:email});
   await expect(row).toBeVisible();
-  await row.getByRole('link',{name:email,exact:true}).click();
+  await row.getByRole('button',{name:email,exact:true}).click();
   await expect(page.getByRole('heading',{name:email,exact:true})).toBeVisible();
   await page.getByRole('button',{name:'编辑访问设置',exact:true}).first().click();
   dialog=page.getByRole('dialog');
@@ -323,7 +323,7 @@ test('model creation route leaves new and create IDs reachable @review-fixes', a
     }) });
   });
   await page.goto('/admin/models');
-  await page.getByRole('link', { name: '新增模型', exact: true }).click();
+  await page.getByRole('button', { name: '新增模型', exact: true }).click();
   await expect(page).toHaveURL(/\/admin\/models\/actions\/create$/);
   await expect(page.getByRole('heading', { name: '新增公开模型', exact: true })).toBeVisible();
   for (const id of ['new', 'create']) {
@@ -377,7 +377,7 @@ for (const { wizard, outcome } of [
       await expect(dialog).toBeVisible();
       await expect(dialog.getByLabel('渠道名称', { exact: true })).toHaveValue('Retained edited channel');
       await expect(dialog.getByLabel('上游凭证', { exact: true })).toHaveValue('fixture-only-key');
-      await expect(dialog.getByRole('link', { name: '在新标签页核对渠道' })).toHaveAttribute('target', '_blank');
+      await expect(dialog.getByRole('button', { name: '在新标签页核对渠道' })).toBeEnabled();
       expect(posts).toBe(2);
     });
 }

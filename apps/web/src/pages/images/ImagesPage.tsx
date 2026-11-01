@@ -1,5 +1,6 @@
+import { RouteButton } from '../../shared/ui/RouteButton';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { createImagesApi } from '@cheapai/api-client/images';
 import type { ImageChoice, ImageSize, ImageGenerateInput } from '@cheapai/contracts/images';
@@ -117,12 +118,13 @@ function ImageWorkspace() {
         heading="生成图片"
         description="写下画面、风格和细节，把想法变成图片。"
         actions={
-          <Button asChild variant="ghost">
-            <Link to={returnTo}>{returnTo === '/chat' ? '返回对话' : '返回费用明细'}</Link>
-          </Button>
+          <RouteButton variant="ghost" to={returnTo}>
+            {returnTo === '/chat' ? '返回对话' : '返回费用明细'}
+          </RouteButton>
         }
       />
       <form
+        noValidate
         aria-label="生成图片"
         className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:p-5"
         onSubmit={(event) => {
@@ -209,9 +211,9 @@ function ImageWorkspace() {
           >
             {work.models.data.available ? '暂无可用生图模型。' : '生图服务尚未就绪。'}
             {isAdmin ? (
-              <Link className="ml-1 underline" to="/admin/image-models">
+              <RouteButton className="ml-1" to="/admin/image-models">
                 配置生图模型
-              </Link>
+              </RouteButton>
             ) : (
               '请联系管理员开通。'
             )}

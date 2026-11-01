@@ -1,6 +1,5 @@
+import { RouteButton } from '../../shared/ui/RouteButton';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Button } from '../../shared/ui/Button';
-import { Link } from 'react-router-dom';
 import type { ModelView } from '@cheapai/api-client/models';
 import { CursorTable } from '../../shared/patterns/CursorTable';
 import { ModelIdentity } from '../../shared/ui/ModelIdentity';
@@ -22,13 +21,13 @@ const columns: ColumnDef<ModelView, unknown>[] = [
     accessorKey: 'publicModelId',
     header: '模型名称',
     cell: ({ row }) => (
-      <Link
+      <RouteButton
         to={`/admin/models/${encodeURIComponent(row.original.publicModelId)}`}
         title={row.original.publicModelId}
-        className="block min-w-40 max-w-72 text-sm text-[var(--color-primary)] underline-offset-4 hover:underline"
+        className="block min-w-40 max-w-72 text-sm text-[var(--color-primary)]"
       >
         <ModelIdentity modelId={row.original.publicModelId} />
-      </Link>
+      </RouteButton>
     ),
   },
   {
@@ -70,14 +69,14 @@ const columns: ColumnDef<ModelView, unknown>[] = [
     id: 'channelMappings',
     header: '渠道映射',
     cell: ({ row }) => (
-      <Button asChild variant="outline" size="sm">
-        <Link
-          to={`/admin/models/${encodeURIComponent(row.original.publicModelId)}`}
-          aria-label={`查看 ${row.original.publicModelId} 的渠道映射`}
-        >
-          查看映射
-        </Link>
-      </Button>
+      <RouteButton
+        variant="outline"
+        size="sm"
+        to={`/admin/models/${encodeURIComponent(row.original.publicModelId)}`}
+        aria-label={`查看 ${row.original.publicModelId} 的渠道映射`}
+      >
+        查看映射
+      </RouteButton>
     ),
   },
 ];

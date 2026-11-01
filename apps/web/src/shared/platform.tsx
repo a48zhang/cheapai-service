@@ -5,6 +5,7 @@ export interface ProductEnvironment {
   apiOrigin: string;
   fetchAsset?: typeof fetch;
   downloadAsset?: (path: string, filename: string) => Promise<void>;
+  openWorkspace?: () => void;
 }
 const Environment = createContext<ProductEnvironment>({
   kind: 'web',

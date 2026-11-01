@@ -214,9 +214,9 @@ test('local web chat: groups, idempotency, history, versions, failure and mobile
     await expect(userPage.locator('main')).toContainText('React UI message');
     const layout = await userPage.evaluate(() => ({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth }));
     expect(layout.scrollWidth).toBeLessThanOrEqual(layout.width + 1);
-    await userPage.getByRole('button', { name: '打开聊天记录', exact: true }).click();
+    await userPage.getByRole('button', { name: '打开导航', exact: true }).click();
     await expect(userPage.getByRole('dialog', { name: '聊天记录' })).toBeVisible();
-    await expect(userPage.getByRole('button', { name: '关闭聊天记录', exact: true })).toBeVisible();
+    await expect(userPage.getByRole('button', { name: '关闭侧栏', exact: true })).toBeVisible();
     await userPage.close();
 
     // Make one isolated local channel fail. The test Worker rejects all

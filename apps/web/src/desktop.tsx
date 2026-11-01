@@ -10,6 +10,8 @@ import { ProductEnvironmentProvider } from './shared/platform';
 import { AsyncState } from './shared/patterns/AsyncState';
 import { Button } from './shared/ui/Button';
 import ModelCatalogPage from './pages/catalog/ModelCatalogPage';
+import SessionUnavailablePage from './pages/auth/SessionUnavailablePage';
+import NotFoundPage from './pages/NotFoundPage';
 import './shared/styles/tokens.css';
 import './shared/styles/base.css';
 
@@ -35,7 +37,13 @@ export function DesktopConsole({
   useEffect(() => () => runtime.dispose(), [runtime]);
   return (
     <ProductEnvironmentProvider
-      value={{ kind: 'desktop', apiOrigin, fetchAsset: fetch, downloadAsset }}
+      value={{
+        kind: 'desktop',
+        apiOrigin,
+        fetchAsset: fetch,
+        downloadAsset,
+        openWorkspace: onReturn,
+      }}
     >
       <AppProviders runtime={runtime}>
         <HashRouter>
@@ -60,18 +68,9 @@ export function DesktopConsole({
                     </section>
                   }
                 />
-                <Route
-                  path="/session-unavailable"
-                  element={
-                    <AsyncState
-                      status="error"
-                      heading="账号暂时无法读取"
-                      onRetry={() => void runtime.session.restore()}
-                      retryLabel="重新连接"
-                    />
-                  }
-                />
-                <Route path="*" element={<Navigate replace to="/models" />} />
+                <Route path="/session-unavailable" element={<SessionUnavailablePage />} />
+                <Route path="/" element={<Navigate replace to="/models" />} />
+                <Route path="*" element={<NotFoundPage />} />
               </Route>
             </Routes>
           </Suspense>

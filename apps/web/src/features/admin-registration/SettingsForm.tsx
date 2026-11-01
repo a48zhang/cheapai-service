@@ -24,6 +24,7 @@ export function SettingsForm({
   const [saved, setSaved] = useState(false);
   return (
     <form
+      noValidate
       className="max-w-4xl overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]"
       onSubmit={async (event) => {
         event.preventDefault();

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { Conversation } from '@cheapai/contracts/chat';
 import { useSession } from '../../features/session/useSession';
 import { useDraft } from '../../features/chat/hooks/useDraft';
@@ -75,12 +75,12 @@ export default function ChatPage() {
   const actionLock = useRef(false);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
-    const returnTo = encodeURIComponent(location.pathname + location.search);
+    const returnTo = encodeURIComponent(location.pathname + location.search + location.hash);
     if (status === 'anonymous' && (expiry || conversationId))
       navigate(`/login?returnTo=${returnTo}`, { replace: true });
     if (status === 'unavailable')
       navigate(`/session-unavailable?returnTo=${returnTo}`, { replace: true });
-  }, [status, expiry, conversationId, location.pathname, location.search, navigate]);
+  }, [status, expiry, conversationId, location.pathname, location.search, location.hash, navigate]);
   useEffect(() => {
     setAction(null);
     setActionError(null);
@@ -88,7 +88,9 @@ export default function ChatPage() {
 
   const send = (content: string) => {
     if (!authenticated) {
-      navigate(`/login?returnTo=${encodeURIComponent(location.pathname + location.search)}`);
+      navigate(
+        `/login?returnTo=${encodeURIComponent(location.pathname + location.search + location.hash)}`,
+      );
       return;
     }
     const current = chat.controller.getSnapshot();
@@ -144,6 +146,7 @@ export default function ChatPage() {
       onNew={newConversation}
       sidebar={(close, mobile) => (
         <ConversationSidebar
+          isAdmin={user?.role === 'admin'}
           conversations={history.conversations}
           activeId={conversationId}
           view={history.view}
@@ -263,12 +266,7 @@ export default function ChatPage() {
             authenticated ? (
               <ModelPicker selection={selection} disabled={chat.busy} />
             ) : (
-              <Link
-                className="rounded-md px-2 py-1 text-sm font-medium text-[var(--color-foreground)] underline underline-offset-4"
-                to={`/login?returnTo=${encodeURIComponent(location.pathname + location.search)}`}
-              >
-                登录后发送
-              </Link>
+              <span className="text-sm text-muted-foreground">登录后可选择模型</span>
             )
           }
           sendLabel={authenticated ? '发送' : '登录后发送'}

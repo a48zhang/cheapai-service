@@ -1,7 +1,8 @@
+import { RouteButton } from '../../shared/ui/RouteButton';
 import { Disclosure } from '../../shared/ui/Disclosure';
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
   createAdminUsersFeatureApi,
   adminUsersQueryKeys,
@@ -99,9 +100,9 @@ export default function UserDetailPage() {
         heading={profile.email_normalized}
         actions={
           <>
-            <Button asChild variant="secondary">
-              <Link to="/admin/users">返回用户列表</Link>
-            </Button>
+            <RouteButton variant="secondary" to="/admin/users">
+              返回用户列表
+            </RouteButton>
             <Button variant="outline" onClick={() => setEditOpen(true)}>
               编辑访问设置
             </Button>
@@ -176,14 +177,18 @@ export default function UserDetailPage() {
           </Disclosure>
         </section>
         <nav aria-label="用户相关记录" className="mt-4 flex flex-wrap gap-3">
-          <Button asChild variant="outline">
-            <Link to={`/admin/requests?userId=${encodeURIComponent(profile.id)}`}>请求记录</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link to={`/admin/billing?userId=${encodeURIComponent(profile.id)}`}>
-              账单与余额记录
-            </Link>
-          </Button>
+          <RouteButton
+            variant="outline"
+            to={`/admin/requests?userId=${encodeURIComponent(profile.id)}`}
+          >
+            请求记录
+          </RouteButton>
+          <RouteButton
+            variant="outline"
+            to={`/admin/billing?userId=${encodeURIComponent(profile.id)}`}
+          >
+            账单与余额记录
+          </RouteButton>
         </nav>
       </div>
       <UserAccessPanel

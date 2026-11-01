@@ -146,7 +146,7 @@ for (const viewport of [
     await page.goto('/');
     await page
       .getByRole('main')
-      .getByRole('link', { name: '开始对话', exact: true })
+      .getByRole('button', { name: '开始对话', exact: true })
       .first()
       .click();
     const input = page.getByRole('textbox', { name: '消息内容' });
@@ -329,7 +329,7 @@ for (const width of [320, 375, 1440]) {
       }),
     );
     await page.goto('/');
-    const login = page.locator('.home-header').getByRole('link', { name: '登录' });
+    const login = page.locator('.home-header').getByRole('button', { name: '登录' });
     await expect(login).toBeVisible();
     const bounds = await login.boundingBox();
     expect(bounds!.height).toBeLessThan(40);
@@ -359,7 +359,7 @@ for (const width of [320, 375, 1440]) {
       true,
     );
     await page.screenshot({ path: testInfo.outputPath(`chat-${width}.png`) });
-    await page.getByRole('link', { name: '登录后发送', exact: true }).click();
+    await page.getByRole('button', { name: '登录后发送', exact: true }).click();
     await expect(page).toHaveURL(/\/login/);
     await page.goBack();
     await expect(input).toHaveValue('手机草稿');
@@ -404,7 +404,7 @@ test('signing in returns to chat with the anonymous draft intact', async ({ page
   await page.goto('/chat');
   const input = page.getByRole('textbox', { name: '消息内容' });
   await input.fill('登录后继续的问题');
-  await page.getByRole('link', { name: '登录后发送', exact: true }).click();
+  await page.getByRole('button', { name: '登录后发送', exact: true }).click();
   await page.getByLabel('邮箱', { exact: true }).fill('start@example.invalid');
   await page.getByLabel('密码', { exact: true }).fill('local-fixture-password');
   await page.getByRole('button', { name: '登录', exact: true }).click();

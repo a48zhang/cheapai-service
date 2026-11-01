@@ -1,8 +1,11 @@
+import { Input } from '../../shared/ui/Input';
+import { RouteButton } from '../../shared/ui/RouteButton';
+import { DateInput } from '../../shared/ui/DateInput';
 import { Disclosure } from '../../shared/ui/Disclosure';
 import { Select } from '../../shared/ui/Select';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { billingStatusSchema, executionStatusSchema } from '@cheapai/contracts/requests';
 import type { BillingStatus, ExecutionStatus } from '@cheapai/contracts/requests';
 import { useRequestPages } from '../../features/request-history/useRequestPages';
@@ -124,9 +127,9 @@ export function RequestsPage() {
         description={
           <>
             查看网页对话与 API 调用的用量和费用。图片记录见{' '}
-            <Link to="/images" className="underline underline-offset-4">
+            <RouteButton to="/images" className="">
               生图
-            </Link>
+            </RouteButton>
             。
           </>
         }
@@ -200,13 +203,14 @@ export function RequestsPage() {
         </Button>
       </div>
       <form
+        noValidate
         onSubmit={applyFilters}
         className="flex flex-wrap items-end gap-3 console-panel p-5"
         aria-label="使用记录筛选"
       >
         <label className="grid gap-2 console-label">
           模型 ID
-          <input
+          <Input
             value={draft.model}
             onChange={(event) => {
               const value = event.currentTarget.value;
@@ -224,16 +228,14 @@ export function RequestsPage() {
             <label className="sr-only" htmlFor="request-time-from">
               开始时间
             </label>
-            <input
+            <DateInput
               id="request-time-from"
               aria-label="开始时间"
-              type="datetime-local"
+
               value={draft.from}
-              onChange={(event) => {
-                const value = event.currentTarget.value;
+              onValueChange={(value) => {
                 setDraft((current) => ({ ...current, from: value }));
               }}
-              className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
             />
             <span aria-hidden="true" className="text-[var(--color-muted-foreground)]">
               至
@@ -241,28 +243,23 @@ export function RequestsPage() {
             <label className="sr-only" htmlFor="request-time-to">
               结束时间
             </label>
-            <input
+            <DateInput
               id="request-time-to"
               aria-label="结束时间"
-              type="datetime-local"
+
               value={draft.to}
-              onChange={(event) => {
-                const value = event.currentTarget.value;
+              onValueChange={(value) => {
                 setDraft((current) => ({ ...current, to: value }));
               }}
-              className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
             />
           </div>
         </div>
-        <button
-          type="submit"
-          className="min-h-11 rounded-lg bg-[var(--color-primary)] px-4 text-[15px] font-medium text-[var(--color-primary-foreground)]"
-        >
+        <Button type="submit" variant="primary">
           筛选
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 text-[15px]"
+          variant="outline"
           onClick={() => {
             setDraft(emptyDraft);
             setMoreFiltersOpen(false);
@@ -271,7 +268,7 @@ export function RequestsPage() {
           }}
         >
           重置
-        </button>
+        </Button>
         <Disclosure
           className="basis-full border-t border-[var(--color-border)] pt-4"
           open={moreFiltersOpen}
@@ -288,7 +285,6 @@ export function RequestsPage() {
                   const value = nextValue;
                   setDraft((current) => ({ ...current, status: value }));
                 }}
-                className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
                 items={[
                   { value: '', label: <>全部</> },
                   ...executionStatusSchema.options.map((value) => ({
@@ -306,7 +302,6 @@ export function RequestsPage() {
                   const value = nextValue;
                   setDraft((current) => ({ ...current, billingStatus: value }));
                 }}
-                className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
                 items={[
                   { value: '', label: <>全部</> },
                   ...billingStatusSchema.options.map((value) => ({
@@ -341,12 +336,12 @@ export function RequestsPage() {
       )}
       {query.isSuccess && rows.length === 0 && !hasActiveFilters && (
         <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline">
-            <Link to="/chat">开始对话</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link to="/keys">接入 API</Link>
-          </Button>
+          <RouteButton variant="outline" to="/chat">
+            开始对话
+          </RouteButton>
+          <RouteButton variant="outline" to="/keys">
+            接入 API
+          </RouteButton>
         </div>
       )}
     </section>

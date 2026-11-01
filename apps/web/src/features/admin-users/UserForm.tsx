@@ -1,3 +1,4 @@
+import { Checkbox } from '../../shared/ui/Checkbox';
 import { Controller } from 'react-hook-form';
 import type { UserFormProps as Props } from './useUserForm';
 import { useUserForm } from './useUserForm';
@@ -188,13 +189,12 @@ export function UserForm(props: Props) {
                       <div className="grid gap-2 sm:grid-cols-2">
                         {visible.map((group) => (
                           <label key={group.id} className="flex items-center gap-2 text-sm">
-                            <input
-                              type="checkbox"
+                            <Checkbox
                               checked={field.value.includes(group.id)}
                               disabled={group.id === form.getValues('groupId')}
-                              onChange={(event) =>
+                              onCheckedChange={(checked) =>
                                 field.onChange(
-                                  event.currentTarget.checked
+                                  checked === true
                                     ? [...new Set([...field.value, group.id])]
                                     : field.value.filter((id) => id !== group.id),
                                 )

@@ -1,5 +1,5 @@
-import { Button } from '../../shared/ui/Button';
-import { Link, useLocation } from 'react-router-dom';
+import { RouteButton } from '../../shared/ui/RouteButton';
+import { useLocation } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { BillingEntry, BillingKind } from '@cheapai/contracts/billing';
 import { formatDateTime } from '../../shared/lib/datetime';
@@ -61,16 +61,20 @@ export function BillingTable({
     const query = new URLSearchParams({ returnTo });
     if (entry.requestId)
       return (
-        <Button asChild variant="outline" size="sm">
-          <Link to={`/requests/${encodeURIComponent(entry.requestId)}?${query}`}>查看记录</Link>
-        </Button>
+        <RouteButton
+          variant="outline"
+          size="sm"
+          to={`/requests/${encodeURIComponent(entry.requestId)}?${query}`}
+        >
+          查看记录
+        </RouteButton>
       );
     if (entry.imageGenerationId) {
       query.set('job', entry.imageGenerationId);
       return (
-        <Button asChild variant="outline" size="sm">
-          <Link to={`/images?${query}`}>查看图片</Link>
-        </Button>
+        <RouteButton variant="outline" size="sm" to={`/images?${query}`}>
+          查看图片
+        </RouteButton>
       );
     }
     return <span className="text-[var(--color-ink-muted)]">—</span>;
@@ -103,13 +107,13 @@ export function BillingTable({
             id: 'user',
             header: '用户',
             cell: ({ row }) => (
-              <Link
-                className="block max-w-48 truncate text-[var(--color-accent)] hover:underline"
+              <RouteButton
+                className="block max-w-48 truncate text-[var(--color-accent)]"
                 title={row.original.userEmail ?? row.original.userId}
                 to={`/admin/users/${encodeURIComponent(row.original.userId)}`}
               >
                 {row.original.userEmail ?? row.original.userId}
-              </Link>
+              </RouteButton>
             ),
           } as ColumnDef<BillingEntry, unknown>,
         ]
@@ -119,14 +123,14 @@ export function BillingTable({
       header: '相关请求',
       cell: ({ row }) =>
         row.original.requestId ? (
-          <Button asChild variant="outline" size="sm">
-            <Link
-              title={row.original.requestId}
-              to={`${scope === 'admin' ? '/admin/requests' : '/requests'}/${encodeURIComponent(row.original.requestId)}`}
-            >
-              查看请求
-            </Link>
-          </Button>
+          <RouteButton
+            variant="outline"
+            size="sm"
+            title={row.original.requestId}
+            to={`${scope === 'admin' ? '/admin/requests' : '/requests'}/${encodeURIComponent(row.original.requestId)}`}
+          >
+            查看请求
+          </RouteButton>
         ) : (
           <span className="text-[var(--color-ink-muted)]">—</span>
         ),
