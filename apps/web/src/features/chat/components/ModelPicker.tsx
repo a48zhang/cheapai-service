@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Check, ChevronDown, RefreshCw, Search } from 'lucide-react';
 import { Button } from '../../../shared/ui/Button';
 import * as Popover from '@radix-ui/react-popover';
-import { formatUsdPerMillionTokens } from '../../../shared/lib/model-price';
+import { formatCreditsPerMillionTokens } from '../../../shared/lib/model-price';
 import type { useModelSelection } from '../hooks/useModelSelection';
 
 export interface ModelPickerProps {
@@ -107,11 +107,11 @@ export function ModelPicker({ selection, disabled = false }: ModelPickerProps) {
               </div>
               <div className="chat-model-options" aria-label="可用模型">
                 {filtered.map((option) => {
-                  const inputPrice = formatUsdPerMillionTokens(
+                  const inputPrice = formatCreditsPerMillionTokens(
                     option.model.sellPrices?.input,
                     option.group.billingMultiplier,
                   );
-                  const outputPrice = formatUsdPerMillionTokens(
+                  const outputPrice = formatCreditsPerMillionTokens(
                     option.model.sellPrices?.output,
                     option.group.billingMultiplier,
                   );

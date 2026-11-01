@@ -28,6 +28,7 @@ export interface NavigationGroup {
 export const personalNavigation: NavigationItem[] = [
   { path: '/chat', label: '对话', icon: MessageSquare },
   { path: '/images', label: '生图', icon: ImagePlus },
+  { path: '/models', label: '模型目录', icon: Boxes },
   { path: '/keys', label: 'API 接入', icon: KeyRound },
   { path: '/billing', label: '费用', icon: ReceiptText },
   { path: '/requests', label: '使用记录', icon: Activity },
@@ -66,3 +67,10 @@ export const adminEntry: NavigationItem = {
   label: '管理控制台',
   icon: ShieldCheck,
 };
+
+export const publicNavigation = [
+  { label: '产品', to: '/#possibilities' },
+  { label: '模型目录', to: '/models' },
+  { label: 'Agent 接入', to: '/#agent-tools' },
+  { label: '常见问题', to: '/#questions' },
+] as const;

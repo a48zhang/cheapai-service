@@ -1,5 +1,5 @@
 import { useState, useSyncExternalStore } from 'react'
-import { invoke, isTauri } from '@tauri-apps/api/core'
+import { isTauri } from '@tauri-apps/api/core'
 import type { DesktopAccountProblem, DesktopPublicAccountState } from '@sub2api/desktop-contracts'
 import { DesktopAccountAdapterError } from '../../adapters/native/account'
 import { Button } from '../../components/ui/controls'
@@ -7,6 +7,7 @@ import type { DesktopAuthStore } from '../auth/auth-store'
 import { formatWalletUsd } from '@cheapai/theme/money-display'
 
 export interface AccountPanelProps {
+  readonly onOpenConsole?: (() => void) | undefined
   readonly store: DesktopAuthStore
 }
 
@@ -24,7 +25,7 @@ const actionStyle = {
 } as const
 
 /** Account details are rendered only from the safe public account store. */
-export function AccountPanel({ store }: AccountPanelProps) {
+export function AccountPanel({ store, onOpenConsole }: AccountPanelProps) {
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const [actionError, setActionError] = useState('')
   const account = stateAccount(snapshot.accountState)
@@ -60,18 +61,6 @@ export function AccountPanel({ store }: AccountPanelProps) {
     }
   }
 
-  async function openConsole(): Promise<void> {
-    setActionError('')
-    if (!isTauri()) {
-      setActionError('网页环境无法打开桌面网页控制台。')
-      return
-    }
-    try {
-      await invoke('open_cheapai_console')
-    } catch {
-      setActionError('无法打开网页控制台，请稍后重试。')
-    }
-  }
 
   return (
     <div style={{ display: 'grid', gap: 'var(--space-3)' }}>
@@ -130,7 +119,7 @@ export function AccountPanel({ store }: AccountPanelProps) {
       )}
 
       <p style={{ margin: 0, color: 'var(--color-ink-muted)', fontSize: 'var(--font-size-sm)' }}>
-        模型 Key 由桌面服务按需获取；此页面不会显示或管理 Key。
+        在用户控制台中管理 API 接入、查看费用和使用记录。
       </p>
 
       {actionError && (
@@ -143,8 +132,8 @@ export function AccountPanel({ store }: AccountPanelProps) {
             {snapshot.pendingOperation === 'refresh' ? '正在刷新…' : '刷新账号信息'}
           </Button>
         )}
-        <Button disabled={!isTauri()} onClick={() => { void openConsole() }} variant="quiet">
-          打开网页控制台
+        <Button disabled={!onOpenConsole} onClick={onOpenConsole} variant="quiet">
+          打开用户控制台
         </Button>
         {snapshot.accountState.status !== 'signedOut' && nativeAvailable && (
           <Button disabled={busy} onClick={() => { void logout() }} variant="quiet">
@@ -169,7 +158,7 @@ function stateExpiry(state: DesktopPublicAccountState): number | null {
 function formatBalance(value: string): string {
   if (!/^(?:0|-?[1-9][0-9]*)$/u.test(value)) return '金额未知'
   try {
-    return `${formatWalletUsd(value)} USD`
+    return `${formatWalletUsd(value)} 积分`
   } catch {
     return '金额未知'
   }

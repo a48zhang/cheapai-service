@@ -1,48 +1,12 @@
-const decimalPattern = /^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/u;
-
-interface DecimalParts {
-  readonly coefficient: bigint;
-  readonly scale: number;
-}
-
-function parseDecimal(value: string): DecimalParts | null {
-  if (!decimalPattern.test(value)) return null;
-  const point = value.indexOf('.');
-  const whole = point === -1 ? value : value.slice(0, point);
-  const fraction = point === -1 ? '' : value.slice(point + 1);
-  try {
-    return { coefficient: BigInt(whole + fraction), scale: fraction.length };
-  } catch {
-    return null;
-  }
-}
-
-function decimalText(coefficient: bigint, scale: number): string {
-  if (scale === 0) return coefficient.toString();
-  const padded = coefficient.toString().padStart(scale + 1, '0');
-  const whole = padded.slice(0, -scale);
-  const fraction = padded.slice(-scale).replace(/0+$/u, '');
-  return fraction.length === 0 ? whole : `${whole}.${fraction}`;
-}
-
-/** Multiplies nonnegative decimal strings exactly. Returns null for unavailable or malformed input. */
-export function multiplyPriceDecimal(
-  basePrice: string | undefined,
-  billingMultiplier: string | undefined,
-): string | null {
-  if (basePrice === undefined || billingMultiplier === undefined) return null;
-  const price = parseDecimal(basePrice);
-  const multiplier = parseDecimal(billingMultiplier);
-  if (price === null || multiplier === null) return null;
-  return decimalText(price.coefficient * multiplier.coefficient, price.scale + multiplier.scale);
-}
+import { multiplyPriceDecimal } from '@cheapai/contracts/price-decimal';
+export { multiplyPriceDecimal } from '@cheapai/contracts/price-decimal';
 
 function groupedInteger(value: string): string {
   return value.replace(/\B(?=(\d{3})+(?!\d))/gu, ',');
 }
 
-/** Formats an exact USD amount without rounding small prices to zero. */
-export function formatUsdAmount(
+/** Formats an exact price amount without rounding small prices to zero. */
+export function formatPriceAmount(
   basePrice: string | undefined,
   billingMultiplier: string | undefined = '1',
 ): string {
@@ -51,15 +15,15 @@ export function formatUsdAmount(
   const [whole = '0', fraction] = effectivePrice.split('.');
   const amount =
     fraction === undefined ? groupedInteger(whole) : `${groupedInteger(whole)}.${fraction}`;
-  return `$${amount}`;
+  return amount;
 }
 
-/** Formats an exact effective USD rate per million tokens without using floating point. */
-export function formatUsdPerMillionTokens(
+/** Formats an exact effective credit rate per million tokens without using floating point. */
+export function formatCreditsPerMillionTokens(
   basePrice: string | undefined,
   billingMultiplier: string | undefined,
 ): string {
   if (billingMultiplier === undefined) return '价格暂不可用';
-  const amount = formatUsdAmount(basePrice, billingMultiplier);
-  return amount === '价格暂不可用' ? amount : `${amount} / 百万 Token`;
+  const amount = formatPriceAmount(basePrice, billingMultiplier);
+  return amount === '价格暂不可用' ? amount : `${amount} 积分 / 百万 Token`;
 }

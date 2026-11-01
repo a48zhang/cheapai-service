@@ -27,7 +27,11 @@
     "@deepseek-ai/dsh-user-questions": "0.2.1-alpha.1",
     "@deepseek-ai/dsh-user-approval": "0.2.1-alpha.1",
     "@deepseek-ai/dsh-typert-protocol": "0.2.1-alpha.1",
-    "@cheapai/theme": "workspace:*"
+    "@cheapai/theme": "workspace:*",
+    "@cheapai/web": "workspace:*",
+    "@cheapai/contracts": "workspace:*",
+    "@radix-ui/react-select": "2.3.7",
+    "@radix-ui/react-popover": "^1.1.23"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.8.4",
@@ -36,6 +40,8 @@
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "4.7.0",
     "typescript": "5.9.3",
-    "vite": "6.4.3"
+    "vite": "6.4.3",
+    "@tailwindcss/vite": "4.3.3",
+    "tailwindcss": "4.3.3"
   }
 }

@@ -231,11 +231,13 @@ for (const width of [375, 1440])
     await page.setViewportSize({ width, height: 900 });
     const state = await fixture(page);
     await page.goto('/billing?period=all');
+    await expect(page.getByText('10.00 积分', { exact: true })).toBeVisible();
+    await expect(page.getByText('0.0013 积分', { exact: true })).toBeVisible();
     const rows = page.getByRole(width < 1024 ? 'list' : 'table', { name: '个人账单明细' });
     await expect(
-      rows.getByText(width < 1024 ? '-0.0013 USD' : '-0.0013', { exact: true }),
+      rows.getByText(width < 1024 ? '-0.0013 积分' : '-0.0013', { exact: true }),
     ).toBeVisible();
-    await expect(rows.getByText(width < 1024 ? '+10 USD' : '+10', { exact: true })).toBeVisible();
+    await expect(rows.getByText(width < 1024 ? '+10 积分' : '+10', { exact: true })).toBeVisible();
     await expect(page.getByLabel('开始日期', { exact: true })).toHaveValue('');
     await page.getByLabel('费用类型').click();
     await page.getByRole('option', { name: '模型消费', exact: true }).click();

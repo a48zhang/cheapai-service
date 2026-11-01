@@ -1,3 +1,4 @@
+import { Select } from '../../components/ui/controls';
 import { ThemePicker } from '@cheapai/theme';
 import { useState } from 'react';
 import { readPreferences, savePreferences, type DesktopPreferences, type DesktopPreferencePatch } from './preferences';
@@ -59,22 +60,13 @@ export function GeneralPanel({ userId, modelSource, directorySource }: GeneralPa
 
       <label className="ui-field" htmlFor="default-model">
         <span>默认模型</span>
-        <select
-          className="ui-input"
-          id="default-model"
-          onChange={event => update({ defaultModelId: event.currentTarget.value || null })}
-          value={preferences.defaultModelId ?? ''}
-        >
-          <option value="">不指定默认模型</option>
-          {modelSource.status === 'ready' && modelSource.options.map(option => (
-            <option key={option.id} value={option.id}>{option.label}</option>
-          ))}
-          {preferences.defaultModelId !== null && !selectedModelIsAvailable && (
-            <option disabled value={preferences.defaultModelId}>
-              {preferences.defaultModelId}（当前模型目录中不可用）
-            </option>
-          )}
-        </select>
+        <Select id="default-model" value={preferences.defaultModelId ?? ''}
+          onValueChange={(value) => update({ defaultModelId: value || null })}
+          items={[
+            { value: '', label: '不指定默认模型' },
+            ...(modelSource.status === 'ready' ? modelSource.options.map((option) => ({ value: option.id, label: option.label })) : []),
+            ...(preferences.defaultModelId !== null && !selectedModelIsAvailable ? [{ value: preferences.defaultModelId, label: `${preferences.defaultModelId}（当前模型目录中不可用）`, disabled: true }] : []),
+          ]} />
       </label>
       <p className="settings-source-state" style={{ marginTop: 'calc(var(--space-4) * -1)', marginBottom: 0, color: 'var(--color-ink-muted)', fontSize: 'var(--font-size-xs)' }}>
         {sourceStatusText('模型目录', modelSource)}
@@ -82,22 +74,13 @@ export function GeneralPanel({ userId, modelSource, directorySource }: GeneralPa
 
       <label className="ui-field" htmlFor="default-directory">
         <span>默认工作目录</span>
-        <select
-          className="ui-input"
-          id="default-directory"
-          onChange={event => update({ defaultDirectory: event.currentTarget.value || null })}
-          value={preferences.defaultDirectory ?? ''}
-        >
-          <option value="">不指定默认目录</option>
-          {directorySource.status === 'ready' && directorySource.options.map(option => (
-            <option key={option.path} value={option.path}>{option.label ?? option.path}</option>
-          ))}
-          {preferences.defaultDirectory !== null && !selectedDirectoryIsAvailable && (
-            <option disabled value={preferences.defaultDirectory}>
-              {preferences.defaultDirectory}（当前目录列表中不可用）
-            </option>
-          )}
-        </select>
+        <Select id="default-directory" value={preferences.defaultDirectory ?? ''}
+          onValueChange={(value) => update({ defaultDirectory: value || null })}
+          items={[
+            { value: '', label: '不指定默认目录' },
+            ...(directorySource.status === 'ready' ? directorySource.options.map((option) => ({ value: option.path, label: option.label ?? option.path })) : []),
+            ...(preferences.defaultDirectory !== null && !selectedDirectoryIsAvailable ? [{ value: preferences.defaultDirectory, label: `${preferences.defaultDirectory}（当前目录列表中不可用）`, disabled: true }] : []),
+          ]} />
       </label>
       <p className="settings-source-state" style={{ marginTop: 'calc(var(--space-4) * -1)', marginBottom: 0, color: 'var(--color-ink-muted)', fontSize: 'var(--font-size-xs)' }}>
         {sourceStatusText('工作目录列表', directorySource)}

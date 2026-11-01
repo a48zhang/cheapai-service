@@ -51,7 +51,7 @@ export function parseUsdToUnits(value: unknown): bigint {
     value.trim() !== value ||
     !DECIMAL_USD.test(value)
   ) {
-    throw new MoneyError('expected a decimal USD string with at most eight fractional digits');
+    throw new MoneyError('expected a decimal credit amount with at most eight fractional digits');
   }
   const negative = value.startsWith('-');
   const unsigned = negative ? value.slice(1) : value;

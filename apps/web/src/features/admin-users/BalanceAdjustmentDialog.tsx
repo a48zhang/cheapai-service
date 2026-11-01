@@ -33,7 +33,7 @@ export interface BalanceAdjustmentDialogProps {
   readonly onAdjusted: () => void;
 }
 
-/** Exact USD amount entry and a locked idempotent intent for uncertain write outcomes. */
+/** Exact credit amount entry and a locked idempotent intent for uncertain write outcomes. */
 export function BalanceAdjustmentDialog({
   open,
   user,
@@ -159,7 +159,7 @@ export function BalanceAdjustmentDialog({
       open={open}
       onOpenChange={close}
       title="调整账户余额"
-      description={`${user.email_normalized} · 当前余额 ${formatWalletUsd(user.balance_units)} USD`}
+      description={`${user.email_normalized} · 当前余额 ${formatWalletUsd(user.balance_units)} 积分`}
       closeLabel="关闭余额调整"
       closeButton={!busy && !locked}
       footer={
@@ -196,7 +196,7 @@ export function BalanceAdjustmentDialog({
               {settled.outcome === 'existing' ? '已确认此前相同操作的结果。' : '余额调整已写入。'}
             </p>
             <p>
-              金额：{formatConsumptionUsd(settled.entry.deltaUnits)} USD · 操作编号：
+              金额：{formatConsumptionUsd(settled.entry.deltaUnits)} 积分 · 操作编号：
               <code className="break-all">{settled.entry.operationId}</code>
             </p>
             <p>当前余额会在重新读取用户资料后更新。</p>
@@ -216,7 +216,7 @@ export function BalanceAdjustmentDialog({
                   ]}
                 />
               </Field>
-              <Field label="金额（USD）" required description="最多 8 位小数。">
+              <Field label="金额（积分）" required description="最多 8 位小数。">
                 <Input
                   value={
                     activeIntent ? formatAdjustmentInput(activeIntent.input.deltaUnits) : amountUsd
@@ -289,7 +289,7 @@ function formatAdjustmentInputFromUsd(value: string): string {
       reason: 'preview',
       requestId: '',
     });
-    return `${formatAdjustmentInput(parsed.deltaUnits)} USD`;
+    return `${formatAdjustmentInput(parsed.deltaUnits)} 积分`;
   } catch {
     return '输入完整且金额有效后显示';
   }

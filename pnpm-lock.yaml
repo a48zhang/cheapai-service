@@ -46,9 +46,15 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@cheapai/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@cheapai/theme':
         specifier: workspace:*
         version: link:../../packages/theme
+      '@cheapai/web':
+        specifier: workspace:*
+        version: link:../web
       '@deepseek-ai/cordis':
         specifier: 4.0.5-alpha.1
         version: 4.0.5-alpha.1(@deepseek-ai/cordis-plugin-include@1.0.10-alpha.1)(@deepseek-ai/cordis-plugin-loader@1.0.6-alpha.1)
@@ -85,6 +91,12 @@ importers:
       '@deepseek-ai/dsh-user-questions':
         specifier: 0.2.1-alpha.1
         version: 0.2.1-alpha.1(@deepseek-ai/cordis@4.0.5-alpha.1)(@deepseek-ai/dsh-agent@0.2.1-alpha.1(bc8e1a234d16d0329e7a818df1caf030))(@deepseek-ai/dsh-llm@0.2.1-alpha.1(@deepseek-ai/cordis@4.0.5-alpha.1))(@deepseek-ai/dsh-scope@0.2.1-alpha.1(@deepseek-ai/cordis@4.0.5-alpha.1))(@deepseek-ai/dsh-session-projection@0.2.1-alpha.1(@deepseek-ai/cordis@4.0.5-alpha.1)(@deepseek-ai/dsh-session@0.2.1-alpha.1(@deepseek-ai/cordis@4.0.5-alpha.1)(@deepseek-ai/dsh-scope@0.2.1-alpha.1(@deepseek-ai/cordis@4.0.5-alpha.1))))(@deepseek-ai/dsh-session@0.2.1-alpha.1(@deepseek-ai/cordis@4.0.5-alpha.1)(@deepseek-ai/dsh-scope@0.2.1-alpha.1(@deepseek-ai/cordis@4.0.5-alpha.1)))(@deepseek-ai/dsh-typert-protocol@0.2.1-alpha.1(@deepseek-ai/cordis@4.0.5-alpha.1))
+      '@radix-ui/react-popover':
+        specifier: ^1.1.23
+        version: 1.1.23(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      '@radix-ui/react-select':
+        specifier: 2.3.7
+        version: 2.3.7(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@sub2api/desktop-contracts':
         specifier: workspace:*
         version: link:../../packages/desktop-contracts
@@ -98,6 +110,9 @@ importers:
         specifier: 19.3.0
         version: 19.3.0(react@19.3.0)
     devDependencies:
+      '@tailwindcss/vite':
+        specifier: 4.3.3
+        version: 4.3.3(vite@6.4.3(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))
       '@tauri-apps/cli':
         specifier: 2.8.4
         version: 2.8.4
@@ -113,6 +128,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: 4.7.0
         version: 4.7.0(supports-color@10.2.2)(vite@6.4.3(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))
+      tailwindcss:
+        specifier: 4.3.3
+        version: 4.3.3
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -122,6 +140,9 @@ importers:
 
   apps/desktop-runtime:
     dependencies:
+      '@cheapai/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@deepseek-ai/cordis':
         specifier: 4.0.5-alpha.1
         version: 4.0.5-alpha.1(@deepseek-ai/cordis-plugin-include@1.0.10-alpha.1)(@deepseek-ai/cordis-plugin-loader@1.0.6-alpha.1)
@@ -342,6 +363,10 @@ importers:
         version: 5.9.3
 
   packages/desktop-contracts:
+    dependencies:
+      '@cheapai/contracts':
+        specifier: workspace:*
+        version: link:../contracts
     devDependencies:
       typescript:
         specifier: 5.9.3
@@ -4967,6 +4992,7 @@ packages:
   '@smithy/core@3.35.1':
     resolution: {integrity: sha512-i4YPS4B6ts7bjn7UwLnGjiZdprOvHvgGobFZsYK3GIY3E5hIqtj0rReU69BcTpGp+fvtraSNXeG1l+jtJvF55w==}
     engines: {node: '>=18.0.0'}
+    deprecated: Deprecated due to a bug in custom logger data redaction. See https://github.com/aws/aws-sdk-js-v3/issues/8393.
 
   '@smithy/credential-provider-imds@4.5.2':
     resolution: {integrity: sha512-A9uSdn72ozbRUSit0eib0TW7nXuNPlaeM0zcGkJ+nE6tFcSDbnmtwoxbTCFBukVQcszDAyvsd7+rTduPTXpygg==}
@@ -12661,6 +12687,13 @@ snapshots:
       '@tailwindcss/oxide-wasm32-wasi': 4.3.3
       '@tailwindcss/oxide-win32-arm64-msvc': 4.3.3
       '@tailwindcss/oxide-win32-x64-msvc': 4.3.3
+
+  '@tailwindcss/vite@4.3.3(vite@6.4.3(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1))':
+    dependencies:
+      '@tailwindcss/node': 4.3.3
+      '@tailwindcss/oxide': 4.3.3
+      tailwindcss: 4.3.3
+      vite: 6.4.3(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.1)
 
   '@tailwindcss/vite@4.3.3(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:

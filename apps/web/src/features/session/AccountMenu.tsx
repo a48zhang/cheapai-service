@@ -1,3 +1,4 @@
+import { useProductEnvironment } from '../../shared/platform';
 import { useState } from 'react';
 import { Button } from '../../shared/ui/Button';
 import { Dialog } from '../../shared/ui/Dialog';
@@ -21,6 +22,7 @@ export function AccountMenu({
   showTheme?: boolean;
   showShortcut?: boolean;
 }) {
+  const { kind } = useProductEnvironment();
   const [logoutError, setLogoutError] = useState<unknown>(null);
   const isSidebar = layout === 'sidebar';
   const { user, isAdmin, session, pending } = useSession();
@@ -93,7 +95,9 @@ export function AccountMenu({
             ...(!showShortcut ? [{ label: 'API 接入', to: '/keys' }] : []),
             { label: '费用', to: '/billing' },
             { label: '使用记录', to: '/requests' },
-            ...(isAdmin ? [{ label: '管理控制台', to: '/admin/channels' }] : []),
+            ...(isAdmin && kind !== 'desktop'
+              ? [{ label: '管理控制台', to: '/admin/channels' }]
+              : []),
             { type: 'separator' },
             {
               label: '退出登录',

@@ -1,3 +1,4 @@
+import { personalPageRoutes } from './personal-routes';
 import { AsyncState } from '../shared/patterns/AsyncState';
 import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
@@ -5,27 +6,16 @@ import { AuthLayout } from './layouts/AuthLayout';
 import { PersonalLayout } from './layouts/PersonalLayout';
 import { SessionBoundary } from './guards/SessionBoundary';
 import { AdminBoundary } from './guards/AdminBoundary';
+import { PublicLayout } from './layouts/PublicLayout';
 import { AdminLayout } from './layouts/AdminLayout';
 
 const LoginPage = lazy(() => import('../pages/auth/LoginPage'));
 const RegisterPage = lazy(() => import('../pages/auth/RegisterPage'));
 const SessionUnavailablePage = lazy(() => import('../pages/auth/SessionUnavailablePage'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
-const RequestsPage = lazy(() =>
-  import('../pages/requests/RequestsPage').then((module) => ({ default: module.RequestsPage })),
-);
-const RequestDetailPage = lazy(() =>
-  import('../pages/requests/RequestDetailPage').then((module) => ({
-    default: module.RequestDetailPage,
-  })),
-);
-const BillingPage = lazy(() =>
-  import('../pages/billing/BillingPage').then((module) => ({ default: module.BillingPage })),
-);
-const KeysPage = lazy(() => import('../pages/keys/KeysPage'));
 const ChatPage = lazy(() => import('../pages/chat/ChatPage'));
-const ImagesPage = lazy(() => import('../pages/images/ImagesPage'));
 const ImageModelsPage = lazy(() => import('../pages/admin/ImageModelsPage'));
+const ModelCatalogPage = lazy(() => import('../pages/catalog/ModelCatalogPage'));
 const HomePage = lazy(() => import('../pages/home/HomePage'));
 const ChannelsPage = lazy(() => import('../pages/admin/ChannelsPage'));
 const ChannelDetailPage = lazy(() => import('../pages/admin/ChannelDetailPage'));
@@ -61,12 +51,9 @@ export function AppRoutes() {
         </Route>
         <Route element={<SessionBoundary />}>
           <Route element={<PersonalLayout />}>
-            <Route path="/images" element={<ImagesPage />} />
-            <Route path="/dashboard" element={<Navigate replace to="/billing" />} />
-            <Route path="/keys" element={<KeysPage />} />
-            <Route path="/requests" element={<RequestsPage />} />
-            <Route path="/requests/:id" element={<RequestDetailPage />} />
-            <Route path="/billing" element={<BillingPage />} />
+            {personalPageRoutes.map(({ path, Page }) => (
+              <Route key={path} path={path} element={<Page />} />
+            ))}
           </Route>
           <Route element={<AdminBoundary />}>
             <Route element={<AdminLayout />}>
@@ -90,7 +77,10 @@ export function AppRoutes() {
             </Route>
           </Route>
         </Route>
-        <Route path="/" element={<HomePage />} />
+        <Route element={<PublicLayout />}>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/models" element={<ModelCatalogPage />} />
+        </Route>
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/chat/:id" element={<ChatPage />} />
         <Route path="*" element={<NotFoundPage />} />

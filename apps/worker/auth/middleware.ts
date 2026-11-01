@@ -4,11 +4,15 @@ import { readCookieSession } from './sessions';
 import type { StoredSession } from './session-repository';
 import { findPublicUserById } from './users';
 import type { PublicUser } from './users';
+import { isDesktopConsoleRequest } from '@cheapai/contracts/desktop-console';
+import { authenticateDesktopSession } from './desktop/authenticate';
+import { TOKEN_PREFIXES } from './tokens';
 
 export interface AuthVariables {
   requestId: string;
   user: PublicUser;
-  session: StoredSession;
+  session: Pick<StoredSession, 'id' | 'user_id' | 'expires_at'>;
+  authentication: 'cookie' | 'desktop';
 }
 
 export interface AuthEnv {
@@ -28,17 +32,44 @@ export function requireSession(now: () => number = Date.now): MiddlewareHandler<
     const requestId = context.get('requestId') ?? createRequestId();
     context.set('requestId', requestId);
     try {
-      const session = await readCookieSession(context.env.DB, context.req.header('Cookie') ?? null, now());
-      if (session === null) return apiError(new ApiError('unauthorized'), requestId);
-      const user = await findPublicUserById(context.env.DB, session.user_id, { userId: session.user_id });
-      if (user === null || user.status !== 'active' || user.group_status !== 'active') {
-        return apiError(new ApiError('unauthorized'), requestId);
+      // Unrelated headers remain untrusted browser claims; only an explicit desktop
+      // bearer selects native authentication, and it never falls back to a Cookie.
+      const authorization = context.req.header('Authorization');
+      if (authorization?.toLowerCase().startsWith(`bearer ${TOKEN_PREFIXES.desktopSession}`)) {
+        const url = new URL(context.req.url);
+        if (!isDesktopConsoleRequest(context.req.method, url.pathname + url.search))
+          return apiError(new ApiError('unauthorized'), requestId);
+        const { session, user } = await authenticateDesktopSession(
+          context.env.DB,
+          context.req.raw,
+          now(),
+        );
+        context.set('session', session);
+        context.set('user', user);
+        context.set('authentication', 'desktop');
+      } else {
+        const session = await readCookieSession(
+          context.env.DB,
+          context.req.header('Cookie') ?? null,
+          now(),
+        );
+        if (session === null) return apiError(new ApiError('unauthorized'), requestId);
+        const user = await findPublicUserById(context.env.DB, session.user_id, {
+          userId: session.user_id,
+        });
+        if (user === null || user.status !== 'active' || user.group_status !== 'active') {
+          return apiError(new ApiError('unauthorized'), requestId);
+        }
+        context.set('session', session);
+        context.set('user', user);
+        context.set('authentication', 'cookie');
       }
-      context.set('session', session);
-      context.set('user', user);
     } catch (error) {
       // Backend/crypto failures must not be presented as bad credentials.
-      return apiError(new ApiError('service_unavailable', { cause: error }), requestId);
+      return apiError(
+        error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }),
+        requestId,
+      );
     }
     // Downstream business errors belong to the route/error handler, not auth.
     await next();

@@ -1,3 +1,5 @@
+import { isDesktopConsolePayload } from '@cheapai/contracts/desktop-console';
+import type { DesktopConsoleRequest, DesktopConsoleResponse } from '@cheapai/contracts/desktop-console';
 import type {
   ApiErrorCode,
   DesktopAccountData,
@@ -141,6 +143,27 @@ export class DesktopAccountClient {
     const response = await this.request(DESKTOP_LOGOUT_PATH, { method: 'POST', token, ...options })
     const data = successData(response)
     if (!isRecord(data) || data.loggedOut !== true) throw invalidServerResponse(response)
+  }
+
+  async console(token: string, request: DesktopConsoleRequest): Promise<DesktopConsoleResponse> {
+    if (!isDesktopConsolePayload(request)) throw new TypeError('Unsupported console request.');
+    const response = await this.fetcher(new URL(request.path.slice(1), ensureTrailingSlash(this.baseUrl)), {
+      method: request.method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(request.body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...(request.idempotencyKey === undefined ? {} : { 'Idempotency-Key': request.idempotencyKey }),
+      },
+      ...(request.body === undefined ? {} : { body: request.body }),
+      redirect: 'error',
+      signal: AbortSignal.timeout(180_000),
+    });
+    const contentType = response.headers.get('Content-Type') ?? 'application/json';
+    const binary = contentType.startsWith('image/');
+    return {
+      status: response.status, contentType, encoding: binary ? 'base64' : 'utf8',
+      body: binary ? Buffer.from(await response.arrayBuffer()).toString('base64') : await response.text(),
+    };
   }
 
   private async request(path: string, settings: RequestSettings): Promise<unknown> {

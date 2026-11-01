@@ -39,7 +39,8 @@ const RUNTIME_KILL_GRACE: Duration = Duration::from_secs(1);
 const DSH_TERMINATION_GRACE: Duration = Duration::from_millis(250);
 const RUNTIME_STATUS_EVENT: &str = "desktop-runtime-status";
 const DSH_STREAM_EVENT: &str = "desktop-dsh-stream";
-const MAX_CONTROL_LINE_BYTES: usize = 1024 * 1024;
+// Image previews may cross the private pipe as base64.
+const MAX_CONTROL_LINE_BYTES: usize = 64 * 1024 * 1024;
 const MAX_ACTIVE_DSH_STREAMS: usize = 64;
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -792,7 +793,7 @@ impl RuntimeHost {
         operation: &'static str,
         payload: Value,
     ) -> Result<Value, NativeHostError> {
-        if !matches!(operation, "login" | "restore" | "getAccount" | "getKey" | "logout") {
+        if !matches!(operation, "login" | "restore" | "getAccount" | "getKey" | "logout" | "console") {
             return Err(NativeHostError::new("invalid-account-operation", "Account operation is unavailable"));
         }
         // The window can request restore while startup is still bootstrapping.
@@ -807,8 +808,10 @@ impl RuntimeHost {
                 }
             }
         }).await.map_err(|_| NativeHostError::unavailable())??;
-        let _lifecycle = self.inner.lifecycle_operation.lock().await;
-        let response = self.request_message("account", Some(operation), Some(payload), None, RUNTIME_REQUEST_TIMEOUT).await?;
+        // Console requests may outlive a view; account switching must remain available.
+        let _lifecycle = if operation == "console" { None } else { Some(self.inner.lifecycle_operation.lock().await) };
+        let duration = if operation == "console" { Duration::from_secs(185) } else { RUNTIME_REQUEST_TIMEOUT };
+        let response = self.request_message("account", Some(operation), Some(payload), None, duration).await?;
         if response.get("kind").and_then(Value::as_str) != Some("account") {
             return Err(NativeHostError::new("invalid-account-response", "Account response is invalid"));
         }

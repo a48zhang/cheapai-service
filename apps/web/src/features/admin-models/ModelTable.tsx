@@ -46,7 +46,7 @@ const columns: ColumnDef<ModelView, unknown>[] = [
     accessorFn: (model) => model.sellPrices.input,
     header: () => (
       <div className="text-right">
-        输入价格<span className="block text-sm font-normal">USD / 百万 Token</span>
+        输入价格<span className="block text-sm font-normal">积分 / 百万 Token</span>
       </div>
     ),
     cell: ({ row }) => (
@@ -59,7 +59,7 @@ const columns: ColumnDef<ModelView, unknown>[] = [
     accessorFn: (model) => model.sellPrices.output,
     header: () => (
       <div className="text-right">
-        输出价格<span className="block text-sm font-normal">USD / 百万 Token</span>
+        输出价格<span className="block text-sm font-normal">积分 / 百万 Token</span>
       </div>
     ),
     cell: ({ row }) => (
@@ -105,7 +105,7 @@ export function ModelTable({
       onLoadMore={onLoadMore}
       getRowId={(model) => model.publicModelId}
       emptyMessage={emptyMessage ?? '暂无模型，新增模型后将在这里显示。'}
-      caption="模型目录，输入与输出价格单位为 USD / 百万 Token"
+      caption="模型目录，输入与输出价格单位为 积分 / 百万 Token"
     />
   );
 }

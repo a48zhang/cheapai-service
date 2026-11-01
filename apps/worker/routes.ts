@@ -6,7 +6,7 @@ import type { Env } from './env';
 import { ApiError, apiError, apiSuccess, createRequestId, parsePagination } from './http';
 import type { SuccessEnvelope } from './http';
 import { createPublicSettingsRoutes } from './auth/public-settings-routes';
-import { createPublicCatalogRoutes, PUBLIC_CATALOG_PATH } from './catalog/public-routes';
+import { createPublicCatalogRoutes, PUBLIC_CATALOG_PATH, PUBLIC_CATALOG_GROUPS_PATH } from './catalog/public-routes';
 import type { PublicSettingsData } from './auth/public-settings-routes';
 import { createLoginRoutes, LOGIN_PATH } from './auth/login-routes';
 import { createRegisterRoutes, REGISTER_PATH } from './auth/register-routes';
@@ -44,6 +44,7 @@ export const routes = new Hono<{ Bindings: Env }>();
 
 const publicCatalog = createPublicCatalogRoutes();
 routes.get(PUBLIC_CATALOG_PATH, c => publicCatalog.fetch(c.req.raw, c.env));
+routes.get(PUBLIC_CATALOG_GROUPS_PATH, c => publicCatalog.fetch(c.req.raw, c.env));
 
 // Liveness only: this does not claim database, email, or upstream readiness.
 routes.get('/healthz', (c) => {

@@ -1,11 +1,13 @@
 import { appearanceBootstrap } from '@cheapai/theme/vite';
+import { fileURLToPath } from 'node:url';
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { dshClientModules } from './dsh-client-plugin';
 
 export default defineConfig({
   base: './',
-  plugins: [appearanceBootstrap(), dshClientModules(), react()],
+  plugins: [appearanceBootstrap(), dshClientModules(), react(), tailwindcss()],
   // Keep the upstream non-ESM factories in Vite's transform pipeline in dev.
   optimizeDeps: {
     exclude: [
@@ -21,6 +23,12 @@ export default defineConfig({
     strictPort: true,
   },
   build: {
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        console: fileURLToPath(new URL('./console.html', import.meta.url)),
+      },
+    },
     outDir: 'dist',
     emptyOutDir: true,
   },

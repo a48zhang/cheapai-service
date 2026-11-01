@@ -100,7 +100,7 @@ export function executeBalanceAdjustment(
 
 export function formatBalanceAmount(units: string): string {
   try {
-    return `${formatUnitsToUsd(units)} USD`;
+    return `${formatUnitsToUsd(units)} 积分`;
   } catch {
     return '余额暂不可显示';
   }

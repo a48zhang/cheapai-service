@@ -1,3 +1,4 @@
+import { isDesktopConsolePayload } from '@cheapai/contracts/desktop-console';
 import type {
   DesktopHostAccountRequest,
   DesktopHostAccountResult,
@@ -186,6 +187,7 @@ function parseDesktopHostAccountRequest(
   payload: unknown,
 ): DesktopHostAccountRequest | null {
   if (!isRecord(payload)) return null
+  if (operation === 'console' && isDesktopConsolePayload(payload)) return { operation, payload };
   if (operation === 'login'
     && typeof payload.email === 'string'
     && typeof payload.password === 'string') {

@@ -61,6 +61,7 @@ a {
 }
 
 .desktop-app {
+  height: 100dvh;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   min-height: 100vh;
@@ -315,3 +316,14 @@ a {
     transition-duration: 0.01ms !important;
   }
 }
+
+.ui-select-trigger { display: inline-flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-width: 0; text-align: left; }
+.ui-select-value { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ui-select-content { z-index: 100; max-width: calc(100vw - 2rem); min-width: var(--radix-select-trigger-width); max-height: min(20rem, var(--radix-select-content-available-height)); overflow: auto; padding: var(--space-1); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); box-shadow: var(--shadow-panel); }
+.ui-select-item { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); outline: none; cursor: default; overflow-wrap: anywhere; }
+.ui-select-item[data-highlighted] { background: var(--color-surface-hover); }
+.ui-select-item[data-disabled] { opacity: .5; }
+.ui-menu-panel { position: relative; inset: auto; z-index: 100; }
+
+.desktop-content { min-height: 0; height: 100%; }
+.desktop-content:not([hidden]) { display: grid; grid-template-rows: minmax(0, 1fr); }

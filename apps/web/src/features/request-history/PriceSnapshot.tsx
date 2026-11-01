@@ -43,7 +43,7 @@ function pendingCostLabel(status: BillingStatus): {
 
 function formattedCost(value: string): string | null {
   try {
-    return `${formatConsumptionUsd(value)} USD`;
+    return `${formatConsumptionUsd(value)} 积分`;
   } catch {
     return null;
   }
@@ -120,7 +120,7 @@ export function PriceSnapshot({
             <div className="overflow-hidden rounded-lg border border-[var(--color-line)]">
               <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4 bg-[var(--color-surface-subtle)] px-3 py-2 text-sm font-medium text-[var(--color-ink-muted)]">
                 <span>计费项</span>
-                <span className="text-right">USD / 百万 Token</span>
+                <span className="text-right">积分 / 百万 Token</span>
               </div>
               <dl className="m-0 divide-y divide-[var(--color-line)]">
                 {prices.map(([key, value]) => (

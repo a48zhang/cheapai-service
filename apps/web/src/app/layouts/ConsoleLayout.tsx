@@ -1,3 +1,4 @@
+import { useProductEnvironment } from '../../shared/platform';
 import { TextLink } from '../../shared/ui/TextLink';
 import { ArrowLeft, Menu, MessageSquare, PanelLeft, PanelLeftClose } from 'lucide-react';
 import { type ReactNode, Suspense, useState } from 'react';
@@ -26,6 +27,7 @@ export function ConsoleLayout({
   children?: ReactNode;
   mode?: 'personal' | 'admin';
 }) {
+  const { kind } = useProductEnvironment();
   const { isAdmin, error } = useSession();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopOpen, setDesktopOpen] = useDesktopNavigation();
@@ -80,7 +82,7 @@ export function ConsoleLayout({
       ) : (
         <>
           <div className="space-y-1">{personalNavigation.map(renderItem)}</div>
-          {isAdmin && (
+          {isAdmin && kind !== 'desktop' && (
             <div className="border-t border-[var(--color-border)] pt-4">
               {renderItem(adminEntry)}
             </div>

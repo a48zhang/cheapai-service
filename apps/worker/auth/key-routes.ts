@@ -18,7 +18,8 @@ export interface KeyRouteDependencies<B extends Bindings = Bindings> {
   trustedOrigin?: string | ((env: B, request: Request) => string | Promise<string>);
 }
 
-async function protectWrite<B extends Bindings>(dependencies: KeyRouteDependencies<B>, env: B, request: Request): Promise<void> {
+async function protectWrite<B extends Bindings>(dependencies: KeyRouteDependencies<B>, env: B, request: Request, authentication: AuthVariables['authentication']): Promise<void> {
+  if (authentication === 'desktop') return;
   try {
     const configured = dependencies.trustedOrigin;
     const origin = typeof configured === 'function' ? await configured(env, request) : configured;
@@ -99,7 +100,7 @@ export function createKeyRoutes<B extends Bindings = Bindings>(dependencies: Key
     return apiSuccess(key, context.get('requestId'));
   });
   app.post(PLATFORM_KEYS_PATH, async context => {
-    await protectWrite(dependencies, context.env, context.req.raw);
+    await protectWrite(dependencies, context.env, context.req.raw, context.get('authentication'));
     const operationId = context.req.header('Idempotency-Key');
     const body = await readBody(context.req.raw);
     const result = await createPlatformKey(context.env.DB, context.get('user').id,
@@ -107,7 +108,7 @@ export function createKeyRoutes<B extends Bindings = Bindings>(dependencies: Key
     return apiSuccess(result, context.get('requestId'), result.kind === 'created' ? 201 : 200);
   });
   app.patch(`${PLATFORM_KEYS_PATH}/:id`, async context => {
-    await protectWrite(dependencies, context.env, context.req.raw);
+    await protectWrite(dependencies, context.env, context.req.raw, context.get('authentication'));
     const body = await readBody(context.req.raw);
     const version = body.version as number;
     const patch = {
@@ -123,7 +124,7 @@ export function createKeyRoutes<B extends Bindings = Bindings>(dependencies: Key
     return apiSuccess(result.key, context.get('requestId'));
   });
   app.post(`${PLATFORM_KEYS_PATH}/:id/revoke`, async context => {
-    await protectWrite(dependencies, context.env, context.req.raw);
+    await protectWrite(dependencies, context.env, context.req.raw, context.get('authentication'));
     const body = await readBody(context.req.raw);
     const result = await revokePlatformKey(context.env.DB, context.get('user').id,
       context.req.param('id'), body.version as number, context.get('keyNow'));

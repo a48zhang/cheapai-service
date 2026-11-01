@@ -12,14 +12,14 @@ test('channel mapping defaults use catalog protocol and name @resources', async 
   await page.getByRole('button', { name: '登录', exact: true }).click();
   await expect(page).toHaveURL(connection.baseURL + '/');
   const api = page.context().request;
-  const astra = BUILTIN_MODELS.find(model => model.id === 'gpt-6-astra')!;
+  const sol = BUILTIN_MODELS.find(model => model.id === 'gpt-6.1-sol')!;
   const csrf = (await (await api.get('/api/v1/settings/public')).json()).data.csrfToken;
   const name = `Catalog ${randomUUID().slice(0, 8)}`;
   const channel = await api.post('/api/v1/admin/channels', { headers: { Origin: connection.baseURL, 'X-CSRF-Token': csrf }, data: {
     name, baseUrl: 'https://e2e-upstream.example.invalid/v1', upstreamKey: 'local-catalog-only', concurrencyLimit: 0, rpmLimit: 0,
   } });
   expect(channel.status()).toBe(201);
-  for (const [id, protocol] of [['claude-opus-5', 'Messages'], [astra!.id, 'Responses']]) {
+  for (const [id, protocol] of [['claude-opus-5-5', 'Messages'], [sol!.id, 'Responses']]) {
     await page.goto(`/admin/models/${encodeURIComponent(id)}`);
     const picker = page.getByRole('button', { name: /^关联渠道：/ });
     await expect(picker).toBeEnabled();

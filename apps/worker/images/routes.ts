@@ -18,7 +18,7 @@ export function createImageRoutes(options: { fetch?: typeof fetch; now?: () => n
   app.use('*', requireSession(now));
   app.use('*', async (c, next) => {
     c.header('Cache-Control', 'private, no-store');
-    if (!['GET', 'HEAD'].includes(c.req.method)) {
+    if (!['GET', 'HEAD'].includes(c.req.method) && c.get('authentication') !== 'desktop') {
       if (!c.env.PUBLIC_BASE_URL) throw new ApiError('service_unavailable');
       validateCsrfRequest(c.req.raw, c.env.PUBLIC_BASE_URL);
     }

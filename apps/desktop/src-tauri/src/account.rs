@@ -794,6 +794,49 @@ impl AccountHost {
 }
 
 #[tauri::command]
+pub(crate) async fn desktop_console_request(
+    runtime: State<'_, RuntimeHost>,
+    request: Value,
+) -> Result<Value, NativeHostError> {
+    // Runtime validates the route and binds it to the active account generation.
+    runtime.request_account("console", request).await
+}
+
+#[tauri::command]
+pub(crate) async fn desktop_console_download(
+    runtime: State<'_, RuntimeHost>, app: AppHandle, request: Value, filename: String,
+) -> Result<bool, String> {
+    use base64::Engine;
+    use tauri_plugin_dialog::DialogExt;
+    let path = request.get("path").and_then(Value::as_str).unwrap_or("");
+    if request.get("method").and_then(Value::as_str) != Some("GET")
+        || !path.starts_with("/api/v1/images/generations/") || !path.split('?').next().unwrap_or("").ends_with("/content") {
+        return Err("Unsupported image request".to_owned());
+    }
+    let response = runtime.request_account("console", request).await.map_err(|_| "无法读取图片".to_owned())?;
+    if response.get("status").and_then(Value::as_u64) != Some(200)
+        || response.get("encoding").and_then(Value::as_str) != Some("base64") {
+        return Err("图片暂时无法下载".to_owned());
+    }
+    let bytes = base64::engine::general_purpose::STANDARD.decode(response.get("body").and_then(Value::as_str).unwrap_or(""))
+        .map_err(|_| "图片内容无效".to_owned())?;
+    let extension = match response.get("contentType").and_then(Value::as_str).unwrap_or("").split(';').next().unwrap_or("") {
+        "image/png" => "png",
+        "image/jpeg" => "jpg",
+        "image/webp" => "webp",
+        _ => return Err("不支持的图片格式".to_owned()),
+    };
+    let stem = Path::new(&filename).file_stem().and_then(|name| name.to_str()).unwrap_or("image");
+    let safe_name = format!("{stem}.{extension}");
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    app.dialog().file().set_title("保存图片").set_file_name(safe_name).save_file(move |selected| { let _ = sender.send(selected); });
+    let Some(selected) = receiver.await.map_err(|_| "未能选择保存位置".to_owned())? else { return Ok(false); };
+    let path = selected.as_path().ok_or_else(|| "保存位置不可用".to_owned())?;
+    std::fs::write(path, bytes).map_err(|_| "图片保存失败".to_owned())?;
+    Ok(true)
+}
+
+#[tauri::command]
 pub(crate) async fn desktop_account_login(
     account: State<'_, AccountHost>,
     runtime: State<'_, RuntimeHost>,

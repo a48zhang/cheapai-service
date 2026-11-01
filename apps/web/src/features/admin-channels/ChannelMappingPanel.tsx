@@ -202,7 +202,7 @@ export function ChannelMappingPanel({
             setUpstreamModel(event.currentTarget.value);
           }}
           disabled={saving}
-          placeholder="例如 gpt-5"
+          placeholder="例如 gpt-6.1-sol"
           autoComplete="off"
         />
       </Field>

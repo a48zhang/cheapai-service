@@ -34,7 +34,7 @@ export function PriceFields({ value, errors = {}, disabled = false, onChange }: 
     >
       <legend className="console-section-title pr-3">模型价格</legend>
       <p className="text-sm leading-5 text-[var(--color-muted-foreground)] sm:col-span-2">
-        USD / 百万 Token；其他计费项留空表示未配置。
+        积分 / 百万 Token；其他计费项留空表示未配置。
       </p>
       {(['input', 'output'] as const).map((bucket) => (
         <Field

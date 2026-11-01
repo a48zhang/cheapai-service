@@ -103,6 +103,26 @@ export function GroupForm({
             )}
           />
         </div>
+        <Controller
+          name="isPublic"
+          control={form.control}
+          render={({ field }) => (
+            <Field
+              label="模型目录展示"
+              description="公开后，访客可查看此组的模型和价格；调用权限仍按账号授权。"
+            >
+              <Select
+                value={field.value ? 'public' : 'private'}
+                onValueChange={(value) => field.onChange(value === 'public')}
+                disabled={saving || needsRefresh}
+                items={[
+                  { value: 'private', label: '不公开' },
+                  { value: 'public', label: '公开展示' },
+                ]}
+              />
+            </Field>
+          )}
+        />
       </div>
       <div className="space-y-3 border-t border-[var(--color-border)] pt-5">
         <Controller
@@ -161,9 +181,7 @@ export function GroupForm({
           className="grid gap-2 rounded-lg border border-[var(--color-warning-line)] bg-[var(--color-warning-soft)] p-3 text-sm text-[var(--color-warning)]"
           role="alert"
         >
-          <p>
-            访问组已被其他操作更新。表单保留当前输入，请核对渠道和倍率的变更后采用最新配置。
-          </p>
+          <p>访问组已被其他操作更新。表单保留当前输入，请核对渠道和倍率的变更后采用最新配置。</p>
           <Button
             size="sm"
             variant="secondary"

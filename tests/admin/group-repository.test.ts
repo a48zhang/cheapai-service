@@ -20,6 +20,18 @@ beforeEach(async () => {
 });
 
 describe('group configuration and channel relationships on native D1', () => {
+  it('keeps publication opt-in and audits a change without changing account access', async () => {
+    const group = await createGroup(testEnv.DB, { name: 'Private by default' }, actor);
+    expect(group.isPublic).toBe(false);
+    const published = await updateGroup(testEnv.DB, group.id, group.version, { isPublic: true }, actor);
+    expect(published.isPublic).toBe(true);
+    expect(published.status).toBe('active');
+    expect((await getGroupById(testEnv.DB, group.id))?.isPublic).toBe(true);
+    const audit = await prepare<{ redacted_change_json: string }>(testEnv.DB, "SELECT redacted_change_json FROM admin_audit WHERE target_id=? AND action='group.update'", [group.id]).first();
+    expect(JSON.parse(audit!.redacted_change_json).after.is_public).toBe(true);
+    await expect(updateGroup(testEnv.DB, group.id, published.version, { isPublic: 'true' } as never, actor)).rejects.toMatchObject({ code: 'invalid_request' });
+  });
+
   it('accepts more than 100 channel relationships and audits all additions', async () => {
     const channelIds = Array.from({ length: 101 }, (_, i) => `many-channel-${i}`).sort();
     await prepare(testEnv.DB, `INSERT INTO channels(id,name,base_url,upstream_key,status,priority,concurrency_limit,rpm_limit,config_version,created_at,updated_at)

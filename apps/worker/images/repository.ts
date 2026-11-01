@@ -87,7 +87,7 @@ export function jobView(row: JobRow): ImageJob {
     updatedAt: row.updated_at,
   });
 }
-export function quotedUnits(row: SelectionRow): number {
+export function quotedUnits(row: Pick<SelectionRow, 'price_units' | 'billing_multiplier'>): number {
   const m = parseBillingMultiplier(row.billing_multiplier);
   return unitsToSafeNumber(
     (BigInt(row.price_units) * m.numerator + m.denominator / 2n) / m.denominator,

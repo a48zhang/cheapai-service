@@ -10,6 +10,8 @@ import { Button } from '../../shared/ui/Button';
 import { Dialog } from '../../shared/ui/Dialog';
 import { formatConsumptionUsd } from '../../shared/lib/money';
 import { GeneratedImage } from './GeneratedImage';
+import { useImageAsset } from './useImageAsset';
+import { useProductEnvironment } from '../../shared/platform';
 
 const errors: Record<NonNullable<ImageJob['error']>, string> = {
   provider_rejected: '生成请求未被接受，请调整描述或选择其他模型。',
@@ -53,7 +55,8 @@ export function ImageResultCard({
   const [loadError, setLoadError] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const dimensions = job.size.split('x').map(Number);
-  const src = `${imageContentUrl(job.id)}?v=${attempt}`;
+  const asset = useImageAsset(job.id, job.status === 'completed', attempt);
+  const src = asset.url ?? undefined;
   return (
     <article
       id={`image-${job.id}`}
@@ -70,16 +73,16 @@ export function ImageResultCard({
         <span>
           {job.status === 'completed'
             ? job.billingStatus === 'settled'
-              ? `已扣费 ${formatConsumptionUsd(job.priceUnits)} USD`
-              : `费用确认中 · ${formatConsumptionUsd(job.priceUnits)} USD`
-            : `单张 ${formatConsumptionUsd(job.priceUnits)} USD`}
+              ? `已扣费 ${formatConsumptionUsd(job.priceUnits)} 积分`
+              : `费用确认中 · ${formatConsumptionUsd(job.priceUnits)} 积分`
+            : `单张 ${formatConsumptionUsd(job.priceUnits)} 积分`}
         </span>
       </div>
       {job.status === 'generating' ? (
         <ImageWaiting />
       ) : job.status === 'completed' ? (
         <>
-          {loadError ? (
+          {loadError || asset.error ? (
             <div role="alert" className="rounded-lg border border-[var(--color-border)] p-6">
               <p>图片暂时无法读取，生成记录已保存。</p>
               <Button
@@ -93,6 +96,10 @@ export function ImageResultCard({
                 重新加载图片
               </Button>
             </div>
+          ) : !src ? (
+            <p role="status" className="p-6 text-sm">
+              正在读取图片…
+            </p>
           ) : (
             <Dialog
               title="图片预览"
@@ -115,11 +122,7 @@ export function ImageResultCard({
                   />
                 </button>
               }
-              footer={
-                <Button asChild variant="outline">
-                  <TextLink href={imageContentUrl(job.id, true)}>下载原图</TextLink>
-                </Button>
-              }
+              footer={<ImageDownload id={job.id} label="下载原图" />}
             >
               <GeneratedImage
                 src={src}
@@ -129,12 +132,7 @@ export function ImageResultCard({
             </Dialog>
           )}
           <div className="flex flex-wrap gap-2">
-            <Button asChild variant="outline" size="sm">
-              <TextLink href={imageContentUrl(job.id, true)}>
-                <Download size={16} aria-hidden="true" />
-                下载图片
-              </TextLink>
-            </Button>
+            <ImageDownload id={job.id} label="下载图片" />
           </div>
         </>
       ) : (
@@ -168,5 +166,44 @@ export function ImageResultCard({
         </div>
       )}
     </article>
+  );
+}
+
+function ImageDownload({ id, label }: { id: string; label: string }) {
+  const { downloadAsset } = useProductEnvironment();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
+  if (!downloadAsset)
+    return (
+      <Button asChild variant="outline" size="sm">
+        <TextLink href={imageContentUrl(id, true)}>
+          <Download size={16} aria-hidden="true" />
+          {label}
+        </TextLink>
+      </Button>
+    );
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        busy={busy}
+        onClick={() => {
+          setBusy(true);
+          setError(false);
+          void downloadAsset(imageContentUrl(id, true), `cheapai-${id}.png`)
+            .catch(() => setError(true))
+            .finally(() => setBusy(false));
+        }}
+      >
+        <Download size={16} aria-hidden="true" />
+        {label}
+      </Button>
+      {error && (
+        <p role="alert" className="text-sm text-[var(--color-destructive)]">
+          图片未能保存，请重试。
+        </p>
+      )}
+    </>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent } from 'react'
-import { Button } from '../../components/ui/controls'
+import { Button, Select } from '../../components/ui/controls'
 import {
   composerSelectionKey,
   getComposerModelOptions,
@@ -104,23 +104,18 @@ export function Composer({ controller, onCreateSession }: ComposerProps) {
     <section aria-label="消息输入" style={{ display: 'grid', gap: 'var(--space-3)', padding: 'var(--space-4)', borderTop: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-2)' }}>
         <label htmlFor="conversation-model" style={{ color: 'var(--color-ink-muted)', fontSize: 'var(--font-size-sm)' }}>模型</label>
-        <select
+        <Select
           aria-label="选择模型"
           disabled={!canEdit || snapshot.sessionId === null || snapshot.catalogStatus !== 'ready'
             || options.length === 0 || snapshot.selectionStatus === 'loading'
             || snapshot.running || snapshot.selectingModel}
           id="conversation-model"
-          onChange={event => selectModel(event.currentTarget.value)}
+          onValueChange={selectModel}
           style={{ minWidth: 'min(100%, 15rem)', maxWidth: '100%', padding: 'var(--space-2)', border: '1px solid var(--color-border-strong)', borderRadius: 'var(--radius-sm)', background: 'var(--color-surface)', color: 'var(--color-ink)' }}
           value={selectedAvailable ? selectedKey : ''}
-        >
-          <option disabled value="">
-            {snapshot.catalogStatus === 'loading' ? '正在读取模型…' : options.length === 0 ? '暂无可用模型' : '选择模型'}
-          </option>
-          {options.map(option => (
-            <option key={option.key} value={option.key}>{option.label}</option>
-          ))}
-        </select>
+          placeholder={snapshot.catalogStatus === 'loading' ? '正在读取模型…' : options.length === 0 ? '暂无可用模型' : '选择模型'}
+          items={options.map((option) => ({ value: option.key, label: option.label }))}
+        />
         {snapshot.selectingModel && (
           <span role="status" style={{ color: 'var(--color-ink-muted)', fontSize: 'var(--font-size-xs)' }}>
             正在应用模型…

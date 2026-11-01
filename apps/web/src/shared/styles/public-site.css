@@ -198,16 +198,10 @@
 .home-catalog {
   min-height: 65vh;
 }
-.home-catalog-note {
-  color: var(--color-ink-muted);
-  font-size: 13px;
-  line-height: 1.75;
-}
-.home-catalog-note a {
-  display: inline-block;
-  margin-left: 6px;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+.home-catalog-group {
+  flex: 1 1 180px;
+  min-width: 0;
+  max-width: 280px;
 }
 .home-catalog-toolbar {
   display: flex;

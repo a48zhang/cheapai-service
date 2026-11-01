@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 
-const desktopPaths = /^(apps\/(desktop|desktop-runtime)\/|packages\/(desktop-contracts|theme)\/|scripts\/(desktop|ci)\/|tests\/(desktop|desktop-ui)\/|LICENSES\/desktop\/)/;
+const desktopPaths = /^(apps\/(desktop|desktop-runtime|web)\/|packages\/(desktop-contracts|theme|contracts|api-client|model-catalog)\/|scripts\/(desktop|ci)\/|tests\/(desktop|desktop-ui)\/|LICENSES\/desktop\/)/;
 const desktopFiles = new Set([
   '.github/workflows/check.yml', '.github/workflows/desktop-package.yml',
   'package.json', 'pnpm-workspace.yaml', '.node-version', 'tsconfig.base.json',

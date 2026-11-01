@@ -196,13 +196,13 @@
   padding: var(--space-3) var(--space-4);
   font-size: var(--font-size-sm);
 }
-.conversation-tool-call summary {
+.conversation-tool-call [data-disclosure-trigger] {
   cursor: pointer;
 }
-.conversation-tool-call summary > span {
+.conversation-tool-call [data-disclosure-trigger] > span {
   margin-right: var(--space-3);
 }
-.conversation-tool-call summary > span:not(:first-child),
+.conversation-tool-call [data-disclosure-trigger] > span:not(:first-child),
 .conversation-tool-call dt {
   color: var(--color-ink-muted);
 }

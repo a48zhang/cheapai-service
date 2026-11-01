@@ -39,6 +39,7 @@ export const groupSchema = z
     id: groupIdSchema,
     name: groupNameSchema,
     status: groupStatusSchema,
+    isPublic: z.boolean().default(false),
     version: groupVersionSchema,
     createdAt: safeInteger,
     updatedAt: safeInteger,
@@ -53,6 +54,7 @@ export const groupSchema = z
 const groupFieldsSchema = z.object({
   name: groupNameSchema,
   status: groupStatusSchema.optional(),
+  isPublic: z.boolean().optional(),
   channelIds: groupChannelIdsInputSchema.optional(),
   billingMultiplier: billingMultiplierSchema.optional(),
 });
