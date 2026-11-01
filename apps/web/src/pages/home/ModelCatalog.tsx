@@ -92,7 +92,9 @@ export function ModelCatalog() {
       </div>
       <p className="home-catalog-note">
         以下为本站基础价，以美元（USD）计费。实际价格按访问组倍率计算，可用模型以账号授权为准。
-        <Link to="/keys">查看我的可用模型</Link>
+        <Button asChild variant="ghost" size="sm">
+          <Link to="/keys">查看我的可用模型</Link>
+        </Button>
       </p>
       {query.isPending ? (
         <div className="home-catalog-state" role="status">

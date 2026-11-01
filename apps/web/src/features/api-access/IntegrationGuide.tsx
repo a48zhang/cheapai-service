@@ -1,9 +1,11 @@
+import { Select } from '../../shared/ui/Select';
 import { useMemo, useState } from 'react';
 import { Copy, FileCode2 } from 'lucide-react';
 import type { KeyGroup, KeyMetadata } from '@cheapai/api-client/keys';
 import { Button } from '../../shared/ui/Button';
 import { Tabs } from '../../shared/ui/Tabs';
 import {
+  codexAuthentication,
   codexConfiguration,
   integrationExample,
   integrationModelScope,
@@ -81,7 +83,7 @@ export function IntegrationGuide({
     : (scope.models[0] ?? '');
   const example = modelId ? integrationExample(protocol, baseUrl, modelId) : null;
   const configuration = modelId ? codexConfiguration(baseUrl, modelId) : null;
-  const setup = `export CHEAPAI_API_KEY="替换为你的完整 API Key"`;
+  const authentication = codexAuthentication();
 
   async function copy(value: string) {
     try {
@@ -113,55 +115,49 @@ export function IntegrationGuide({
   ) : null;
 
   const modelControls = (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <div>
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="min-w-0">
         <label htmlFor="integration-group" className="mb-2 block text-[15px] font-medium">
           {selectedKey ? '选用密钥' : '授权分组'}
         </label>
         {selectedKey ? (
           <p
             id="integration-group"
-            className="min-h-11 rounded-lg bg-[var(--color-muted)] px-3 py-2.5 text-[15px]"
+            className="min-h-11 break-words rounded-lg bg-[var(--color-muted)] px-3 py-2.5 text-[15px]"
           >
             {selectedKey.name} · {scope.group?.name ?? selectedKey.groupName}
           </p>
         ) : (
-          <select
+          <Select
             id="integration-group"
             aria-label="示例模型授权分组"
             value={availableGroupId}
             disabled={groupsLoading || !groups.length}
-            onChange={(event) => setGroupId(event.currentTarget.value)}
+            onValueChange={(nextValue) => setGroupId(nextValue)}
             className={selectStyle}
-          >
-            {!groups.length && <option value="">暂无可用分组</option>}
-            {groups.map((group) => (
-              <option key={group.id} value={group.id}>
-                {group.name}
-              </option>
-            ))}
-          </select>
+            items={[
+              ...(!groups.length ? [{ value: '', label: <>暂无可用分组</> }] : []),
+              ...groups.map((group) => ({ value: group.id, label: <>{group.name}</> })),
+            ]}
+          />
         )}
       </div>
-      <div>
+      <div className="min-w-0">
         <label htmlFor="integration-model" className="mb-2 block text-[15px] font-medium">
           模型
         </label>
-        <select
+        <Select
           id="integration-model"
           aria-label="API 示例模型"
           value={modelId}
           disabled={groupsLoading || !scope.models.length}
-          onChange={(event) => setSelectedModelId(event.currentTarget.value)}
+          onValueChange={(nextValue) => setSelectedModelId(nextValue)}
           className={selectStyle}
-        >
-          {!scope.models.length && <option value="">暂无可用模型</option>}
-          {scope.models.map((model) => (
-            <option key={model} value={model}>
-              {model}
-            </option>
-          ))}
-        </select>
+          items={[
+            ...(!scope.models.length ? [{ value: '', label: <>暂无可用模型</> }] : []),
+            ...scope.models.map((model) => ({ value: model, label: <>{model}</> })),
+          ]}
+        />
       </div>
     </div>
   );
@@ -201,18 +197,24 @@ export function IntegrationGuide({
                     <code>{configuration}</code>
                   </pre>
                   <p className="text-[15px] leading-7 text-[var(--color-muted-foreground)]">
-                    将配置合并到用户目录的配置文件，设置环境变量后启动 Codex。
+                    将配置合并到用户目录的 .codex/config.toml，并将密钥写入同目录的
+                    auth.json。保存后重新打开 Codex。
                   </p>
-                  <div className="flex flex-wrap items-start gap-3">
-                    <pre className="min-w-0 flex-1 overflow-auto rounded-lg bg-[var(--color-muted)] p-3 text-sm leading-6">
-                      <code>{setup}</code>
-                    </pre>
-                    <Button variant="outline" size="sm" onClick={() => void copy(setup)}>
-                      复制命令
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <span className="inline-flex items-center gap-2 text-[15px]">
+                      <FileCode2 size={18} aria-hidden="true" />
+                      <code>~/.codex/auth.json</code>
+                    </span>
+                    <Button variant="outline" size="sm" onClick={() => void copy(authentication)}>
+                      <Copy size={16} aria-hidden="true" />
+                      复制 auth.json
                     </Button>
                   </div>
+                  <pre className={codeStyle}>
+                    <code>{authentication}</code>
+                  </pre>
                   <p className="text-sm leading-6 text-[var(--color-muted-foreground)]">
-                    替换命令中的 API Key 为完整密钥。Codex 使用 Responses
+                    将 auth.json 中的 YOUR_API_KEY 换成完整密钥。Codex 使用 Responses
                     协议，所选模型及对应渠道需支持该协议。
                   </p>
                 </div>
@@ -227,25 +229,19 @@ export function IntegrationGuide({
                 <div className="space-y-4">
                   {modelControls}
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <select
+                    <Select
                       aria-label="调用协议"
                       value={protocol}
-                      onChange={(event) =>
-                        setProtocol(event.currentTarget.value as IntegrationProtocol)
-                      }
+                      onValueChange={(nextValue) => setProtocol(nextValue as IntegrationProtocol)}
                       className={`${selectStyle} max-w-xs`}
-                    >
-                      {integrationProtocolOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void copy(`${setup}\n\n${example.code}`)}
-                    >
+                      items={[
+                        ...integrationProtocolOptions.map((option) => ({
+                          value: option.value,
+                          label: <>{option.label}</>,
+                        })),
+                      ]}
+                    />
+                    <Button variant="outline" size="sm" onClick={() => void copy(example.code)}>
                       <Copy size={16} aria-hidden="true" />
                       复制示例
                     </Button>
@@ -254,7 +250,7 @@ export function IntegrationGuide({
                     <code>{example.code}</code>
                   </pre>
                   <p className="text-sm leading-6 text-[var(--color-muted-foreground)]">
-                    {example.description} 设置 CHEAPAI_API_KEY 环境变量后运行。
+                    {example.description} 将 YOUR_API_KEY 换成完整密钥后运行。
                   </p>
                 </div>
               )),

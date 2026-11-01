@@ -39,17 +39,20 @@ describe('快速接入', () => {
       'aria-selected',
       'true',
     );
-    expect(
-      screen.getByRole('combobox', { name: 'API 示例模型' }).querySelectorAll('option'),
-    ).toHaveLength(1);
+    expect(screen.getByRole('combobox', { name: 'API 示例模型' })).toHaveTextContent('gpt-5');
+    expect(document.querySelector('select:not([aria-hidden="true"])')).toBeNull();
     await user.click(screen.getByRole('button', { name: '复制配置' }));
     await waitFor(() => expect(clipboard).toHaveBeenCalled());
     const config = clipboard.mock.calls[0]?.[0];
     expect(config).toContain('model = "gpt-5"');
     expect(config).toContain('base_url = "https://cheapai.dev/v1"');
-    expect(config).toContain('env_key = "CHEAPAI_API_KEY"');
+    expect(config).toContain('requires_openai_auth = true');
+    expect(config).toContain('cli_auth_credentials_store = "file"');
+    expect(config).not.toContain('env_key');
     expect(config).toContain('wire_api = "responses"');
     expect(config).not.toContain(selectedKey.displayPrefix);
+    await user.click(screen.getByRole('button', { name: '复制 auth.json' }));
+    expect(JSON.parse(clipboard.mock.calls.at(-1)![0])).toEqual({ OPENAI_API_KEY: 'YOUR_API_KEY' });
     await user.click(screen.getByRole('tab', { name: 'API 调用' }));
     expect(screen.getByRole('button', { name: '复制示例' })).toBeVisible();
   });

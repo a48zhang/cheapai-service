@@ -1,3 +1,6 @@
+import { Select } from '../../shared/ui/Select';
+import { TextLink } from '../../shared/ui/TextLink';
+import { Disclosure } from '../../shared/ui/Disclosure';
 import { Controller } from 'react-hook-form';
 import type { ModelView } from '@cheapai/api-client/models';
 import type { ApiClient } from '@cheapai/api-client/types';
@@ -55,20 +58,37 @@ export function ModelForm({
             maxLength={128}
           />
         </Field>
-        <Field label="目录状态" required error={errors.status?.message}>
-          <select
-            {...form.register('status')}
-            className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
-          >
-            <option value="active">已启用</option>
-            <option value="disabled">已停用</option>
-          </select>
-        </Field>
+        <Controller
+          name="status"
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field label="目录状态" required error={fieldState.error?.message}>
+              <Select
+                value={field.value}
+                onValueChange={field.onChange}
+                onBlur={field.onBlur}
+                ref={field.ref}
+                items={[
+                  { value: 'active', label: '已启用' },
+                  { value: 'disabled', label: '已停用' },
+                ]}
+              />
+            </Field>
+          )}
+        />
         {reference && (
-          <details className="rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)]/30 p-4 sm:col-span-2">
-            <summary className="cursor-pointer text-sm font-medium">
-              <ModelIdentity modelId={reference.id} secondary={`${reference.provider} 官方参考`} />
-            </summary>
+          <Disclosure
+            className="rounded-lg border border-[var(--color-border)] bg-[var(--color-muted)]/30 p-4 sm:col-span-2"
+            title={
+              <>
+                <ModelIdentity
+                  modelId={reference.id}
+                  secondary={`${reference.provider} 官方参考`}
+                />
+              </>
+            }
+            triggerClassName="cursor-pointer text-sm font-medium"
+          >
             <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
               <div className="sm:col-span-2">
                 <dt className="console-muted">参考价格说明</dt>
@@ -77,18 +97,18 @@ export function ModelForm({
               <div className="sm:col-span-2">
                 <dt className="console-muted">官方资料</dt>
                 <dd>
-                  <a
+                  <TextLink
                     href={reference.source}
                     target="_blank"
                     rel="noreferrer"
                     className="text-[var(--color-primary)] underline underline-offset-2"
                   >
                     打开供应商价格与模型文档
-                  </a>
+                  </TextLink>
                 </dd>
               </div>
             </dl>
-          </details>
+          </Disclosure>
         )}
         <Controller
           name="sellPrices"

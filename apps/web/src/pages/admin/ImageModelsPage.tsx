@@ -1,3 +1,5 @@
+import { Disclosure } from '../../shared/ui/Disclosure';
+import { Select } from '../../shared/ui/Select';
 import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -193,56 +195,58 @@ export default function ImageModelsPage() {
               />
             </Field>
             <Field label="状态">
-              <select
+              <Select
                 className={selectClass}
                 value={draft.status}
-                onChange={(event) =>
-                  update('status', event.target.value as ImageModelInput['status'])
+                onValueChange={(nextValue) =>
+                  update('status', nextValue as ImageModelInput['status'])
                 }
-              >
-                <option value="active">已启用</option>
-                <option value="disabled">已停用</option>
-              </select>
+                items={[
+                  { value: 'active', label: <>已启用</> },
+                  { value: 'disabled', label: <>已停用</> },
+                ]}
+              />
             </Field>
-            <details className="sm:col-span-2">
-              <summary className="cursor-pointer text-sm font-medium">供应商兼容参数</summary>
+            <Disclosure
+              className="sm:col-span-2"
+              title={<>供应商兼容参数</>}
+              triggerClassName="cursor-pointer text-sm font-medium"
+            >
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <Field label="画质参数" description="按供应商支持的参数选择；默认表示省略该参数。">
-                  <select
+                  <Select
                     className={selectClass}
                     value={draft.quality}
-                    onChange={(event) =>
-                      update('quality', event.target.value as ImageModelInput['quality'])
+                    onValueChange={(nextValue) =>
+                      update('quality', nextValue as ImageModelInput['quality'])
                     }
-                  >
-                    <option value="default">使用上游默认值</option>
-                    {['auto', 'low', 'medium', 'high', 'standard', 'hd'].map((value) => (
-                      <option key={value} value={value}>
-                        {value}
-                      </option>
-                    ))}
-                  </select>
+                    items={[
+                      { value: 'default', label: <>使用上游默认值</> },
+                      ...['auto', 'low', 'medium', 'high', 'standard', 'hd'].map((value) => ({
+                        value: value,
+                        label: <>{value}</>,
+                      })),
+                    ]}
+                  />
                 </Field>
                 <Field
                   label="图片返回格式"
                   description="GPT Image 使用默认；DALL·E 可选择 b64_json。仅接收 PNG、JPEG、WebP 的 base64 数据。"
                 >
-                  <select
+                  <Select
                     className={selectClass}
                     value={draft.responseFormat}
-                    onChange={(event) =>
-                      update(
-                        'responseFormat',
-                        event.target.value as ImageModelInput['responseFormat'],
-                      )
+                    onValueChange={(nextValue) =>
+                      update('responseFormat', nextValue as ImageModelInput['responseFormat'])
                     }
-                  >
-                    <option value="default">使用上游默认值</option>
-                    <option value="b64_json">b64_json</option>
-                  </select>
+                    items={[
+                      { value: 'default', label: <>使用上游默认值</> },
+                      { value: 'b64_json', label: <>b64_json</> },
+                    ]}
+                  />
                 </Field>
               </div>
-            </details>
+            </Disclosure>
             <fieldset className="space-y-3 sm:col-span-2">
               <legend className="text-sm font-medium">允许的尺寸</legend>
               <div className="flex flex-wrap gap-3">

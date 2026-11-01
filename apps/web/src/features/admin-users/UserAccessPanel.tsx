@@ -1,3 +1,4 @@
+import { Disclosure } from '../../shared/ui/Disclosure';
 import { useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ApiClientError } from '@cheapai/api-client/errors';
@@ -131,10 +132,11 @@ export function UserAccessPanel({
           </dd>
         </div>
       </dl>
-      <details className="border-t border-[var(--color-border)] pt-4">
-        <summary className="cursor-pointer font-medium">
-          可访问分组（{user.allowed_group_ids.length}）
-        </summary>
+      <Disclosure
+        className="border-t border-[var(--color-border)] pt-4"
+        title={<>可访问分组（{user.allowed_group_ids.length}）</>}
+        triggerClassName="cursor-pointer font-medium"
+      >
         <ul className="mt-2 flex flex-wrap gap-2">
           {user.allowed_group_ids.map((id) => (
             <li
@@ -146,9 +148,12 @@ export function UserAccessPanel({
             </li>
           ))}
         </ul>
-      </details>
-      <details className="border-t border-[var(--color-border)] pt-4">
-        <summary className="cursor-pointer font-medium">密钥管理</summary>
+      </Disclosure>
+      <Disclosure
+        className="border-t border-[var(--color-border)] pt-4"
+        title={<>密钥管理</>}
+        triggerClassName="cursor-pointer font-medium"
+      >
         <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="font-medium">撤销已有 Key</h3>
@@ -160,7 +165,7 @@ export function UserAccessPanel({
             输入 Key 信息
           </Button>
         </div>
-      </details>
+      </Disclosure>
       <Dialog
         open={revokeOpen}
         onOpenChange={resetRevoke}

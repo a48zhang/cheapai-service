@@ -80,37 +80,59 @@ const moduleBoundaries = {
   },
 };
 
-export default tseslint.config(...tseslint.configs.recommended, {
-  files: ['src/**/*.{ts,tsx}'],
-  plugins: {
-    'react-hooks': reactHooks,
-    'cheapai-architecture': { rules: { 'module-boundaries': moduleBoundaries } },
+export default tseslint.config(
+  ...tseslint.configs.recommended,
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    plugins: {
+      'react-hooks': reactHooks,
+      'cheapai-architecture': { rules: { 'module-boundaries': moduleBoundaries } },
+    },
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'error',
+      'cheapai-architecture/module-boundaries': 'error',
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@sub2api/worker',
+              message:
+                'Use @cheapai/contracts and @cheapai/api-client instead of importing Worker internals.',
+            },
+            {
+              name: '@sub2api/web',
+              message: 'The React app must not import the legacy Vue application.',
+            },
+          ],
+          patterns: [
+            {
+              group: ['@sub2api/worker/*', '@sub2api/web/*', '@cheapai/web/src/*'],
+              message: 'Use the owning package’s declared public exports.',
+            },
+          ],
+        },
+      ],
+    },
   },
-  rules: {
-    'react-hooks/rules-of-hooks': 'error',
-    'react-hooks/exhaustive-deps': 'error',
-    'cheapai-architecture/module-boundaries': 'error',
-    'no-restricted-imports': [
-      'error',
-      {
-        paths: [
-          {
-            name: '@sub2api/worker',
-            message:
-              'Use @cheapai/contracts and @cheapai/api-client instead of importing Worker internals.',
-          },
-          {
-            name: '@sub2api/web',
-            message: 'The React app must not import the legacy Vue application.',
-          },
-        ],
-        patterns: [
-          {
-            group: ['@sub2api/worker/*', '@sub2api/web/*', '@cheapai/web/src/*'],
-            message: 'Use the owning package’s declared public exports.',
-          },
-        ],
-      },
-    ],
+  {
+    files: ['src/**/*.tsx'],
+    ignores: ['src/shared/ui/**', 'src/**/*.test.tsx'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'JSXOpeningElement[name.name=/^(select|details|summary|a)$/]',
+          message:
+            'Use the shared Select, Disclosure or TextLink component instead of a browser-default control.',
+        },
+        {
+          selector:
+            'CallExpression[callee.object.name="window"][callee.property.name=/^(alert|confirm|prompt)$/]',
+          message: 'Use the shared Dialog or ConfirmAction component instead of a browser dialog.',
+        },
+      ],
+    },
   },
-});
+);

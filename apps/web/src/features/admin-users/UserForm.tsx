@@ -118,15 +118,24 @@ export function UserForm(props: Props) {
                   角色：{user.role === 'admin' ? '管理员' : '普通用户'}（只读）
                 </p>
               </div>
-              <Field label="账户状态" required error={form.getFieldState('status').error?.message}>
-                <select
-                  {...form.register('status')}
-                  className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
-                >
-                  <option value="active">启用</option>
-                  <option value="disabled">停用</option>
-                </select>
-              </Field>
+              <Controller
+                name="status"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field label="账户状态" required error={fieldState.error?.message}>
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                      items={[
+                        { value: 'active', label: '已启用' },
+                        { value: 'disabled', label: '已停用' },
+                      ]}
+                    />
+                  </Field>
+                )}
+              />
               <Controller
                 name="groupId"
                 control={form.control}

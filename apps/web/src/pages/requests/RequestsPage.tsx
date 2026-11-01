@@ -1,3 +1,5 @@
+import { Disclosure } from '../../shared/ui/Disclosure';
+import { Select } from '../../shared/ui/Select';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -270,53 +272,52 @@ export function RequestsPage() {
         >
           重置
         </button>
-        <details
+        <Disclosure
           className="basis-full border-t border-[var(--color-border)] pt-4"
           open={moreFiltersOpen}
-          onToggle={(event) => setMoreFiltersOpen(event.currentTarget.open)}
+          onOpenChange={(nextOpen) => setMoreFiltersOpen(nextOpen)}
+          title={<>更多筛选</>}
+          triggerClassName="cursor-pointer text-sm font-medium text-[var(--color-foreground)]"
         >
-          <summary className="cursor-pointer text-sm font-medium text-[var(--color-foreground)]">
-            更多筛选
-          </summary>
           <div className="mt-3 flex flex-wrap items-end gap-3">
             <label className="grid gap-2 console-label">
               执行状态
-              <select
+              <Select
                 value={draft.status}
-                onChange={(event) => {
-                  const value = event.currentTarget.value;
+                onValueChange={(nextValue) => {
+                  const value = nextValue;
                   setDraft((current) => ({ ...current, status: value }));
                 }}
                 className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
-              >
-                <option value="">全部</option>
-                {executionStatusSchema.options.map((value) => (
-                  <option key={value} value={value}>
-                    {executionLabels[value].label}
-                  </option>
-                ))}
-              </select>
+                items={[
+                  { value: '', label: <>全部</> },
+                  ...executionStatusSchema.options.map((value) => ({
+                    value: value,
+                    label: <>{executionLabels[value].label}</>,
+                  })),
+                ]}
+              />
             </label>
             <label className="grid gap-2 console-label">
               计费状态
-              <select
+              <Select
                 value={draft.billingStatus}
-                onChange={(event) => {
-                  const value = event.currentTarget.value;
+                onValueChange={(nextValue) => {
+                  const value = nextValue;
                   setDraft((current) => ({ ...current, billingStatus: value }));
                 }}
                 className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
-              >
-                <option value="">全部</option>
-                {billingStatusSchema.options.map((value) => (
-                  <option key={value} value={value}>
-                    {billingLabels[value].label}
-                  </option>
-                ))}
-              </select>
+                items={[
+                  { value: '', label: <>全部</> },
+                  ...billingStatusSchema.options.map((value) => ({
+                    value: value,
+                    label: <>{billingLabels[value].label}</>,
+                  })),
+                ]}
+              />
             </label>
           </div>
-        </details>
+        </Disclosure>
         {filterError && (
           <p className="m-0 basis-full text-sm text-[var(--color-destructive)]" role="alert">
             {filterError}

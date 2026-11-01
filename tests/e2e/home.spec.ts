@@ -50,34 +50,41 @@ for (const width of [320, 375, 1440]) {
     await page.goto('/');
     await expect(page.getByRole('banner').getByText('用户', { exact: true })).toHaveCount(0);
     await expect(page.getByRole('banner').getByText('开发者', { exact: true })).toHaveCount(0);
-    await page.getByRole('link', { name: '接入 Agent', exact: true }).click();
+    await page.getByRole('main').getByRole('link', { name: '接入 Agent', exact: true }).click();
     await expect(page).toHaveURL(/#agent-tools$/);
     const guide = page.getByRole('region', { name: '把常用 Agent 接入 CheapAI' });
     const panel = guide.getByRole('tabpanel');
     const origin = new URL(page.url()).origin;
     await expect(panel.locator('pre').first()).toContainText(`base_url = "${origin}/v1"`);
     await expect(panel.locator('pre').first()).toContainText('wire_api = "responses"');
-    await guide.getByRole('combobox', { name: '终端环境' }).selectOption('powershell');
-    await expect(panel.locator('pre').last()).toContainText(
-      "$env:CHEAPAI_API_KEY = 'YOUR_API_KEY'",
-    );
+    await expect(panel.locator('pre').first()).toContainText('requires_openai_auth = true');
+    expect(JSON.parse(await panel.locator('pre').last().innerText())).toEqual({
+      OPENAI_API_KEY: 'YOUR_API_KEY',
+    });
+    await expect(guide.getByText('先到', { exact: false })).toHaveCount(0);
+    await expect(guide.locator('select')).toHaveCount(0);
+    await expect(guide.getByRole('combobox')).toHaveCount(0);
     await guide.screenshot({ path: testInfo.outputPath('agent-guides.png') });
     for (const tool of ['Claude Code', 'OpenCode', 'Cline']) {
       await guide.getByRole('tab', { name: tool, exact: true }).click();
       await expect(panel.getByRole('link', { name: `${tool} 官方文档` })).toBeVisible();
       if (tool === 'Claude Code') {
-        await expect(panel.locator('pre')).toContainText(`$env:ANTHROPIC_BASE_URL = '${origin}'`);
-        await expect(panel.locator('pre')).not.toContainText(`${origin}/v1`);
+        const config = JSON.parse(await panel.locator('pre').innerText());
+        expect(config.env.ANTHROPIC_BASE_URL).toBe(origin);
+        expect(config.env.ANTHROPIC_AUTH_TOKEN).toBe('YOUR_API_KEY');
+        expect(config.model).toBe('YOUR_MODEL_ID');
+        await expect(panel).toContainText('~/.claude/settings.json');
       } else if (tool === 'OpenCode') {
-        const config = JSON.parse(await panel.locator('pre').first().innerText());
+        const config = JSON.parse(await panel.locator('pre').innerText());
         expect(config.provider.cheapai.options.baseURL).toBe(`${origin}/v1`);
-        expect(config.provider.cheapai.options.apiKey).toBe('{env:CHEAPAI_API_KEY}');
+        expect(config.provider.cheapai.options.apiKey).toBe('YOUR_API_KEY');
         expect(config.model).toBe('cheapai/YOUR_MODEL_ID');
+        await expect(panel).toContainText('~/.config/opencode/opencode.json');
       } else {
         await expect(panel.locator('pre')).toContainText('API Provider: OpenAI Compatible');
         await expect(panel.locator('pre')).toContainText(`Base URL: ${origin}/v1`);
-        await expect(panel.getByRole('combobox')).toHaveCount(0);
       }
+      await expect(panel).not.toContainText(/export |\$env:|\{env:|env_key|当前终端/);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );
@@ -89,7 +96,7 @@ for (const width of [320, 375, 1440]) {
   });
 }
 
-test('guide tabs work with the keyboard and copying follows the selected shell', async ({
+test('guide keyboard navigation and copying follow the selected persistent configuration', async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -116,18 +123,17 @@ test('guide tabs work with the keyboard and copying follows the selected shell',
   expect(await page.evaluate(() => (window as unknown as { copied: string }).copied)).toBe(
     await panel.locator('pre').innerText(),
   );
-  await panel.getByRole('combobox').selectOption('powershell');
-  await expect(panel.getByRole('button', { name: '复制', exact: true })).toBeVisible();
+  await guide.getByRole('tab', { name: 'OpenCode', exact: true }).click();
   await panel.getByRole('button', { name: '复制', exact: true }).click();
   expect(await page.evaluate(() => (window as unknown as { copied: string }).copied)).toContain(
-    '$env:ANTHROPIC_BASE_URL',
+    '"apiKey": "YOUR_API_KEY"',
   );
   await page.evaluate(() => {
     navigator.clipboard.writeText = async () => {
       throw new Error('denied');
     };
   });
-  await panel.getByRole('combobox').selectOption('posix');
+  await guide.getByRole('tab', { name: 'Claude Code', exact: true }).click();
   await panel.getByRole('button', { name: '复制', exact: true }).click();
   await expect(panel.getByRole('status')).toContainText('复制失败');
 });

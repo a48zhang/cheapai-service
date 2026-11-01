@@ -187,9 +187,6 @@ export default function ModelDetailPage({ createMode = false }: { createMode?: b
               </dl>
             </div>
           )}
-          <details className="mt-5 border-t border-[var(--color-border)] pt-4">
-            <summary className="cursor-pointer console-muted">技术信息</summary>
-          </details>
         </section>
       ) : (
         <section aria-labelledby="model-settings-heading" className="console-panel">

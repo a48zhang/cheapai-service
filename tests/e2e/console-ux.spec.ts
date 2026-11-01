@@ -237,7 +237,8 @@ for (const width of [375, 1440])
     ).toBeVisible();
     await expect(rows.getByText(width < 1024 ? '+10 USD' : '+10', { exact: true })).toBeVisible();
     await expect(page.getByLabel('开始日期', { exact: true })).toHaveValue('');
-    await page.getByLabel('费用类型').selectOption('consumption');
+    await page.getByLabel('费用类型').click();
+    await page.getByRole('option', { name: '模型消费', exact: true }).click();
     await page.getByRole('button', { name: '筛选', exact: true }).click();
     await expect(page).toHaveURL(/period=all&kind=consumption/);
     const original = page.url();

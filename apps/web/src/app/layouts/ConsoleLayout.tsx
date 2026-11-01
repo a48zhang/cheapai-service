@@ -1,3 +1,4 @@
+import { TextLink } from '../../shared/ui/TextLink';
 import { ArrowLeft, Menu, MessageSquare, PanelLeft, PanelLeftClose } from 'lucide-react';
 import { type ReactNode, Suspense, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
@@ -92,12 +93,12 @@ export function ConsoleLayout({
   return (
     <AppShell
       skipLink={
-        <a
+        <TextLink
           href="#main-content"
           className="sr-only focus:not-sr-only focus:fixed focus:z-[70] focus:rounded-md focus:bg-[var(--color-surface)] focus:p-4"
         >
           跳到主要内容
-        </a>
+        </TextLink>
       }
       open={desktopOpen}
       sidebar={

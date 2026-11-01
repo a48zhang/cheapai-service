@@ -1,3 +1,4 @@
+import { Disclosure } from '../../shared/ui/Disclosure';
 import type { ProbeEvidence } from '@cheapai/contracts/channel-diagnostics';
 import { StatusBadge, type StatusBadgeTone } from '../../shared/ui/StatusBadge';
 
@@ -53,16 +54,14 @@ function formatDuration(durationMs: number | null): string {
   return `${new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2 }).format(durationMs)} ms`;
 }
 
-export function DiagnosticDetails({
-  evidence,
-  diagnosticId = null,
-}: DiagnosticDetailsProps) {
+export function DiagnosticDetails({ evidence, diagnosticId = null }: DiagnosticDetailsProps) {
   return (
     <section aria-label="诊断详细信息" className="space-y-2">
-      <details className="overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
-        <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-[var(--color-foreground)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]">
-          执行过程
-        </summary>
+      <Disclosure
+        className="overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]"
+        title={<>执行过程</>}
+        triggerClassName="cursor-pointer px-4 py-3 text-sm font-medium text-[var(--color-foreground)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+      >
         <div className="border-t border-[var(--color-border)] px-4 py-3">
           {evidence === null ? (
             <p className="text-sm text-[var(--color-muted-foreground)]">
@@ -96,12 +95,13 @@ export function DiagnosticDetails({
             </ol>
           )}
         </div>
-      </details>
+      </Disclosure>
 
-      <details className="overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
-        <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-[var(--color-foreground)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]">
-          运行详情
-        </summary>
+      <Disclosure
+        className="overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]"
+        title={<>运行详情</>}
+        triggerClassName="cursor-pointer px-4 py-3 text-sm font-medium text-[var(--color-foreground)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+      >
         <div className="space-y-4 border-t border-[var(--color-border)] px-4 py-3">
           {evidence === null && (
             <p className="text-sm text-[var(--color-muted-foreground)]">
@@ -195,7 +195,7 @@ export function DiagnosticDetails({
             </>
           )}
         </div>
-      </details>
+      </Disclosure>
     </section>
   );
 }

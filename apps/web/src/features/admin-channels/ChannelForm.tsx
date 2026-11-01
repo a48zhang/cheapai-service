@@ -1,3 +1,5 @@
+import { TextLink } from '../../shared/ui/TextLink';
+import { Disclosure } from '../../shared/ui/Disclosure';
 import { useEffect, useId } from 'react';
 import { createPortal } from 'react-dom';
 import type { ChannelView } from '@cheapai/api-client/channels';
@@ -86,14 +88,14 @@ export function ChannelForm({
       {creationUncertain && (
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
-            <a href="/admin/channels" target="_blank" rel="noreferrer">
+            <TextLink href="/admin/channels" target="_blank" rel="noreferrer">
               在新标签页核对渠道
-            </a>
+            </TextLink>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <a href="/admin/audit" target="_blank" rel="noreferrer">
+            <TextLink href="/admin/audit" target="_blank" rel="noreferrer">
               查看审计记录
-            </a>
+            </TextLink>
           </Button>
         </div>
       )}
@@ -150,11 +152,12 @@ export function ChannelForm({
           required
         />
       </Field>
-      <details
+      <Disclosure
         className="border-t border-[var(--color-border)] pt-5"
-        open={Boolean(errors.concurrency || errors.rpm || errors.priority) || undefined}
+        expandWhen={Boolean(errors.concurrency || errors.rpm || errors.priority)}
+        title={<>高级调度设置</>}
+        triggerClassName="cursor-pointer font-medium"
       >
-        <summary className="cursor-pointer font-medium">高级调度设置</summary>
         <fieldset className="mt-5 space-y-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-3">
@@ -234,7 +237,7 @@ export function ChannelForm({
             />
           </Field>
         </fieldset>
-      </details>
+      </Disclosure>
     </form>
   );
 

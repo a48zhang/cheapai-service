@@ -75,7 +75,7 @@ export function integrationExample(
   const messagesHeaders =
     protocol === 'messages' ? '  -H "anthropic-version: 2023-06-01" \\\n' : '';
   const code = `curl "${url}" \\
-  -H "Authorization: Bearer $CHEAPAI_API_KEY" \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
 ${messagesHeaders}  -d '${payload}'`;
 
@@ -89,10 +89,15 @@ ${messagesHeaders}  -d '${payload}'`;
 export function codexConfiguration(baseUrl: string, modelId: string): string {
   return `model_provider = "cheapai"
 model = ${JSON.stringify(modelId)}
+cli_auth_credentials_store = "file"
 
 [model_providers.cheapai]
 name = "CheapAI"
 base_url = ${JSON.stringify(baseUrl)}
-env_key = "CHEAPAI_API_KEY"
+requires_openai_auth = true
 wire_api = "responses"`;
+}
+
+export function codexAuthentication(): string {
+  return JSON.stringify({ OPENAI_API_KEY: 'YOUR_API_KEY' }, null, 2);
 }

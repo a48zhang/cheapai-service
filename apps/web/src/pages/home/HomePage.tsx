@@ -1,13 +1,14 @@
 import { ThemePicker } from '@cheapai/theme';
 import { useEffect } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowRight, ArrowUpRight, Plus } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { ArrowRight, ArrowUpRight, Menu } from 'lucide-react';
 import { BrandLink } from '../../shared/ui/BrandLink';
 import { Button } from '../../shared/ui/Button';
 import { useSession } from '../../features/session/useSession';
 import { AgentGuides } from './AgentGuides';
 import { ModelCatalog } from './ModelCatalog';
-import { Tabs } from '../../shared/ui/Tabs';
+import { Disclosure } from '../../shared/ui/Disclosure';
+import { DropdownMenu } from '../../shared/ui/DropdownMenu';
 import './home.css';
 
 const questions = [
@@ -32,66 +33,101 @@ const questions = [
 export default function HomePage() {
   const { isAuthenticated } = useSession();
   const { hash } = useLocation();
-  const navigate = useNavigate();
+  const navigation = [
+    {
+      label: '产品',
+      to: '/#possibilities',
+      active: !['#models', '#agent-tools', '#questions', '#developers'].includes(hash),
+    },
+    { label: '模型目录', to: '/#models', active: hash === '#models' },
+    {
+      label: 'Agent 接入',
+      to: '/#agent-tools',
+      active: hash === '#agent-tools' || hash === '#developers',
+    },
+    { label: '常见问题', to: '/#questions', active: hash === '#questions' },
+  ];
   useEffect(() => {
-    if (hash === '#agent-tools' || hash === '#questions') {
+    if (['#possibilities', '#agent-tools', '#questions', '#developers'].includes(hash)) {
       const frame = requestAnimationFrame(() =>
-        document.getElementById(hash.slice(1))?.scrollIntoView(),
+        document
+          .getElementById(hash === '#developers' ? 'agent-tools' : hash.slice(1))
+          ?.scrollIntoView(),
       );
       return () => cancelAnimationFrame(frame);
     }
   }, [hash]);
   return (
     <div className="home-page">
-      <a
+      <Button
+        variant="outline"
         className="home-skip"
-        href="#home-main"
-        onClick={(event) => {
-          event.preventDefault();
+        onClick={() => {
           document.getElementById('home-main')?.focus();
         }}
       >
         跳到主要内容
-      </a>
+      </Button>
       <header className="home-header">
         <div className="home-header-inner">
           <BrandLink className="home-brand" />
+          <nav aria-label="首页导航" className="home-desktop-nav">
+            {navigation.map((item) => (
+              <Button key={item.to} asChild variant="ghost" size="sm">
+                <Link to={item.to} aria-current={item.active ? 'page' : undefined}>
+                  {item.label}
+                </Link>
+              </Button>
+            ))}
+          </nav>
           <div className="home-header-actions">
             <ThemePicker />
-            <Link className="home-login" to={isAuthenticated ? '/keys' : '/login?returnTo=%2Fchat'}>
-              {isAuthenticated ? '控制台' : '登录'}
-              <ArrowUpRight size={15} aria-hidden="true" />
-            </Link>
+            <Button asChild variant="ghost" size="sm" className="home-login">
+              <Link to={isAuthenticated ? '/keys' : '/login?returnTo=%2Fchat'}>
+                {isAuthenticated ? '控制台' : '登录'}
+                <ArrowUpRight size={15} aria-hidden="true" />
+              </Link>
+            </Button>
             <Button asChild variant="outline">
               <Link to="/chat">
                 开始对话
                 <ArrowUpRight size={15} aria-hidden="true" />
               </Link>
             </Button>
+            <div className="home-menu-toggle">
+              <DropdownMenu
+                trigger={
+                  <Button variant="ghost" size="icon" aria-label="打开导航">
+                    <Menu size={20} aria-hidden="true" />
+                  </Button>
+                }
+                label="首页导航"
+                items={navigation.map((item) => ({ label: item.label, to: item.to }))}
+              />
+            </div>
           </div>
         </div>
       </header>
 
       <main id="home-main" tabIndex={-1}>
-        <Tabs
-          value={hash === '#models' ? 'models' : 'start'}
-          onValueChange={(value) => void navigate({ hash: value === 'models' ? '#models' : '' })}
-          ariaLabel="首页内容"
-          listClassName="home-content-tabs"
-          items={[
-            { value: 'start', label: '开始使用', content: <HomeOverview /> },
-            { value: 'models', label: '模型目录', content: <ModelCatalog /> },
-          ]}
-        />
+        {hash === '#models' ? <ModelCatalog /> : <HomeOverview />}
       </main>
       <footer className="home-footer">
         <BrandLink className="home-brand" />
         <p>对话 · API · 用量与费用</p>
         <nav aria-label="页脚导航">
-          <Link to="/chat">对话</Link>
-          <Link to="/keys">API 接入</Link>
-          <Link to="/#agent-tools">Agent 接入指南</Link>
-          <Link to="/#questions">常见问题</Link>
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/chat">对话</Link>
+          </Button>
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/keys">API 接入</Link>
+          </Button>
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/#agent-tools">Agent 接入指南</Link>
+          </Button>
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/#questions">常见问题</Link>
+          </Button>
         </nav>
         <span>© {new Date().getFullYear()} CheapAI</span>
       </footer>
@@ -162,13 +198,9 @@ function HomeOverview() {
         </div>
         <div className="home-faq-list">
           {questions.map(([question, answer]) => (
-            <details key={question}>
-              <summary>
-                {question}
-                <Plus size={20} aria-hidden="true" />
-              </summary>
+            <Disclosure key={question} title={question} className="home-faq-item">
               <p>{answer}</p>
-            </details>
+            </Disclosure>
           ))}
         </div>
       </section>

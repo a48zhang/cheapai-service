@@ -177,7 +177,12 @@ describe('ChannelDiagnostics', () => {
     expect(run).toBeDisabled();
 
     await userEvent.setup().click(screen.getByRole('button', { name: '关闭' }));
-    expect(window.confirm).toHaveBeenCalledTimes(1);
+    expect(window.confirm).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
+    await userEvent.setup().click(screen.getByRole('button', { name: '继续等待' }));
+    expect(onOpenChange).not.toHaveBeenCalled();
+    await userEvent.setup().click(screen.getByRole('button', { name: '关闭' }));
+    await userEvent.setup().click(screen.getByRole('button', { name: '仍要关闭' }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
 
     await act(async () => {
