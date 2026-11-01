@@ -232,6 +232,7 @@ describe('protected session expiry transport', () => {
       '/api/v1/auth/register',
       '/api/v1/auth/send-verify-code',
       '/api/v1/settings/public',
+      '/api/v1/catalog/models',
     ]) {
       const client = createApiClient({
         ...options,
