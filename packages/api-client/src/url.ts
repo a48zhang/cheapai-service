@@ -54,6 +54,7 @@ export function apiUrlFor(path: string, query?: ApiQuery): string {
 export function isProtectedApiPath(path: string): boolean {
   return (
     path !== '/api/v1/settings/public' &&
+    path !== '/api/v1/catalog/models' &&
     (!path.startsWith('/api/v1/auth/') ||
       path === '/api/v1/auth/me' ||
       path === '/api/v1/auth/logout')
