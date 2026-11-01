@@ -52,8 +52,8 @@ jobs:
         id: changes
         run: node scripts/ci/desktop-changes.mjs
 
-      - name: Check CI change detection
-        run: node --test scripts/ci/desktop-changes.test.mjs
+      - name: Check CI helpers
+        run: node --test scripts/ci/*.test.mjs
 
       - name: Typecheck cloud workspaces
         run: pnpm run typecheck

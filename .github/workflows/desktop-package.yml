@@ -34,7 +34,7 @@ permissions:
 
 concurrency:
   group: desktop-package-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   changes:
@@ -163,3 +163,52 @@ jobs:
             apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
             apps/desktop/src-tauri/resources/generated/runtime/release-manifest.json
             desktop-delivery-status.txt
+
+  release:
+    name: Publish desktop installers to GitHub Release
+    needs: [changes, package]
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      needs.changes.outputs.desktop == 'true' && needs.package.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+      - name: Download installers from this build
+        uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-installer-*-${{ github.sha }}
+          path: desktop-artifacts
+      - name: Prepare release assets
+        run: node scripts/ci/desktop-release.mjs desktop-artifacts desktop-release
+      - name: Publish complete release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="desktop-${GITHUB_SHA}"
+          notes="${RUNNER_TEMP}/desktop-release-notes.md"
+          cat > "$notes" <<EOF
+          main 分支桌面自动构建，包含 Windows x64、macOS Apple Silicon 和 macOS Intel 安装包。
+
+          源码提交：${GITHUB_SHA}
+          构建记录：${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+
+          安装包未签名、未公证。各平台的发行清单随安装包提供。
+          EOF
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --target "$GITHUB_SHA" --draft \
+              --title "Desktop ${GITHUB_SHA:0:7}" --notes-file "$notes"
+          fi
+          gh release upload "$tag" desktop-release/* --clobber
+          gh release edit "$tag" --draft=false
+          gh release view "$tag" --json url --jq '.url' >> "$GITHUB_STEP_SUMMARY"
