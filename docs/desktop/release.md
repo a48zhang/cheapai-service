@@ -20,9 +20,11 @@ package 命令依次构建桌面 workspace、准备固定 Runtime/DSH 资源和�
 
 `.github/workflows/desktop-package.yml` 在 `main` 推送桌面相关改动、相关 PR 和手动 Run workflow 时运行。三个任务分别构建 Windows x64 NSIS `.exe`、macOS Apple Silicon `.dmg`、macOS Intel `.dmg`，固定使用 Node Runtime。打开对应 Actions 运行的 Artifacts，下载 `desktop-installer-<target>-<commit>`；产物保留 14 天。
 
+`main` 推送且变更检测确认影响桌面时，三个平台全部构建成功后自动发布 [GitHub Release](https://github.com/a48zhang/cheapai-service/releases)。标签为 `desktop-<完整提交 SHA>`，绑定本次构建的源码提交，包含三个可直接下载的安装包和各平台的 `release-manifest`。发布前校验产物完整性及清单中的源码提交、目标平台，上传完整后才公开新 Release。同一提交重跑复用该 Release 并替换同名附件。main 构建不会因后续提交取消；PR 和手动构建仍只保存 Actions 产物。
+
 CI 只执行 frozen + strict peers 安装和 cargo fetch --locked，不修改依赖锁或源码。各目标的实际锁同时上传为 `desktop-locks-<target>-<commit>`；安装包内的清单绑定触发构建的源码提交与锁文件 hash。
 
-安装包未签名、未公证，通过 Actions 产物分发。安装检查在对应目标系统执行。
+安装包未签名、未公证，可通过 GitHub Release 或 Actions 产物获取。安装检查在对应目标系统执行。
 
 目标机器检查覆盖：不预装 Node/Bun、中文和空格路径、工具停止和进程收尾、账号切换及历史保留。
 
