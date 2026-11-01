@@ -61,7 +61,6 @@ export const imageGenerateInputSchema = z
     prompt: z
       .string()
       .min(1)
-      .max(4000)
       .refine((value) => value.trim().length > 0),
     size: imageSizeSchema,
   })

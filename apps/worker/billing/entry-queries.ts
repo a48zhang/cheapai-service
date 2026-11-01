@@ -89,7 +89,7 @@ export async function queryBillingEntries(database: D1Database, scope: EntryQuer
   const parameters: DbValue[] = [];
   if (owner !== null) { clauses.push('b.user_id=?'); parameters.push(owner as string); }
   if (kind !== null) { clauses.push('b.kind=?'); parameters.push(kind as string); }
-  if (requestId !== null) { clauses.push('b.request_id=?'); parameters.push(requestId as string); }
+  if (requestId !== null) { clauses.push('(b.request_id=? OR b.image_generation_id=?)'); parameters.push(requestId as string, requestId as string); }
   if (createdFrom !== null) { clauses.push('b.created_at>=?'); parameters.push(createdFrom as number); }
   if (createdBefore !== null) { clauses.push('b.created_at<?'); parameters.push(createdBefore as number); }
   try {

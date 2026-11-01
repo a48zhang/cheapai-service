@@ -10,42 +10,11 @@ export class ImageProviderError extends Error {
     super(reason);
   }
 }
-export const IMAGE_MAX_BYTES = 8 * 1024 * 1024;
-const responseLimit = Math.ceil(IMAGE_MAX_BYTES / 3) * 4 + 65536;
-
 export function imageEndpoint(base: string): URL {
   const url = validateUpstreamBaseUrl(base);
   const prefix = url.pathname.replace(/\/+$/u, '');
   url.pathname = `${prefix}${prefix.endsWith('/v1') ? '' : '/v1'}/images/generations`;
   return url;
-}
-async function boundedJson(response: Response): Promise<unknown> {
-  if (!response.body) throw new ImageProviderError('invalid_image');
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let length = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      length += value.byteLength;
-      if (length > responseLimit || chunks.length > 16384)
-        throw new ImageProviderError('invalid_image');
-      chunks.push(value);
-    }
-    const bytes = new Uint8Array(length);
-    let offset = 0;
-    for (const chunk of chunks) {
-      bytes.set(chunk, offset);
-      offset += chunk.length;
-    }
-    return JSON.parse(new TextDecoder().decode(bytes));
-  } catch (error) {
-    void reader.cancel().catch(() => undefined);
-    throw error instanceof ImageProviderError ? error : new ImageProviderError('invalid_image');
-  } finally {
-    reader.releaseLock();
-  }
 }
 export function decodeImage(payload: unknown): { bytes: Uint8Array; mediaType: string } {
   if (
@@ -58,21 +27,16 @@ export function decodeImage(payload: unknown): { bytes: Uint8Array; mediaType: s
     throw new ImageProviderError('invalid_image');
   const data = payload.data[0] as { b64_json?: unknown };
   const encoded = data?.b64_json;
-  if (
-    typeof encoded !== 'string' ||
-    encoded.length > responseLimit ||
-    !/^[A-Za-z0-9+/]+={0,2}$/u.test(encoded)
-  )
-    throw new ImageProviderError('invalid_image');
+  if (typeof encoded !== 'string') throw new ImageProviderError('invalid_image');
   let binary: string;
   try {
     binary = atob(encoded);
   } catch {
     throw new ImageProviderError('invalid_image');
   }
-  if (binary.length === 0 || binary.length > IMAGE_MAX_BYTES)
-    throw new ImageProviderError('invalid_image');
-  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  if (binary.length === 0) throw new ImageProviderError('invalid_image');
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   const png = [137, 80, 78, 71, 13, 10, 26, 10].every((byte, index) => bytes[index] === byte);
   const jpeg = bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
   const webp = binary.startsWith('RIFF') && binary.slice(8, 12) === 'WEBP';
@@ -116,5 +80,11 @@ export async function generateImage(
       response.status >= 400 && response.status < 500 ? 'provider_rejected' : 'result_unknown',
     );
   }
-  return decodeImage(await boundedJson(response));
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new ImageProviderError(signal.aborted ? 'result_unknown' : 'invalid_image');
+  }
+  return decodeImage(payload);
 }

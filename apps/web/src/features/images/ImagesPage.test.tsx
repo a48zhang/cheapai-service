@@ -3,7 +3,7 @@ import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import { act, fireEvent, render, screen, waitFor } from '../../test/render';
 import { createApiClient } from '@cheapai/api-client/client';
-import type { ImageJob } from '@cheapai/contracts/images';
+import type { ImageChoice, ImageJob } from '@cheapai/contracts/images';
 import { useSession } from '../session/public';
 import ImagesPage from '../../pages/images/ImagesPage';
 
@@ -35,14 +35,19 @@ const job = (operationId: string): ImageJob => ({
 function envelope(data: unknown) {
   return Response.json({ data, request_id: 'images-test' });
 }
-function setup(generate: (body: Record<string, unknown>) => Promise<Response>) {
+function setup(
+  generate: (body: Record<string, unknown>) => Promise<Response>,
+  history: ImageJob[] = [],
+  choices: ImageChoice[] = [choice as ImageChoice],
+) {
   const send = vi.fn(generate);
   const fetcher = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
     const path = String(url).split('?')[0];
-    if (path === '/api/v1/images/models') return envelope({ items: [choice], available: true });
+    if (path === '/api/v1/images/models') return envelope({ items: choices, available: true });
     if (path === '/api/v1/images/generations' && init?.method === 'POST')
       return send(JSON.parse(String(init.body)) as Record<string, unknown>);
-    if (path === '/api/v1/images/generations') return envelope({ items: [], nextCursor: null });
+    if (path === '/api/v1/images/generations')
+      return envelope({ items: history, nextCursor: null });
     throw new Error('Unexpected request');
   });
   const client = createApiClient({ fetch: fetcher, getCsrfToken: () => 'csrf-token' });
@@ -95,6 +100,64 @@ describe('image generation interaction', () => {
     );
     expect(textbox).toHaveValue('下一张图片的描述');
     expect(screen.queryByText('正在生成图片…')).toBeNull();
+  });
+  it('reuses all editable parameters without sending and can restore the displaced draft', async () => {
+    const original = {
+      ...job('old'),
+      modelId: 'other-model',
+      groupId: 'other-group',
+      size: '1536x1024' as const,
+    };
+    const alternative: ImageChoice = {
+      ...choice,
+      modelId: original.modelId,
+      groupId: original.groupId,
+      name: 'Other model',
+      sizes: ['1024x1024', '1536x1024'],
+      priceUnits: '10000000',
+    };
+    const send = setup(
+      async (body) => envelope({ ...original, operationId: body.operationId }),
+      [original],
+      [choice as ImageChoice, alternative],
+    );
+    const user = userEvent.setup();
+    const textbox = screen.getByRole('textbox', { name: '画面描述' });
+    await user.clear(textbox);
+    await user.type(textbox, '未发送的草稿');
+    await user.click(await screen.findByRole('button', { name: '复用参数' }));
+    expect(send).not.toHaveBeenCalled();
+    expect(textbox).toHaveValue(prompt);
+    expect(screen.getByRole('combobox', { name: '生图模型' })).toHaveTextContent('Other model');
+    expect(screen.getByRole('combobox', { name: '图片尺寸' })).toHaveTextContent('1536 × 1024');
+    expect(screen.getByText(/每张 0.1 USD/)).toBeVisible();
+    await user.click(screen.getByRole('button', { name: '撤销复用' }));
+    expect(textbox).toHaveValue('未发送的草稿');
+    await user.click(screen.getByRole('button', { name: '复用参数' }));
+    await user.click(screen.getByRole('button', { name: '生成图片' }));
+    await waitFor(() => expect(send).toHaveBeenCalledOnce());
+    expect(send.mock.calls[0]![0]).toMatchObject({
+      modelId: original.modelId,
+      groupId: original.groupId,
+      size: original.size,
+      prompt,
+    });
+    expect(screen.getByRole('link', { name: '查看费用' })).toHaveAttribute(
+      'href',
+      '/billing?period=all&kind=image_generation&requestId=job',
+    );
+  });
+  it('requires a new selection when the original model is no longer available', async () => {
+    const send = setup(
+      async (body) => envelope(job(String(body.operationId))),
+      [{ ...job('old'), modelId: 'removed' }],
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: '复用参数' }));
+    expect(screen.getByText(/原模型或访问组已不可用/)).toBeVisible();
+    expect(screen.getByRole('textbox')).toHaveValue(prompt);
+    expect(screen.getByRole('button', { name: '生成图片' })).toBeDisabled();
+    expect(send).not.toHaveBeenCalled();
   });
   it('confirms a network failure with the original operation instead of creating another one', async () => {
     let first = true;

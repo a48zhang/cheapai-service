@@ -322,3 +322,33 @@ test('refreshing an older request page reloads the newest page', async ({ page }
     .poll(() => state.reads.filter((path) => path.startsWith('/api/v1/usage/requests?')).at(-1))
     .not.toContain('cursor=');
 });
+
+test('quick request filters retain the model, clear pagination and survive reload', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await page.goto(`/requests?model=${model}&cursor=older`);
+  await page.getByRole('button', { name: '近 7 天', exact: true }).click();
+  let query = new URL(page.url()).searchParams;
+  expect(query.get('model')).toBe(model);
+  expect(query.has('cursor')).toBe(false);
+  expect(Number(query.get('to'))).toBeGreaterThan(Number(query.get('from')));
+  await page.getByRole('button', { name: '只看失败', exact: true }).click();
+  await expect(page).toHaveURL(/status=failed/);
+  await page.reload();
+  await expect(page.getByRole('button', { name: '只看失败' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await page.getByRole('button', { name: '全部时间', exact: true }).click();
+  query = new URL(page.url()).searchParams;
+  expect(query.get('status')).toBe('failed');
+  expect(query.get('model')).toBe(model);
+  expect(query.has('from')).toBe(false);
+  expect(query.has('to')).toBe(false);
+  await expect
+    .poll(() => state.reads.filter((path) => path.startsWith('/api/v1/usage/requests?')).at(-1))
+    .toContain('status=failed');
+  await page.getByRole('button', { name: '只看失败', exact: true }).click();
+  await expect(page).not.toHaveURL(/status=failed/);
+});

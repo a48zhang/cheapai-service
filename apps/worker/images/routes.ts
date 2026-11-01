@@ -45,7 +45,7 @@ export function createImageRoutes(options: { fetch?: typeof fetch; now?: () => n
     ),
   );
   app.post(`${IMAGE_API_PATH}/generations`, async (c) => {
-    const parsed = imageGenerateInputSchema.safeParse(await readGatewayJson(c.req.raw, 32768));
+    const parsed = imageGenerateInputSchema.safeParse(await readGatewayJson(c.req.raw));
     if (!parsed.success) throw new ApiError('invalid_request');
     return apiSuccess(
       await startImage(c.env, c.get('user').id, parsed.data, options),

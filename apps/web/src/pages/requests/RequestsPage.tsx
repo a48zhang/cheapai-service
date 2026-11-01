@@ -150,6 +150,53 @@ export function RequestsPage() {
           </Button>
         }
       />
+      <div className="flex flex-wrap items-center gap-2" aria-label="常用筛选">
+        <span className="text-sm text-[var(--color-muted-foreground)]">时间</span>
+        {[
+          ['今天', 1],
+          ['近 7 天', 7],
+          ['近 30 天', 30],
+          ['全部时间', 0],
+        ].map(([label, days]) => (
+          <Button
+            key={label}
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              const filters = { ...urlState.filters };
+              delete filters.from;
+              delete filters.to;
+              const end = new Date();
+              const start = new Date(end);
+              start.setHours(0, 0, 0, 0);
+              start.setDate(start.getDate() - Number(days) + 1);
+              setSearchParams(
+                serializeRequestFilters(
+                  Number(days) ? { ...filters, from: start.getTime(), to: end.getTime() } : filters,
+                ),
+              );
+            }}
+          >
+            {label}
+          </Button>
+        ))}
+        <Button
+          size="sm"
+          variant={urlState.filters.status === 'failed' ? 'primary' : 'outline'}
+          aria-pressed={urlState.filters.status === 'failed'}
+          onClick={() => {
+            const filters = { ...urlState.filters };
+            delete filters.status;
+            setSearchParams(
+              serializeRequestFilters(
+                urlState.filters.status === 'failed' ? filters : { ...filters, status: 'failed' },
+              ),
+            );
+          }}
+        >
+          只看失败
+        </Button>
+      </div>
       <form
         onSubmit={applyFilters}
         className="flex flex-wrap items-end gap-3 console-panel p-5"

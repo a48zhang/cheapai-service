@@ -134,7 +134,7 @@ describe('image generation through session routes, native D1, R2 and limits', ()
       ),
     ).toBe(95000000);
     const ledger = (await (
-      await request('/api/v1/billing/entries?kind=image_generation')
+      await request(`/api/v1/billing/entries?kind=image_generation&requestId=${job.id}`)
     ).json()) as { data: { items: unknown[]; summary: unknown } };
     expect(ledger.data.items).toHaveLength(1);
     expect(ledger.data.items[0]).toMatchObject({
@@ -144,6 +144,11 @@ describe('image generation through session routes, native D1, R2 and limits', ()
       source: 'web_image',
     });
     expect(ledger.data.summary).toMatchObject({ consumptionUnits: '5000000' });
+    const otherLedger = await request(
+      `/api/v1/billing/entries?kind=image_generation&requestId=${job.id}`,
+      'image-other',
+    );
+    expect(((await otherLedger.json()) as { data: { items: unknown[] } }).data.items).toEqual([]);
     const image = await request(`/api/v1/images/generations/${job.id}/content?download=1`);
     expect(image.status).toBe(200);
     expect(image.headers.get('content-type')).toBe('image/png');
@@ -153,6 +158,20 @@ describe('image generation through session routes, native D1, R2 and limits', ()
     expect(
       (await request(`/api/v1/images/generations/${job.id}/content`, 'image-other')).status,
     ).toBe(404);
+  });
+  it('passes long prompts through instead of imposing a model-independent character cap', async () => {
+    const fetcher = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body)).prompt).toHaveLength(6000);
+      return Response.json({ data: [{ b64_json: png }] });
+    });
+    vi.stubGlobal('fetch', fetcher);
+    const response = await request('/api/v1/images/generations', 'image-owner', {
+      ...input(),
+      prompt: '画'.repeat(6000),
+    });
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as { data: ImageJob }).data.status).toBe('completed');
+    expect(fetcher).toHaveBeenCalledOnce();
   });
   it('rejects unauthorized, unconfigured, invalid-size and insufficient-balance requests before calling the provider', async () => {
     const fetcher = vi.fn();

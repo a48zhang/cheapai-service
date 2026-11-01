@@ -2,11 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { createImagesApi } from '@cheapai/api-client/images';
-import type { ImageChoice, ImageSize } from '@cheapai/contracts/images';
+import type { ImageChoice, ImageSize, ImageGenerateInput } from '@cheapai/contracts/images';
 import { ImagePlus, LoaderCircle } from 'lucide-react';
 import { useSession } from '../../features/session/useSession';
 import { useDraft } from '../../features/chat/hooks/useDraft';
-import { ChatSubmitButton } from '../../features/chat/components/ChatSubmitButton';
 import { ImageResultCard, ImageWaiting } from '../../features/images/ImageResultCard';
 import { useImageWorkspace } from '../../features/images/useImageWorkspace';
 import { Button } from '../../shared/ui/Button';
@@ -15,7 +14,6 @@ import { PageHeader } from '../../shared/patterns/PageHeader';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { formatConsumptionUsd } from '../../shared/lib/money';
 import { safeReturnPath } from '../../shared/lib/return-path';
-import '../../features/chat/components/chat.css';
 
 const choiceKey = (item: ImageChoice) => `${item.groupId}:${item.modelId}`;
 export default function ImagesPage() {
@@ -32,6 +30,12 @@ function ImageWorkspace() {
     conversationId: 'image-workspace',
   });
   const [selected, setSelected] = useState('');
+  const [reuseNotice, setReuseNotice] = useState('');
+  const [previousDraft, setPreviousDraft] = useState<{
+    prompt: string;
+    selected: string;
+    size: ImageSize;
+  } | null>(null);
   const [size, setSize] = useState<ImageSize>('1024x1024');
   const textarea = useRef<HTMLTextAreaElement>(null);
   const pendingRef = useRef<HTMLDivElement>(null);
@@ -55,7 +59,7 @@ function ImageWorkspace() {
     if (requestedId && requestedReady)
       document.getElementById(`image-${requestedId}`)?.scrollIntoView({ block: 'start' });
   }, [requestedId, requestedReady]);
-  const model = options.find((item) => choiceKey(item) === selected) ?? options[0];
+  const model = selected ? options.find((item) => choiceKey(item) === selected) : options[0];
   const imageSize = model?.sizes.includes(size) ? size : model?.sizes[0];
   const canSend = Boolean(
     model &&
@@ -65,8 +69,23 @@ function ImageWorkspace() {
     !work.pending &&
     !work.sending,
   );
-  const restorePrompt = (prompt: string) => {
-    draft.setDraft(prompt);
+  const restore = (input: Pick<ImageGenerateInput, 'prompt' | 'modelId' | 'groupId' | 'size'>) => {
+    setPreviousDraft(
+      draft.draft && draft.draft !== input.prompt ? { prompt: draft.draft, selected, size } : null,
+    );
+    draft.setDraft(input.prompt);
+    setSelected(`${input.groupId}:${input.modelId}`);
+    setSize(input.size);
+    const original = options.find(
+      (item) => item.modelId === input.modelId && item.groupId === input.groupId,
+    );
+    setReuseNotice(
+      !original
+        ? '原模型或访问组已不可用，描述已恢复，请重新选择模型。'
+        : !original.sizes.includes(input.size)
+          ? '原尺寸已不可用，已选择当前支持的尺寸。请核对参数和价格后生成。'
+          : '已恢复描述、模型、访问组和尺寸，请核对当前价格后生成。',
+    );
     textarea.current?.focus();
     textarea.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   };
@@ -81,6 +100,8 @@ function ImageWorkspace() {
       })
     ) {
       draft.setDraft('');
+      setPreviousDraft(null);
+      setReuseNotice('');
       textarea.current?.focus();
       requestAnimationFrame(() =>
         pendingRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }),
@@ -116,7 +137,6 @@ function ImageWorkspace() {
           id="image-prompt"
           ref={textarea}
           rows={4}
-          maxLength={4000}
           value={draft.draft}
           onChange={(event) => draft.setDraft(event.target.value)}
           placeholder="例如：一只橘猫坐在咖啡馆窗边，午后阳光，水彩插画，暖色调。"
@@ -145,12 +165,16 @@ function ImageWorkspace() {
                 value: choiceKey(item),
                 label: `${item.name} · ${item.groupName}`,
               }))}
-              onValueChange={setSelected}
+              onValueChange={(value) => {
+                setSelected(value);
+                setReuseNotice('');
+              }}
             />
           </label>
           <label className="grid gap-1.5 text-sm">
             图片尺寸
             <Select
+              key={model ? choiceKey(model) : 'no-model'}
               aria-label="图片尺寸"
               value={imageSize ?? ''}
               disabled={!model}
@@ -161,24 +185,9 @@ function ImageWorkspace() {
               onValueChange={(value) => setSize(value as ImageSize)}
             />
           </label>
-          <div className="flex items-center justify-between gap-3 sm:justify-end">
-            <span className="text-sm sm:hidden">{work.sending ? '正在生成' : '生成一张'}</span>
-            <ChatSubmitButton
-              canSend={canSend}
-              sendLabel="生成图片"
-              shortcutHint="Ctrl / ⌘ + Enter"
-              onStop={() => undefined}
-              presentation={
-                work.pending || work.sending
-                  ? {
-                      action: 'wait',
-                      label: work.sending ? '正在生成图片' : '生成结果待确认',
-                      animated: work.sending,
-                    }
-                  : { action: 'send', label: '生成图片', animated: false }
-              }
-            />
-          </div>
+          <Button type="submit" size="lg" disabled={!canSend} busy={work.sending}>
+            {work.sending ? '正在生成图片' : work.pending ? '生成结果待确认' : '生成图片'}
+          </Button>
         </div>
         <p className="mt-3 text-xs leading-6 text-[var(--color-muted-foreground)]">
           {model ? `每张 ${formatConsumptionUsd(model.priceUnits)} USD · 生成成功后扣费。` : ''}{' '}
@@ -211,6 +220,28 @@ function ImageWorkspace() {
             </Button>
           </div>
         )}
+        {reuseNotice && (
+          <p role="status" className="mt-3 text-sm leading-6">
+            {reuseNotice}
+          </p>
+        )}
+        {previousDraft && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mt-2"
+            onClick={() => {
+              draft.setDraft(previousDraft.prompt);
+              setSelected(previousDraft.selected);
+              setSize(previousDraft.size);
+              setPreviousDraft(null);
+              setReuseNotice('已恢复先前未发送的草稿。');
+              textarea.current?.focus();
+            }}
+          >
+            撤销复用
+          </Button>
+        )}
       </form>
       <section aria-label="图片生成结果" className="mt-6 space-y-5">
         {work.pending && !pendingKnown && (
@@ -233,11 +264,7 @@ function ImageWorkspace() {
           >
             <p>这次请求未提交，描述已保留。</p>
             <p className="whitespace-pre-wrap break-words text-sm">{work.rejected.prompt}</p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => restorePrompt(work.rejected!.prompt)}
-            >
+            <Button variant="outline" size="sm" onClick={() => restore(work.rejected!)}>
               恢复描述
             </Button>
           </div>
@@ -247,17 +274,12 @@ function ImageWorkspace() {
         {requested.data && !work.jobs.some((job) => job.id === requested.data.id) && (
           <ImageResultCard
             job={requested.data}
-            onUsePrompt={restorePrompt}
+            onReuse={restore}
             onRefresh={() => void requested.refetch()}
           />
         )}
         {work.jobs.map((job) => (
-          <ImageResultCard
-            key={job.id}
-            job={job}
-            onUsePrompt={restorePrompt}
-            onRefresh={work.refresh}
-          />
+          <ImageResultCard key={job.id} job={job} onReuse={restore} onRefresh={work.refresh} />
         ))}
         {work.history.isPending && (
           <p role="status" className="text-center text-sm text-[var(--color-muted-foreground)]">

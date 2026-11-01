@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { CopyButton } from '../../shared/ui/CopyButton';
+import { formatDateTime } from '../../shared/lib/datetime';
 import { Download, LoaderCircle, RotateCcw } from 'lucide-react';
 import type { ImageJob } from '@cheapai/contracts/images';
 import { imageContentUrl } from '@cheapai/api-client/images';
@@ -39,11 +42,11 @@ export function ImageWaiting({ uncertain = false }: { uncertain?: boolean }) {
 }
 export function ImageResultCard({
   job,
-  onUsePrompt,
+  onReuse,
   onRefresh,
 }: {
   job: ImageJob;
-  onUsePrompt: (value: string) => void;
+  onReuse: (job: ImageJob) => void;
   onRefresh: () => void;
 }) {
   const [loadError, setLoadError] = useState(false);
@@ -60,6 +63,9 @@ export function ImageResultCard({
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--color-muted-foreground)]">
         <span>{job.modelName}</span>
         <span>{job.size}</span>
+        <time dateTime={new Date(job.createdAt).toISOString()}>
+          {formatDateTime(job.createdAt)}
+        </time>
         <span>
           {job.status === 'completed'
             ? job.billingStatus === 'settled'
@@ -128,25 +134,36 @@ export function ImageResultCard({
                 下载图片
               </a>
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => onUsePrompt(job.prompt)}>
-              <RotateCcw size={16} aria-hidden="true" />
-              复用描述
-            </Button>
           </div>
         </>
       ) : (
         <div className="rounded-lg bg-[var(--color-muted)]/40 p-4" role="status">
           <p className="text-sm leading-6">{errors[job.error ?? 'result_unknown']}</p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => onUsePrompt(job.prompt)}>
-              编辑描述
-            </Button>
             {job.status === 'unknown' && (
               <Button variant="outline" size="sm" onClick={onRefresh}>
                 刷新记录
               </Button>
             )}
           </div>
+        </div>
+      )}
+      {job.status !== 'generating' && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => onReuse(job)}>
+            <RotateCcw size={16} aria-hidden="true" />
+            {job.status === 'completed' ? '复用参数' : '修改后重试'}
+          </Button>
+          <CopyButton value={job.prompt} label="复制描述" />
+          {job.billingStatus !== 'unbilled' && (
+            <Button asChild variant="ghost" size="sm">
+              <Link
+                to={`/billing?period=all&kind=image_generation&requestId=${encodeURIComponent(job.id)}`}
+              >
+                查看费用
+              </Link>
+            </Button>
+          )}
         </div>
       )}
     </article>

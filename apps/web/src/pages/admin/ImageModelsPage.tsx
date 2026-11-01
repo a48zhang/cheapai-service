@@ -204,37 +204,45 @@ export default function ImageModelsPage() {
                 <option value="disabled">已停用</option>
               </select>
             </Field>
-            <Field label="画质参数" description="按供应商支持的参数选择；默认表示省略该参数。">
-              <select
-                className={selectClass}
-                value={draft.quality}
-                onChange={(event) =>
-                  update('quality', event.target.value as ImageModelInput['quality'])
-                }
-              >
-                <option value="default">使用上游默认值</option>
-                {['auto', 'low', 'medium', 'high', 'standard', 'hd'].map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field
-              label="图片返回格式"
-              description="GPT Image 使用默认；DALL·E 可选择 b64_json。仅接收 PNG、JPEG、WebP 的 base64 数据。"
-            >
-              <select
-                className={selectClass}
-                value={draft.responseFormat}
-                onChange={(event) =>
-                  update('responseFormat', event.target.value as ImageModelInput['responseFormat'])
-                }
-              >
-                <option value="default">使用上游默认值</option>
-                <option value="b64_json">b64_json</option>
-              </select>
-            </Field>
+            <details className="sm:col-span-2">
+              <summary className="cursor-pointer text-sm font-medium">供应商兼容参数</summary>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <Field label="画质参数" description="按供应商支持的参数选择；默认表示省略该参数。">
+                  <select
+                    className={selectClass}
+                    value={draft.quality}
+                    onChange={(event) =>
+                      update('quality', event.target.value as ImageModelInput['quality'])
+                    }
+                  >
+                    <option value="default">使用上游默认值</option>
+                    {['auto', 'low', 'medium', 'high', 'standard', 'hd'].map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field
+                  label="图片返回格式"
+                  description="GPT Image 使用默认；DALL·E 可选择 b64_json。仅接收 PNG、JPEG、WebP 的 base64 数据。"
+                >
+                  <select
+                    className={selectClass}
+                    value={draft.responseFormat}
+                    onChange={(event) =>
+                      update(
+                        'responseFormat',
+                        event.target.value as ImageModelInput['responseFormat'],
+                      )
+                    }
+                  >
+                    <option value="default">使用上游默认值</option>
+                    <option value="b64_json">b64_json</option>
+                  </select>
+                </Field>
+              </div>
+            </details>
             <fieldset className="space-y-3 sm:col-span-2">
               <legend className="text-sm font-medium">允许的尺寸</legend>
               <div className="flex flex-wrap gap-3">

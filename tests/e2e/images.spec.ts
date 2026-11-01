@@ -100,6 +100,8 @@ for (const width of [1440, 375]) {
     const input = page.getByRole('textbox', { name: '画面描述' });
     await input.fill('一只橘猫坐在窗边，水彩画，午后阳光。');
     await expect(page.getByText(/每张.*0\.05/)).toBeVisible();
+    await page.getByRole('combobox', { name: '图片尺寸' }).click();
+    await page.getByRole('option', { name: '1536 × 1024' }).click();
     await page.getByRole('button', { name: '生成图片', exact: true }).click();
     await expect(page.getByText('正在生成图片…', { exact: true })).toBeInViewport();
     await expect(page.getByRole('button', { name: '正在生成图片', exact: true })).toBeDisabled();
@@ -121,6 +123,16 @@ for (const width of [1440, 375]) {
     await page.reload();
     await expect(page.getByRole('button', { name: '放大预览图片' })).toBeVisible();
     expect(api.calls).toHaveLength(1);
+    await page.getByRole('button', { name: '复用参数' }).click();
+    await expect(input).toHaveValue('一只橘猫坐在窗边，水彩画，午后阳光。');
+    await expect(page.getByRole('combobox', { name: '图片尺寸' })).toContainText('1536 × 1024');
+    await expect(page.getByRole('link', { name: '查看费用' })).toHaveAttribute(
+      'href',
+      '/billing?period=all&kind=image_generation&requestId=image-job',
+    );
+    expect(api.calls).toHaveLength(1);
+    await page.getByRole('button', { name: '撤销复用' }).click();
+    await expect(input).toHaveValue('下一张图片的描述');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
