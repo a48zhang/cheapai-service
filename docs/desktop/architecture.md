@@ -13,7 +13,7 @@ flowchart LR
 
 React 使用自有蓝白布局，并挂载 DSH 的公开 Remote contribution、SessionEventStream、AssistantStreamAccumulator 与消息基础组件。全局会话状态事件配合会话列表基线提供任务计数；每会话 control stream 不能冒充全局状态。
 
-Tauri 拥有 Runtime 进程、目录选择、固定网站入口、系统凭据持久化和标准 updater。侧车控制通道 bootstrapped 与 DSH ready 分开，因此没有登录时也能调用账号命令。私有 Cookie、Origin、Token 和 Key 不进入公开状态；页面调用的 decoded RPC 经过端点白名单、世代与请求关联校验。
+Tauri 拥有 Runtime 进程、目录选择、图片保存、固定注册入口、系统凭据持久化和标准 updater。侧车控制通道 bootstrapped 与 DSH ready 分开，因此没有登录时也能调用账号命令。私有 Cookie、Origin、Token 和 Key 不进入公开状态；页面调用的 decoded RPC 经过端点白名单、世代与请求关联校验。
 
 Runtime 持有账号客户端、Token/Key 生命周期管理器和 DSH 启停。登录先返回私有 Token 给宿主，宿主保存后才发送 restore 激活账号。账号 ID 经散列选取 home；开发与生产分别命名。账号改变前停止旧服务并关闭旧 bridge/transport。静态 Key 配置只能在显式开发模式使用，生产使用逐模型调用解析的托管 credential reference。
 
@@ -26,3 +26,11 @@ Worker 管理 opaque 桌面 Token、原子绑定的独立 Key、余额/账号投
 退出和安装更新前，已知运行任务或尚未完成任务基线同步的就绪 DSH 均需要确认。更新先停止自有 DSH 和整个 Runtime，完成有界进程树收尾后调用标准 updater；SDK 成功返回后退出应用，不重启或重放会话。更新失败后可显式重启本地服务。
 
 自然 Token 到期只撤销新凭据解析并清除 Runtime 的敏感缓存；已开始的流继续使用已有请求。失效后保留的旧绑定，仅在新的凭据通过账号验证后关闭 bridge/child 并绑定新凭据。原生进程树收尾使用绑定 epoch/generation 的自有 PID/PGID。
+
+## 与网页共用的用户控制台
+
+`@cheapai/web/desktop` 导出控制台入口。桌面 Vite 将它打包为本地 `console.html`，在本地 frame 中运行以隔离 DSH 和网页样式；不是远程网页或另一套页面实现。网页与桌面共用 `app/personal-routes.tsx`、页面、查询和设计控件，桌面使用 HashRouter。`shared/platform.tsx` 只承载服务地址、图片读取和保存能力。
+
+Frame 通过校验来源窗口的 postMessage 调用 Tauri。Runtime 为允许的个人 API 请求附加私有桌面 Token；共用 contracts 中的方法和路径白名单禁止任意地址及管理 API。Worker 校验桌面会话后，个人写操作可不依赖 Cookie CSRF；网页 Cookie 的 CSRF 校验保持原样。Token 和自动模型 Key 不进入页面。控制台请求不阻塞退出，账号世代改变后丢弃迟到响应；写操作不自动重试。退出使用原生账号生命周期。
+
+图片通过同一认证连接读取，并仅将图片字节送入界面。下载由宿主打开系统保存窗口，按实际图片类型选择扩展名。JSONL 控制响应允许容纳现有图片接口的最大响应；不改变服务端图片规格。

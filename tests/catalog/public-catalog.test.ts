@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { app } from '../../apps/worker/app';
-import { createPublicCatalogRoutes, PUBLIC_CATALOG_PATH } from '../../apps/worker/catalog/public-routes';
+import { createPublicCatalogRoutes, PUBLIC_CATALOG_PATH, PUBLIC_CATALOG_GROUPS_PATH } from '../../apps/worker/catalog/public-routes';
 import { testEnv } from '../helpers/database';
 
 async function model(id: string, channel = 'catalog-channel', status = 'active') {
@@ -17,7 +17,7 @@ async function image(id: string, channel = 'catalog-channel', status = 'active')
     .bind(id, id, channel, status).run();
 }
 
-const get = () => app.request(`https://catalog.example${PUBLIC_CATALOG_PATH}`, {}, testEnv);
+const get = (groupId = 'catalog-group') => app.request(`https://catalog.example${PUBLIC_CATALOG_PATH}?groupId=${groupId}`, {}, testEnv);
 async function items() {
   const response = await get();
   expect(response.status).toBe(200);
@@ -29,6 +29,7 @@ beforeEach(async () => {
     await testEnv.DB.prepare(`INSERT INTO groups(id,name,status,version,billing_multiplier,created_at,updated_at)
       VALUES(?,?,?,1,'3',0,0)`).bind(id, id, status).run();
   }
+  await testEnv.DB.prepare("UPDATE groups SET is_public=1 WHERE id='catalog-group'").run();
   for (const [id, group, status] of [
     ['catalog-channel', 'catalog-group', 'active'],
     ['disabled-channel', 'catalog-group', 'disabled'],
@@ -42,7 +43,7 @@ beforeEach(async () => {
 });
 
 describe('public model catalog', () => {
-  it('serves anonymous configured base prices, deduplicates routes and excludes private fields', async () => {
+  it('serves anonymous group prices, deduplicates routes and excludes private fields', async () => {
     await model('visible-model');
     await image('visible-image');
     await testEnv.DB.prepare(`INSERT INTO channel_models(channel_id,public_model_id,protocol,upstream_model,config_version)
@@ -51,8 +52,8 @@ describe('public model catalog', () => {
     expect(response.status).toBe(200);
     const body = await response.text();
     expect(JSON.parse(body).data.items).toEqual([
-      { kind: 'text', id: 'visible-model', prices: { input: '0.25', output: '1.5', cacheRead: '0.00000001' } },
-      { kind: 'image', id: 'visible-image', name: 'visible-image', price: '0.04000000' },
+      { kind: 'text', id: 'visible-model', prices: { input: '0.75', output: '4.5', cacheRead: '0.00000003' } },
+      { kind: 'image', id: 'visible-image', name: 'visible-image', price: '0.12000000' },
     ]);
     expect(body).not.toMatch(/private-|upstream|channel|cacheWrite|contextWindow|maxOutput|billing_multiplier/);
     expect(response.headers.get('Cache-Control')).toBe('no-store');
@@ -82,9 +83,31 @@ describe('public model catalog', () => {
       WHERE public_model_id='priced-model'`).run();
     await testEnv.DB.prepare("UPDATE image_models SET price_units=1,version=version+1 WHERE id='priced-image'").run();
     expect(await items()).toEqual([
-      { kind: 'text', id: 'priced-model', prices: { input: '0', output: '0.00000001' } },
-      { kind: 'image', id: 'priced-image', name: 'priced-image', price: '0.00000001' },
+      { kind: 'text', id: 'priced-model', prices: { input: '0', output: '0.00000003' } },
+      { kind: 'image', id: 'priced-image', name: 'priced-image', price: '0.00000003' },
     ]);
+  });
+
+  it('lists only explicitly public active groups, filters inventory and applies exact group prices', async () => {
+    await model('shared-model');
+    await image('shared-image');
+    await testEnv.DB.prepare("INSERT INTO groups(id,name,status,is_public,version,billing_multiplier,created_at,updated_at) VALUES('discount','折扣组','active',1,1,'0.125',0,0)").run();
+    await testEnv.DB.prepare("INSERT INTO channel_groups(channel_id,group_id) VALUES('catalog-channel','discount')").run();
+    await testEnv.DB.prepare("UPDATE groups SET status='active' WHERE id='private-group'").run();
+    await model('private-only', 'private-channel');
+    const groups = await app.request(`https://catalog.example${PUBLIC_CATALOG_GROUPS_PATH}`, {}, testEnv);
+    expect((await groups.json<{ data: { items: unknown[] } }>()).data.items).toEqual([
+      { id: 'catalog-group', name: 'catalog-group' }, { id: 'discount', name: '折扣组' },
+    ]);
+    const response = await get('discount');
+    expect((await response.json<{ data: { items: unknown[] } }>()).data.items).toEqual([
+      { kind: 'text', id: 'shared-model', prices: { input: '0.03125', output: '0.1875', cacheRead: '0.00000000125' } },
+      { kind: 'image', id: 'shared-image', name: 'shared-image', price: '0.00500000' },
+    ]);
+    expect((await get('private-group')).status).toBe(404);
+    expect((await get('missing')).status).toBe(404);
+    await testEnv.DB.prepare("UPDATE groups SET is_public=0 WHERE id='discount'").run();
+    expect((await get('discount')).status).toBe(404);
   });
 
   it('omits image models when image storage is unavailable', async () => {

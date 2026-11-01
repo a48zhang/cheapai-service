@@ -4,7 +4,6 @@ use tauri_plugin_opener::OpenerExt;
 use tokio::sync::oneshot;
 
 const REGISTRATION_URL: &str = "https://cheapai.dev/register";
-const CONSOLE_URL: &str = "https://cheapai.dev/dashboard";
 
 #[tauri::command]
 pub(crate) async fn choose_workspace_directory(
@@ -38,11 +37,6 @@ pub(crate) async fn choose_workspace_directory(
 #[tauri::command]
 pub(crate) fn open_cheapai_registration(app: AppHandle) -> Result<(), String> {
     open_approved_url(&app, REGISTRATION_URL)
-}
-
-#[tauri::command]
-pub(crate) fn open_cheapai_console(app: AppHandle) -> Result<(), String> {
-    open_approved_url(&app, CONSOLE_URL)
 }
 
 fn open_approved_url(app: &AppHandle, url: &'static str) -> Result<(), String> {

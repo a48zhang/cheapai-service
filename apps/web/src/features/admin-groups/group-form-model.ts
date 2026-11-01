@@ -6,6 +6,7 @@ import { groupInputSchema } from '@cheapai/contracts/groups';
 export const groupDraftSchema = z.object({
   name: z.string().pipe(groupInputSchema.shape.name),
   status: z.string().pipe(groupInputSchema.shape.status.unwrap()),
+  isPublic: z.boolean(),
   billingMultiplier: z.string().pipe(groupInputSchema.shape.billingMultiplier.unwrap()),
   channelIds: z.array(z.string()).pipe(groupInputSchema.shape.channelIds.unwrap()),
 });
@@ -17,6 +18,7 @@ export function initialGroupFormValues(group?: GroupView): GroupFormValues {
   return {
     name: group?.name ?? '',
     status: group?.status ?? 'active',
+    isPublic: group?.isPublic ?? false,
     billingMultiplier: group?.billingMultiplier ?? '1',
     channelIds: group ? [...group.channelIds] : [],
   };
@@ -34,6 +36,7 @@ export function createGroupPatch(baseline: GroupView, values: GroupFormOutput): 
   const patch: GroupPatch = {
     ...(baseline.name === values.name ? {} : { name: values.name }),
     ...(baseline.status === values.status ? {} : { status: values.status }),
+    ...(baseline.isPublic === values.isPublic ? {} : { isPublic: values.isPublic }),
     ...(channelIdsMatch(baseline.channelIds, values.channelIds)
       ? {}
       : { channelIds: values.channelIds }),

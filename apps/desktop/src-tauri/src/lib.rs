@@ -38,6 +38,8 @@ pub fn run() {
             runtime::dsh_transport_uplink,
             runtime::dsh_transport_end,
             runtime::dsh_transport_cancel,
+            account::desktop_console_request,
+            account::desktop_console_download,
             account::desktop_account_login,
             account::desktop_account_restore,
             account::desktop_account_refresh,
@@ -47,7 +49,6 @@ pub fn run() {
             updates::desktop_update_install,
             native::choose_workspace_directory,
             native::open_cheapai_registration,
-            native::open_cheapai_console,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build cheapai.dev desktop application");

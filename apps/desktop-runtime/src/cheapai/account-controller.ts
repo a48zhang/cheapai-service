@@ -61,7 +61,21 @@ export class DesktopAccountController implements DesktopCredentialManager {
    */
   handle(request: DesktopHostAccountRequest): Promise<DesktopHostAccountResult> {
     if (this.stopped) return Promise.reject(accountFailure('serviceUnavailable'))
+    if (request.operation === 'console') return this.console(request.payload);
     return this.enqueue(() => this.handleSerial(request))
+  }
+
+  private async console(request: Extract<DesktopHostAccountRequest, { operation: 'console' }>['payload']): Promise<ResultFor<'console'>> {
+    const credential = this.activeCredential;
+    const generation = this.options.sessions.generation;
+    const current = () => !this.stopped && credential !== null && this.activeCredential === credential
+      && credential.expiresAt > this.now() && this.activeUserId === request.accountId
+      && this.activeSessionGeneration === generation && generation === this.options.sessions.generation;
+    if (!current() || credential === null) throw accountFailure('sessionExpired');
+    const result = await this.options.client.console(credential.token, request);
+    if (!current()) throw new DesktopSessionChangedError();
+    if (result.status === 401 && this.activeSessionGeneration !== null) this.expireSession(this.activeSessionGeneration);
+    return { operation: 'console', result };
   }
 
   /** Dynamic DSH credential resolver. A failed lookup updates only the public
@@ -161,6 +175,7 @@ export class DesktopAccountController implements DesktopCredentialManager {
   private handleSerial(request: DesktopHostAccountRequest): Promise<DesktopHostAccountResult> {
     if (this.stopped) return Promise.reject(accountFailure('serviceUnavailable'))
     switch (request.operation) {
+      case 'console': return this.console(request.payload);
       case 'login': return this.login(request.payload)
       case 'restore': return this.restore(request.payload)
       case 'getAccount': return this.getAccount(request.payload)

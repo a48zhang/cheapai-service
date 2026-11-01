@@ -35,6 +35,7 @@ interface ServiceOwner {
 }
 
 export interface AppShellProps {
+  readonly onOpenConsole?: () => void
   readonly runtime: NativeRuntimeClient
   readonly authStore: DesktopAuthStore
   readonly account: SignedInAccountState
@@ -43,7 +44,7 @@ export interface AppShellProps {
 }
 
 /** Owns one authenticated DSH client generation and its workspace-scoped views. */
-export function AppShell({ runtime, authStore, account, sessions, messages }: AppShellProps) {
+export function AppShell({ runtime, authStore, account, sessions, messages, onOpenConsole }: AppShellProps) {
   const runtimeSnapshot = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot, runtime.getSnapshot)
   const [workspaceDirectory, setWorkspaceDirectory] = useState<string | null>(() => {
     return initialWorkspaceDirectory(sessions, account.account.user.id)
@@ -289,6 +290,7 @@ export function AppShell({ runtime, authStore, account, sessions, messages }: Ap
           </header>
           {route === 'settings'
             ? <ConnectedSettings
+                onOpenConsole={onOpenConsole}
                 authStore={authStore}
                 composer={clientBundle.composer}
                 expectedScope={scope}
@@ -296,7 +298,7 @@ export function AppShell({ runtime, authStore, account, sessions, messages }: Ap
                 userId={account.account.user.id}
                 workspaceDirectory={workspaceDirectory}
               />
-            : <section style={{ width: 'min(100%, 44rem)', padding: '0 var(--space-6) var(--space-6)' }}><AccountPanel store={authStore} /></section>}
+            : <section style={{ width: 'min(100%, 44rem)', padding: '0 var(--space-6) var(--space-6)' }}><AccountPanel store={authStore} onOpenConsole={onOpenConsole} /></section>}
         </main>
       )}
     </>
@@ -339,6 +341,7 @@ function createDraftBridge(
 }
 
 function ConnectedSettings({
+  onOpenConsole,
   authStore,
   composer,
   expectedScope,
@@ -347,6 +350,7 @@ function ConnectedSettings({
   workspaceDirectory,
 }: {
   readonly authStore: DesktopAuthStore
+  readonly onOpenConsole?: (() => void) | undefined
   readonly composer: ComposerController
   readonly expectedScope: SessionScope
   readonly sessions: SessionStore
@@ -391,6 +395,7 @@ function ConnectedSettings({
         : { status: 'unavailable' }
 
   return <SettingsPage
+    onOpenConsole={onOpenConsole}
     authStore={authStore}
     directorySource={directorySource}
     modelSource={modelSource}

@@ -128,7 +128,11 @@ export function GroupDetailPage() {
 
       {group && !editing && (
         <div className="console-panel">
-          <dl className="grid gap-5 sm:grid-cols-3">
+          <dl className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-1">
+              <dt className="console-muted">模型目录展示</dt>
+              <dd>{group.isPublic ? '公开展示' : '不公开'}</dd>
+            </div>
             <div className="grid gap-1">
               <dt className="console-muted">状态</dt>
               <dd>

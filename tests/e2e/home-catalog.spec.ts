@@ -18,6 +18,7 @@ const envelope = (data: unknown) => JSON.stringify({ data, request_id: 'catalog-
 
 async function publicHome(page: Page) {
   await page.route('**/api/v1/**', (route) => route.fulfill({ status: 503, body: 'Unavailable' }));
+  await page.route('**/api/v1/catalog/groups', (route) => route.fulfill({ contentType: 'application/json', body: envelope({ items: [{ id: 'standard', name: '标准组' }, { id: 'discount', name: '折扣组' }] }) }));
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
@@ -37,7 +38,7 @@ for (const width of [320, 375, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await publicHome(page);
     let requests = 0;
-    await page.route('**/api/v1/catalog/models', (route) => {
+    await page.route('**/api/v1/catalog/models?*', (route) => {
       requests++;
       return route.fulfill({ contentType: 'application/json', body: envelope(catalog) });
     });
@@ -66,11 +67,11 @@ for (const width of [320, 375, 1440]) {
       ]);
       await navigation.getByRole('link', { name: '模型目录' }).click();
     }
-    await expect(page).toHaveURL(/#models$/);
+    await expect(page).toHaveURL(/\/models$/);
     const directory = page.getByRole('region', { name: '模型目录' });
     await expect(directory.getByRole('article')).toHaveCount(5);
-    await expect(directory).toContainText('本站基础价');
-    await expect(directory).toContainText('访问组倍率');
+    await expect(directory).not.toContainText(/选模型，先看价格|本站基础价|查看我的可用模型/);
+    await expect(directory.getByRole('combobox', { name: '公开分组' })).toContainText('标准组');
     const gpt = directory.getByRole('article', { name: 'gpt-5', exact: true });
     await expect(gpt.locator('dt')).toHaveText(['输入', '输出']);
     await expect(gpt.locator('dd')).toHaveText(['$1.25', '$10']);
@@ -117,7 +118,7 @@ test('header navigation, catalog deep links and overview anchors survive reload 
   page,
 }) => {
   await publicHome(page);
-  await page.route('**/api/v1/catalog/models', (route) =>
+  await page.route('**/api/v1/catalog/models?*', (route) =>
     route.fulfill({ contentType: 'application/json', body: envelope(catalog) }),
   );
   await page.goto('/#models');
@@ -129,7 +130,7 @@ test('header navigation, catalog deep links and overview anchors survive reload 
   await expect(page.getByRole('article', { name: 'gpt-5', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '跳到主要内容' }).focus();
   await page.keyboard.press('Enter');
-  await expect(page).toHaveURL(/#models$/);
+  await expect(page).toHaveURL(/\/models$/);
   await expect(page.getByRole('main')).toBeFocused();
   await page.reload();
   await expect(navigation.getByRole('link', { name: '模型目录' })).toHaveAttribute(
@@ -158,7 +159,7 @@ test('catalog distinguishes loading, failure, retry and empty inventory', async 
     release = resolve;
   });
   let requests = 0;
-  await page.route('**/api/v1/catalog/models', async (route) => {
+  await page.route('**/api/v1/catalog/models?*', async (route) => {
     requests++;
     if (requests === 1) {
       await pending;
@@ -173,13 +174,13 @@ test('catalog distinguishes loading, failure, retry and empty inventory', async 
   await expect(page.getByRole('alert')).toContainText('模型与价格暂时加载失败');
   await expect(page.getByRole('article')).toHaveCount(0);
   await page.getByRole('button', { name: '重新加载' }).click();
-  await expect(page.getByRole('status').filter({ hasText: '暂无上架模型' })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: '此分组暂无上架模型' })).toBeVisible();
   expect(requests).toBe(2);
 });
 
 test('invalid prices are unavailable rather than displayed as free', async ({ page }) => {
   await publicHome(page);
-  await page.route('**/api/v1/catalog/models', (route) =>
+  await page.route('**/api/v1/catalog/models?*', (route) =>
     route.fulfill({
       contentType: 'application/json',
       body: envelope({ items: [{ kind: 'text', id: 'missing-price', prices: { input: '0' } }] }),
@@ -188,4 +189,36 @@ test('invalid prices are unavailable rather than displayed as free', async ({ pa
   await page.goto('/#models');
   await expect(page.getByRole('alert')).toContainText('模型与价格暂时加载失败');
   await expect(page.getByRole('article')).toHaveCount(0);
+});
+
+
+test('group selection changes inventory and effective prices and survives URL history', async ({ page }) => {
+  await publicHome(page);
+  await page.route('**/api/v1/catalog/models?*', (route) => route.fulfill({ contentType: 'application/json', body: envelope(
+    new URL(route.request().url()).searchParams.get('groupId') === 'discount'
+      ? { items: [{ kind: 'text', id: 'gpt-5', prices: { input: '0.125', output: '1' } }] }
+      : catalog,
+  ) }));
+  await page.goto('/models');
+  await expect(page.getByRole('article')).toHaveCount(5);
+  await page.getByRole('combobox', { name: '公开分组' }).click();
+  await page.getByRole('option', { name: '折扣组', exact: true }).click();
+  await expect(page).toHaveURL(/models\?group=discount$/);
+  await expect(page.getByRole('article')).toHaveCount(1);
+  await expect(page.getByRole('article').locator('dd')).toHaveText(['$0.125', '$1']);
+  await page.reload();
+  await expect(page.getByRole('combobox', { name: '公开分组' })).toContainText('折扣组');
+  await expect(page.getByRole('article').locator('dd')).toHaveText(['$0.125', '$1']);
+  await page.goBack();
+  await expect(page.getByRole('combobox', { name: '公开分组' })).toContainText('标准组');
+  await expect(page.getByRole('article')).toHaveCount(5);
+});
+
+test('no public groups and withdrawn group links have clear empty states', async ({ page }) => {
+  await publicHome(page);
+  await page.goto('/models?group=private');
+  await expect(page.getByText('该公开分组暂不可用，请重新选择。')).toBeVisible();
+  await page.route('**/api/v1/catalog/groups', (route) => route.fulfill({ contentType: 'application/json', body: envelope({ items: [] }) }));
+  await page.reload();
+  await expect(page.getByText('暂无公开分组。')).toBeVisible();
 });

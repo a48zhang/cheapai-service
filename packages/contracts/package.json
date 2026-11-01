@@ -4,10 +4,6 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./*.ts": {
-      "types": "./src/*.ts",
-      "default": "./src/*.ts"
-    },
     "./*": {
       "types": "./src/*.ts",
       "default": "./src/*.ts"

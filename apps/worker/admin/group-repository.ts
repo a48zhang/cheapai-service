@@ -3,15 +3,15 @@ import { ApiError, DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '../http';
 import { isValidBillingMultiplier } from '../billing/pricing';
 import { buildAuditStatement } from './audit';
 
-export interface GroupView { id: string; name: string; status: 'active' | 'disabled'; version: number; createdAt: number; updatedAt: number; channelIds: string[]; billingMultiplier: string }
-export interface CreateGroupInput { name: string; status?: 'active' | 'disabled'; channelIds?: string[]; billingMultiplier?: string }
+export interface GroupView { id: string; name: string; status: 'active' | 'disabled'; isPublic: boolean; version: number; createdAt: number; updatedAt: number; channelIds: string[]; billingMultiplier: string }
+export interface CreateGroupInput { name: string; status?: 'active' | 'disabled'; isPublic?: boolean; channelIds?: string[]; billingMultiplier?: string }
 export type GroupPatch = Partial<CreateGroupInput>;
 export interface GroupAuditContext { actorId: string; operationId: string; now: number }
 export interface GroupPageOptions { limit?: number; cursor?: string; status?: 'active' | 'disabled' }
-interface GroupRow { id: string; name: string; status: 'active' | 'disabled'; version: number; created_at: number; updated_at: number; channel_ids: string; billing_multiplier: string }
+interface GroupRow { id: string; name: string; status: 'active' | 'disabled'; is_public: number; version: number; created_at: number; updated_at: number; channel_ids: string; billing_multiplier: string }
 const projection = `g.id,g.name,g.status,g.version,g.created_at,g.updated_at,
   (SELECT json_group_array(channel_id) FROM (SELECT channel_id FROM channel_groups WHERE group_id=g.id ORDER BY channel_id)) AS channel_ids,
-  g.billing_multiplier`;
+  g.billing_multiplier,g.is_public`;
 const invalid = (): never => { throw new ApiError('invalid_request'); };
 function id(value: unknown): string {
   if (typeof value !== 'string' || value.length > 128 || !/^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/.test(value)) invalid();
@@ -33,13 +33,17 @@ function input(value: unknown): GroupPatch {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) invalid();
   const result: GroupPatch = {};
   const source = value as Record<string, unknown>;
-  for (const key of ['name', 'status', 'channelIds', 'billingMultiplier'] as const) {
+  for (const key of ['name', 'status', 'isPublic', 'channelIds', 'billingMultiplier'] as const) {
     if (!Object.hasOwn(source, key)) continue;
     const field = source[key];
     if (key === 'name') {
       if (typeof field !== 'string' || !field.trim() || field.length > 128 || /[\u0000-\u001f\u007f]/.test(field)) invalid();
       result.name = (field as string).trim();
     } else if (key === 'status') result.status = status(field);
+    else if (key === 'isPublic') {
+      if (typeof field !== 'boolean') invalid();
+      result.isPublic = field as boolean;
+    }
     else if (key === 'channelIds') {
       if (!Array.isArray(field)) invalid();
       result.channelIds = [...new Set((field as unknown[]).map(id))].sort();
@@ -49,7 +53,7 @@ function input(value: unknown): GroupPatch {
 }
 function view(row: GroupRow): GroupView {
   return { id: row.id, name: row.name, status: row.status, version: row.version, createdAt: row.created_at, updatedAt: row.updated_at,
-    channelIds: JSON.parse(row.channel_ids) as string[], billingMultiplier: row.billing_multiplier };
+    channelIds: JSON.parse(row.channel_ids) as string[], billingMultiplier: row.billing_multiplier, isPublic: row.is_public === 1 };
 }
 function auditContext(value: GroupAuditContext): GroupAuditContext {
   return { actorId: id(value.actorId), operationId: id(value.operationId), now: integer(value.now, 0) };
@@ -96,15 +100,16 @@ export async function createGroup(database: D1Database, values: CreateGroupInput
   const state = fields.status ?? 'active';
   const channels = fields.channelIds ?? [];
   const billing = fields.billingMultiplier ?? '1';
+  const isPublic = fields.isPublic ?? false;
   const event = auditContext(context);
   try {
     const result = await batch(database, [
       actorGuard(database, event.actorId),
-      prepare<GroupRow>(database, `INSERT INTO groups(id,name,status,version,created_at,updated_at,billing_multiplier) VALUES(?,?,?,1,?,?,?)
-        RETURNING *, '[]' AS channel_ids`, [groupId, fields.name!, state, event.now, event.now, billing]),
+      prepare<GroupRow>(database, `INSERT INTO groups(id,name,status,version,created_at,updated_at,billing_multiplier,is_public) VALUES(?,?,?,1,?,?,?,?)
+        RETURNING *, '[]' AS channel_ids`, [groupId, fields.name!, state, event.now, event.now, billing, isPublic ? 1 : 0]),
       changedGuard(database),
       prepare(database, 'INSERT INTO channel_groups(channel_id,group_id) SELECT value,? FROM json_each(?)', [groupId, JSON.stringify(channels)]),
-      audit(database, event, groupId, 'group.create', { status: state, version: 1, name_changed: true, billing_multiplier: billing }),
+      audit(database, event, groupId, 'group.create', { status: state, version: 1, name_changed: true, billing_multiplier: billing, is_public: isPublic }),
       ...relationAudits(database, event, groupId, [], channels),
     ] as const);
     const row = result[1].rows[0];
@@ -129,23 +134,24 @@ export async function updateGroup(database: D1Database, groupId: string, expecte
   const state = fields.status ?? current.status;
   const channels = fields.channelIds ?? current.channelIds;
   const billing = fields.billingMultiplier ?? current.billingMultiplier;
+  const isPublic = fields.isPublic ?? current.isPublic;
   try {
     const result = await batch(database, [
       actorGuard(database, event.actorId),
-      prepare<GroupRow>(database, `UPDATE groups SET name=?,status=?,billing_multiplier=?,version=version+1,updated_at=max(updated_at,?)
+      prepare<GroupRow>(database, `UPDATE groups SET name=?,status=?,billing_multiplier=?,is_public=?,version=version+1,updated_at=max(updated_at,?)
         WHERE id=? AND version=? AND (?<>'disabled' OR (
           NOT EXISTS(SELECT 1 FROM settings WHERE key='default_group_id' AND json_extract(value_json,'$')=?)
           AND EXISTS(SELECT 1 FROM users u JOIN groups g ON g.id=u.group_id
             WHERE u.role='admin' AND u.status='active' AND g.status='active' AND g.id<>?)
         )) RETURNING *, '[]' AS channel_ids`,
-      [fields.name ?? current.name, state, billing, event.now, groupId, expectedVersion, state, groupId, groupId]),
+      [fields.name ?? current.name, state, billing, isPublic ? 1 : 0, event.now, groupId, expectedVersion, state, groupId, groupId]),
       changedGuard(database),
       ...(fields.channelIds === undefined ? [] : [
         prepare(database, 'DELETE FROM channel_groups WHERE group_id=?', [groupId]),
         prepare(database, 'INSERT INTO channel_groups(channel_id,group_id) SELECT value,? FROM json_each(?)', [groupId, JSON.stringify(channels)]),
       ]),
-      audit(database, event, groupId, 'group.update', { before: { status: current.status, version: current.version, billing_multiplier: current.billingMultiplier },
-        after: { status: state, version: expectedVersion + 1, billing_multiplier: billing }, name_changed: fields.name !== undefined,
+      audit(database, event, groupId, 'group.update', { before: { status: current.status, version: current.version, billing_multiplier: current.billingMultiplier, is_public: current.isPublic },
+        after: { status: state, version: expectedVersion + 1, billing_multiplier: billing, is_public: isPublic }, name_changed: fields.name !== undefined,
         billing_multiplier_changed: fields.billingMultiplier !== undefined }),
       ...relationAudits(database, event, groupId, current.channelIds, channels),
     ] as const);

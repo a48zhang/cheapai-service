@@ -43,7 +43,7 @@ describe('group list HTTP on native D1', () => {
     const result = await page(await request('?status=disabled'));
     expect(result.items).toHaveLength(3);
     expect(result.items.find(item => item.id === 'c07-a')).toEqual({ id: 'c07-a', name: 'c07-a', status: 'disabled', version: 1,
-      createdAt: now, updatedAt: now, channelIds: ['c07-channel-a'], billingMultiplier: '1' });
+      createdAt: now, updatedAt: now, channelIds: ['c07-channel-a'], isPublic: false, billingMultiplier: '1' });
     expect(JSON.stringify(result)).not.toMatch(/PRIVATE|upstream_key|base_url|password_hash/);
   });
   it('requires session and admin authorization', async () => {

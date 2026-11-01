@@ -1,4 +1,12 @@
-import { useId, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from 'react';
+import * as SelectPrimitive from '@radix-ui/react-select';
+import * as Popover from '@radix-ui/react-popover';
+import {
+  useState,
+  useId,
+  type ButtonHTMLAttributes,
+  type InputHTMLAttributes,
+  type ReactNode,
+} from 'react';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'quiet';
 
@@ -41,7 +49,8 @@ export function TextInput({
   const generatedId = useId();
   const inputId = id ?? `desktop-input-${generatedId}`;
   const errorId = `${inputId}-error`;
-  const describedBy = [ariaDescribedBy, error ? errorId : undefined].filter(Boolean).join(' ') || undefined;
+  const describedBy =
+    [ariaDescribedBy, error ? errorId : undefined].filter(Boolean).join(' ') || undefined;
 
   return (
     <label className="ui-field" htmlFor={inputId}>
@@ -53,7 +62,11 @@ export function TextInput({
         className={['ui-input', className].filter(Boolean).join(' ')}
         id={inputId}
       />
-      {error && <span className="ui-field-error" id={errorId}>{error}</span>}
+      {error && (
+        <span className="ui-field-error" id={errorId}>
+          {error}
+        </span>
+      )}
     </label>
   );
 }
@@ -66,10 +79,18 @@ export function Menu({
   readonly label: string;
 }) {
   return (
-    <details className="ui-menu">
-      <summary className="ui-menu-trigger">{label}</summary>
-      <div className="ui-menu-panel">{children}</div>
-    </details>
+    <Popover.Root>
+      <Popover.Trigger asChild>
+        <Button className="ui-menu-trigger" variant="quiet">
+          {label}
+        </Button>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content className="ui-menu-panel" sideOffset={6} align="end">
+          {children}
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }
 
@@ -82,5 +103,78 @@ export function MenuItem({ className, type = 'button', ...props }: MenuItemProps
       className={['ui-button', 'ui-menu-item', className].filter(Boolean).join(' ')}
       type={type}
     />
+  );
+}
+
+export function Select({
+  items,
+  value,
+  onValueChange,
+  placeholder = '请选择',
+  ...props
+}: {
+  items: readonly { value: string; label: string; disabled?: boolean }[];
+  value: string;
+  onValueChange: (value: string) => void;
+  placeholder?: string;
+  id?: string;
+  disabled?: boolean;
+  'aria-label'?: string;
+  style?: import('react').CSSProperties;
+}) {
+  const empty = useId();
+  const hasEmpty = items.some((item) => item.value === '');
+  return (
+    <SelectPrimitive.Root
+      value={hasEmpty && value === '' ? empty : value}
+      onValueChange={(next) => onValueChange(next === empty ? '' : next)}
+      disabled={props.disabled ?? false}
+    >
+      <SelectPrimitive.Trigger {...props} className="ui-input ui-select-trigger">
+        <span className="ui-select-value">
+          <SelectPrimitive.Value placeholder={placeholder} />
+        </span>
+        <SelectPrimitive.Icon aria-hidden>⌄</SelectPrimitive.Icon>
+      </SelectPrimitive.Trigger>
+      <SelectPrimitive.Portal>
+        <SelectPrimitive.Content className="ui-select-content" position="popper" sideOffset={4}>
+          <SelectPrimitive.Viewport>
+            {items.map((item) => (
+              <SelectPrimitive.Item
+                key={item.value}
+                value={item.value === '' ? empty : item.value}
+                disabled={item.disabled ?? false}
+                className="ui-select-item"
+              >
+                <SelectPrimitive.ItemText>{item.label}</SelectPrimitive.ItemText>
+                <SelectPrimitive.ItemIndicator aria-hidden>✓</SelectPrimitive.ItemIndicator>
+              </SelectPrimitive.Item>
+            ))}
+          </SelectPrimitive.Viewport>
+        </SelectPrimitive.Content>
+      </SelectPrimitive.Portal>
+    </SelectPrimitive.Root>
+  );
+}
+
+export function Disclosure({ title, children }: { title: ReactNode; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  return (
+    <div>
+      <Button
+        data-disclosure-trigger
+        aria-expanded={open}
+        aria-controls={id}
+        variant="quiet"
+        onClick={() => setOpen(!open)}
+      >
+        {title}
+        <span aria-hidden>{open ? '⌃' : '⌄'}</span>
+      </Button>
+      <div id={id} hidden={!open}>
+        {children}
+      </div>
+    </div>
   );
 }

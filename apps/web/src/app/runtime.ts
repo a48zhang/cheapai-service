@@ -1,12 +1,12 @@
 import { createAuthApi } from '@cheapai/api-client/auth';
 import { readCsrfCookie } from '@cheapai/api-client/csrf';
 import { createApiClient } from '@cheapai/api-client/client';
-import type { SessionIdentity } from '@cheapai/api-client/types';
+import type { ApiClientOptions, SessionIdentity } from '@cheapai/api-client/types';
 import { createSessionController } from '../features/session/controller';
 import { createQueryClient } from '../shared/api/query-client';
 import type { AppRuntime } from '../shared/api/runtime';
 
-export function createRuntime(options: { fetch?: typeof fetch } = {}): AppRuntime {
+export function createRuntime(options: ApiClientOptions = {}): AppRuntime {
   const identityOptions = {
     ...options,
     captureIdentity: () => session?.requestIdentity() ?? null,

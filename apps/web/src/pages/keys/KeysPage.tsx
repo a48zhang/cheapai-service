@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import { Button } from '../../shared/ui/Button';
 import { useQuery } from '@tanstack/react-query';
 import type { KeyMetadata } from '@cheapai/api-client/keys';
+import { useProductEnvironment } from '../../shared/platform';
 import {
   createApiAccessApi,
   invalidateApiAccessKeys,
@@ -34,7 +35,7 @@ export default function KeysPage() {
   const [secret, setSecret] = useState<SecretView | null>(null);
   const [selectedKey, setSelectedKey] = useState<KeyMetadata | null>(null);
   const previousIdentity = useRef({ userId, epoch });
-  const baseUrl = integrationBaseUrl(window.location.origin);
+  const baseUrl = integrationBaseUrl(useProductEnvironment().apiOrigin);
 
   useLayoutEffect(() => {
     if (previousIdentity.current.userId !== userId || previousIdentity.current.epoch !== epoch) {

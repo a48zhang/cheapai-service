@@ -16,6 +16,7 @@ import { UpdatePanel } from './UpdatePanel';
 type SettingsSection = 'general' | 'account' | 'about';
 
 export interface SettingsPageProps {
+  readonly onOpenConsole?: (() => void) | undefined;
   readonly userId: string | null;
   readonly modelSource?: ModelOptionSource;
   readonly directorySource?: DirectoryOptionSource;
@@ -47,6 +48,7 @@ const panelStyle = {
 } as const;
 
 export function SettingsPage({
+  onOpenConsole,
   userId,
   modelSource = unavailableModels,
   directorySource = unavailableDirectories,
@@ -104,7 +106,7 @@ export function SettingsPage({
               userId={userId}
             />
           )}
-          {section === 'account' && (accountContent ?? (authStore ? <AccountPanel store={authStore} /> : <AccountPlaceholder />))}
+          {section === 'account' && (accountContent ?? (authStore ? <AccountPanel store={authStore} onOpenConsole={onOpenConsole} /> : <AccountPlaceholder />))}
           {section === 'about' && (
             <AboutPlaceholder appVersion={displayedVersion}>
               {aboutContent}

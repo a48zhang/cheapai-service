@@ -22,12 +22,13 @@ function lock() {
   };
 }
 
-test('web, Worker and documentation changes skip desktop work', () => {
-  assert.equal(desktopChanged(['apps/web/src/app.tsx', 'apps/worker/app.ts', 'docs/guide.md']), false);
+test('Worker and documentation changes skip desktop work', () => {
+  assert.equal(desktopChanged(['apps/worker/app.ts', 'docs/guide.md']), false);
 });
 
 test('desktop source, theme, tooling and UI tests require desktop work', () => {
   for (const file of ['apps/desktop/src/App.tsx', 'apps/desktop-runtime/src/index.ts',
+    'apps/web/src/app.tsx', 'packages/contracts/src/catalog.ts', 'packages/api-client/src/catalog.ts',
     'packages/desktop-contracts/src/index.ts', 'packages/theme/src/tokens.css',
     'scripts/desktop/dev-desktop.mjs', 'tests/desktop-ui/appearance.spec.ts',
     '.github/workflows/desktop-package.yml', 'tsconfig.base.json']) {

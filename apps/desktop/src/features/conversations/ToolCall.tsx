@@ -1,3 +1,4 @@
+import { Disclosure } from '../../components/ui/controls';
 import type { SessionEventLikeEntry } from '@deepseek-ai/dsh-api-session-controller/client'
 
 type DurableSessionEvent = Extract<SessionEventLikeEntry, { readonly type: 'event' }>['event']
@@ -104,12 +105,11 @@ export function ToolCall({ entry, events, onOpenInteraction }: ToolCallProps) {
       data-call-id={callId}
       data-tool-name={name}
     >
-      <details>
-        <summary>
+      <Disclosure title={<>
           <span>{name}</span>
           <span aria-label="状态">{state}</span>
           <span className="conversation-tool-call__summary">{summary}</span>
-        </summary>
+        </>}>
         <dl>
           <dt>调用 ID</dt>
           <dd><code>{callId}</code></dd>
@@ -138,7 +138,7 @@ export function ToolCall({ entry, events, onOpenInteraction }: ToolCallProps) {
             </>
           )}
         </dl>
-      </details>
+      </Disclosure>
       {onOpenInteraction !== undefined && call !== undefined && (
         <button
           type="button"

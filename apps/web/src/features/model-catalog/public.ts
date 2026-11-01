@@ -1,0 +1,1 @@
+export { catalogQueryKey } from './api';

@@ -113,6 +113,7 @@ export interface DesktopPrivateSessionCredential {
  * privately so the native host can save the new session before publishing UI state.
  */
 export interface DesktopHostAccountPayloadByOperation {
+  readonly console: import('@cheapai/contracts/desktop-console').DesktopConsoleRequest;
   readonly login: DesktopLoginRequest;
   readonly restore: DesktopPrivateSessionCredential;
   readonly getAccount: DesktopPrivateSessionCredential;
@@ -134,6 +135,7 @@ export type DesktopHostAccountRequest = {
  * the private native-host pipe, never in DesktopPublicAccountState.
  */
 export interface DesktopHostAccountResultByOperation {
+  readonly console: import('@cheapai/contracts/desktop-console').DesktopConsoleResponse;
   readonly login: DesktopLoginResponse;
   readonly restore: DesktopPublicAccountState;
   readonly getAccount: DesktopAccountData;

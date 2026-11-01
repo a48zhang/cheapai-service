@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DesktopAccountData, DesktopPrivateSessionCredential } from '@sub2api/desktop-contracts'
 import { DesktopAccountApiError, DesktopAccountClient } from '../../apps/desktop-runtime/src/cheapai/account-client.ts'
 import {
@@ -30,6 +30,7 @@ afterEach(async () => {
 })
 
 interface ControllerHarness {
+  readonly client: DesktopAccountClient
   readonly controller: DesktopAccountController
   readonly state: DesktopAccountStateStore
   readonly sessions: DesktopSessionManager
@@ -99,6 +100,7 @@ function createHarness(
   })
 
   return {
+    client,
     controller,
     state,
     sessions,
@@ -287,3 +289,50 @@ describe('DesktopAccountController private lifecycle', () => {
     expect(harness.controller.getPublicStatus()).toEqual({ status: 'signedOut' })
   })
 })
+
+
+describe('desktop console account scope', () => {
+  it('allows logout during a console request and drops its late reply', async () => {
+    const harness = createHarness();
+    const credential = { token: 'fixture-session', expiresAt: NOW + TOKEN_LIFETIME_MS };
+    await restore(harness.controller, credential, 'account-one');
+    const response = deferred<{ status: number; contentType: string; encoding: 'utf8'; body: string }>();
+    const send = vi.spyOn(harness.client, 'console').mockReturnValue(response.promise);
+    const pending = harness.controller.handle({ operation: 'console', payload: { accountId: 'account-one', method: 'GET', path: '/api/v1/account/balance' } });
+    const rejected = expect(pending).rejects.toThrow();
+    fakeApi.enqueueData('logout', { loggedOut: true });
+    await harness.controller.handle({ operation: 'logout', payload: credential });
+    expect(harness.state.getSnapshot().status).toBe('signedOut');
+    response.resolve({ status: 200, contentType: 'application/json', encoding: 'utf8', body: '{}' });
+    await rejected;
+    expect(send).toHaveBeenCalledOnce();
+  });
+  it('rejects a request bound to a different account before transport', async () => {
+    const harness = createHarness();
+    await restore(harness.controller, { token: 'fixture-session', expiresAt: NOW + TOKEN_LIFETIME_MS }, 'account-one');
+    const send = vi.spyOn(harness.client, 'console');
+    await expect(harness.controller.handle({ operation: 'console', payload: { accountId: 'account-two', method: 'GET', path: '/api/v1/keys' } })).rejects.toMatchObject({ problem: 'sessionExpired' });
+    expect(send).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('desktop console independent availability', () => {
+  it('can read the account after chat provider startup fails', async () => {
+    const harness = createHarness();
+    await restore(harness.controller, { token: 'fixture-session', expiresAt: NOW + TOKEN_LIFETIME_MS }, 'account-one');
+    harness.setActivationFailure(new DesktopAccountApiError('noModels'));
+    await expect(harness.controller.start()).rejects.toMatchObject({ problem: 'noModels' });
+    vi.spyOn(harness.client, 'console').mockResolvedValue({ status: 200, contentType: 'application/json', encoding: 'utf8', body: '{}' });
+    await expect(harness.controller.handle({ operation: 'console', payload: { accountId: 'account-one', method: 'GET', path: '/api/v1/account/balance' } })).resolves.toMatchObject({ operation: 'console', result: { status: 200 } });
+  });
+  it('expires native credentials when the console API rejects the session', async () => {
+    const harness = createHarness();
+    await restore(harness.controller, { token: 'fixture-session', expiresAt: NOW + TOKEN_LIFETIME_MS }, 'account-one');
+    vi.spyOn(harness.client, 'console').mockResolvedValue({ status: 401, contentType: 'application/json', encoding: 'utf8', body: '{}' });
+    const request = { operation: 'console' as const, payload: { accountId: 'account-one', method: 'GET', path: '/api/v1/account/balance' } };
+    expect(await harness.controller.handle(request)).toMatchObject({ result: { status: 401 } });
+    await expect(harness.controller.handle(request)).rejects.toMatchObject({ problem: 'sessionExpired' });
+    expect(harness.sessions.getPublicStatus().status).toBe('signedOut');
+  });
+});

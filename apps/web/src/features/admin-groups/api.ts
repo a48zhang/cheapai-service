@@ -1,3 +1,4 @@
+import { catalogQueryKey } from '../model-catalog/public';
 import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
 import { createGroupsApi } from '@cheapai/api-client/groups';
@@ -71,6 +72,7 @@ export function recordGroupSaved(
     current && current.version > group.version ? current : group,
   );
   return Promise.all([
+    queryClient.invalidateQueries({ queryKey: catalogQueryKey }),
     queryClient.invalidateQueries({ queryKey: adminGroupsQueryKeys.lists(actorId) }),
     queryClient.invalidateQueries({ queryKey: adminGroupsQueryKeys.candidates(actorId) }),
   ]).then(() => undefined);

@@ -1,6 +1,6 @@
 import { ThemePicker } from '@cheapai/theme';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
-import { invoke } from '@tauri-apps/api/core'
+import { ConsoleFrame } from '../features/console/ConsoleFrame'
 import type { DesktopAccountProblem } from '@sub2api/desktop-contracts'
 import { Button } from '../components/ui/controls'
 import { NativeRuntimeClient, type NativeRuntimeSnapshot } from '../adapters/native/runtime'
@@ -92,7 +92,11 @@ function RuntimeApplication({
   const [route, setRoute] = useState<LoginRoute>('workspace')
   const [startRetry, setStartRetry] = useState(0)
   const [startError, setStartError] = useState(false)
-  const [websiteError, setWebsiteError] = useState(false)
+  const [consoleOpen, setConsoleOpen] = useState(false)
+  const [consoleVisited, setConsoleVisited] = useState(false)
+  const openConsole = () => { setConsoleVisited(true); setConsoleOpen(true); }
+  const closeConsole = useCallback(() => setConsoleOpen(false), []);
+  const loginFromConsole = useCallback(() => { setConsoleOpen(false); setRoute('login'); }, []);
   const lastProcessReady = useRef(false)
   const startAttemptKey = useRef('')
   const lastConfirmedAccountId = useRef<string | null>(null)
@@ -231,12 +235,8 @@ function RuntimeApplication({
               <Button onClick={retryRestore} variant="primary">{recovery.retry}</Button>
             )}
             {accountState.problem === 'insufficientBalance' && (
-              <Button onClick={() => {
-                setWebsiteError(false)
-                void invoke('open_cheapai_console').catch(() => setWebsiteError(true))
-              }} variant="quiet">打开账号控制台</Button>
+              <Button onClick={openConsole} variant="quiet">打开用户控制台</Button>
             )}
-            {websiteError && <p role="alert">暂时无法打开账号控制台，请稍后重试。</p>}
             <Button onClick={() => setRoute('login')} variant="quiet">前往登录</Button>
           </>
         )}
@@ -262,6 +262,7 @@ function RuntimeApplication({
     content = (
       <AppShell
         key={`${runtimeSnapshot.connectionGeneration}:${accountId}`}
+        onOpenConsole={openConsole}
         account={accountState as SignedInAccountState}
         authStore={authStore}
         messages={messages}
@@ -271,14 +272,23 @@ function RuntimeApplication({
     )
   }
 
+  const consoleAccount = accountState.status === 'signedIn' || accountState.status === 'unavailable' ? accountState.account : null;
+  const showConsole = consoleOpen && consoleAccount !== null;
   return (
-    <div className="desktop-app" data-route={contentRoute(accountState, route, dshReady)}>
+    <div className="desktop-app" data-route={showConsole ? 'console' : contentRoute(accountState, route, dshReady)}>
       <header className="desktop-header">
         <span className="desktop-brand">cheapai.dev</span>
+        <nav aria-label="桌面功能" style={{ display: 'flex', gap: 'var(--space-2)' }}>
+          <Button variant={showConsole ? 'quiet' : 'primary'} onClick={closeConsole}>工作区</Button>
+          <Button variant={showConsole ? 'primary' : 'quiet'} disabled={consoleAccount === null} onClick={openConsole}>用户控制台</Button>
+        </nav>
         <span className="desktop-runtime-status" role="status" aria-live="polite">{runtimeLabel}</span>
         <ThemePicker />
       </header>
-      {content}
+      <div className="desktop-content" hidden={showConsole}>{content}</div>
+      {consoleVisited && consoleAccount && <div className="desktop-content" hidden={!showConsole}>
+        <ConsoleFrame key={consoleAccount.user.id} accountId={consoleAccount.user.id} authStore={authStore} onReturn={closeConsole} onLogin={loginFromConsole} />
+      </div>}
     </div>
   )
 }
