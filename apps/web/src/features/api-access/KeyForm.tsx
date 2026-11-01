@@ -1,3 +1,5 @@
+import { Controller } from 'react-hook-form';
+import { Select } from '../../shared/ui/Select';
 import { formatUsdPerMillionTokens } from '../../shared/lib/model-price';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { Button } from '../../shared/ui/Button';
@@ -126,30 +128,36 @@ export function KeyForm(props: KeyFormProps) {
                 )}
               </div>
             ) : (
-              <Field label="分组" required error={errors.groupId?.message}>
-                <select
-                  {...register('groupId')}
-                  required
-                  disabled={groupsQuery.isLoading || fieldsDisabled}
-                  className="min-h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <option value="" disabled>
-                    选择分组
-                  </option>
-                  {mode === 'edit' &&
-                    current &&
-                    !groups.some((group) => group.id === current.groupId) && (
-                      <option value={current.groupId} disabled>
-                        {current.groupName}（授权已撤回）
-                      </option>
-                    )}
-                  {groups.map((group) => (
-                    <option key={group.id} value={group.id}>
-                      {group.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+              <Controller
+                name="groupId"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field label="分组" required error={fieldState.error?.message}>
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                      placeholder="选择分组"
+                      disabled={groupsQuery.isLoading || fieldsDisabled}
+                      items={[
+                        ...(mode === 'edit' &&
+                        current &&
+                        !groups.some((group) => group.id === current.groupId)
+                          ? [
+                              {
+                                value: current.groupId,
+                                label: `${current.groupName}（授权已撤回）`,
+                                disabled: true,
+                              },
+                            ]
+                          : []),
+                        ...groups.map((group) => ({ value: group.id, label: group.name })),
+                      ]}
+                    />
+                  </Field>
+                )}
+              />
             )}
             {groupsQuery.isLoading && (
               <p role="status" className="text-sm text-[var(--color-muted-foreground)]">

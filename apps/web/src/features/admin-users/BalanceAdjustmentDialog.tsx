@@ -1,3 +1,4 @@
+import { Select } from '../../shared/ui/Select';
 import { formatConsumptionUsd, formatWalletUsd } from '../../shared/lib/money';
 import { useEffect, useRef, useState } from 'react';
 import type { UserListItem } from '@cheapai/api-client/users';
@@ -204,15 +205,16 @@ export function BalanceAdjustmentDialog({
           <>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="操作类型" required>
-                <select
+                <Select
                   value={activeIntent?.input.kind ?? kind}
-                  onChange={(event) => setKind(event.currentTarget.value as typeof kind)}
+                  onValueChange={(nextValue) => setKind(nextValue as typeof kind)}
                   disabled={busy || locked || activeIntent !== null}
                   className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm"
-                >
-                  <option value="grant">授额（正数）</option>
-                  <option value="adjustment">余额调整（可正可负）</option>
-                </select>
+                  items={[
+                    { value: 'grant', label: <>授额（正数）</> },
+                    { value: 'adjustment', label: <>余额调整（可正可负）</> },
+                  ]}
+                />
               </Field>
               <Field label="金额（USD）" required description="最多 8 位小数。">
                 <Input

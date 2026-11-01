@@ -1,3 +1,4 @@
+import { TextLink } from '../../shared/ui/TextLink';
 import { useId, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
@@ -250,13 +251,13 @@ export function ChannelSetup({
         {progress.creationUncertain && (
           <div role="alert" className="space-y-2 text-sm">
             <p>{uncertainChannelCreationMessage}</p>
-            <a href="/admin/channels" target="_blank" rel="noreferrer" className="underline">
+            <TextLink href="/admin/channels" target="_blank" rel="noreferrer" className="underline">
               在新标签页核对渠道
-            </a>
+            </TextLink>
             {' · '}
-            <a href="/admin/audit" target="_blank" rel="noreferrer" className="underline">
+            <TextLink href="/admin/audit" target="_blank" rel="noreferrer" className="underline">
               查看审计记录
-            </a>
+            </TextLink>
           </div>
         )}
         {validationError && (

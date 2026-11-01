@@ -1,3 +1,4 @@
+import { Select } from '../../shared/ui/Select';
 import { Button } from '../../shared/ui/Button';
 import { useEffect, useMemo, useState } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
@@ -239,19 +240,19 @@ export function BillingPage() {
         </Button>
         <label className="grid gap-2 console-label">
           类型
-          <select
+          <Select
             aria-label="费用类型"
             value={kindDraft}
-            onChange={(event) => setKindDraft(event.currentTarget.value as BillingKind | '')}
+            onValueChange={(nextValue) => setKindDraft(nextValue as BillingKind | '')}
             className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
-          >
-            <option value="">全部类型</option>
-            {billingKindSchema.options.map((value) => (
-              <option key={value} value={value}>
-                {kindLabels[value]}
-              </option>
-            ))}
-          </select>
+            items={[
+              { value: '', label: <>全部类型</> },
+              ...billingKindSchema.options.map((value) => ({
+                value: value,
+                label: <>{kindLabels[value]}</>,
+              })),
+            ]}
+          />
         </label>
         <Button type="submit" variant="secondary">
           筛选

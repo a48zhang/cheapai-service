@@ -1,3 +1,4 @@
+import { Disclosure } from '../../shared/ui/Disclosure';
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
@@ -161,15 +162,18 @@ export default function UserDetailPage() {
               <dd className="mt-1">{formatDateTime(profile.updated_at)}</dd>
             </div>
           </dl>
-          <details className="mt-5 border-t border-[var(--color-border)] pt-4">
-            <summary className="cursor-pointer console-muted">技术信息</summary>
+          <Disclosure
+            className="mt-5 border-t border-[var(--color-border)] pt-4"
+            title={<>技术信息</>}
+            triggerClassName="cursor-pointer console-muted"
+          >
             <dl className="mt-4 grid gap-4 sm:grid-cols-2">
               <div>
                 <dt className="console-label">用户 ID</dt>
                 <dd className="mt-1 break-all font-mono text-sm select-all">{profile.id}</dd>
               </div>
             </dl>
-          </details>
+          </Disclosure>
         </section>
         <nav aria-label="用户相关记录" className="mt-4 flex flex-wrap gap-3">
           <Button asChild variant="outline">

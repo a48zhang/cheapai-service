@@ -1,3 +1,4 @@
+import { Disclosure } from '../ui/Disclosure';
 import { CircleAlert } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { CopyButton } from '../ui/CopyButton';
@@ -28,16 +29,17 @@ export function ApiErrorNotice({
           {message}
         </p>
         {requestId && (
-          <details className="text-sm text-[var(--color-muted-foreground)]">
-            <summary className="w-fit cursor-pointer rounded focus-visible:outline-2 focus-visible:outline-[var(--color-ring)]">
-              查看请求信息
-            </summary>
+          <Disclosure
+            className="text-sm text-[var(--color-muted-foreground)]"
+            title={<>查看请求信息</>}
+            triggerClassName="w-fit cursor-pointer rounded focus-visible:outline-2 focus-visible:outline-[var(--color-ring)]"
+          >
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <span>请求编号</span>
               <code className="break-all">{requestId}</code>
               <CopyButton value={requestId} label="复制编号" />
             </div>
-          </details>
+          </Disclosure>
         )}
         {onRetry && (
           <Button variant="outline" size="sm" onClick={onRetry}>

@@ -40,10 +40,7 @@
   margin-left: auto;
   gap: 12px;
 }
-.home-content-tabs {
-  max-width: 952px;
-  margin: 24px auto 0;
-}
+
 .home-login {
   font-size: 14px;
   color: var(--color-ink-muted);
@@ -154,24 +151,11 @@
   grid-template-columns: 1fr 2fr;
   gap: 32px;
 }
-.home-faq details {
+.home-faq-item {
   padding: 16px 0;
   border-bottom: 1px solid var(--color-line);
 }
-.home-faq summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  list-style: none;
-  font-weight: 500;
-}
-.home-faq summary::-webkit-details-marker {
-  display: none;
-}
-.home-faq summary svg {
-  width: 16px;
-}
+
 .home-footer {
   display: flex;
   flex-wrap: wrap;
@@ -188,9 +172,6 @@
   margin-left: auto;
 }
 @media (max-width: 767px) {
-  .home-content-tabs {
-    margin: 16px 20px 0;
-  }
   .home-header-inner {
     padding: 0 12px;
     gap: 12px;
@@ -329,11 +310,7 @@
   text-align: center;
   color: var(--color-ink-muted);
 }
-@media (min-width: 768px) and (max-width: 1000px) {
-  .home-content-tabs {
-    margin-inline: 24px;
-  }
-}
+
 @media (max-width: 900px) {
   .home-model-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -355,14 +332,7 @@
   justify-content: space-between;
   gap: 20px;
 }
-.home-agent-preparation {
-  margin: 0 0 24px;
-  max-width: 780px;
-  font-size: 14px;
-  line-height: 1.8;
-  color: var(--color-ink-muted);
-}
-.home-agent-preparation a,
+
 .home-agent-verification a {
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -411,23 +381,7 @@
   flex-direction: column;
   gap: 16px;
 }
-.home-agent-shell {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 12px;
-  font-size: 13px;
-  color: var(--color-ink-muted);
-}
-.home-agent-shell select {
-  min-height: 36px;
-  border: 1px solid var(--color-line);
-  border-radius: 6px;
-  padding: 4px 8px;
-  background: var(--color-surface);
-  color: var(--color-ink);
-}
+
 .home-code-header {
   gap: 12px;
   flex-wrap: wrap;
@@ -465,10 +419,7 @@
   border-top: 1px solid var(--color-line);
   padding-top: 20px;
 }
-.home-agent-help summary {
-  cursor: pointer;
-  font-size: 14px;
-}
+
 @media (max-width: 767px) {
   .home-agent-heading {
     align-items: flex-start;
@@ -482,10 +433,32 @@
   .home-agent-tabs {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .home-agent-shell {
-    justify-content: flex-start;
-  }
+
   .home-header-actions > a:last-of-type {
     display: none;
+  }
+}
+
+.home-desktop-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.home-desktop-nav a {
+  color: var(--color-ink-muted);
+}
+.home-desktop-nav a[aria-current='page'] {
+  color: var(--color-ink);
+  background: var(--color-surface-subtle);
+}
+.home-menu-toggle {
+  display: none;
+}
+@media (max-width: 900px) {
+  .home-desktop-nav {
+    display: none;
+  }
+  .home-menu-toggle {
+    display: block;
   }
 }

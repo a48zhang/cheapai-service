@@ -1,3 +1,4 @@
+import { Disclosure } from '../../shared/ui/Disclosure';
 import type { AuditEntry } from '@cheapai/contracts/audit';
 import { Sheet } from '../../shared/ui/Sheet';
 import { formatDateTime } from '../../shared/lib/datetime';
@@ -132,10 +133,11 @@ export function AuditChangesSheet({
           ) : (
             <p className="text-[var(--color-ink-secondary)]">此记录的变更内容不可用</p>
           )}
-          <details className="border-t border-[var(--color-border)] pt-4">
-            <summary className="cursor-pointer text-sm text-[var(--color-ink-secondary)]">
-              原始记录
-            </summary>
+          <Disclosure
+            className="border-t border-[var(--color-border)] pt-4"
+            title={<>原始记录</>}
+            triggerClassName="cursor-pointer text-sm text-[var(--color-ink-secondary)]"
+          >
             <dl className="mt-4 grid gap-3 text-sm">
               {[
                 ['记录 ID', entry.id],
@@ -153,7 +155,7 @@ export function AuditChangesSheet({
             <pre className="mt-4 overflow-auto rounded-lg bg-[var(--color-surface-subtle)] p-4 whitespace-pre-wrap break-words text-sm">
               {JSON.stringify(entry.changes, null, 2)}
             </pre>
-          </details>
+          </Disclosure>
         </div>
       )}
     </Sheet>

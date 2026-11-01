@@ -1,3 +1,5 @@
+import { Disclosure } from '../../shared/ui/Disclosure';
+import { Select } from '../../shared/ui/Select';
 import { useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
@@ -76,17 +78,18 @@ export default function BillingPage() {
           />
         </Field>
         <Field label="类型">
-          <select
+          <Select
             name="kind"
             defaultValue={filters.kind ?? ''}
             className="h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3"
-          >
-            <option value="">全部</option>
-            <option value="consumption">模型消费</option>
-            <option value="image_generation">图片生成</option>
-            <option value="grant">授额</option>
-            <option value="adjustment">余额调整</option>
-          </select>
+            items={[
+              { value: '', label: <>全部</> },
+              { value: 'consumption', label: <>模型消费</> },
+              { value: 'image_generation', label: <>图片生成</> },
+              { value: 'grant', label: <>授额</> },
+              { value: 'adjustment', label: <>余额调整</> },
+            ]}
+          />
         </Field>
         <Button type="submit" variant="secondary">
           筛选
@@ -100,13 +103,12 @@ export default function BillingPage() {
         >
           重置
         </Button>
-        <details
+        <Disclosure
           className="basis-full border-t border-[var(--color-border)] pt-4"
-          open={Boolean(filters.userId || filters.requestId)}
+          defaultOpen={Boolean(filters.userId || filters.requestId)}
+          title={<>更多筛选</>}
+          triggerClassName="cursor-pointer text-sm font-medium text-[var(--color-ink-secondary)]"
         >
-          <summary className="cursor-pointer text-sm font-medium text-[var(--color-ink-secondary)]">
-            更多筛选
-          </summary>
           <div className="mt-4 flex flex-wrap gap-4">
             <Field label="用户 ID">
               <Input name="userId" defaultValue={filters.userId} />
@@ -115,7 +117,7 @@ export default function BillingPage() {
               <Input name="requestId" defaultValue={filters.requestId} />
             </Field>
           </div>
-        </details>
+        </Disclosure>
       </form>
       {(filterError || query.error) && (
         <ApiErrorNotice

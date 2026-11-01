@@ -1,40 +1,71 @@
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
-const catalog = { items: [
-  { kind: 'text', id: 'gpt-5', prices: { input: '1.25', output: '10', cacheRead: '0.125' } },
-  { kind: 'text', id: 'claude-sonnet-4-6', prices: { input: '3', output: '15' } },
-  { kind: 'text', id: 'deepseek-chat', prices: { input: '0.28', output: '0.42' } },
-  { kind: 'text', id: 'custom/provider-with-a-long-model-name-for-testing', prices: { input: '0', output: '0.00000001' } },
-  { kind: 'image', id: 'image-demo', name: 'GPT Image', price: '0.04000000' },
-] };
+const catalog = {
+  items: [
+    { kind: 'text', id: 'gpt-5', prices: { input: '1.25', output: '10', cacheRead: '0.125' } },
+    { kind: 'text', id: 'claude-sonnet-4-6', prices: { input: '3', output: '15' } },
+    { kind: 'text', id: 'deepseek-chat', prices: { input: '0.28', output: '0.42' } },
+    {
+      kind: 'text',
+      id: 'custom/provider-with-a-long-model-name-for-testing',
+      prices: { input: '0', output: '0.00000001' },
+    },
+    { kind: 'image', id: 'image-demo', name: 'GPT Image', price: '0.04000000' },
+  ],
+};
 const envelope = (data: unknown) => JSON.stringify({ data, request_id: 'catalog-test' });
 
 async function publicHome(page: Page) {
-  await page.route('**/api/v1/**', route => route.fulfill({ status: 503, body: 'Unavailable' }));
+  await page.route('**/api/v1/**', (route) => route.fulfill({ status: 503, body: 'Unavailable' }));
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
-      value: { writeText: async (value: string) => { (window as unknown as { copied: string }).copied = value; } },
+      value: {
+        writeText: async (value: string) => {
+          (window as unknown as { copied: string }).copied = value;
+        },
+      },
     });
   });
 }
 
 for (const width of [320, 375, 1440]) {
-  test(`public catalog emphasizes exact prices and supports search at ${width}px`, async ({ page }, testInfo) => {
+  test(`public catalog emphasizes exact prices and supports search at ${width}px`, async ({
+    page,
+  }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });
     await publicHome(page);
     let requests = 0;
-    await page.route('**/api/v1/catalog/models', route => {
+    await page.route('**/api/v1/catalog/models', (route) => {
       requests++;
       return route.fulfill({ contentType: 'application/json', body: envelope(catalog) });
     });
     await page.goto('/');
-    const tabs = page.getByRole('tablist', { name: '首页内容' });
-    await expect(tabs.getByRole('tab')).toHaveText(['开始使用', '模型目录']);
+    const banner = page.getByRole('banner');
+    await expect(page.getByRole('tablist', { name: '首页内容' })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: '对话与 API 接入' })).toBeVisible();
     expect(requests).toBe(0);
-    await tabs.getByRole('tab', { name: '模型目录' }).click();
+    if (width < 900) {
+      await banner.getByRole('button', { name: '打开导航' }).click();
+      await expect(page.getByRole('menuitem')).toHaveText([
+        '产品',
+        '模型目录',
+        'Agent 接入',
+        '常见问题',
+      ]);
+      await page.getByRole('menuitem', { name: '模型目录', exact: true }).click();
+      await expect(page.getByRole('menu')).toHaveCount(0);
+    } else {
+      const navigation = banner.getByRole('navigation', { name: '首页导航' });
+      await expect(navigation.getByRole('link')).toHaveText([
+        '产品',
+        '模型目录',
+        'Agent 接入',
+        '常见问题',
+      ]);
+      await navigation.getByRole('link', { name: '模型目录' }).click();
+    }
     await expect(page).toHaveURL(/#models$/);
     const directory = page.getByRole('region', { name: '模型目录' });
     await expect(directory.getByRole('article')).toHaveCount(5);
@@ -47,20 +78,31 @@ for (const width of [320, 375, 1440]) {
     await expect(gpt).toContainText('缓存读取 $0.125');
     const tiny = directory.getByRole('article', { name: /custom\/provider/ });
     await expect(tiny.locator('dd')).toHaveText(['$0', '$0.00000001']);
-    expect(await tiny.locator('dd').last().evaluate(element => {
-      const range = document.createRange();
-      range.selectNodeContents(element);
-      return range.getClientRects().length;
-    })).toBe(1);
+    expect(
+      await tiny
+        .locator('dd')
+        .last()
+        .evaluate((element) => {
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          return range.getClientRects().length;
+        }),
+    ).toBe(1);
     const image = directory.getByRole('article', { name: 'GPT Image', exact: true });
     await expect(image).toContainText('USD / 张');
     await expect(image.locator('dd')).toHaveText('$0.04');
     await expect(image.getByRole('link', { name: '去生图' })).toHaveAttribute('href', '/images');
-    await expect(directory).not.toContainText(/最大输出|上下文窗口|contextWindow|max_output_tokens/);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await expect(directory).not.toContainText(
+      /最大输出|上下文窗口|contextWindow|max_output_tokens/,
+    );
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
     await page.screenshot({ path: testInfo.outputPath('catalog.png'), fullPage: true });
     await gpt.getByRole('button', { name: '复制模型 ID' }).click();
-    expect(await page.evaluate(() => (window as unknown as { copied: string }).copied)).toBe('gpt-5');
+    expect(await page.evaluate(() => (window as unknown as { copied: string }).copied)).toBe(
+      'gpt-5',
+    );
     await directory.getByRole('searchbox', { name: '搜索模型' }).fill('  CLAUDE ');
     await expect(directory.getByRole('article')).toHaveCount(1);
     await expect(directory.getByRole('article')).toHaveAccessibleName('claude-sonnet-4-6');
@@ -71,24 +113,37 @@ for (const width of [320, 375, 1440]) {
   });
 }
 
-test('catalog deep links, keyboard tabs and overview anchors survive reload and history', async ({ page }) => {
+test('header navigation, catalog deep links and overview anchors survive reload and history', async ({
+  page,
+}) => {
   await publicHome(page);
-  await page.route('**/api/v1/catalog/models', route => route.fulfill({ contentType: 'application/json', body: envelope(catalog) }));
+  await page.route('**/api/v1/catalog/models', (route) =>
+    route.fulfill({ contentType: 'application/json', body: envelope(catalog) }),
+  );
   await page.goto('/#models');
-  const tabs = page.getByRole('tablist', { name: '首页内容' });
-  await expect(tabs.getByRole('tab', { name: '模型目录' })).toHaveAttribute('aria-selected', 'true');
+  const navigation = page.getByRole('banner').getByRole('navigation', { name: '首页导航' });
+  await expect(navigation.getByRole('link', { name: '模型目录' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
   await expect(page.getByRole('article', { name: 'gpt-5', exact: true })).toBeVisible();
-  await page.getByRole('link', { name: '跳到主要内容' }).focus();
+  await page.getByRole('button', { name: '跳到主要内容' }).focus();
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/#models$/);
   await expect(page.getByRole('main')).toBeFocused();
   await page.reload();
-  await expect(tabs.getByRole('tab', { name: '模型目录' })).toHaveAttribute('aria-selected', 'true');
-  await tabs.getByRole('tab', { name: '模型目录' }).focus();
-  await page.keyboard.press('ArrowLeft');
+  await expect(navigation.getByRole('link', { name: '模型目录' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  await navigation.getByRole('link', { name: '产品', exact: true }).focus();
+  await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { name: '对话与 API 接入' })).toBeVisible();
   await page.goBack();
-  await expect(tabs.getByRole('tab', { name: '模型目录' })).toHaveAttribute('aria-selected', 'true');
+  await expect(navigation.getByRole('link', { name: '模型目录' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
   await page.getByRole('link', { name: 'Agent 接入指南', exact: true }).click();
   await expect(page).toHaveURL(/#agent-tools$/);
   const guide = page.getByRole('region', { name: '把常用 Agent 接入 CheapAI' });
@@ -99,9 +154,11 @@ test('catalog deep links, keyboard tabs and overview anchors survive reload and 
 test('catalog distinguishes loading, failure, retry and empty inventory', async ({ page }) => {
   await publicHome(page);
   let release!: () => void;
-  const pending = new Promise<void>(resolve => { release = resolve; });
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
   let requests = 0;
-  await page.route('**/api/v1/catalog/models', async route => {
+  await page.route('**/api/v1/catalog/models', async (route) => {
     requests++;
     if (requests === 1) {
       await pending;
@@ -122,9 +179,12 @@ test('catalog distinguishes loading, failure, retry and empty inventory', async 
 
 test('invalid prices are unavailable rather than displayed as free', async ({ page }) => {
   await publicHome(page);
-  await page.route('**/api/v1/catalog/models', route => route.fulfill({ contentType: 'application/json', body: envelope({ items: [
-    { kind: 'text', id: 'missing-price', prices: { input: '0' } },
-  ] }) }));
+  await page.route('**/api/v1/catalog/models', (route) =>
+    route.fulfill({
+      contentType: 'application/json',
+      body: envelope({ items: [{ kind: 'text', id: 'missing-price', prices: { input: '0' } }] }),
+    }),
+  );
   await page.goto('/#models');
   await expect(page.getByRole('alert')).toContainText('模型与价格暂时加载失败');
   await expect(page.getByRole('article')).toHaveCount(0);

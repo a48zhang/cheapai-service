@@ -1,3 +1,5 @@
+import { Disclosure } from '../../shared/ui/Disclosure';
+import { Select } from '../../shared/ui/Select';
 import { useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
@@ -88,25 +90,25 @@ export default function AuditPage() {
           <Input name="actorId" defaultValue={filters.actorId} maxLength={128} />
         </Field>
         <Field label="操作类型">
-          <select
+          <Select
             name={customAction ? undefined : 'action'}
             defaultValue={customAction ? '__custom' : (filters.action ?? '')}
             className="min-h-10 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[15px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
-            onChange={(event) =>
+            onValueChange={(nextValue) =>
               setActionChoice({
                 search: params.toString(),
-                custom: event.target.value === '__custom',
+                custom: nextValue === '__custom',
               })
             }
-          >
-            <option value="">全部操作</option>
-            {Object.entries(auditActionLabels).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-            <option value="__custom">其他操作类型</option>
-          </select>
+            items={[
+              { value: '', label: <>全部操作</> },
+              ...Object.entries(auditActionLabels).map(([value, label]) => ({
+                value: value,
+                label: <>{label}</>,
+              })),
+              { value: '__custom', label: <>其他操作类型</> },
+            ]}
+          />
         </Field>
         {customAction && (
           <Field label="其他操作类型">
@@ -149,13 +151,12 @@ export default function AuditPage() {
             清空
           </Button>
         </div>
-        <details
+        <Disclosure
           className="sm:col-span-2 2xl:col-span-4 border-t border-[var(--color-border)] pt-4"
-          open={Boolean(filters.targetType || filters.targetId || filters.operationId)}
+          defaultOpen={Boolean(filters.targetType || filters.targetId || filters.operationId)}
+          title={<>更多筛选</>}
+          triggerClassName="cursor-pointer text-sm font-medium text-[var(--color-ink-secondary)]"
         >
-          <summary className="cursor-pointer text-sm font-medium text-[var(--color-ink-secondary)]">
-            更多筛选
-          </summary>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             {textFields
               .filter((field) => field.key !== 'actorId' && field.key !== 'action')
@@ -165,7 +166,7 @@ export default function AuditPage() {
                 </Field>
               ))}
           </div>
-        </details>
+        </Disclosure>
       </form>
       {(error || query.error) && (
         <ApiErrorNotice

@@ -1,3 +1,5 @@
+import { Disclosure } from '../../shared/ui/Disclosure';
+import { Select } from '../../shared/ui/Select';
 import { useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
@@ -89,48 +91,47 @@ export default function RequestsPage() {
         >
           重置
         </Button>
-        <details
+        <Disclosure
           className="basis-full border-t border-[var(--color-border)] pt-4"
-          open={Boolean(filters.userId || filters.status || filters.billingStatus)}
+          defaultOpen={Boolean(filters.userId || filters.status || filters.billingStatus)}
+          title={<>更多筛选</>}
+          triggerClassName="cursor-pointer text-sm font-medium text-[var(--color-ink-secondary)]"
         >
-          <summary className="cursor-pointer text-sm font-medium text-[var(--color-ink-secondary)]">
-            更多筛选
-          </summary>
           <div className="mt-4 flex flex-wrap gap-4">
             <Field label="用户 ID">
               <Input name="userId" defaultValue={filters.userId} />
             </Field>
 
             <Field label="执行状态">
-              <select
+              <Select
                 name="status"
                 defaultValue={filters.status ?? ''}
                 className="h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3"
-              >
-                <option value="">全部</option>
-                {executionStatusSchema.options.map((status) => (
-                  <option key={status} value={status}>
-                    {executionLabels[status].label}
-                  </option>
-                ))}
-              </select>
+                items={[
+                  { value: '', label: <>全部</> },
+                  ...executionStatusSchema.options.map((status) => ({
+                    value: status,
+                    label: <>{executionLabels[status].label}</>,
+                  })),
+                ]}
+              />
             </Field>
             <Field label="计费状态">
-              <select
+              <Select
                 name="billingStatus"
                 defaultValue={filters.billingStatus ?? ''}
                 className="h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3"
-              >
-                <option value="">全部</option>
-                {billingStatusSchema.options.map((status) => (
-                  <option key={status} value={status}>
-                    {billingLabels[status].label}
-                  </option>
-                ))}
-              </select>
+                items={[
+                  { value: '', label: <>全部</> },
+                  ...billingStatusSchema.options.map((status) => ({
+                    value: status,
+                    label: <>{billingLabels[status].label}</>,
+                  })),
+                ]}
+              />
             </Field>
           </div>
-        </details>
+        </Disclosure>
       </form>
       {(filterError || query.error) && (
         <ApiErrorNotice

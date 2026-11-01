@@ -1,3 +1,4 @@
+import { Disclosure } from '../../shared/ui/Disclosure';
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocation, useParams } from 'react-router-dom';
@@ -146,15 +147,18 @@ export function ChannelDetailPage() {
                 <dd className="mt-1 text-sm">{formatDateTime(channel.updatedAt)}</dd>
               </div>
             </dl>
-            <details className="mt-6 border-t border-[var(--color-border)] pt-4">
-              <summary className="cursor-pointer console-muted">技术信息</summary>
+            <Disclosure
+              className="mt-6 border-t border-[var(--color-border)] pt-4"
+              title={<>技术信息</>}
+              triggerClassName="cursor-pointer console-muted"
+            >
               <dl className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div>
                   <dt className="console-label">渠道 ID</dt>
                   <dd className="mt-1 break-all font-mono text-sm select-all">{channel.id}</dd>
                 </div>
               </dl>
-            </details>
+            </Disclosure>
           </section>
 
           <div

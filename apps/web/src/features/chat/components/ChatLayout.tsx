@@ -1,3 +1,4 @@
+import { TextLink } from '../../../shared/ui/TextLink';
 import { useState, type ReactNode } from 'react';
 import { PanelLeft, PanelLeftClose, SquarePen } from 'lucide-react';
 import { useDesktopNavigation } from '../../../shared/patterns/NavigationState';
@@ -27,12 +28,12 @@ export function ChatLayout({
   return (
     <AppShell
       skipLink={
-        <a
+        <TextLink
           href="#chat-content"
           className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-[var(--color-surface)] focus:p-4"
         >
           跳到对话内容
-        </a>
+        </TextLink>
       }
       open={desktopOpen}
       className="chat-workspace"

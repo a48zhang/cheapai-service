@@ -1,3 +1,4 @@
+import { TextLink } from '../../shared/ui/TextLink';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CopyButton } from '../../shared/ui/CopyButton';
@@ -116,7 +117,7 @@ export function ImageResultCard({
               }
               footer={
                 <Button asChild variant="outline">
-                  <a href={imageContentUrl(job.id, true)}>下载原图</a>
+                  <TextLink href={imageContentUrl(job.id, true)}>下载原图</TextLink>
                 </Button>
               }
             >
@@ -129,10 +130,10 @@ export function ImageResultCard({
           )}
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline" size="sm">
-              <a href={imageContentUrl(job.id, true)}>
+              <TextLink href={imageContentUrl(job.id, true)}>
                 <Download size={16} aria-hidden="true" />
                 下载图片
-              </a>
+              </TextLink>
             </Button>
           </div>
         </>

@@ -1,3 +1,4 @@
+import { Disclosure } from '../../shared/ui/Disclosure';
 import { useState } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -163,17 +164,23 @@ export function RequestDetailPage() {
                 <strong className="block break-words">
                   {errorSummary[item.error.code] ?? '请求未能完成'}
                 </strong>
-                <details className="mt-2 text-sm">
-                  <summary className="cursor-pointer">服务返回信息</summary>
+                <Disclosure
+                  className="mt-2 text-sm"
+                  title={<>服务返回信息</>}
+                  triggerClassName="cursor-pointer"
+                >
                   <p className="mb-0 mt-2 break-words">{item.error.message}</p>
                   <p className="mb-0 mt-1 break-all font-mono">{item.error.code}</p>
-                </details>
+                </Disclosure>
               </div>
             )}
           </section>
 
-          <details className="console-panel p-4 sm:p-5">
-            <summary className="console-section-title cursor-pointer">技术详情</summary>
+          <Disclosure
+            className="console-panel p-4 sm:p-5"
+            title={<>技术详情</>}
+            triggerClassName="console-section-title cursor-pointer"
+          >
             <div className="mt-4 space-y-4">
               <dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
                 <div>
@@ -243,17 +250,24 @@ export function RequestDetailPage() {
                 )}
               </dl>
             </div>
-          </details>
+          </Disclosure>
 
-          <details className="console-panel p-4 sm:p-5" open>
-            <summary className="console-section-title cursor-pointer">Token 用量</summary>
+          <Disclosure
+            className="console-panel p-4 sm:p-5"
+            defaultOpen
+            title={<>Token 用量</>}
+            triggerClassName="console-section-title cursor-pointer"
+          >
             <div className="mt-4">
               <UsageBreakdown usage={item.usage} usageValid={item.usage_valid} />
             </div>
-          </details>
+          </Disclosure>
 
-          <details className="console-panel p-4 sm:p-5">
-            <summary className="console-section-title cursor-pointer">价格快照</summary>
+          <Disclosure
+            className="console-panel p-4 sm:p-5"
+            title={<>价格快照</>}
+            triggerClassName="console-section-title cursor-pointer"
+          >
             <PriceSnapshot
               className="mt-4"
               snapshot={item.price_snapshot}
@@ -261,7 +275,7 @@ export function RequestDetailPage() {
               costUnits={item.cost_units}
               billingStatus={item.billing_status}
             />
-          </details>
+          </Disclosure>
         </div>
       )}
     </section>

@@ -367,7 +367,7 @@ test('a dropped diagnostic request is unconfirmed and never fabricates an upstre
   expect(fixture.unexpected).toEqual([]);
 });
 
-test('closing during a diagnostic requires an explicit browser confirmation', async ({ page }) => {
+test('closing during a diagnostic uses the shared confirmation dialog', async ({ page }) => {
   const fixture = await installAdminFixtures(page);
   fixture.mode = 'hold';
   const started = new Promise<void>((resolve) => {
@@ -383,17 +383,25 @@ test('closing during a diagnostic requires an explicit browser confirmation', as
   await panel.getByRole('button', { name: '运行诊断', exact: true }).click();
   await started;
 
-  page.once('dialog', async (dialog) => {
-    expect(dialog.type()).toBe('confirm');
-    expect(dialog.message()).toContain('诊断仍在进行');
-    await dialog.accept();
+  const browserDialogs: string[] = [];
+  page.on('dialog', async (dialog) => {
+    browserDialogs.push(dialog.type());
+    await dialog.dismiss();
   });
   await panel.getByRole('button', { name: '关闭', exact: true }).click();
+  const confirmation = page.getByRole('dialog', { name: '关闭正在进行的诊断？' });
+  await expect(confirmation).toBeVisible();
+  await confirmation.getByRole('button', { name: '继续等待', exact: true }).click();
+  await expect(confirmation).toBeHidden();
+  await expect(panel).toBeVisible();
+  await panel.getByRole('button', { name: '关闭', exact: true }).click();
+  await confirmation.getByRole('button', { name: '仍要关闭', exact: true }).click();
   await expect(panel).toBeHidden();
   fixture.releaseProbe?.();
   await finished;
   expect(fixture.probes).toHaveLength(1);
   expect(fixture.unexpected).toEqual([]);
+  expect(browserDialogs).toEqual([]);
 });
 
 test('凭证修复从渠道列表和详情直接打开配置页签并保存', async ({ page }) => {

@@ -1,3 +1,4 @@
+import { Select } from '../../shared/ui/Select';
 import { KeyRound, MoreHorizontal, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -193,18 +194,15 @@ export function KeyTable({
           API 密钥
         </h2>
         <div className="flex items-center gap-2">
-          <select
+          <Select
             aria-label="密钥状态"
             value={state}
-            onChange={(event) => setState(event.currentTarget.value as KeyState)}
+            onValueChange={(nextValue) => setState(nextValue as KeyState)}
             className="min-h-10 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
-          >
-            {keyStates.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            items={[
+              ...keyStates.map((option) => ({ value: option.value, label: <>{option.label}</> })),
+            ]}
+          />
           <Button
             variant="outline"
             size="sm"

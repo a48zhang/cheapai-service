@@ -1,3 +1,4 @@
+import { Disclosure } from '../../shared/ui/Disclosure';
 import { BILLABLE_BUCKETS } from '@cheapai/api-client/models';
 import { Field } from '../../shared/ui/Field';
 import { Input } from '../../shared/ui/Input';
@@ -54,8 +55,12 @@ export function PriceFields({ value, errors = {}, disabled = false, onChange }: 
           />
         </Field>
       ))}
-      <details className="sm:col-span-2" open={Object.values(errors).some(Boolean) || undefined}>
-        <summary className="cursor-pointer font-medium">缓存与推理价格</summary>
+      <Disclosure
+        className="sm:col-span-2"
+        expandWhen={Object.values(errors).some(Boolean)}
+        title={<>缓存与推理价格</>}
+        triggerClassName="cursor-pointer font-medium"
+      >
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           {BILLABLE_BUCKETS.filter((bucket) => bucket !== 'input' && bucket !== 'output').map(
             (bucket) => (
@@ -74,7 +79,7 @@ export function PriceFields({ value, errors = {}, disabled = false, onChange }: 
             ),
           )}
         </div>
-      </details>
+      </Disclosure>
     </fieldset>
   );
 }

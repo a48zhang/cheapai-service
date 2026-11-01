@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
@@ -83,9 +84,8 @@ function dateInputEpoch(container: HTMLElement, name: 'from' | 'to'): number | u
 
 async function assertFilterKeepsDateRange(container: HTMLElement, filterName: 'model' | 'action') {
   if (filterName === 'action') {
-    fireEvent.change(screen.getByRole('combobox', { name: '操作类型' }), {
-      target: { value: '__custom' },
-    });
+    await userEvent.setup().click(screen.getByRole('combobox', { name: '操作类型' }));
+    await userEvent.setup().click(screen.getByRole('option', { name: '其他操作类型' }));
   }
   const filter = container.querySelector<HTMLInputElement>(`input[name="${filterName}"]`);
   if (!filter) throw new Error(`Missing ${filterName} filter input.`);

@@ -1,3 +1,4 @@
+import { TextLink } from '../../../shared/ui/TextLink';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
@@ -28,7 +29,7 @@ const components: Components = {
       destination.origin !== 'https://cheapai.invalid' &&
       (destination.protocol === 'http:' || destination.protocol === 'https:');
     return (
-      <a
+      <TextLink
         className="break-words text-[var(--color-primary)] underline underline-offset-2 hover:opacity-80"
         href={safeHref}
         rel={external ? 'noopener noreferrer' : undefined}
@@ -36,7 +37,7 @@ const components: Components = {
         title={title}
       >
         {children}
-      </a>
+      </TextLink>
     );
   },
   code({ className, children }) {
