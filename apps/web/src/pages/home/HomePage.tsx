@@ -1,27 +1,11 @@
 import { ThemePicker } from '@cheapai/theme';
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, ArrowUpRight, Check, Copy, Menu, Plus, X } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Plus } from 'lucide-react';
 import { BrandLink } from '../../shared/ui/BrandLink';
 import { Button } from '../../shared/ui/Button';
 import { useSession } from '../../features/session/useSession';
+import { AgentGuides } from './AgentGuides';
 import './home.css';
-
-const example = `from openai import OpenAI
-
-client = OpenAI(
-    base_url="https://YOUR_DOMAIN/v1",
-    api_key="YOUR_API_KEY",
-)
-
-response = client.chat.completions.create(
-    model="YOUR_MODEL",
-    messages=[
-        {"role": "user", "content": "帮我整理这段代码的改进建议。"}
-    ],
-)
-
-print(response.choices[0].message.content)`;
 
 const questions = [
   [
@@ -44,18 +28,6 @@ const questions = [
 
 export default function HomePage() {
   const { isAuthenticated } = useSession();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
-
-  async function copyExample() {
-    try {
-      await navigator.clipboard.writeText(example);
-      setCopyState('copied');
-    } catch {
-      setCopyState('failed');
-    }
-  }
-
   return (
     <div className="home-page">
       <a className="home-skip" href="#home-main">
@@ -64,11 +36,6 @@ export default function HomePage() {
       <header className="home-header">
         <div className="home-header-inner">
           <BrandLink className="home-brand" />
-          <nav aria-label="首页导航" className="home-desktop-nav">
-            <a href="#possibilities">产品</a>
-            <a href="#developers">开发者</a>
-            <a href="#questions">常见问题</a>
-          </nav>
           <div className="home-header-actions">
             <ThemePicker />
             <Link className="home-login" to={isAuthenticated ? '/keys' : '/login?returnTo=%2Fchat'}>
@@ -81,43 +48,8 @@ export default function HomePage() {
                 <ArrowUpRight size={15} aria-hidden="true" />
               </Link>
             </Button>
-            <button
-              type="button"
-              className="home-menu-toggle"
-              aria-label={menuOpen ? '关闭导航' : '打开导航'}
-              aria-expanded={menuOpen}
-              aria-controls="home-mobile-nav"
-              onClick={() => setMenuOpen(!menuOpen)}
-            >
-              {menuOpen ? <X size={22} /> : <Menu size={22} />}
-            </button>
           </div>
         </div>
-        {menuOpen && (
-          <nav
-            id="home-mobile-nav"
-            aria-label="移动端首页导航"
-            className="home-mobile-nav"
-            onClick={() => setMenuOpen(false)}
-          >
-            <a href="#possibilities">
-              产品
-              <ArrowUpRight size={16} />
-            </a>
-            <a href="#developers">
-              开发者
-              <ArrowUpRight size={16} />
-            </a>
-            <a href="#questions">
-              常见问题
-              <ArrowUpRight size={16} />
-            </a>
-            <Link to="/chat">
-              开始对话
-              <ArrowUpRight size={16} />
-            </Link>
-          </nav>
-        )}
       </header>
 
       <main id="home-main">
@@ -134,9 +66,9 @@ export default function HomePage() {
                 </Link>
               </Button>
               <Button asChild variant="outline">
-                <Link to="/keys">
-                  API 接入 <ArrowUpRight size={18} aria-hidden="true" />
-                </Link>
+                <a href="#agent-tools">
+                  接入 Agent <ArrowUpRight size={18} aria-hidden="true" />
+                </a>
               </Button>
             </div>
           </div>
@@ -173,49 +105,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section id="developers" className="home-developers" aria-labelledby="developers-title">
-          <div className="home-developer-inner">
-            <div className="home-developer-copy">
-              <h2 id="developers-title">用熟悉的方式接入模型</h2>
-              <p>兼容常用 API 协议。配置接口地址、密钥和模型，即可在现有应用中开始调用。</p>
-              <Button asChild variant="outline">
-                <Link to="/keys">
-                  获取 API Key
-                  <ArrowUpRight size={17} aria-hidden="true" />
-                </Link>
-              </Button>
-              <div className="home-protocols">
-                <span>Chat Completions</span>
-                <span>Responses</span>
-                <span>Messages</span>
-              </div>
-              <p className="home-developer-note">具体能力以所选模型和平台配置为准。</p>
-            </div>
-            <div className="home-code-panel">
-              <div className="home-code-header">
-                <span>
-                  <span className="home-code-dot" /> quickstart.py
-                </span>
-                <button
-                  type="button"
-                  onClick={() => void copyExample()}
-                  aria-label="复制 Python 示例"
-                >
-                  {copyState === 'copied' ? <Check size={15} /> : <Copy size={15} />}
-                  <span>{copyState === 'copied' ? '已复制' : '复制'}</span>
-                </button>
-              </div>
-              <pre tabIndex={0} aria-label="Python API 接入示例">
-                <code>{example}</code>
-              </pre>
-              <div className="home-code-footer" role="status">
-                {copyState === 'failed'
-                  ? '未能复制，请选中上方代码手动复制。'
-                  : '将域名、API Key 和模型替换为你的实际配置。'}
-              </div>
-            </div>
-          </div>
-        </section>
+        <AgentGuides />
 
         <section id="questions" className="home-section home-faq" aria-labelledby="faq-title">
           <div>
@@ -240,6 +130,7 @@ export default function HomePage() {
         <nav aria-label="页脚导航">
           <Link to="/chat">对话</Link>
           <Link to="/keys">API 接入</Link>
+          <a href="#agent-tools">Agent 接入指南</a>
           <a href="#questions">常见问题</a>
         </nav>
         <span>© {new Date().getFullYear()} CheapAI</span>
