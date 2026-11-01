@@ -190,7 +190,7 @@ function ImageWorkspace() {
           </Button>
         </div>
         <p className="mt-3 text-xs leading-6 text-[var(--color-muted-foreground)]">
-          {model ? `每张 ${formatConsumptionUsd(model.priceUnits)} USD · 生成成功后扣费。` : ''}{' '}
+          {model ? `每张 ${formatConsumptionUsd(model.priceUnits)} 积分 · 生成成功后扣费。` : ''}{' '}
           {work.pending ? '可以继续编辑下一条描述。' : 'Ctrl / ⌘ + Enter 生成；Enter 换行。'}
         </p>
         {work.models.isPending && (

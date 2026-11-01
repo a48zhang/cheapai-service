@@ -1,4 +1,4 @@
-import { formatUsdPerMillionTokens } from '../lib/model-price';
+import { formatCreditsPerMillionTokens } from '../lib/model-price';
 import './model-display.css';
 
 export function ModelPrice({
@@ -14,8 +14,8 @@ export function ModelPrice({
   compact?: boolean;
   className?: string;
 }) {
-  const inputPrice = formatUsdPerMillionTokens(input, multiplier);
-  const outputPrice = formatUsdPerMillionTokens(output, multiplier);
+  const inputPrice = formatCreditsPerMillionTokens(input, multiplier);
+  const outputPrice = formatCreditsPerMillionTokens(output, multiplier);
   const short = (price: string) =>
     price === '价格暂不可用' ? '—' : price.replace(' / 百万 Token', '/m');
   return (

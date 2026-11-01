@@ -183,7 +183,7 @@ export default function ImageModelsPage() {
               />
             </div>
             <Field
-              label="单张售价（USD）"
+              label="单张售价（积分）"
               required
               description="所有选中尺寸采用此售价，再乘访问组倍率。"
             >

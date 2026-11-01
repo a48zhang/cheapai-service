@@ -23,7 +23,7 @@ import { StatusBadge } from '../../shared/ui/StatusBadge';
 
 function balance(value: string): string {
   try {
-    return `${formatWalletUsd(value)} USD`;
+    return `${formatWalletUsd(value)} 积分`;
   } catch {
     return '余额暂不可显示';
   }

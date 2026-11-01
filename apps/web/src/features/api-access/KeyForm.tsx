@@ -1,6 +1,6 @@
 import { Controller } from 'react-hook-form';
 import { Select } from '../../shared/ui/Select';
-import { formatUsdPerMillionTokens } from '../../shared/lib/model-price';
+import { formatCreditsPerMillionTokens } from '../../shared/lib/model-price';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { Button } from '../../shared/ui/Button';
 import { Dialog } from '../../shared/ui/Dialog';
@@ -197,12 +197,12 @@ export function KeyForm(props: KeyFormProps) {
                           <code>{model}</code>
                           <span className="text-sm text-[var(--color-muted-foreground)]">
                             输入{' '}
-                            {formatUsdPerMillionTokens(
+                            {formatCreditsPerMillionTokens(
                               prices?.input,
                               selectedGroup.billingMultiplier,
                             )}
                             {' · '}输出{' '}
-                            {formatUsdPerMillionTokens(
+                            {formatCreditsPerMillionTokens(
                               prices?.output,
                               selectedGroup.billingMultiplier,
                             )}

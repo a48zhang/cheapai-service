@@ -36,7 +36,7 @@ export function requestCostLabel(
 ): string {
   if (item.cost_units === null) return missingCostLabels[item.billing_status];
   try {
-    return `${formatConsumptionUsd(item.cost_units)} USD`;
+    return `${formatConsumptionUsd(item.cost_units)} 积分`;
   } catch {
     return '费用未知';
   }

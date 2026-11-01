@@ -152,11 +152,11 @@ export default function ModelDetailPage({ createMode = false }: { createMode?: b
               </dd>
             </div>
             <div>
-              <dt className="console-muted">输入价格 · USD / 百万 Token</dt>
+              <dt className="console-muted">输入价格 · 积分 / 百万 Token</dt>
               <dd className="mt-1 console-number">{model.sellPrices.input}</dd>
             </div>
             <div>
-              <dt className="console-muted">输出价格 · USD / 百万 Token</dt>
+              <dt className="console-muted">输出价格 · 积分 / 百万 Token</dt>
               <dd className="mt-1 console-number">{model.sellPrices.output}</dd>
             </div>
           </dl>
@@ -164,7 +164,7 @@ export default function ModelDetailPage({ createMode = false }: { createMode?: b
             ([bucket, rate]) => bucket !== 'input' && bucket !== 'output' && rate != null,
           ) && (
             <div className="mt-5 border-t border-[var(--color-border)] pt-4">
-              <h2 className="font-medium">缓存与推理价格 · USD / 百万 Token</h2>
+              <h2 className="font-medium">缓存与推理价格 · 积分 / 百万 Token</h2>
               <dl className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {Object.entries(model.sellPrices)
                   .filter(

@@ -74,11 +74,11 @@ for (const width of [320, 375, 1440]) {
     await expect(directory.getByRole('combobox', { name: '公开分组' })).toContainText('标准组');
     const gpt = directory.getByRole('article', { name: 'gpt-5', exact: true });
     await expect(gpt.locator('dt')).toHaveText(['输入', '输出']);
-    await expect(gpt.locator('dd')).toHaveText(['$1.25', '$10']);
-    await expect(gpt).toContainText('USD / 百万 Token');
-    await expect(gpt).toContainText('缓存读取 $0.125');
+    await expect(gpt.locator('dd')).toHaveText(['1.25', '10']);
+    await expect(gpt).toContainText('积分 / 百万 Token');
+    await expect(gpt).toContainText('缓存读取 0.125 积分');
     const tiny = directory.getByRole('article', { name: /custom\/provider/ });
-    await expect(tiny.locator('dd')).toHaveText(['$0', '$0.00000001']);
+    await expect(tiny.locator('dd')).toHaveText(['0', '0.00000001']);
     expect(
       await tiny
         .locator('dd')
@@ -90,8 +90,8 @@ for (const width of [320, 375, 1440]) {
         }),
     ).toBe(1);
     const image = directory.getByRole('article', { name: 'GPT Image', exact: true });
-    await expect(image).toContainText('USD / 张');
-    await expect(image.locator('dd')).toHaveText('$0.04');
+    await expect(image).toContainText('积分 / 张');
+    await expect(image.locator('dd')).toHaveText('0.04');
     await expect(image.getByRole('link', { name: '去生图' })).toHaveAttribute('href', '/images');
     await expect(directory).not.toContainText(
       /最大输出|上下文窗口|contextWindow|max_output_tokens/,
@@ -205,10 +205,10 @@ test('group selection changes inventory and effective prices and survives URL hi
   await page.getByRole('option', { name: '折扣组', exact: true }).click();
   await expect(page).toHaveURL(/models\?group=discount$/);
   await expect(page.getByRole('article')).toHaveCount(1);
-  await expect(page.getByRole('article').locator('dd')).toHaveText(['$0.125', '$1']);
+  await expect(page.getByRole('article').locator('dd')).toHaveText(['0.125', '1']);
   await page.reload();
   await expect(page.getByRole('combobox', { name: '公开分组' })).toContainText('折扣组');
-  await expect(page.getByRole('article').locator('dd')).toHaveText(['$0.125', '$1']);
+  await expect(page.getByRole('article').locator('dd')).toHaveText(['0.125', '1']);
   await page.goBack();
   await expect(page.getByRole('combobox', { name: '公开分组' })).toContainText('标准组');
   await expect(page.getByRole('article')).toHaveCount(5);

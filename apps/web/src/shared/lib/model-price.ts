@@ -5,8 +5,8 @@ function groupedInteger(value: string): string {
   return value.replace(/\B(?=(\d{3})+(?!\d))/gu, ',');
 }
 
-/** Formats an exact USD amount without rounding small prices to zero. */
-export function formatUsdAmount(
+/** Formats an exact price amount without rounding small prices to zero. */
+export function formatPriceAmount(
   basePrice: string | undefined,
   billingMultiplier: string | undefined = '1',
 ): string {
@@ -15,15 +15,15 @@ export function formatUsdAmount(
   const [whole = '0', fraction] = effectivePrice.split('.');
   const amount =
     fraction === undefined ? groupedInteger(whole) : `${groupedInteger(whole)}.${fraction}`;
-  return `$${amount}`;
+  return amount;
 }
 
-/** Formats an exact effective USD rate per million tokens without using floating point. */
-export function formatUsdPerMillionTokens(
+/** Formats an exact effective credit rate per million tokens without using floating point. */
+export function formatCreditsPerMillionTokens(
   basePrice: string | undefined,
   billingMultiplier: string | undefined,
 ): string {
   if (billingMultiplier === undefined) return '价格暂不可用';
-  const amount = formatUsdAmount(basePrice, billingMultiplier);
-  return amount === '价格暂不可用' ? amount : `${amount} / 百万 Token`;
+  const amount = formatPriceAmount(basePrice, billingMultiplier);
+  return amount === '价格暂不可用' ? amount : `${amount} 积分 / 百万 Token`;
 }

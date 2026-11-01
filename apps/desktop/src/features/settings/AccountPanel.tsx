@@ -158,7 +158,7 @@ function stateExpiry(state: DesktopPublicAccountState): number | null {
 function formatBalance(value: string): string {
   if (!/^(?:0|-?[1-9][0-9]*)$/u.test(value)) return '金额未知'
   try {
-    return `${formatWalletUsd(value)} USD`
+    return `${formatWalletUsd(value)} 积分`
   } catch {
     return '金额未知'
   }

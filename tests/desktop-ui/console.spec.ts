@@ -69,7 +69,7 @@ test('bundled desktop console uses native transport for groups, accounts, images
             currency: 'USD',
             decimals: 8,
             balance_units: '100000000',
-            balance_usd: '1',
+            balance_usd: '1.00000000',
           });
         if (['/api/v1/keys', '/api/v1/billing/entries', '/api/v1/usage/requests'].includes(path))
           return reply({ items: [], nextCursor: null });
@@ -124,7 +124,8 @@ test('bundled desktop console uses native transport for groups, accounts, images
   await expect(frame.getByText('gpt-native', { exact: true })).toBeVisible();
   await frame.getByRole('combobox', { name: '公开分组' }).click();
   await frame.getByRole('option', { name: '优惠组', exact: true }).click();
-  await expect(frame.getByText('$0.5', { exact: true })).toBeVisible();
+  await expect(frame.getByText('0.5', { exact: true })).toBeVisible();
+  await expect(frame.getByText('积分 / 百万 Token', { exact: true })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('desktop-catalog.png'), fullPage: true });
   await frame
     .getByRole('navigation', { name: '个人导航' })
@@ -140,6 +141,7 @@ test('bundled desktop console uses native transport for groups, accounts, images
   await frame.getByRole('button', { name: '生成图片', exact: true }).click();
   const preview = frame.getByRole('button', { name: '放大预览图片' });
   await expect(preview).toBeVisible();
+  await expect(frame.getByText('已扣费 0.05 积分', { exact: true })).toBeVisible();
   await expect(preview.locator('img')).toHaveJSProperty('naturalWidth', 1);
   await page.screenshot({ path: testInfo.outputPath('desktop-images.png'), fullPage: true });
   await preview.click();
@@ -161,6 +163,7 @@ test('bundled desktop console uses native transport for groups, accounts, images
     .getByRole('link', { name: '费用' })
     .click();
   await expect(frame.getByRole('heading', { name: '费用', exact: true })).toBeVisible();
+  await expect(frame.getByText('1.00 积分', { exact: true })).toBeVisible();
   await frame
     .getByRole('navigation', { name: '个人导航' })
     .getByRole('link', { name: '使用记录' })

@@ -274,7 +274,7 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
   await page.goto(`/admin/users/${encodeURIComponent(adminIdentity.id)}`);
   await page.getByRole('button', { name: '调整余额' }).click();
   const grantDialog = page.getByRole('dialog');
-  await grantDialog.getByRole('textbox', { name: '金额（USD）' }).fill('1.00');
+  await grantDialog.getByRole('textbox', { name: '金额（积分）' }).fill('1.00');
   await grantDialog.getByRole('textbox', { name: '调整原因' }).fill(grantReason);
   const grantResponsePromise = page.waitForResponse(
     (response) =>
@@ -291,7 +291,7 @@ test('管理员配置资源、管理用户余额并调查异常请求', async ({
     .getByRole('term')
     .filter({ hasText: /^余额$/u })
     .locator('xpath=following-sibling::dd');
-  await expect(adminBalance).toHaveText('1.00 USD');
+  await expect(adminBalance).toHaveText('1.00 积分');
 
   await page.goto('/keys');
   await page.getByRole('button', { name: '创建密钥', exact: true }).click();

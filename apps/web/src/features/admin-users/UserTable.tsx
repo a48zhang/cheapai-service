@@ -73,7 +73,7 @@ export function UserTable({
       {
         id: 'balance_units',
         accessorKey: 'balance_units',
-        header: '余额（USD）',
+        header: '余额（积分）',
         meta: { align: 'right', numeric: true },
         cell: ({ row }) => (
           <span className="block whitespace-nowrap text-right console-number">

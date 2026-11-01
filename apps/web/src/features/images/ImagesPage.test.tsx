@@ -130,7 +130,7 @@ describe('image generation interaction', () => {
     expect(textbox).toHaveValue(prompt);
     expect(screen.getByRole('combobox', { name: '生图模型' })).toHaveTextContent('Other model');
     expect(screen.getByRole('combobox', { name: '图片尺寸' })).toHaveTextContent('1536 × 1024');
-    expect(screen.getByText(/每张 0.1 USD/)).toBeVisible();
+    expect(screen.getByText(/每张 0.1 积分/)).toBeVisible();
     await user.click(screen.getByRole('button', { name: '撤销复用' }));
     expect(textbox).toHaveValue('未发送的草稿');
     await user.click(screen.getByRole('button', { name: '复用参数' }));

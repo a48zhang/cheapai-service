@@ -88,7 +88,7 @@ export function BillingTable({
     },
     {
       id: 'amount',
-      header: '金额变化（USD）',
+      header: '金额变化（积分）',
       size: 180,
       meta: { align: 'right', numeric: true },
       cell: ({ row }) => (
@@ -199,7 +199,7 @@ export function BillingTable({
     },
     {
       id: 'amount',
-      header: '余额变动（USD）',
+      header: '余额变动（积分）',
       size: 180,
       meta: { align: 'right', numeric: true },
       cell: ({ row }) => (
@@ -236,9 +236,9 @@ export function BillingTable({
                   <span className="font-medium">{kindLabels[entry.kind]}</span>
                   <span
                     className="console-number font-semibold"
-                    aria-label={`余额变动 ${amountLabel(entry.deltaUnits, true)} USD`}
+                    aria-label={`余额变动 ${amountLabel(entry.deltaUnits, true)} 积分`}
                   >
-                    {amountLabel(entry.deltaUnits, true)} USD
+                    {amountLabel(entry.deltaUnits, true)} 积分
                   </span>
                 </div>
                 {entry.modelId && <p className="break-all text-sm">{entry.modelId}</p>}

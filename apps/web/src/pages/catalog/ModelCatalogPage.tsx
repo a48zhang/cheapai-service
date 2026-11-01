@@ -4,7 +4,7 @@ import { ImageIcon, Search } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useSession } from '../../features/session/useSession';
 import { catalogGroupsQuery, catalogModelsQuery } from '../../features/model-catalog/api';
-import { formatUsdAmount } from '../../shared/lib/model-price';
+import { formatPriceAmount } from '../../shared/lib/model-price';
 import { Button } from '../../shared/ui/Button';
 import { CopyButton } from '../../shared/ui/CopyButton';
 import { Input } from '../../shared/ui/Input';
@@ -30,29 +30,31 @@ function ModelCard({ model }: { model: CatalogModel }) {
         </div>
       </div>
       <div className="home-model-pricing">
-        <p className="home-model-unit">{model.kind === 'text' ? 'USD / 百万 Token' : 'USD / 张'}</p>
+        <p className="home-model-unit">
+          {model.kind === 'text' ? '积分 / 百万 Token' : '积分 / 张'}
+        </p>
         <dl className="home-model-rates">
           {model.kind === 'text' ? (
             <>
               <div>
                 <dt>输入</dt>
-                <dd>{formatUsdAmount(model.prices.input)}</dd>
+                <dd>{formatPriceAmount(model.prices.input)}</dd>
               </div>
               <div>
                 <dt>输出</dt>
-                <dd>{formatUsdAmount(model.prices.output)}</dd>
+                <dd>{formatPriceAmount(model.prices.output)}</dd>
               </div>
             </>
           ) : (
             <div>
               <dt>生成一张</dt>
-              <dd>{formatUsdAmount(model.price)}</dd>
+              <dd>{formatPriceAmount(model.price)}</dd>
             </div>
           )}
         </dl>
         {model.kind === 'text' && model.prices.cacheRead !== undefined && (
           <p className="home-model-cache">
-            缓存读取 {formatUsdAmount(model.prices.cacheRead)} / 百万 Token
+            缓存读取 {formatPriceAmount(model.prices.cacheRead)} 积分 / 百万 Token
           </p>
         )}
       </div>

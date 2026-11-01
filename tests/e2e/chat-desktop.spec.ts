@@ -147,8 +147,8 @@ test('desktop model search preserves group identity, shows effective prices, and
   await dialog.getByRole('textbox', { name: '搜索模型' }).fill('不存在的模型');
   await dialog.getByRole('textbox', { name: '搜索模型' }).fill('优惠组');
   const choice = dialog.getByRole('button', { name: /flagship-pro 优惠组/ });
-  await expect(choice).toContainText('读 $0.5/m');
-  await expect(choice).toContainText('写 $2/m');
+  await expect(choice).toContainText('读 0.5 积分/m');
+  await expect(choice).toContainText('写 2 积分/m');
   await choice.click();
   await expect(dialog).toBeHidden();
   await expect(trigger).toBeFocused();

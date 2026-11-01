@@ -19,27 +19,17 @@ interface AmountProps {
   readonly label: string;
   readonly wallet?: boolean;
   readonly units?: string | undefined;
-  readonly currency: string;
   readonly loading: boolean;
   readonly error?: unknown;
   readonly onRetry: () => void;
   readonly description?: string | undefined;
 }
 
-function Amount({
-  label,
-  units,
-  currency,
-  loading,
-  error,
-  onRetry,
-  wallet,
-  description,
-}: AmountProps) {
+function Amount({ label, units, loading, error, onRetry, wallet, description }: AmountProps) {
   let amount: string | null = null;
   if (units !== undefined) {
     try {
-      amount = `${wallet ? formatWalletUsd(units) : formatConsumptionUsd(units)} ${currency}`;
+      amount = `${wallet ? formatWalletUsd(units) : formatConsumptionUsd(units)} 积分`;
     } catch {
       amount = null;
     }
@@ -105,7 +95,6 @@ export function BillingSummary({
         label="当前余额"
         wallet
         units={balance?.balance_units}
-        currency={balance?.currency ?? 'USD'}
         loading={balanceLoading}
         error={balanceError}
         onRetry={onRetryBalance}
@@ -114,7 +103,6 @@ export function BillingSummary({
         label="期间消费（已结算）"
         description={periodLabel}
         units={summary?.consumptionUnits}
-        currency={summary?.currency ?? 'USD'}
         loading={summaryLoading}
         error={summaryError}
         onRetry={onRetrySummary}

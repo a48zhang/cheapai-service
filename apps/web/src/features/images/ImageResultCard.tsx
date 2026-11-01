@@ -73,9 +73,9 @@ export function ImageResultCard({
         <span>
           {job.status === 'completed'
             ? job.billingStatus === 'settled'
-              ? `已扣费 ${formatConsumptionUsd(job.priceUnits)} USD`
-              : `费用确认中 · ${formatConsumptionUsd(job.priceUnits)} USD`
-            : `单张 ${formatConsumptionUsd(job.priceUnits)} USD`}
+              ? `已扣费 ${formatConsumptionUsd(job.priceUnits)} 积分`
+              : `费用确认中 · ${formatConsumptionUsd(job.priceUnits)} 积分`
+            : `单张 ${formatConsumptionUsd(job.priceUnits)} 积分`}
         </span>
       </div>
       {job.status === 'generating' ? (
