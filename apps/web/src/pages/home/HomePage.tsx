@@ -1,7 +1,7 @@
+import { RouteButton } from '../../shared/ui/RouteButton';
 import { useEffect } from 'react';
-import { Link, Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { ArrowRight, ArrowUpRight } from 'lucide-react';
-import { Button } from '../../shared/ui/Button';
 import { Disclosure } from '../../shared/ui/Disclosure';
 import { AgentGuides } from './AgentGuides';
 
@@ -47,16 +47,12 @@ export default function HomePage() {
             选择可用模型开始对话，或在自己的应用中调用 API。用量与费用统一在控制台查看。
           </p>
           <div className="home-hero-actions">
-            <Button asChild variant="outline">
-              <Link to="/chat">
-                开始对话 <ArrowRight size={18} aria-hidden="true" />
-              </Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link to="/#agent-tools">
-                接入 Agent <ArrowUpRight size={18} aria-hidden="true" />
-              </Link>
-            </Button>
+            <RouteButton variant="outline" to="/chat">
+              开始对话 <ArrowRight size={18} aria-hidden="true" />
+            </RouteButton>
+            <RouteButton variant="outline" to="/#agent-tools">
+              接入 Agent <ArrowUpRight size={18} aria-hidden="true" />
+            </RouteButton>
           </div>
         </div>
       </section>
@@ -67,7 +63,7 @@ export default function HomePage() {
           <p>日常对话与 API 调用，共用一个账户。</p>
         </div>
         <div className="home-products">
-          <Link className="home-product" to="/chat">
+          <RouteButton className="home-product" to="/chat">
             <div className="home-product-title">
               <h3>网页对话</h3>
               <ArrowUpRight size={25} aria-hidden="true" />
@@ -77,8 +73,8 @@ export default function HomePage() {
               开始对话
               <ArrowRight size={16} aria-hidden="true" />
             </span>
-          </Link>
-          <Link className="home-product" to="/keys">
+          </RouteButton>
+          <RouteButton className="home-product" to="/keys">
             <div className="home-product-title">
               <h3>API 接入</h3>
               <ArrowUpRight size={25} aria-hidden="true" />
@@ -88,7 +84,7 @@ export default function HomePage() {
               前往 API 接入
               <ArrowRight size={16} aria-hidden="true" />
             </span>
-          </Link>
+          </RouteButton>
         </div>
       </section>
 

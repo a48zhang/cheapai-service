@@ -1,5 +1,46 @@
 import { expect, test, type Page } from '@playwright/test';
 
+for (const width of [375, 1440]) {
+  test(`chat and console share navigation and restore the conversation at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    await fixture(page);
+    await page.route('**/api/v1/catalog/groups', route => route.fulfill({ json: { data: { items: [{ id: 'standard', name: '标准组' }] }, request_id: 'nav' } }));
+    await page.route('**/api/v1/catalog/models?*', route => route.fulfill({ json: { data: { items: [] }, request_id: 'nav' } }));
+    await page.goto('/chat/A');
+    await expect(page.getByRole('textbox', { name: '消息内容' })).toBeEnabled();
+    async function menu() {
+      if (width < 768) await page.getByRole('button', { name: '打开导航', exact: true }).click();
+      return page.getByRole('navigation', { name: '个人导航', exact: true });
+    }
+    const expected = ['对话', '生图', '模型目录', 'API 接入', '费用', '使用记录'];
+    const chatMenu = await menu();
+    await expect(chatMenu.getByRole('button')).toHaveText(expected);
+    const itemStyle = await chatMenu.getByRole('button', { name: 'API 接入' }).evaluate(el => {
+      const style = getComputedStyle(el); return [style.height, style.padding, style.gap, style.fontSize];
+    });
+    await page.screenshot({ path: testInfo.outputPath(`chat-menu-${width}.png`), fullPage: true });
+    await chatMenu.getByRole('button', { name: 'API 接入' }).click();
+    await expect(page).toHaveURL(/\/keys$/);
+    await expect(page.getByRole('heading', { name: 'API 接入', exact: true })).toBeVisible();
+    const consoleMenu = await menu();
+    await expect(consoleMenu.getByRole('button')).toHaveText(expected);
+    expect(await consoleMenu.getByRole('button', { name: 'API 接入' }).evaluate(el => {
+      const style = getComputedStyle(el); return [style.height, style.padding, style.gap, style.fontSize];
+    })).toEqual(itemStyle);
+    await consoleMenu.getByRole('button', { name: '对话' }).click();
+    await expect(page).toHaveURL(/\/chat\/A$/);
+    await (await menu()).getByRole('button', { name: '模型目录' }).click();
+    await expect(page).toHaveURL(/\/console\/models$/);
+    await page.reload();
+    await expect(page.getByRole('region', { name: '模型目录', exact: true })).toBeVisible();
+    await expect((await menu()).getByRole('button', { name: '模型目录' })).toHaveAttribute('aria-current', 'page');
+    await page.screenshot({ path: testInfo.outputPath(`console-menu-${width}.png`), fullPage: true });
+    await page.goBack();
+    await expect(page).toHaveURL(/\/chat\/A$/);
+    if (width < 768) await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
+}
+
 // Isolated browser fixtures only. No demo data is included in application code.
 async function fixture(page: Page) {
   const now = 1_700_000_000_000;
@@ -85,7 +126,7 @@ for (const width of [1440, 375])
     const input = page.getByRole('textbox', { name: '消息内容' });
     await input.fill('留在对话 A 的草稿');
     const openSidebar = async () => {
-      if (width === 375) await page.getByRole('button', { name: '打开聊天记录' }).click();
+      if (width === 375) await page.getByRole('button', { name: '打开导航' }).click();
     };
     await openSidebar();
     const history = page.getByRole('navigation', { name: '历史对话' });
@@ -121,7 +162,7 @@ for (const width of [1440, 375])
 
 for (const width of [1440, 375]) {
   for (const { route, label, target } of [
-    { route: '/chat/A', label: '跳到对话内容', target: '#chat-content' },
+    { route: '/chat/A', label: '跳到主要内容', target: '#chat-content' },
     { route: '/keys', label: '跳到主要内容', target: '#main-content' },
   ]) {
     test(`skip link is first and focuses content on ${route} at ${width}px`, async ({ page }) => {
@@ -132,7 +173,7 @@ for (const width of [1440, 375]) {
       await expect(main).toBeVisible();
       const bounds = await main.boundingBox();
       await page.keyboard.press('Tab');
-      const skip = page.getByRole('link', { name: label, exact: true });
+      const skip = page.getByRole('button', { name: label, exact: true });
       await expect(skip).toBeFocused();
       await expect(skip).toBeInViewport();
       // Revealing the shortcut must not displace the grid or its content.

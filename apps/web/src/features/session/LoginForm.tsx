@@ -20,6 +20,7 @@ export function LoginForm({ onSuccess }: { onSuccess?: () => void }) {
   } = useForm<z.infer<typeof schema>>({ resolver: zodResolver(schema) });
   return (
     <form
+      noValidate
       className="space-y-5"
       onSubmit={handleSubmit(async (input) => {
         try {

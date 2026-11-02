@@ -72,6 +72,7 @@ export function Composer({
 
   return (
     <form
+      noValidate
       aria-label="发送消息"
       className="chat-composer"
       onSubmit={handleSubmit}

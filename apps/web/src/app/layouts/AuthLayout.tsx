@@ -1,6 +1,7 @@
+import { AsyncState } from '../../shared/patterns/AsyncState';
 import { ThemePicker } from '@cheapai/theme';
 import { Outlet } from 'react-router-dom';
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 import { BrandLink } from '../../shared/ui/BrandLink';
 
 export function AuthLayout({ children }: { children?: ReactNode }) {
@@ -12,7 +13,9 @@ export function AuthLayout({ children }: { children?: ReactNode }) {
       </header>
       <main className="flex flex-1 items-center justify-center px-5 pb-20">
         <section className="w-full max-w-md rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 shadow-sm">
-          {children ?? <Outlet />}
+          <Suspense fallback={<AsyncState status="loading" loadingLabel="正在加载页面…" />}>
+            {children ?? <Outlet />}
+          </Suspense>
         </section>
       </main>
     </div>

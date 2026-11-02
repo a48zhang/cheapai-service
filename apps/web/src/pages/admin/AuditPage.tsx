@@ -1,3 +1,4 @@
+import { DateInput } from '../../shared/ui/DateInput';
 import { Disclosure } from '../../shared/ui/Disclosure';
 import { Select } from '../../shared/ui/Select';
 import { useState } from 'react';
@@ -82,6 +83,7 @@ export default function AuditPage() {
     <section className="space-y-5">
       <PageHeader heading="管理审计" />
       <form
+        noValidate
         key={params.toString()}
         className="grid items-end gap-4 console-panel sm:grid-cols-2 2xl:grid-cols-4"
         onSubmit={applyFilters}
@@ -121,20 +123,10 @@ export default function AuditPage() {
           </Field>
         )}
         <Field label="开始时间">
-          <Input
-            name="from"
-            type="datetime-local"
-            step="0.001"
-            defaultValue={formatLocalDateTime(filters.from, true)}
-          />
+          <DateInput name="from" defaultValue={formatLocalDateTime(filters.from, true)} />
         </Field>
         <Field label="结束时间">
-          <Input
-            name="to"
-            type="datetime-local"
-            step="0.001"
-            defaultValue={formatLocalDateTime(filters.to, true)}
-          />
+          <DateInput name="to" defaultValue={formatLocalDateTime(filters.to, true)} />
         </Field>
         <div className="flex flex-wrap gap-2 sm:col-span-2 2xl:col-span-4">
           <Button type="submit" variant="secondary">

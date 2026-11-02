@@ -1,11 +1,10 @@
+import { RouteButton } from '../../shared/ui/RouteButton';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { ArrowUpRight } from 'lucide-react';
 import { agentGuides } from '../../features/api-access/agent-guides';
 import { Disclosure } from '../../shared/ui/Disclosure';
 import { TextLink } from '../../shared/ui/TextLink';
 import { Tabs } from '../../shared/ui/Tabs';
-import { Button } from '../../shared/ui/Button';
 import { CopyButton } from '../../shared/ui/CopyButton';
 
 export function AgentGuides() {
@@ -19,11 +18,9 @@ export function AgentGuides() {
             <h2 id="agents-title">把常用 Agent 接入 CheapAI</h2>
             <p>选择你正在用的工具，按步骤配置地址、密钥和模型。</p>
           </div>
-          <Button asChild variant="outline">
-            <Link to="/keys">
-              创建 API Key <ArrowUpRight size={16} aria-hidden="true" />
-            </Link>
-          </Button>
+          <RouteButton variant="outline" to="/keys">
+            创建 API Key <ArrowUpRight size={16} aria-hidden="true" />
+          </RouteButton>
         </div>
         <Tabs
           value={tool}
@@ -69,11 +66,9 @@ export function AgentGuides() {
                   <h4>确认接入成功</h4>
                   <p>
                     {guide.verification}{' '}
-                    <Button asChild variant="ghost" size="sm">
-                      <Link to="/requests">
-                        查看使用记录 <ArrowUpRight size={14} aria-hidden="true" />
-                      </Link>
-                    </Button>
+                    <RouteButton variant="ghost" size="sm" to="/requests">
+                      查看使用记录 <ArrowUpRight size={14} aria-hidden="true" />
+                    </RouteButton>
                   </p>
                 </div>
               </div>

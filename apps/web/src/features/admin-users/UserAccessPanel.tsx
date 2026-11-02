@@ -211,6 +211,7 @@ export function UserAccessPanel({
           </div>
         ) : (
           <form
+            noValidate
             id="admin-user-key-revoke"
             className="space-y-4"
             onSubmit={(event) => {

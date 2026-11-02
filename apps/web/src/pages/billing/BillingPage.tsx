@@ -1,8 +1,11 @@
+import { RouteButton } from '../../shared/ui/RouteButton';
+import { Field } from '../../shared/ui/Field';
+import { DateInput } from '../../shared/ui/DateInput';
 import { Select } from '../../shared/ui/Select';
 import { Button } from '../../shared/ui/Button';
 import { useEffect, useMemo, useState } from 'react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { billingKindSchema } from '@cheapai/contracts/billing';
 import type { BillingKind } from '@cheapai/contracts/billing';
 import {
@@ -182,6 +185,7 @@ export function BillingPage() {
         汇总包含所选日期内的全部对话、API 与生图消费；类型和请求筛选仅作用于下方明细。
       </p>
       <form
+        noValidate
         className="flex flex-wrap items-end gap-3 console-panel p-5"
         aria-label="费用筛选"
         onSubmit={(event) => {
@@ -191,25 +195,21 @@ export function BillingPage() {
       >
         <fieldset className="flex min-w-0 flex-wrap items-end gap-3 border-0 p-0">
           <legend className="sr-only">日期范围</legend>
-          <label className="grid gap-2 console-label">
-            开始日期
-            <input
-              type="date"
+          <Field label="开始日期">
+            <DateInput
+              mode="date"
               value={dateDraft.startDate}
-              onChange={(event) => updateDate('startDate', event.currentTarget.value)}
-              className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
+              onValueChange={(value) => updateDate('startDate', value)}
             />
-          </label>
+          </Field>
           <span className="pb-3 text-sm text-[var(--color-ink-muted)]">至</span>
-          <label className="grid gap-2 console-label">
-            结束日期
-            <input
-              type="date"
+          <Field label="结束日期">
+            <DateInput
+              mode="date"
               value={dateDraft.endDate}
-              onChange={(event) => updateDate('endDate', event.currentTarget.value)}
-              className="min-h-11 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-[15px]"
+              onValueChange={(value) => updateDate('endDate', value)}
             />
-          </label>
+          </Field>
         </fieldset>
         <Button
           variant="outline"
@@ -298,12 +298,12 @@ export function BillingPage() {
       )}
       {query.isSuccess && rows.length === 0 && !hasActiveFilters && (
         <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline">
-            <Link to="/chat">开始对话</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link to="/images">生成图片</Link>
-          </Button>
+          <RouteButton variant="outline" to="/chat">
+            开始对话
+          </RouteButton>
+          <RouteButton variant="outline" to="/images">
+            生成图片
+          </RouteButton>
         </div>
       )}
     </section>

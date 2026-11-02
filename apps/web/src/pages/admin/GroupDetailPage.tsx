@@ -1,7 +1,8 @@
+import { RouteButton } from '../../shared/ui/RouteButton';
 import { Disclosure } from '../../shared/ui/Disclosure';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import type { GroupView } from '@cheapai/api-client/groups';
 import { channelOptionsQueryOptions } from '../../shared/catalog/channel-options';
 import { useSession } from '../../features/session/useSession';
@@ -41,9 +42,9 @@ export function GroupDetailPage() {
     return (
       <section className="space-y-6">
         <PageHeader heading="访问组详情" description="访问组 ID 不存在。" />
-        <Button asChild variant="outline">
-          <Link to="/admin/groups">返回访问组列表</Link>
-        </Button>
+        <RouteButton variant="outline" to="/admin/groups">
+          返回访问组列表
+        </RouteButton>
       </section>
     );
   }
@@ -67,9 +68,9 @@ export function GroupDetailPage() {
             void query.refetch();
           }}
         />
-        <Button asChild variant="outline">
-          <Link to="/admin/groups">返回访问组列表</Link>
-        </Button>
+        <RouteButton variant="outline" to="/admin/groups">
+          返回访问组列表
+        </RouteButton>
       </section>
     );
   }
@@ -87,9 +88,9 @@ export function GroupDetailPage() {
           }}
           retryLabel="重新读取"
         />
-        <Button asChild variant="outline">
-          <Link to="/admin/groups">返回访问组列表</Link>
-        </Button>
+        <RouteButton variant="outline" to="/admin/groups">
+          返回访问组列表
+        </RouteButton>
       </section>
     );
   }
@@ -101,9 +102,9 @@ export function GroupDetailPage() {
         heading={createMode ? '创建访问组' : (group?.name ?? groupId)}
         actions={
           <>
-            <Button asChild variant="outline">
-              <Link to="/admin/groups">返回访问组列表</Link>
-            </Button>
+            <RouteButton variant="outline" to="/admin/groups">
+              返回访问组列表
+            </RouteButton>
             {group && !editing && <Button onClick={() => setEditing(true)}>编辑访问组</Button>}
           </>
         }
@@ -154,14 +155,14 @@ export function GroupDetailPage() {
             <h2 className="font-medium">关联渠道</h2>
             <div className="mt-3 flex flex-wrap gap-2">
               {group.channelIds.map((channelId) => (
-                <Link
+                <RouteButton
                   className="rounded-md bg-[var(--color-muted)] px-3 py-2 text-[var(--color-primary)]"
                   key={channelId}
                   to={`/admin/channels/${encodeURIComponent(channelId)}`}
                 >
                   {channels.data?.items.find((channel) => channel.id === channelId)?.name ??
                     channelId}
-                </Link>
+                </RouteButton>
               ))}
               {group.channelIds.length === 0 && <p className="console-muted">暂无关联渠道</p>}
             </div>

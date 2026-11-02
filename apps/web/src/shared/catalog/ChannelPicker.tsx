@@ -1,3 +1,4 @@
+import { Checkbox } from '../ui/Checkbox';
 import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
@@ -188,11 +189,10 @@ export function ChannelPicker({
                   key={channel.id}
                   className={`flex min-h-10 items-center gap-3 rounded px-3 py-2 text-sm ${unavailable || atLimit ? 'cursor-not-allowed opacity-55' : 'cursor-pointer hover:bg-[var(--color-muted)]'}`}
                 >
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={checked}
                     disabled={unavailable || atLimit}
-                    onChange={() => toggle(channel.id)}
+                    onCheckedChange={() => toggle(channel.id)}
                     className="size-4 accent-[var(--color-primary)]"
                   />
                   <span
@@ -217,11 +217,10 @@ export function ChannelPicker({
                   className="flex min-h-10 cursor-pointer items-center gap-3 rounded border border-dashed px-3 py-2 text-sm"
                   style={{ borderColor: 'var(--color-border)' }}
                 >
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={checked}
                     disabled={!complete || disabled || (!checked && selectionLimitReached)}
-                    onChange={() => toggle(id)}
+                    onCheckedChange={() => toggle(id)}
                     className="size-4 accent-[var(--color-primary)]"
                   />
                   <span className="min-w-0 flex-1 truncate text-[var(--color-muted-foreground)]">

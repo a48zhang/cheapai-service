@@ -1,4 +1,4 @@
-import { TextLink } from '../../shared/ui/TextLink';
+import { NewTabButton } from '../../shared/ui/NewTabButton';
 import { Disclosure } from '../../shared/ui/Disclosure';
 import { useEffect, useId } from 'react';
 import { createPortal } from 'react-dom';
@@ -82,20 +82,16 @@ export function ChannelForm({
     </>
   );
   const body = (
-    <form id={formId} className="space-y-5" onSubmit={submit}>
+    <form noValidate id={formId} className="space-y-5" onSubmit={submit}>
       {saveError && <ApiErrorNotice error={saveError} />}
 
       {creationUncertain && (
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
-            <TextLink href="/admin/channels" target="_blank" rel="noreferrer">
-              在新标签页核对渠道
-            </TextLink>
+            <NewTabButton href="/admin/channels">在新标签页核对渠道</NewTabButton>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <TextLink href="/admin/audit" target="_blank" rel="noreferrer">
-              查看审计记录
-            </TextLink>
+            <NewTabButton href="/admin/audit">查看审计记录</NewTabButton>
           </Button>
         </div>
       )}
@@ -175,10 +171,7 @@ export function ChannelForm({
               {draft.concurrencyMode === 'finite' && (
                 <Field label="并发上限" error={errors.concurrency} required>
                   <Input
-                    type="number"
-                    min={1}
-                    max={Number.MAX_SAFE_INTEGER - 1}
-                    step={1}
+                    inputMode="numeric"
                     value={draft.concurrencyValue}
                     onChange={(event) => updateDraft('concurrencyValue', event.currentTarget.value)}
                     required
@@ -206,10 +199,7 @@ export function ChannelForm({
                   required
                 >
                   <Input
-                    type="number"
-                    min={1}
-                    max={4096}
-                    step={1}
+                    inputMode="numeric"
                     value={draft.rpmValue}
                     onChange={(event) => updateDraft('rpmValue', event.currentTarget.value)}
                     required
@@ -227,9 +217,7 @@ export function ChannelForm({
             required
           >
             <Input
-              type="number"
-              min={0}
-              step={1}
+              inputMode="numeric"
               value={draft.priority}
               onChange={(event) => updateDraft('priority', event.currentTarget.value)}
               required

@@ -1,11 +1,12 @@
-import type { InputHTMLAttributes } from 'react';
+import type { ComponentProps } from 'react';
 
-export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+export interface InputProps extends Omit<ComponentProps<'input'>, 'type'> {
+  type?: 'text' | 'password' | 'email' | 'search' | 'url' | 'tel' | 'hidden';
   /** Applies the same invalid state used by Field when an error is present. */
   invalid?: boolean;
 }
 
-/** Native input with shared sizing, focus, disabled, and error treatment. */
+/** Text entry only. Use DateInput, Select or Checkbox for choice controls. */
 export function Input({
   className,
   style,

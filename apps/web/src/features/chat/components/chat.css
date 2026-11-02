@@ -8,15 +8,6 @@
 .chat-sidebar > header {
   height: 56px;
 }
-.chat-navigation-sheet > div:first-child {
-  display: none;
-}
-.chat-navigation-sheet > div:nth-child(2) {
-  padding: 0;
-}
-.chat-navigation-sheet {
-  max-width: min(18rem, 86vw);
-}
 .chat-main {
   display: flex;
   flex-direction: column;

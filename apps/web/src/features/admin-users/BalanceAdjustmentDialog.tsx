@@ -180,6 +180,7 @@ export function BalanceAdjustmentDialog({
       }
     >
       <form
+        noValidate
         id="admin-balance-adjustment"
         className="space-y-4"
         onSubmit={(event) => {

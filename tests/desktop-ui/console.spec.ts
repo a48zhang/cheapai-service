@@ -129,13 +129,13 @@ test('bundled desktop console uses native transport for groups, accounts, images
   await page.screenshot({ path: testInfo.outputPath('desktop-catalog.png'), fullPage: true });
   await frame
     .getByRole('navigation', { name: '个人导航' })
-    .getByRole('link', { name: 'API 接入' })
+    .getByRole('button', { name: 'API 接入' })
     .click();
   await expect(frame.getByRole('heading', { name: 'API 接入', exact: true })).toBeVisible();
   await expect(frame.getByText('https://cheapai.dev/v1', { exact: true }).first()).toBeVisible();
   await frame
     .getByRole('navigation', { name: '个人导航' })
-    .getByRole('link', { name: '生图' })
+    .getByRole('button', { name: '生图' })
     .click();
   await frame.getByRole('textbox', { name: '画面描述' }).fill('窗边的橘猫');
   await frame.getByRole('button', { name: '生成图片', exact: true }).click();
@@ -160,20 +160,32 @@ test('bundled desktop console uses native transport for groups, accounts, images
     .toBe(1);
   await frame
     .getByRole('navigation', { name: '个人导航' })
-    .getByRole('link', { name: '费用' })
+    .getByRole('button', { name: '费用' })
     .click();
   await expect(frame.getByRole('heading', { name: '费用', exact: true })).toBeVisible();
   await expect(frame.getByText('1.00 积分', { exact: true })).toBeVisible();
   await frame
     .getByRole('navigation', { name: '个人导航' })
-    .getByRole('link', { name: '使用记录' })
+    .getByRole('button', { name: '使用记录' })
     .click();
   await expect(frame.getByRole('heading', { name: '使用记录', exact: true })).toBeVisible();
   await frame
     .getByRole('navigation', { name: '个人导航' })
-    .getByRole('link', { name: '对话', exact: true })
+    .getByRole('button', { name: '对话', exact: true })
     .click();
   await expect(page.locator('body')).toHaveAttribute('data-returned', 'true');
+  // Returning to the native chat must not replace the embedded console's route.
+  await expect(frame.getByRole('heading', { name: '使用记录', exact: true })).toBeVisible();
+  const skip = frame.getByRole('button', { name: '跳到主要内容' });
+  await skip.focus();
+  await skip.click();
+  await expect(frame.locator('#main-content')).toBeFocused();
+  await expect(frame.getByRole('heading', { name: '使用记录', exact: true })).toBeVisible();
+  const embedded = page.frames().find(candidate => candidate.url().includes('console.html#'))!;
+  await embedded.evaluate(() => { window.location.hash = '#/session-unavailable?returnTo=%2Frequests%3FmodelId%3Dgpt-native'; });
+  await frame.getByRole('button', { name: '重新连接' }).click();
+  await expect(frame.getByRole('heading', { name: '使用记录', exact: true })).toBeVisible();
+  expect(await embedded.evaluate(() => window.location.hash)).toBe('#/requests?modelId=gpt-native');
   await frame.getByRole('button', { name: /账户菜单/ }).click();
   await frame.getByRole('menuitem', { name: '退出登录' }).click();
   await expect(page.locator('body')).toHaveAttribute('data-logged-out', 'true');

@@ -1,4 +1,5 @@
-import { Link, useLocation } from 'react-router-dom';
+import { RouteButton } from '../../shared/ui/RouteButton';
+import { useLocation } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { RequestRecord } from '@cheapai/contracts/requests';
 import { formatDateTime } from '../../shared/lib/datetime';
@@ -63,13 +64,13 @@ function personalColumns(
       id: 'model',
       header: '模型',
       cell: ({ row }) => (
-        <Link
-          className="block max-w-64 truncate font-medium text-[var(--color-accent)] hover:underline"
+        <RouteButton
+          className="block max-w-64 truncate font-medium text-[var(--color-accent)]"
           aria-label={`查看 ${row.original.public_model_id} 使用详情`}
           to={detailHref(row.original.id, detailPath, listLocation)}
         >
           {row.original.public_model_id}
-        </Link>
+        </RouteButton>
       ),
     },
     {
@@ -126,19 +127,19 @@ function adminColumns(
       size: 190,
       cell: ({ row }) => (
         <div className="min-w-40 max-w-64 space-y-1">
-          <Link
-            className="block truncate text-[15px] font-medium text-[var(--color-accent)] hover:underline"
+          <RouteButton
+            className="block truncate text-[15px] font-medium text-[var(--color-accent)]"
             to={detailHref(row.original.id, detailPath, listLocation)}
           >
             {row.original.public_model_id}
-          </Link>
-          <Link
+          </RouteButton>
+          <RouteButton
             className="block truncate text-sm text-[var(--color-ink-secondary)] hover:text-[var(--color-accent)]"
             title={row.original.user_email ?? row.original.user_id}
             to={`/admin/users/${encodeURIComponent(row.original.user_id)}`}
           >
             {row.original.user_email ?? row.original.user_id}
-          </Link>
+          </RouteButton>
         </div>
       ),
     },
@@ -230,13 +231,13 @@ export function RequestTable({
         scope === 'personal'
           ? (item) => (
               <div className="space-y-3">
-                <Link
-                  className="block break-all font-medium text-[var(--color-accent)] hover:underline"
+                <RouteButton
+                  className="block break-all font-medium text-[var(--color-accent)]"
                   aria-label={`查看 ${item.public_model_id} 使用详情`}
                   to={detailHref(item.id, detailPath, listLocation)}
                 >
                   {item.public_model_id}
-                </Link>
+                </RouteButton>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <RequestStatus
                     executionStatus={item.execution_status}

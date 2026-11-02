@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { RouteButton } from '../../../shared/ui/RouteButton';
 import { ArrowUpRight, CircleAlert } from 'lucide-react';
 import type { ChatState } from '../model/state';
 import { Button } from '../../../shared/ui/Button';
@@ -64,12 +64,10 @@ export function ChatNotice({
               重新开始
             </Button>
           ) : insufficientBalance ? (
-            <Button asChild size="sm">
-              <Link to="/billing">
-                查看余额
-                <ArrowUpRight size={16} aria-hidden="true" />
-              </Link>
-            </Button>
+            <RouteButton size="sm" variant="primary" to="/billing">
+              查看余额
+              <ArrowUpRight size={16} aria-hidden="true" />
+            </RouteButton>
           ) : (
             <>
               {uncertain && (

@@ -6,7 +6,7 @@ import { useSession } from '../../features/session/useSession';
 export function SessionBoundary({ children }: { children?: ReactNode }) {
   const session = useSession();
   const location = useLocation();
-  const returnTo = encodeURIComponent(location.pathname + location.search);
+  const returnTo = encodeURIComponent(location.pathname + location.search + location.hash);
   if (session.status === 'unknown')
     return (
       <AsyncState

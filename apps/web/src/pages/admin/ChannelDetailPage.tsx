@@ -1,7 +1,8 @@
+import { RouteButton } from '../../shared/ui/RouteButton';
 import { Disclosure } from '../../shared/ui/Disclosure';
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import { ChannelDiagnostics } from '../../features/admin-channels/ChannelDiagnostics';
 import {
   channelDetailQueryOptions,
@@ -48,9 +49,9 @@ export function ChannelDetailPage() {
         heading={channel?.name ?? '渠道详情'}
         actions={
           <>
-            <Button asChild variant="outline">
-              <Link to="/admin/channels">返回渠道列表</Link>
-            </Button>
+            <RouteButton variant="outline" to="/admin/channels">
+              返回渠道列表
+            </RouteButton>
             {channel && (
               <>
                 <Button

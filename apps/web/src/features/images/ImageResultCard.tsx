@@ -1,6 +1,6 @@
-import { TextLink } from '../../shared/ui/TextLink';
+import { RouteButton } from '../../shared/ui/RouteButton';
+import { downloadAsset as browserDownload } from '../../shared/lib/download';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { CopyButton } from '../../shared/ui/CopyButton';
 import { formatDateTime } from '../../shared/lib/datetime';
 import { Download, LoaderCircle, RotateCcw } from 'lucide-react';
@@ -155,13 +155,13 @@ export function ImageResultCard({
           </Button>
           <CopyButton value={job.prompt} label="复制描述" />
           {job.billingStatus !== 'unbilled' && (
-            <Button asChild variant="ghost" size="sm">
-              <Link
-                to={`/billing?period=all&kind=image_generation&requestId=${encodeURIComponent(job.id)}`}
-              >
-                查看费用
-              </Link>
-            </Button>
+            <RouteButton
+              variant="ghost"
+              size="sm"
+              to={`/billing?period=all&kind=image_generation&requestId=${encodeURIComponent(job.id)}`}
+            >
+              查看费用
+            </RouteButton>
           )}
         </div>
       )}
@@ -173,15 +173,6 @@ function ImageDownload({ id, label }: { id: string; label: string }) {
   const { downloadAsset } = useProductEnvironment();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
-  if (!downloadAsset)
-    return (
-      <Button asChild variant="outline" size="sm">
-        <TextLink href={imageContentUrl(id, true)}>
-          <Download size={16} aria-hidden="true" />
-          {label}
-        </TextLink>
-      </Button>
-    );
   return (
     <>
       <Button
@@ -191,7 +182,7 @@ function ImageDownload({ id, label }: { id: string; label: string }) {
         onClick={() => {
           setBusy(true);
           setError(false);
-          void downloadAsset(imageContentUrl(id, true), `cheapai-${id}.png`)
+          void (downloadAsset ?? browserDownload)(imageContentUrl(id, true), `cheapai-${id}.png`)
             .catch(() => setError(true))
             .finally(() => setBusy(false));
         }}

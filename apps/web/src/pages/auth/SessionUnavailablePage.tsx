@@ -1,10 +1,14 @@
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { RouteButton } from '../../shared/ui/RouteButton';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useSession } from '../../features/session/useSession';
 import { safeReturnPath } from '../../shared/lib/return-path';
 import { Button } from '../../shared/ui/Button';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
+import { useProductEnvironment } from '../../shared/platform';
 
 export default function SessionUnavailablePage() {
+  const { kind } = useProductEnvironment();
+  const home = kind === 'desktop' ? '/models' : '/';
   const { session, pending, error } = useSession();
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -18,15 +22,15 @@ export default function SessionUnavailablePage() {
         onClick={() =>
           void session
             .restore()
-            .then(() => navigate(safeReturnPath(params.get('returnTo')), { replace: true }))
+            .then(() => navigate(safeReturnPath(params.get('returnTo'), home), { replace: true }))
             .catch(() => undefined)
         }
       >
         重新连接
       </Button>
-      <Button asChild variant="outline" className="ml-3">
-        <Link to="/">返回首页</Link>
-      </Button>
+      <RouteButton variant="outline" className="ml-3" to={home}>
+        {kind === 'desktop' ? '模型目录' : '返回首页'}
+      </RouteButton>
     </section>
   );
 }

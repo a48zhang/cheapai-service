@@ -1,5 +1,6 @@
+import { RouteButton } from '../../shared/ui/RouteButton';
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -54,11 +55,14 @@ export function RegisterForm({ returnTo = '/' }: { returnTo?: string }) {
       <div role="status" className="space-y-4">
         <p>账户已创建，请登录或恢复会话继续。</p>
         <ApiErrorNotice error={error} />
-        <Link to={`/login?returnTo=${encodeURIComponent(safeDestination)}`}>前往登录</Link>
+        <RouteButton to={`/login?returnTo=${encodeURIComponent(safeDestination)}`}>
+          前往登录
+        </RouteButton>
       </div>
     );
   return (
     <form
+      noValidate
       className="space-y-5"
       onSubmit={handleSubmit(async (input) => {
         if (created || codeBusy) return;

@@ -1,6 +1,7 @@
+import { RouteButton } from '../../shared/ui/RouteButton';
 import { Disclosure } from '../../shared/ui/Disclosure';
 import { useState } from 'react';
-import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { requestDetailQueryOptions } from '../../features/request-history/api';
 import { PriceSnapshot } from '../../features/request-history/PriceSnapshot';
@@ -60,7 +61,7 @@ export function RequestDetailPage() {
         heading={scope === 'admin' ? '请求详情' : '使用记录详情'}
         description={!id ? '请求编号无效。' : undefined}
         actions={
-          <Link
+          <RouteButton
             className="rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm font-medium"
             to={returnTo}
           >
@@ -69,7 +70,7 @@ export function RequestDetailPage() {
               : scope === 'admin'
                 ? '返回请求列表'
                 : '返回使用记录'}
-          </Link>
+          </RouteButton>
         }
       />
       {query.error && <ApiErrorNotice error={query.error} onRetry={() => void query.refetch()} />}
@@ -144,8 +145,8 @@ export function RequestDetailPage() {
                 </span>
               )}
               {
-                <Link
-                  className="ml-auto text-sm text-[var(--color-accent)] hover:underline"
+                <RouteButton
+                  className="ml-auto text-sm text-[var(--color-accent)]"
                   to={
                     scope === 'admin'
                       ? `/admin/billing?${new URLSearchParams({ userId: item.user_id, requestId: item.id })}`
@@ -153,7 +154,7 @@ export function RequestDetailPage() {
                   }
                 >
                   {scope === 'admin' ? '相关账单' : '相关费用'}
-                </Link>
+                </RouteButton>
               }
             </div>
             {item.error && (
@@ -214,12 +215,12 @@ export function RequestDetailPage() {
                     <div>
                       <dt className="console-label">用户</dt>
                       <dd className="m-0 mt-1 break-all">
-                        <Link
-                          className="text-[var(--color-accent)] hover:underline"
+                        <RouteButton
+                          className="text-[var(--color-accent)]"
                           to={`/admin/users/${encodeURIComponent(item.user_id)}`}
                         >
                           {item.user_email ?? item.user_id}
-                        </Link>
+                        </RouteButton>
                       </dd>
                     </div>
                     <div>

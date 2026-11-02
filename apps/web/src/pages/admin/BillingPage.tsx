@@ -1,3 +1,4 @@
+import { DateInput } from '../../shared/ui/DateInput';
 import { Disclosure } from '../../shared/ui/Disclosure';
 import { Select } from '../../shared/ui/Select';
 import { useState } from 'react';
@@ -37,6 +38,7 @@ export default function BillingPage() {
     <section className="space-y-5">
       <PageHeader heading="全局账单" />
       <form
+        noValidate
         key={params.toString()}
         className="flex flex-wrap items-end gap-3 console-panel p-5"
         onSubmit={(event) => {
@@ -62,20 +64,10 @@ export default function BillingPage() {
         }}
       >
         <Field label="开始时间">
-          <Input
-            type="datetime-local"
-            name="from"
-            step="0.001"
-            defaultValue={formatLocalDateTime(filters.createdFrom, true)}
-          />
+          <DateInput name="from" defaultValue={formatLocalDateTime(filters.createdFrom, true)} />
         </Field>
         <Field label="结束时间（不含）">
-          <Input
-            type="datetime-local"
-            name="to"
-            step="0.001"
-            defaultValue={formatLocalDateTime(filters.createdBefore, true)}
-          />
+          <DateInput name="to" defaultValue={formatLocalDateTime(filters.createdBefore, true)} />
         </Field>
         <Field label="类型">
           <Select

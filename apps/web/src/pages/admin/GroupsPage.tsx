@@ -1,5 +1,6 @@
+import { RouteButton } from '../../shared/ui/RouteButton';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import type { GroupStatus } from '@cheapai/api-client/groups';
 import { useSession } from '../../features/session/useSession';
 import { groupListQueryOptions } from '../../features/admin-groups/api';
@@ -7,7 +8,6 @@ import { GroupTable } from '../../features/admin-groups/GroupTable';
 import { FilterBar } from '../../shared/patterns/FilterBar';
 import { PageHeader } from '../../shared/patterns/PageHeader';
 import { Select } from '../../shared/ui/Select';
-import { Button } from '../../shared/ui/Button';
 import { mergePageItems } from '../../shared/lib/pagination';
 
 const statusItems = [
@@ -52,9 +52,9 @@ export function GroupsPage() {
       <PageHeader
         heading="访问组"
         actions={
-          <Button asChild>
-            <Link to="/admin/groups/new">创建访问组</Link>
-          </Button>
+          <RouteButton variant="primary" to="/admin/groups/new">
+            创建访问组
+          </RouteButton>
         }
       />
       <FilterBar onReset={() => updateStatus('all')}>

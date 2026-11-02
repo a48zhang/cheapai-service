@@ -118,9 +118,14 @@ it('constrains return paths after decoding and normalization', () => {
     '/api/v1/keys',
     '/v1/chat',
     '/login',
+    '/register',
+    '/LOGIN/',
     '/session-unavailable',
     '/x\\evil',
   ])
     expect(safeReturnPath(path)).toBe('/');
   expect(safeReturnPath('/chat/one?view=history')).toBe('/chat/one?view=history');
+  expect(safeReturnPath('/models?search=some%20model#prices')).toBe(
+    '/models?search=some%20model#prices',
+  );
 });

@@ -50,6 +50,7 @@ export default function RegistrationCodesPage() {
         }}
       >
         <form
+          noValidate
           className="flex w-full flex-wrap items-center gap-3 sm:w-auto"
           onSubmit={(event) => {
             event.preventDefault();

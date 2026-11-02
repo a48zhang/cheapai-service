@@ -139,6 +139,7 @@ export function ChannelMappingPanel({
 
   const form = (
     <form
+      noValidate
       id={editorId}
       onSubmit={(event) => {
         void submit(event);

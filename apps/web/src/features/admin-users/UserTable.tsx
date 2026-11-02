@@ -1,6 +1,6 @@
+import { RouteButton } from '../../shared/ui/RouteButton';
 import { useMemo } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Link } from 'react-router-dom';
 import type { UserListItem } from '@cheapai/api-client/users';
 import { formatWalletUsd } from '../../shared/lib/money';
 import { formatDateTime } from '../../shared/lib/datetime';
@@ -35,13 +35,13 @@ export function UserTable({
         header: '账户',
         cell: ({ row }) => (
           <div className="min-w-40 max-w-64">
-            <Link
+            <RouteButton
               to={`/admin/users/${encodeURIComponent(row.original.id)}`}
               title={row.original.email_normalized}
-              className="block truncate font-medium text-[var(--color-primary)] hover:underline underline-offset-4"
+              className="block truncate font-medium text-[var(--color-primary)]"
             >
               {row.original.email_normalized}
-            </Link>
+            </RouteButton>
             <p className="mt-1 console-muted">
               {row.original.role === 'admin' ? '管理员' : '普通用户'}
             </p>

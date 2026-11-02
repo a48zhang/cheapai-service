@@ -1,7 +1,8 @@
+import { RouteButton } from '../../shared/ui/RouteButton';
 import { useQuery } from '@tanstack/react-query';
 import type { CatalogModel } from '@cheapai/contracts/catalog';
 import { ImageIcon, Search } from 'lucide-react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useSession } from '../../features/session/useSession';
 import { catalogGroupsQuery, catalogModelsQuery } from '../../features/model-catalog/api';
 import { formatPriceAmount } from '../../shared/lib/model-price';
@@ -62,9 +63,9 @@ function ModelCard({ model }: { model: CatalogModel }) {
         {model.kind === 'text' ? (
           <CopyButton value={model.id} label="复制模型 ID" />
         ) : (
-          <Button asChild variant="outline" size="sm">
-            <Link to="/images">去生图</Link>
-          </Button>
+          <RouteButton variant="outline" size="sm" to="/images">
+            去生图
+          </RouteButton>
         )}
       </div>
     </article>

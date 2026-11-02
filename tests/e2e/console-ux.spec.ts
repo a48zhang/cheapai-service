@@ -1,5 +1,25 @@
 import { test, expect, type Page } from '@playwright/test';
 const now = Date.now();
+
+test('date calendar fits a narrow viewport and remains keyboard editable', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 320, height: 760 });
+  await fixture(page);
+  await page.goto('/billing');
+  await page.getByRole('textbox', { name: '开始日期' }).fill('2026-11-01');
+  await page.getByRole('button', { name: '打开日历' }).first().click();
+  const calendar = page.getByRole('dialog', { name: '选择日期' });
+  await expect(calendar).toBeVisible();
+  const box = (await calendar.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(320);
+  await page.screenshot({ path: testInfo.outputPath('calendar-mobile.png'), fullPage: true });
+  await calendar.locator('[data-day="2026-11-02"] button').click();
+  await expect(page.getByRole('textbox', { name: '开始日期' })).toHaveValue('2026-11-02');
+  await page.getByRole('button', { name: '打开日历' }).first().click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: '打开日历' }).first()).toBeFocused();
+  await expect(page.locator('input[type=date],input[type=datetime-local],input[type=number]')).toHaveCount(0);
+});
 const userId = 'console-user';
 const model = 'claude-sonnet-console-long-model-name';
 const key = {
@@ -198,7 +218,7 @@ for (const width of [320, 375, 1440])
             .getByText('管理员授额', { exact: true }),
         ).toBeVisible();
       if (route === '/requests')
-        await expect(page.getByRole('link', { name: `查看 ${model} 使用详情` })).toBeVisible();
+        await expect(page.getByRole('button', { name: `查看 ${model} 使用详情` })).toBeVisible();
       if (route === '/images') await expect(page.getByText(/暂无可用生图模型/)).toBeVisible();
       await page.screenshot({ path: info.outputPath(route.slice(1) + '.png'), fullPage: true });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
@@ -244,9 +264,9 @@ for (const width of [375, 1440])
     await page.getByRole('button', { name: '筛选', exact: true }).click();
     await expect(page).toHaveURL(/period=all&kind=consumption/);
     const original = page.url();
-    await rows.getByRole('link', { name: '查看记录' }).click();
+    await rows.getByRole('button', { name: '查看记录' }).click();
     await expect(page.getByRole('heading', { name: '使用记录详情' })).toBeVisible();
-    await page.getByRole('link', { name: '返回费用明细' }).click();
+    await page.getByRole('button', { name: '返回费用明细' }).click();
     await expect(page).toHaveURL(original);
     await page.reload();
     await expect(page.getByLabel('开始日期', { exact: true })).toHaveValue('');
@@ -271,12 +291,12 @@ test('request filters survive detail navigation and can find their associated bi
   await page.getByLabel('开始时间', { exact: true }).fill('2026-10-01T00:00');
   await page.getByRole('button', { name: '筛选', exact: true }).click();
   const original = page.url();
-  await page.getByRole('link', { name: `查看 ${model} 使用详情` }).click();
-  await page.getByRole('link', { name: '返回使用记录' }).click();
+  await page.getByRole('button', { name: `查看 ${model} 使用详情` }).click();
+  await page.getByRole('button', { name: '返回使用记录' }).click();
   await expect(page).toHaveURL(original);
   await expect(page.getByLabel('模型 ID', { exact: true })).toHaveValue(model);
-  await page.getByRole('link', { name: `查看 ${model} 使用详情` }).click();
-  await page.getByRole('link', { name: '相关费用' }).click();
+  await page.getByRole('button', { name: `查看 ${model} 使用详情` }).click();
+  await page.getByRole('button', { name: '相关费用' }).click();
   await expect(page).toHaveURL(/period=all&requestId=console-request/);
 });
 
@@ -290,8 +310,8 @@ test('billing read errors can retry and empty usage offers an action', async ({ 
   await page.unroute('**/api/v1/**');
   await fixture(page, { empty: true });
   await page.goto('/requests');
-  await expect(page.getByRole('link', { name: '开始对话', exact: true })).toBeVisible();
-  await expect(page.getByRole('link', { name: '接入 API', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '开始对话', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '接入 API', exact: true })).toBeVisible();
 });
 
 test('console navigation stays visible while the next page loads', async ({ page }) => {
@@ -308,7 +328,7 @@ test('console navigation stays visible while the next page loads', async ({ page
   await expect(page.getByRole('heading', { name: 'API 接入', exact: true })).toBeVisible();
   await page
     .getByRole('navigation', { name: '个人导航' })
-    .getByRole('link', { name: '费用', exact: true })
+    .getByRole('button', { name: '费用', exact: true })
     .click();
   await expect(page.getByRole('navigation', { name: '个人导航' })).toBeVisible();
   release();
@@ -318,7 +338,7 @@ test('console navigation stays visible while the next page loads', async ({ page
 test('refreshing an older request page reloads the newest page', async ({ page }) => {
   const state = await fixture(page);
   await page.goto('/requests?cursor=older');
-  await expect(page.getByRole('link', { name: `查看 ${model} 使用详情` })).toBeVisible();
+  await expect(page.getByRole('button', { name: `查看 ${model} 使用详情` })).toBeVisible();
   await page.getByRole('button', { name: '刷新记录', exact: true }).click();
   await expect(page).toHaveURL(/\/requests$/);
   await expect

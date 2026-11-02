@@ -1,3 +1,4 @@
+import { RouteButton } from '../../shared/ui/RouteButton';
 import type { FormEvent } from 'react';
 import type { ApiClient } from '@cheapai/api-client/types';
 import { PublicModelPicker } from '../admin-models/public';
@@ -8,7 +9,6 @@ import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { Field } from '../../shared/ui/Field';
 import { Input } from '../../shared/ui/Input';
 import { Select } from '../../shared/ui/Select';
-import { Link } from 'react-router-dom';
 
 export interface ChannelSetupStepsProps {
   readonly client: ApiClient;
@@ -74,7 +74,7 @@ export function ChannelSetupSteps({
   return (
     <>
       {step === 'channel' && (
-        <form id={channelFormId} className="grid gap-4" onSubmit={onSubmitChannel}>
+        <form noValidate id={channelFormId} className="grid gap-4" onSubmit={onSubmitChannel}>
           <p className="console-muted">新渠道默认启用，请求与并发上限不限。</p>
           <Field label="渠道名称" required>
             <Input
@@ -108,9 +108,7 @@ export function ChannelSetupSteps({
           </Field>
           <Field label="调度优先级" description="数值越高越优先；0 为默认值。" required>
             <Input
-              type="number"
-              min={0}
-              step={1}
+              inputMode="numeric"
               value={channelDraft.priority}
               onChange={(event) => onChannelDraftChange('priority', event.currentTarget.value)}
               required
@@ -121,7 +119,7 @@ export function ChannelSetupSteps({
       )}
 
       {step === 'mapping' && (
-        <form id={mappingFormId} className="grid gap-4" onSubmit={onSubmitMapping}>
+        <form noValidate id={mappingFormId} className="grid gap-4" onSubmit={onSubmitMapping}>
           <p className="console-muted">
             渠道已保存。搜索选择或新增对外模型，然后填写上游模型名称与协议。
           </p>
@@ -156,7 +154,7 @@ export function ChannelSetupSteps({
       )}
 
       {step === 'group' && (
-        <form id={groupFormId} className="grid gap-4" onSubmit={onSubmitGroup}>
+        <form noValidate id={groupFormId} className="grid gap-4" onSubmit={onSubmitGroup}>
           <p className="console-muted">将新渠道加入访问组。</p>
           {groupsLoading && (
             <p role="status" className="console-muted">
@@ -175,12 +173,12 @@ export function ChannelSetupSteps({
               <p className="mt-1 text-[var(--color-muted-foreground)]">
                 先创建访问组，再回来继续此步骤。
               </p>
-              <Link
+              <RouteButton
                 to="/admin/groups"
-                className="mt-2 inline-block font-medium text-[var(--color-primary)] underline"
+                className="mt-2 inline-block font-medium text-[var(--color-primary)]"
               >
                 打开访问组管理
-              </Link>
+              </RouteButton>
             </div>
           )}
           {groups.length > 0 && (

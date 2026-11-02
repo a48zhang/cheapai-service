@@ -1,8 +1,9 @@
+import { RouteButton } from '../../shared/ui/RouteButton';
 import { ModelIdentity } from '../../shared/ui/ModelIdentity';
 import { ModelPrice } from '../../shared/ui/ModelPrice';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import type { ModelView } from '@cheapai/api-client/models';
 import { useSession } from '../../features/session/useSession';
 import { adminModelsQueryKeys, modelDetailQueryOptions } from '../../features/admin-models/api';
@@ -50,9 +51,9 @@ export default function ModelDetailPage({ createMode = false }: { createMode?: b
     return (
       <section className="space-y-6">
         <PageHeader heading="模型详情" description="模型 ID 不存在。" />
-        <Button asChild variant="outline">
-          <Link to="/admin/models">返回模型列表</Link>
-        </Button>
+        <RouteButton variant="outline" to="/admin/models">
+          返回模型列表
+        </RouteButton>
       </section>
     );
   }
@@ -76,9 +77,9 @@ export default function ModelDetailPage({ createMode = false }: { createMode?: b
             void modelQuery.refetch();
           }}
         />
-        <Button asChild variant="outline">
-          <Link to="/admin/models">返回模型列表</Link>
-        </Button>
+        <RouteButton variant="outline" to="/admin/models">
+          返回模型列表
+        </RouteButton>
       </section>
     );
   }
@@ -96,9 +97,9 @@ export default function ModelDetailPage({ createMode = false }: { createMode?: b
           }}
           retryLabel="重新读取"
         />
-        <Button asChild variant="outline">
-          <Link to="/admin/models">返回模型列表</Link>
-        </Button>
+        <RouteButton variant="outline" to="/admin/models">
+          返回模型列表
+        </RouteButton>
       </section>
     );
   }
@@ -115,9 +116,9 @@ export default function ModelDetailPage({ createMode = false }: { createMode?: b
         }
         actions={
           <>
-            <Button asChild variant="outline">
-              <Link to="/admin/models">返回模型列表</Link>
-            </Button>
+            <RouteButton variant="outline" to="/admin/models">
+              返回模型列表
+            </RouteButton>
             {model && !editing && <Button onClick={() => setEditing(true)}>编辑模型</Button>}
           </>
         }
