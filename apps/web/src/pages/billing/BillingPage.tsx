@@ -279,7 +279,7 @@ export function BillingPage() {
           </p>
         )}
       </form>
-      {query.error && !query.isFetchNextPageError && (
+      {query.error && (
         <ApiErrorNotice error={query.error} onRetry={retryBilling} />
       )}
       {(!query.error || rows.length > 0) && (
@@ -288,9 +288,7 @@ export function BillingPage() {
           loading={query.isPending}
           loadingMore={query.isFetchingNextPage}
           hasMore={query.hasNextPage}
-          error={query.isFetchNextPageError ? '费用读取失败。' : undefined}
           emptyMessage={emptyMessage}
-          onRetry={retryBilling}
           onLoadMore={() => {
             void query.fetchNextPage();
           }}
