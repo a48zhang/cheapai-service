@@ -6,7 +6,7 @@ import { BrandLink } from '../../shared/ui/BrandLink';
 
 export function AuthLayout({ children }: { children?: ReactNode }) {
   return (
-    <div className="flex min-h-dvh flex-col bg-[var(--color-canvas)]">
+    <div className="page-texture flex min-h-dvh flex-col bg-[var(--color-canvas)]">
       <header className="flex items-center justify-between gap-4 p-6">
         <BrandLink className="text-xl font-semibold" />
         <ThemePicker />
