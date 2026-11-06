@@ -46,3 +46,17 @@ Main still uses synchronous image execution and `unknown` job records until the 
 Chat/API `usage_unknown` is missing billing evidence, not a known zero cost. The current schema permits later complete evidence to settle it; changing it to final `not_chargeable` requires a charging-policy decision and a database guard against later debits. A question proposing final unbilled closure has been raised. Until answered this branch retains the evidence and existing behavior; it does not claim that all unknown billing states have been eliminated.
 
 No live upstream credentials/model responses were used for verification. Local Worker/D1 tests and browser fault injection demonstrate implemented paths, not successful paid production model calls or proof of an upstream outcome after a lost connection.
+
+## Verification and integration evidence
+
+- Full Workers suite: 155 files / 1,946 tests passed. Final affected login/register/middleware/email/history/chat/billing/image regression: 8 files / 87 tests passed.
+- Additional final JSON/SSE cause-chain and history-contract regression: 3 files / 49 tests passed, including long/whitespace-preserving diagnostic text.
+- Node + React suite: 87 files / 1,723 tests passed before the final navigation regression was incorporated; navigation test then passed 3/3. Final total is recorded in the review result.
+- Typecheck passed; cloud build (Web plus Worker dry-run, not deploy) passed; changed frontend/client ESLint and git diff --check passed.
+- Chromium local Worker/mock-upstream flows: first run 40/43 passed. The failures exposed one obsolete diagnostic-loss assertion and two #34 navigation changes omitted from the initial local integration. Final auth run passed 15/15, covering those three failures; other chat/image/console flows passed 28/28 in the first run. The mobile login diagnostic screenshot was inspected.
+- Local test logs contain Wrangler configuration warnings and local TLS handshake noise. Browser assertions completed successfully after the fixes; no production TLS settings were changed.
+- `git merge-tree --write-tree` against the local review commit found no textual conflicts with #33 (`2e4543c`) or durable images (`ab5ac79`). This writes a temporary tree only; it does not merge a branch.
+- #34 conflicts: AuthErrorNotice.tsx, AuthErrorNotice.test.tsx, tests/e2e/auth-copy.spec.ts. Resolution intent: keep its operation wording and tests, use the shared ErrorDetails/ApiErrorNotice implementation, and assert that original server text is collapsed then available—not absent.
+- #35 conflicts: ChatNotice.tsx and operation-executor.ts. Resolution intent: keep its simplified state/reload behavior and flat diagnostic fields, use shared ErrorDetails, retain cause-chain data.
+
+Detailed JSON/SSE causes stay attached to execution errors, in addition to the existing execution log. Protocol status mapping, upstream-call count, settlement and cleanup semantics are unchanged.

@@ -143,7 +143,7 @@ describe('ordinary JSON execution with actual admission, D1 accounting and mock 
     await expect(executeJson(deps(fetch), admission, adapters(), { signal: controller.signal })).rejects.toMatchObject({ reason: 'cancelled', billingStatus: 'not_chargeable' });
     expect(fetch).not.toHaveBeenCalled();
     const next = await admitted();
-    await expect(executeJson(deps(async () => { throw new Error('network uncertain'); }), next, adapters())).rejects.toMatchObject({ reason: 'upstream_failed', billingStatus: 'usage_unknown', cleanup: { complete: true } });
+    await expect(executeJson(deps(async () => { throw new Error('network uncertain'); }), next, adapters())).rejects.toMatchObject({ reason: 'upstream_failed', billingStatus: 'usage_unknown', cleanup: { complete: true }, cause: expect.any(Error) });
   });
 
   it('rejects fabricated request records and prevents concurrent reentry from releasing the winner lease', async () => {

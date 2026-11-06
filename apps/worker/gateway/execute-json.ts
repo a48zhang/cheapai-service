@@ -68,9 +68,9 @@ export interface JsonExecutionResult<Output> {
 }
 export class JsonExecutionError extends ApiError {
   constructor(readonly reason: 'admission_invalid' | 'already_started' | 'conversion_failed' | 'upstream_failed' | 'cancelled' | 'lease_lost' | 'service_failure',
-    readonly requestId: string, readonly billingStatus: string, readonly cleanup: DualLeaseCleanupReport | null, readonly dispatched = false) {
+    readonly requestId: string, readonly billingStatus: string, readonly cleanup: DualLeaseCleanupReport | null, readonly dispatched = false, options?: ErrorOptions) {
     super(reason === 'admission_invalid' || reason === 'already_started' ? 'conflict'
-      : reason === 'conversion_failed' && !dispatched ? 'invalid_request' : 'service_unavailable');
+      : reason === 'conversion_failed' && !dispatched ? 'invalid_request' : 'service_unavailable', options);
     this.name = 'JsonExecutionError';
   }
 }
@@ -122,6 +122,7 @@ export async function executeJson<Input, Wire, Upstream, Output>(dependencies: J
   let billingStatus = admission.request.billing_status;
   let cleanup: DualLeaseCleanupReport | null = null;
   let failure: JsonExecutionError['reason'] | undefined;
+  let failureCause: unknown;
   let resultBody: Output | undefined;
   let upstreamResponseId: string | undefined; let upstreamRequestId: string | undefined;
   const userHandle = admission.lease.user.handle; const channelHandle = admission.lease.channel.handle;
@@ -229,6 +230,7 @@ export async function executeJson<Input, Wire, Upstream, Output>(dependencies: J
       ...(upstreamResponseId === undefined ? {} : { responseId: upstreamResponseId }), ...(upstreamRequestId === undefined ? {} : { upstreamRequestId }) }, clock()))) throw executionFault('request_terminal_write_rejected');
     terminalSaved = true; failure = undefined;
   } catch (error) {
+    failureCause = error;
     logExecutionFailure(request ?? admission.request, { ...(diagnostic ?? {
       stage: 'json_execution', source: error instanceof UpstreamTransportError ? 'transport' : error instanceof JsonResponseReadError ? 'response_format' : lifecycle.reason ? 'lifecycle' : 'internal',
       code: error instanceof UpstreamTransportError ? error.reason : error instanceof JsonResponseReadError ? error.code : lifecycle.reason ?? failure ?? 'service_failure',
@@ -260,6 +262,6 @@ export async function executeJson<Input, Wire, Upstream, Output>(dependencies: J
     const report = await lifecycle.close(cleanupAllowed);
     if (cleanupAllowed) cleanup = report;
   }
-  if (failure || !cleanup) throw new JsonExecutionError(failure ?? 'service_failure', requestId, billingStatus, cleanup, dispatched);
+  if (failure || !cleanup) throw new JsonExecutionError(failure ?? 'service_failure', requestId, billingStatus, cleanup, dispatched, { cause: failureCause });
   return { requestId, body: resultBody as Output, usage, billingStatus, cleanup };
 }

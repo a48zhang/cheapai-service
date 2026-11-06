@@ -1,3 +1,4 @@
+import { decodeRequest } from '@cheapai/contracts/requests';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createRequestQueryRoutes, PERSONAL_REQUESTS_PATH, ADMIN_REQUESTS_PATH } from '../../apps/worker/gateway/request-query-routes';
 import { createPriceSnapshot } from '../../apps/worker/billing/fingerprint';
@@ -67,6 +68,13 @@ describe('request query HTTP on native D1', () => {
     expect(body.cost_units).toBeNull(); expect(body.error).toEqual({ code: 'upstream_error', message: 'Provider rejected this model (HTTP 422).' });
     await testEnv.DB.prepare("UPDATE requests SET cost_units=9007199254740991 WHERE id='b12-a'").run();
     expect(await (await request(`${PERSONAL_REQUESTS_PATH}/b12-a`)).json()).toMatchObject({ data: { cost_units: '9007199254740991' } });
+  });
+  it('preserves persisted diagnostic text through the frontend contract', async () => {
+    const message = '  Provider details: ' + 'detail '.repeat(100) + '\n';
+    await testEnv.DB.prepare("UPDATE requests SET error_code='provider_extended',error_message=? WHERE id='b12-a'").bind(message).run();
+    const response = await request(`${PERSONAL_REQUESTS_PATH}/b12-a`);
+    const envelope = await response.json<{ data: unknown }>();
+    expect(decodeRequest(envelope.data).error).toEqual({ code: 'provider_extended', message });
   });
   it('marks malformed evidence unavailable without returning arbitrary JSON', async () => {
     await testEnv.DB.prepare("UPDATE requests SET price_snapshot=?,usage_json=?,error_code=? WHERE id='b12-a'")

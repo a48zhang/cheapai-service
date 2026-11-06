@@ -69,8 +69,8 @@ export interface StreamExecutionOptions {
 export interface StreamExecution { response: Response; completion: Promise<StreamCompletion> }
 export class StreamExecutionError extends Error {
   constructor(readonly reason: 'invalid_admission' | 'invalid_request' | 'stream_start_failed', readonly completion: StreamCompletion | null = null,
-    readonly dispatched = false) {
-    super('Streaming execution could not start.'); this.name = 'StreamExecutionError';
+    readonly dispatched = false, options?: ErrorOptions) {
+    super('Streaming execution could not start.', options); this.name = 'StreamExecutionError';
   }
 }
 const problem = (code: string): ProtocolError => ({ kind: 'stream_error', code, message: 'The upstream stream could not be completed safely.' });
@@ -372,6 +372,6 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
     const result = await finish(stopReason === 'cancelled' ? { status: 'cancelled' } : { status: 'failed', error: problem(stopReason ?? 'stream_start_failed') });
     if (!preDispatchAccounting) startupFailure = 'service_unavailable';
     throw new StreamExecutionError(upstreamDispatched ? 'stream_start_failed' : startupFailure === 'invalid_request' ? 'invalid_request' : 'stream_start_failed',
-      result, upstreamDispatched);
+      result, upstreamDispatched, { cause: error });
   }
 }
