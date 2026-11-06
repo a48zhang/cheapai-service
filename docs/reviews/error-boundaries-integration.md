@@ -81,3 +81,5 @@ After that fix, both real local image and web-chat workflows passed (2/2), in ad
 Final added metering/provider checks: Node 2 files / 44 tests; Worker settlement/image checks 2 files / 40 tests. The full Node suite after the metering change passed 57 files / 1,596 tests. These local results are not claims about live supplier availability.
 
 The provider redirect correction also applies to the latest durable-image branch (`632e97f`), which still contains the unsupported option. Its independently reviewed lifecycle/settlement changes remain separate; when integrating, retain this provider fix and cause logging alongside that branch's simplified execution ownership.
+
+Final merge-tree check against `632e97f` reports provider.ts and service.ts conflicts from the new runtime fix/cause logging. #33 remains clean; #34 and #35 retain the conflicts listed above. No branch was merged by these checks.
