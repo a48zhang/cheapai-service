@@ -1,6 +1,6 @@
 # Error boundaries integration review
 
-This branch is based on main `7ca87fe`. It is a local review branch; no PR was merged and no deployment or production data operation was performed.
+This branch is based on main `7ca87fe`. All four reviewed feature heads are integrated in this review branch. No GitHub PR was merged, main was not changed, and nothing was deployed. Production inspection was read-only.
 
 ## Actual paths and ownership
 
@@ -8,7 +8,7 @@ This branch is based on main `7ca87fe`. It is a local review branch; no PR was m
 | --- | --- | --- |
 | Login/register/logout | Form → session controller → auth API → shared HTTP client → auth route → authentication service/repository | Form retains the operation error; AuthErrorNotice selects actionable text; shared ErrorDetails displays/copies the received diagnostics. Worker apiError logs the original cause chain and encodes the existing status/code policy. |
 | Chat send | ChatPage → controller → operation executor → chat API/SSE → chat route → ChatService → D1 adapter → conversation repository/message state machine; generation enters gateway dispatch | Controller owns unsent questions; executor owns accepted generation/reconciliation. Shared ErrorDetails handles presentation. SSE remains a distinct wire protocol. |
-| Image | ImagesPage → useImageWorkspace → image API → image route → image service → provider/storage/settlement | Existing image job state owns delivery and billing transitions. The independent durable-image branch owns its replacement background execution path. |
+| Image | ImagesPage → image API → route → persist job/alarm → provider → R2 asset → settlement | Durable task owns execution and first settlement; scheduled maintenance handles interrupted submissions/settlement. Result/history queries only read. |
 | Billing/history/API access | Page/query/mutation → domain API → shared client → protected route → billing/key/request repository | Domain mutation adds an action hint only when useful. Shared notice keeps the original HTTP failure, code, ID, details and cause. History returns persisted error code/message instead of replacing unfamiliar codes. |
 | Public API | Protocol route → gateway dispatch → execution → finalization/settlement/lease cleanup | Gateway protocol encoders and execution lifecycle retain their existing responsibilities; a management JSON envelope cannot replace SSE/OpenAI/Anthropic errors. |
 
@@ -30,37 +30,32 @@ Request IDs are established at the root HTTP boundary and reused by registration
 
 History returns the actual persisted error message/code under the existing owner/admin authorization. It still excludes raw usage sources, prompts and attempt bodies. An absent historical message cannot be reconstructed; the response retains the stored code and a generic message only when no message was recorded.
 
-## Parallel branch coordination
+## Integrated heads and conflict resolutions
 
-- #33 `fix/account-user-paths`: inspected `2e4543c`. Account/key/billing UI changes remain owned by that PR. Backend history diagnostic repair and shared client/notice complement it.
-- #34 `fix/user-journey-copy`: inspected `db9c2f6`. Locally incorporated authentication/session changes and tests needed for operation-specific errors and bounded auth waits. Its duplicate AuthErrorNotice formatter is replaced by shared ErrorDetails; the API-access navigation label and query-normalization drawer fix are included because the auth browser flow exercises them; unrelated home copy is not included.
-- #35 `fix/chat-user-path`: inspected `882733a`. Locally incorporated the chat recovery simplification and diagnostic tests; its detail formatter is replaced by shared ErrorDetails, with causes preserved. No remote PR merge.
-- `feat/durable-image-jobs`: inspected `632e97f`. Its normal path is submit → persisted job/alarm → provider → asset → first settlement; queries are read-only and scheduled maintenance owns recovery. The previously rejected failed/unbilled finality has been removed in 632e97f: a valid late image can complete and settle its original price; delivery status no longer asserts a free settlement policy. This branch does not duplicate or supersede those job changes.
+The branch includes #33 `2e4543c`, #34 `db9c2f6`, #35 `882733a` and durable images `632e97f`, verified against GitHub and fetched refs before integration. The source PRs remain open; these are local integration commits only.
 
-## Explicit limits requiring a decision or the other branch
+- #33 applied cleanly: account/key lifecycle and billing/request-detail presentation are included.
+- #34: resolved AuthErrorNotice, its test and auth-copy browser test by keeping operation wording with shared ErrorDetails and original-text disclosure/copy. Remaining navigation and home changes are included.
+- #35: resolved ChatNotice and operation-executor by retaining its simplified creation/reload flow, the shared details component and cause chains.
+- Images: resolved provider.ts with delivery_failed semantics plus manual redirects and causes. Resolved service.ts with durable execution and first settlement owned by the job, removing the old inline settlement catch. Settlement diagnostics now live in repository.ts at its actual recovery boundary. The local browser entry exports the real ImageGenerationJob so tests exercise alarms rather than synchronous substitution.
+
+No extra conversation creation protocol, recovery framework or fee policy was added during integration. Image queries/replays do not settle; the job performs first settlement and scheduled maintenance retries pending settlement. There is no custom alarm retry loop. Valid saved images can complete and settle their original snapshot even after a delivery timeout; delivery failure is not proof that an upstream incurred no cost.
+
+## Evidence limits
 
 A lost create-conversation response can leave an empty history entry. No message/model request has been made at that point, so retry cannot duplicate a generated answer or charge. This is the accepted complexity tradeoff of the simplified path; it is not exact-once conversation creation.
 
-Main still uses synchronous image execution and `unknown` job records until the separately reviewed durable-image changes are integrated. Those changes must not be silently represented as already present here.
+The integrated image migration replaces legacy delivery unknown records with explicit delivery_failed outcomes while preserving ledger facts. It neither invents an upstream image nor creates a billing waiver. Legacy text requests without enough retained final-usage evidence are not retroactively charged or rewritten.
 
 The user explicitly rejected free closure/platform cost absorption. No billing waiver or closure migration is included here. Existing configured prices remain authoritative; actual quantities must come from upstream evidence. The rejected proposal is withdrawn, not pending approval.
 
 No paid upstream model calls were used for verification. A subsequent read-only production D1 check is documented below. Local Worker/D1 tests and browser fault injection demonstrate implemented paths, not successful paid production model calls or proof of an upstream outcome after a lost connection.
 
-## Verification and integration evidence
+## Verification
 
-- Full Workers suite: 155 files / 1,946 tests passed. Final affected login/register/middleware/email/history/chat/billing/image regression: 8 files / 87 tests passed.
-- Additional final JSON/SSE cause-chain and history-contract regression: 3 files / 49 tests passed, including long/whitespace-preserving diagnostic text.
-- Node + React suite: 87 files / 1,723 tests passed before the final navigation regression was incorporated; navigation test then passed 3/3. Final total is recorded in the review result.
-- Typecheck passed; cloud build (Web plus Worker dry-run, not deploy) passed; changed frontend/client ESLint and git diff --check passed.
-- Chromium local Worker/mock-upstream flows: first run 40/43 passed. The failures exposed one obsolete diagnostic-loss assertion and two #34 navigation changes omitted from the initial local integration. Final auth run passed 15/15, covering those three failures; other chat/image/console flows passed 28/28 in the first run. The mobile login diagnostic screenshot was inspected.
-- Local test logs contain Wrangler configuration warnings and local TLS handshake noise. Browser assertions completed successfully after the fixes; no production TLS settings were changed.
-- `git merge-tree --write-tree` against the local review commit found no textual conflicts with #33 (`2e4543c`) or durable images (`ab5ac79`). This writes a temporary tree only; it does not merge a branch.
-- #34 conflicts: AuthErrorNotice.tsx, AuthErrorNotice.test.tsx, tests/e2e/auth-copy.spec.ts. Resolution intent: keep its operation wording and tests, use the shared ErrorDetails/ApiErrorNotice implementation, and assert that original server text is collapsed then available—not absent.
-- #35 conflicts: ChatNotice.tsx and operation-executor.ts. Resolution intent: keep its simplified state/reload behavior and flat diagnostic fields, use shared ErrorDetails, retain cause-chain data.
+The final integrated test results are recorded in the PR. Earlier baseline checks passed the full Worker suite (1,946 tests), Node/React suite (1,724 tests), typecheck, cloud build and affected frontend/client ESLint. Final checks rerun after all four heads were integrated supersede those baseline counts.
 
-Detailed JSON/SSE causes stay attached to execution errors, in addition to the existing execution log. Protocol status mapping, upstream-call count, settlement and cleanup semantics are unchanged.
-
+Detailed JSON/SSE causes stay attached to execution errors. Protocol status mapping, cancellation and lease cleanup retain their responsibilities. Local logs include Wrangler configuration warnings and self-signed TLS noise; production TLS settings were not changed.
 
 ## Normal-path metering correction
 
@@ -78,8 +73,10 @@ The real browser image workflow exposed an actual Worker runtime blocker: `redir
 
 After that fix, both real local image and web-chat workflows passed (2/2), in addition to the full signup/email/API-key/18 JSON-SSE request/billing workflow (1/1). Local image configuration uses a 0.05 price and 0.5 group multiplier: UI quotes and ledger charges 0.025, balance falls from 0.1 to 0.075, the result loads from R2, reload retains history, and there is exactly one upstream call and one ledger entry. The image test does not mock application routes; only the external supplier is a deterministic fixture. The web-chat test also exercises the actual upstream-failure path and confirms retained input/history with unchanged balance. Its mobile assertion now uses the actual “个人导航” drawer title.
 
-Final added metering/provider checks: Node 2 files / 44 tests; Worker settlement/image checks 2 files / 40 tests. The full Node suite after the metering change passed 57 files / 1,596 tests. These local results are not claims about live supplier availability.
+## Integrated validation
 
-The provider redirect correction also applies to the latest durable-image branch (`632e97f`), which still contains the unsupported option. Its independently reviewed lifecycle/settlement changes remain separate; when integrating, retain this provider fix and cause logging alongside that branch's simplified execution ownership.
+After integration, typecheck, full frontend ESLint and cloud build (including Worker dry-run) passed. The local browser run passed 17/18: all real API/chat/background-image flows and authentication cases passed except one mobile navigation attempt whose drawer disappeared during click. That test then passed three consecutive isolated runs without a product-code change; the original timeout is retained as a test limitation rather than assigned an unproven cause.
 
-Final merge-tree check against `632e97f` reports provider.ts and service.ts conflicts from the new runtime fix/cause logging. #33 remains clean; #34 and #35 retain the conflicts listed above. No branch was merged by these checks.
+The account branch's credential test matched both the visible message and shared diagnostic detail. Its assertion now addresses each element explicitly and verifies expanded cause text; all nine credential lifecycle tests passed. Source branch heads were rechecked before publication and remain exactly the hashes listed above.
+
+The integrated full Vitest run completed: 244 files, 3,683 tests; 3,682 passed and only the credential duplicate-text assertion failed. Its corrected file then passed 9/9. No other Worker, Node or React failures were reported. Logs are local verification artifacts, not committed production evidence.

@@ -262,7 +262,9 @@ describe('one-time credential lifecycle', () => {
     });
     await user.click(within(dialog).getByRole('button', { name: '创建密钥' }));
     await screen.findByText('stable-test-operation');
-    expect(screen.getByText(/connection interrupted/)).toBeVisible();
+    expect(screen.getByText(/connection interrupted/, { selector: 'p' })).toBeVisible();
+    await user.click(screen.getByText('查看错误详情'));
+    expect(screen.getByText(/原因：connection interrupted/, { selector: 'pre' })).toBeVisible();
     const [input, operationId] = create.mock.calls[0]!;
     const clock = vi.spyOn(Date, 'now').mockReturnValue(input.expiresAt + 1000);
     try {
