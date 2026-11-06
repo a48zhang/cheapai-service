@@ -210,3 +210,27 @@
 .app-navigation-sheet > div:nth-child(2) {
   padding: 0;
 }
+
+/* Quiet texture in the page canvas; content panels keep their opaque surfaces.
+   Backgrounds do not create an overlay, hit target, or extra scrolling layer. */
+.page-texture {
+  background-image:
+    linear-gradient(to bottom, transparent, var(--color-surface) 44rem),
+    linear-gradient(110deg, var(--color-surface) 12%, transparent 85%),
+    radial-gradient(
+      circle,
+      color-mix(in srgb, var(--color-ink) 12%, transparent) 0.8px,
+      transparent 1px
+    );
+  background-size:
+    100% 100%,
+    100% 100%,
+    24px 24px;
+  background-position: top left;
+}
+
+@media (forced-colors: active) {
+  .page-texture {
+    background-image: none;
+  }
+}

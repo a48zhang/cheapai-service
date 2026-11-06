@@ -20,7 +20,7 @@ export function AppShell({
     <div className={`app-shell ${open ? 'app-shell--open' : ''} ${className}`}>
       {skipLink}
       {sidebar}
-      <div className="app-shell-main">
+      <div className="app-shell-main page-texture">
         {header}
         {children}
       </div>

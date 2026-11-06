@@ -28,7 +28,7 @@ export function PublicLayout() {
           : '/#possibilities';
   const navigation = publicNavigation.map((item) => ({ ...item, active: item.to === active }));
   return (
-    <div className="home-page">
+    <div className="home-page page-texture">
       <SkipToContent target="home-main" className="home-skip" />
       <header className="home-header">
         <div className="home-header-inner">
