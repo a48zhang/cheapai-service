@@ -51,6 +51,14 @@ export function DesktopConsole({
             fallback={<AsyncState status="loading" loadingLabel="正在加载…" className="p-8" />}
           >
             <Routes>
+              <Route
+                path="/dashboard"
+                element={
+                  <SessionBoundary>
+                    <Navigate replace to="/billing" />
+                  </SessionBoundary>
+                }
+              />
               <Route element={<PersonalLayout />}>
                 <Route path="/models" element={<ModelCatalogPage />} />
                 <Route element={<SessionBoundary />}>

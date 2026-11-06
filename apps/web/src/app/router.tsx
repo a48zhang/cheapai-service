@@ -50,6 +50,8 @@ export function AppRoutes() {
           <Route path="/session-unavailable" element={<SessionUnavailablePage />} />
         </Route>
         <Route element={<SessionBoundary />}>
+          {/* Resolve the legacy URL before mounting interactive navigation. */}
+          <Route path="/dashboard" element={<Navigate replace to="/billing" />} />
           <Route element={<PersonalLayout />}>
             {personalPageRoutes.map(({ path, Page }) => (
               <Route key={path} path={path} element={<Page />} />
