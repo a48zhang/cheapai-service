@@ -51,7 +51,7 @@ function Amount({ label, units, loading, error, onRetry, wallet, description }: 
               className="mb-0 mt-2 flex flex-wrap items-center gap-2 text-sm text-[var(--color-danger)]"
               role="status"
             >
-              更新失败，当前显示上次读取的金额
+              更新失败，当前显示上次读取的积分
               <Button variant="outline" size="sm" onClick={onRetry}>
                 重试
               </Button>
@@ -92,7 +92,7 @@ export function BillingSummary({
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <Amount
-        label="当前余额"
+        label="当前积分"
         wallet
         units={balance?.balance_units}
         loading={balanceLoading}

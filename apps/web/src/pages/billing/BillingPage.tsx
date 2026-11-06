@@ -30,7 +30,7 @@ const kindLabels: Record<BillingKind, string> = {
   consumption: '模型消费',
   image_generation: '图片生成',
   grant: '管理员授额',
-  adjustment: '余额调整',
+  adjustment: '积分调整',
 };
 
 function validRequestId(value: string | null): string | undefined {
@@ -148,7 +148,7 @@ export function BillingPage() {
     <section className="space-y-4">
       <PageHeader
         heading="费用"
-        description="查看账户余额、消费汇总与每笔余额变动。"
+        description="查看账户积分、消费汇总与每笔积分变动。"
         actions={
           <Button
             variant="outline"
