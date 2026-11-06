@@ -61,7 +61,7 @@ test('real browser signup → key → funding → nine JSON/SSE pairs → overdr
     const channelIds: string[] = [];
     for (const upstream of protocols) {
       const createdChannel = await admin.post('/api/v1/admin/channels', { headers, data: {
-        name: `Q12 ${upstream} ${tag}`, baseUrl: 'https://e2e-upstream.example.invalid/v1', upstreamKey: 'local-fixture-upstream-key',
+        name: `Q12 ${upstream} ${tag}`, baseUrl: connection.upstreamBaseURL, upstreamKey: 'local-fixture-upstream-key',
         concurrencyLimit: 2, rpmLimit: 60, priority: 10, status: 'active',
       } });
       expect(createdChannel.status(), await createdChannel.text()).toBe(201);
@@ -144,9 +144,10 @@ test('real browser signup → key → funding → nine JSON/SSE pairs → overdr
     expect(restored.status()).toBe(200); await expect.poll(balance).toBe('97001');
     const ledger = (await (await page.context().request.get('/api/v1/billing/entries?limit=100')).json()).data.items;
     expect(ledger.reduce((sum: bigint, entry: { deltaUnits: string }) => sum + BigInt(entry.deltaUnits), 0n).toString()).toBe('97001');
-    await page.goto('/billing'); await expect(page.getByRole('table')).toBeVisible();
+    await page.goto('/billing'); await expect(page.getByRole('table').or(page.getByRole('list', { name: '个人账单明细' }))).toBeVisible();
     const requests = (await (await page.context().request.get('/api/v1/usage/requests?limit=100')).json()).data.items;
     expect(requests).toHaveLength(20);
+    await test.info().attach('api-ledger', { body: JSON.stringify({ observed, ledger, requests }, null, 2), contentType: 'application/json' });
     expect(requests.every((item: { billing_status: string }) => item.billing_status === 'settled')).toBe(true);
   } finally { await gateway.dispose(); await admin.dispose(); }
 });

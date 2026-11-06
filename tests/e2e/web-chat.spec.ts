@@ -4,13 +4,13 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-type Connection = { baseURL: string; token: string; adminEmail: string; adminPassword: string };
+type Connection = { upstreamBaseURL: string; baseURL: string; token: string; adminEmail: string; adminPassword: string };
 type ChatGroup = { id: string; name: string; billingMultiplier: string; models: Array<{ publicModelId: string }> };
 type Conversation = { id: string; title: string; groupId: string | null; modelId: string | null; version: number };
 type Message = { id: string; role: 'user' | 'assistant'; content: string; status: string; variant: number; selected: boolean };
 
 const answer = 'Local fixture answer';
-const fixtureBaseUrl = 'https://e2e-upstream.example.invalid/v1';
+
 const originHeader = (connection: Connection, csrf: string) => ({ Origin: connection.baseURL, 'X-CSRF-Token': csrf });
 
 function connection(): Connection {
@@ -83,11 +83,11 @@ test('local web chat: groups, idempotency, history, versions, failure and mobile
     const modelId = `web-chat-model-${tag}`;
 
     const fullChannel = await create(admin, '/api/v1/admin/channels', {
-      name: `Web chat full ${tag}`, baseUrl: fixtureBaseUrl, upstreamKey: 'local-fixture-upstream-key',
+      name: `Web chat full ${tag}`, baseUrl: info.upstreamBaseURL, upstreamKey: 'local-fixture-upstream-key',
       concurrencyLimit: 2, rpmLimit: 60, priority: 10, status: 'active',
     }, adminHeaders);
     const discountChannel = await create(admin, '/api/v1/admin/channels', {
-      name: `Web chat discount ${tag}`, baseUrl: fixtureBaseUrl, upstreamKey: 'local-fixture-upstream-key',
+      name: `Web chat discount ${tag}`, baseUrl: info.upstreamBaseURL, upstreamKey: 'local-fixture-upstream-key',
       concurrencyLimit: 2, rpmLimit: 60, priority: 10, status: 'active',
     }, adminHeaders);
     await create(admin, '/api/v1/admin/models', {publicModelId: modelId, status: 'active', sellPrices: { input: '1', output: '1' }}, adminHeaders);
@@ -115,7 +115,7 @@ test('local web chat: groups, idempotency, history, versions, failure and mobile
     });
     expect(grant.status(), await grant.text()).toBe(201);
 
-    userContext = await browser.newContext({ baseURL: info.baseURL, ignoreHTTPSErrors: true, viewport: { width: 1280, height: 900 } });
+    userContext = await browser.newContext({ baseURL: info.baseURL, ignoreHTTPSErrors: true, viewport: page.viewportSize() ?? { width: 1280, height: 900 } });
     const userApi = userContext.request;
     const userCsrf = await login(userApi, email, 'local-web-chat-password', info.baseURL);
     const userHeaders = originHeader(info, userCsrf);
@@ -203,11 +203,19 @@ test('local web chat: groups, idempotency, history, versions, failure and mobile
 
     const messageLog = userPage.getByRole('log', { name: '对话消息' });
     const selectedAnswersBefore = await messageLog.getByText(answer, { exact: true }).count();
+    // Selection is committed with the send, not by an extra selection write.
+    await userPage.getByRole('button', { name: '切换模型', exact: true }).click();
+    await userPage.getByRole('textbox', { name: '搜索模型' }).fill(discountGroup.name);
+    await userPage.getByRole('button', { name: new RegExp(discountGroup.name) }).click();
+    await expect(userPage.getByRole('button', { name: '切换模型', exact: true })).toHaveAttribute('title', new RegExp(discountGroup.name));
+    const beforeBrowserSend = BigInt(await accountBalance(userApi));
     const composer = userPage.getByRole('textbox', { name: '消息内容' });
     await composer.fill('React UI message');
     await userPage.getByRole('button', { name: '发送', exact: true }).click();
     await expect(userPage.locator('main')).toContainText('React UI message');
     await expect(messageLog.getByText(answer, { exact: true })).toHaveCount(selectedAnswersBefore + 1);
+    await expect.poll(async () => (await json(await userApi.get(`/api/v1/chat/conversations/${fullConversation.id}`))).data.conversation.groupId).toBe(discountGroup.id);
+    await expect.poll(async () => accountBalance(userApi)).toBe(beforeBrowserSend - 300n);
 
     await userPage.setViewportSize({ width: 390, height: 844 });
     await userPage.reload();
@@ -219,19 +227,18 @@ test('local web chat: groups, idempotency, history, versions, failure and mobile
     await expect(userPage.getByRole('button', { name: '关闭侧栏', exact: true })).toBeVisible();
     await userPage.close();
 
-    // Make one isolated local channel fail. The test Worker rejects all
-    // origins outside e2e-upstream.example.invalid, so no provider is called.
+    // Independent HTTP mode returns a real supplier 429; the legacy fixture mode blocks an external origin.
     const channelPage = await json(await admin.get('/api/v1/admin/channels?limit=100'));
     const fullChannelCurrent = channelPage.data.items.find((item: { id: string }) => item.id === fullChannel.id);
     const blocked = await admin.patch(`/api/v1/admin/channels/${fullChannel.id}`, {
-      headers: adminHeaders, data: { version: fullChannelCurrent.configVersion, baseUrl: 'https://blocked-upstream.example.invalid/v1' },
+      headers: adminHeaders, data: { version: fullChannelCurrent.configVersion, baseUrl: process.env.CHEAPAI_E2E_HTTP_UPSTREAM === '1' ? info.upstreamBaseURL : 'https://blocked-upstream.example.invalid/v1' },
     });
     expect(blocked.status(), await blocked.text()).toBe(200);
     // A new model has no cached pre-edit channel route. This case exercises
     // upstream failure, rather than the existing stale-route CAS rejection.
     const failureModelId = `${modelId}-failure`;
     await create(admin, '/api/v1/admin/models', {publicModelId: failureModelId, sellPrices: { input: '1', output: '1' }}, adminHeaders);
-    await create(admin, `/api/v1/admin/models/${encodeURIComponent(failureModelId)}/mappings`, {channelId: fullChannel.id, protocol: 'chat', upstreamModel: 'web-chat-failure'}, adminHeaders);
+    await create(admin, `/api/v1/admin/models/${encodeURIComponent(failureModelId)}/mappings`, {channelId: fullChannel.id, protocol: 'chat', upstreamModel: process.env.CHEAPAI_E2E_HTTP_UPSTREAM === '1' ? 'fixture-rejected' : 'web-chat-failure'}, adminHeaders);
     const failedConversation = await createConversation(userApi, userCsrf, info, fullGroup.id, failureModelId);
     const beforeFailure = await accountBalance(userApi);
     const failed = await sendMessage(userApi, userCsrf, info, failedConversation, 'browser-failed', 'keep this input');
@@ -244,6 +251,25 @@ test('local web chat: groups, idempotency, history, versions, failure and mobile
       expect.objectContaining({ role: 'assistant', status: 'failed' }),
     ]));
     expect(await accountBalance(userApi)).toBe(beforeFailure);
+    const failedMessage = failedHistory.data.messages.find((message: { role: string }) => message.role === 'assistant');
+    expect(failedMessage.requestId).toBeTruthy();
+    const diagnostic = await json(await userApi.get(`/api/v1/usage/requests/${failedMessage.requestId}`));
+    expect(diagnostic.data.id).toBe(failedMessage.requestId);
+    await test.info().attach('failed-request-diagnostic', { body: JSON.stringify(diagnostic.data, null, 2), contentType: 'application/json' });
+    if (process.env.CHEAPAI_E2E_HTTP_UPSTREAM === '1') {
+      expect(JSON.stringify(diagnostic.data)).toContain('Mock supplier capacity reached');
+      const detailsPage = await userContext.newPage();
+      await detailsPage.goto(`/requests/${failedMessage.requestId}`);
+      await detailsPage.getByRole('button', { name: '服务返回信息' }).click();
+      await expect(detailsPage.locator('main')).toContainText('Mock supplier capacity reached');
+      await expect(detailsPage.locator('main')).toContainText('HTTP 429');
+      await expect(detailsPage.locator('main')).toContainText(failedMessage.requestId);
+      await detailsPage.screenshot({ path: test.info().outputPath('chat-provider-error.png'), fullPage: true });
+      await detailsPage.close();
+
+      const observed = (await json(await admin.get('/__test__/calls', { headers: control }))).calls;
+      expect(observed.some((call: { model: string; status: number }) => call.model === 'fixture-rejected' && call.status === 429)).toBe(true);
+    }
   } finally {
     await userContext?.close();
     await admin.dispose();

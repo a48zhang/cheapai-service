@@ -1,4 +1,4 @@
-import { logExecutionFailure, streamFailureSource, providerDiagnostic, requestDiagnosticSecrets, captureProviderFailure } from './execution-diagnostics';
+import { logExecutionFailure, requestFailureDetails, streamFailureSource, providerDiagnostic, requestDiagnosticSecrets, captureProviderFailure } from './execution-diagnostics';
 import type { ExecutionDiagnostic } from './execution-diagnostics';
 import { createResponseIds } from '@sub2api/apicompat/ids';
 import { SseByteParser } from '@sub2api/apicompat/streams/parser';
@@ -210,6 +210,7 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
       const recordedResult = await bounded(() => finishRequest(database, record!.id, record!.user_id, {
           status: state.status === 'completed' || state.status === 'incomplete' ? 'succeeded' : state.status === 'cancelled' ? 'cancelled' : 'failed',
           ...(upstreamId === null ? {} : { responseId: upstreamId }),
+          ...(state.status === 'failed' ? requestFailureDetails({ ...(diagnostic ?? { stage: 'stream_terminal', source: 'provider_stream', code: 'upstream_error' }), ...(providerError ? { provider: providerError } : {}), ...(exchange ? { response: exchange.response } : {}) }, diagnosticSecrets) : {}),
           ...(state.status === 'failed' ? { errorCode: upstreamDispatched ? 'upstream_error' as const : 'internal_error' as const } : {}),
         }, now()));
       const recorded = recordedResult.ok && recordedResult.value;

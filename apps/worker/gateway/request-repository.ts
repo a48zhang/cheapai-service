@@ -130,6 +130,7 @@ export interface FinishRequestInput {
   upstreamRequestId?: string;
   responseId?: string;
   errorCode?: keyof typeof errors;
+  errorMessage?: string;
 }
 function upstreamId(value: string | undefined): string | null {
   if (value === undefined) return null;
@@ -147,6 +148,6 @@ export async function finishRequest(database: D1Database, requestId: string, use
     upstream_request_id=?,response_id=?,error_code=?,error_message=?
     WHERE id=? AND user_id=? AND execution_status='admitted' AND finished_at IS NULL AND created_at<=? AND (started_at IS NULL OR started_at<=?)`,
   [finish.status, time(now), now, upstreamId(finish.upstreamRequestId), upstreamId(finish.responseId), finish.errorCode ?? null,
-    finish.errorCode === undefined ? null : errors[finish.errorCode], id(requestId), id(userId), now, now]).run();
+    finish.errorCode === undefined ? null : finish.errorMessage ?? errors[finish.errorCode], id(requestId), id(userId), now, now]).run();
   return result.changes === 1;
 }

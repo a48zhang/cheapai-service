@@ -1,4 +1,4 @@
-import { logExecutionFailure, providerDiagnostic, requestDiagnosticSecrets } from './execution-diagnostics';
+import { logExecutionFailure, requestFailureDetails, providerDiagnostic, requestDiagnosticSecrets } from './execution-diagnostics';
 import type { ExecutionDiagnostic } from './execution-diagnostics';
 import type { JsonResponseAdapter, RequestAdapter } from '@sub2api/apicompat/types/adapter';
 import type { UsageSnapshot } from '@sub2api/apicompat/types/shared';
@@ -253,6 +253,7 @@ export async function executeJson<Input, Wire, Upstream, Output>(dependencies: J
         terminalSaved = await lifecycle.persist(() => finishRequest(dependencies.database, requestId, request!.user_id, {
           status: failure === 'cancelled' ? 'cancelled' : 'failed',
           errorCode: failure === 'cancelled' ? 'client_cancelled' : dispatched ? 'upstream_error' : 'internal_error',
+          ...requestFailureDetails(diagnostic, diagnosticSecrets),
           ...(upstreamResponseId === undefined ? {} : { responseId: upstreamResponseId }), ...(upstreamRequestId === undefined ? {} : { upstreamRequestId }),
         }, clock()));
         if (!terminalSaved) failure = 'service_failure';

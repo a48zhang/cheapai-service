@@ -48,6 +48,7 @@ export interface JobRow {
   size: ImageJob['size'];
   status: ImageJob['status'];
   error: ImageJob['error'];
+  error_diagnostic?: string | null;
   price_units: number;
   price_snapshot: string;
   billing_status: ImageJob['billingStatus'];
@@ -84,6 +85,7 @@ export function jobView(row: JobRow): ImageJob {
     size: row.size,
     status: row.status,
     error: row.error,
+    diagnostic: row.error_diagnostic ? JSON.parse(row.error_diagnostic) : null,
     priceUnits: String(row.price_units),
     billingStatus: row.billing_status,
     createdAt: row.created_at,
@@ -288,11 +290,12 @@ export async function markFailure(
   row: JobRow,
   error: NonNullable<ImageJob['error']>,
   now: number,
+  diagnostic?: ImageJob['diagnostic'],
 ): Promise<void> {
   await prepare(
     db,
-    `UPDATE image_generations SET status='failed',error=?,updated_at=? WHERE id=? AND user_id=? AND status='generating'`,
-    [error, now, row.id, row.user_id],
+    `UPDATE image_generations SET status='failed',error=?,error_diagnostic=?,updated_at=? WHERE id=? AND user_id=? AND status='generating'`,
+    [error, diagnostic ? JSON.stringify(diagnostic) : null, now, row.id, row.user_id],
   ).run();
 }
 async function settleImage(db: D1Database, row: JobRow, now: number): Promise<void> {
@@ -322,6 +325,8 @@ export async function recover(db: D1Database, row: JobRow, now: number): Promise
       await settleImage(db, row, now);
     } catch (error) {
       logError('Image settlement failed', error, { request_id: row.id });
+      // Rotate failed work behind untouched rows in the bounded maintenance batch.
+      await prepare(db, "UPDATE image_generations SET updated_at=? WHERE id=? AND billing_status='pending'", [now, row.id]).run();
       // A temporary accounting failure must not hide an already saved result.
       // The scheduled maintenance task retries this same charge.
     }

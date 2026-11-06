@@ -17,6 +17,11 @@ export async function maintainImageJobs(env: Env): Promise<void> {
     ).all()
   ).rows;
   for (const row of rows) {
+    if (row.status === 'generating' && row.started_at !== null) {
+      // Retry the existing alarm to recover a saved asset before declaring delivery failure.
+      await enqueueImage(env, row);
+      continue;
+    }
     const current = await recover(env.DB, row, Date.now());
     if (
       current.status === 'generating' &&

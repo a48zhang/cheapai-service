@@ -1,3 +1,4 @@
+import { ErrorDetails } from '../../shared/patterns/ApiErrorNotice';
 import { RouteButton } from '../../shared/ui/RouteButton';
 import { downloadAsset as browserDownload } from '../../shared/lib/download';
 import { useState } from 'react';
@@ -138,6 +139,15 @@ export function ImageResultCard({
       ) : (
         <div className="rounded-lg bg-[var(--color-muted)]/40 p-4" role="status">
           <p className="text-sm leading-6">{errors[job.error ?? 'delivery_failed']}</p>
+          <ErrorDetails
+            error={{
+              ...job.diagnostic,
+              message: job.diagnostic?.message ?? errors[job.error ?? 'delivery_failed'],
+              code: job.diagnostic?.code ?? job.error,
+              request_id: job.id,
+            }}
+            context={{ 供应商请求编号: job.diagnostic?.request_id, 操作编号: job.operationId }}
+          />
         </div>
       )}
       {job.status !== 'generating' && (

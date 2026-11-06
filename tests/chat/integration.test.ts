@@ -282,7 +282,7 @@ describe('web chat HTTP contract and accounting boundaries', () => {
     expect(bearer.response.status).toBe(401);
   }, 30_000);
 
-  it('uses the selected group snapshot for a shared model and charges 0.2x exactly', async () => {
+  it('switches the authorized group when sending and charges its 0.2x snapshot exactly', async () => {
     expect(await chatContractReady()).toBe(true);
     await seedChatFixtures();
     const user = await createIdentity('chat-billing-user');
@@ -299,9 +299,9 @@ describe('web chat HTTP contract and accounting boundaries', () => {
     });
     const fullConversation = (await body(fullConversationResult)).data;
     const discountedConversationResult = await request('/api/v1/chat/conversations', {
-      method: 'POST', headers: jsonHeaders(user, true), body: JSON.stringify({ groupId: 'chat-discount', modelId: model }),
+      method: 'POST', headers: jsonHeaders(user, true), body: JSON.stringify({ groupId: 'chat-full', modelId: model }),
     });
-    const discountedConversation = (await body(discountedConversationResult)).data;
+    const discountedConversation = { ...(await body(discountedConversationResult)).data, groupId: 'chat-discount' };
     const start = Number((await testEnv.DB.prepare('SELECT balance_units FROM users WHERE id=?').bind(user.id).first<{ balance_units: number }>())?.balance_units);
     for (const conversation of [fullConversation, discountedConversation]) {
       const sent = await request(`/api/v1/chat/conversations/${conversation.id}/messages`, {
@@ -309,6 +309,8 @@ describe('web chat HTTP contract and accounting boundaries', () => {
       });
       expect(sent.response.status, sent.text).toBe(200);
       expect(events(sent.text).some(event => event.event === 'done')).toBe(true);
+      const saved = await request(`/api/v1/chat/conversations/${conversation.id}`, { headers: jsonHeaders(user) });
+      expect((await body(saved)).data.conversation.groupId).toBe(conversation.groupId);
     }
     expect(calls).toBe(2);
     const finish = Number((await testEnv.DB.prepare('SELECT balance_units FROM users WHERE id=?').bind(user.id).first<{ balance_units: number }>())?.balance_units);

@@ -2,6 +2,7 @@ import type { ImageGenerateInput, ImageJob } from '@cheapai/contracts/images';
 import type { Env } from '../env';
 import { ApiError } from '../http';
 import { logError } from '../logging';
+import { redactDiagnosticError } from '../gateway/diagnostic-redaction';
 import { prepare } from '../db';
 import { readChannelForForwarding } from '../catalog/channels';
 import { acquireDualLease } from '../limits/dual-lease';
@@ -55,7 +56,9 @@ export async function executeImage(
   const now = options.now ?? Date.now;
   if (row.status !== 'generating' || !row.execution_snapshot) return;
   if (row.started_at !== null) {
-    await markFailure(env.DB, row, 'delivery_failed', now());
+    const asset = await env.IMAGE_ASSETS?.head(`images/${row.user_id}/${row.id}`);
+    if (asset) await completeImage(env.DB, row, asset.httpMetadata?.contentType ?? 'image/png', now());
+    else await markFailure(env.DB, row, 'delivery_failed', now());
     return;
   }
   if (row.expires_at <= now()) {
@@ -123,24 +126,32 @@ export async function executeImage(
         customMetadata: { owner: userId, generation: row.id },
       });
       stage = 'record';
-      const completed = await prepare(
-        env.DB,
-        `UPDATE image_generations SET status='completed',error=NULL,asset_key=?,media_type=?,billing_status='pending',updated_at=? WHERE id=? AND user_id=? AND (status='generating' OR (status='failed' AND error='delivery_failed'))`,
-        [key, result.mediaType, now(), row.id, userId],
-      ).run();
-      if (completed.changes !== 1) throw new ApiError('conflict');
+      await completeImage(env.DB, row, result.mediaType, now());
     } catch (error) {
       logError('Image execution failed', error, { request_id: row.id, stage });
+      // R2 already holds the result: let the durable alarm retry only its D1 commit.
+      if (stage === 'record') throw error;
       const reason =
         error instanceof ImageProviderError
           ? error.reason
           : stage === 'storage'
             ? 'storage_unavailable'
             : 'delivery_failed';
-      await markFailure(env.DB, row, reason, now());
+      await markFailure(env.DB, row, reason, now(),
+        error instanceof ImageProviderError && error.diagnostic
+          ? error.diagnostic
+          : redactDiagnosticError(error, [channel.upstreamKey]));
     }
   } finally {
     clearTimeout(timer);
     await acquired.lease.release();
   }
+}
+
+async function completeImage(db: D1Database, row: JobRow, mediaType: string, now: number): Promise<void> {
+  const completed = await prepare(db,
+    `UPDATE image_generations SET status='completed',error=NULL,error_diagnostic=NULL,asset_key=?,media_type=?,billing_status='pending',updated_at=? WHERE id=? AND user_id=? AND (status='generating' OR (status='failed' AND error='delivery_failed'))`,
+    [`images/${row.user_id}/${row.id}`, mediaType, now, row.id, row.user_id],
+  ).run();
+  if (completed.changes !== 1) throw new ApiError('conflict');
 }

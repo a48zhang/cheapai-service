@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { readFile, mkdir, writeFile } from 'node:fs/promises';
+import { readFile, mkdir, writeFile, cp } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
@@ -54,13 +54,31 @@ delete config.env; delete config.triggers; delete config.send_email; delete conf
 config.name = 'sub2api-local-e2e';
 config.main = join(root, 'tests/helpers/http-test-worker.ts');
 config.workers_dev = false; config.preview_urls = false;
-config.assets.directory = join(web, 'dist');
+// Freeze this run's assets: a separate build must not invalidate Wrangler's asset manifest.
+await cp(join(web, 'dist'), join(work, 'web-dist'), { recursive: true });
+config.assets.directory = join(work, 'web-dist');
 config.assets.run_worker_first = [...config.assets.run_worker_first, '/__test__/*'];
 config.d1_databases = [{ binding: 'DB', database_name: 'sub2api-local-e2e', database_id: '00000000-0000-0000-0000-000000000099', migrations_dir: join(root, 'migrations'), remote: false }];
 config.kv_namespaces = [{ binding: 'CACHE', id: '00000000000000000000000000000099', remote: false }];
 const token = randomBytes(32).toString('hex');
+let provider;
+let upstreamBaseURL = 'https://e2e-upstream.example.invalid/v1';
+if (process.env.CHEAPAI_E2E_HTTP_UPSTREAM === '1') {
+  provider = spawn(process.execPath, [join(root, 'scripts/start-mock-provider.mjs')], {
+    cwd: root, env: { ...environment, E2E_CONTROL_TOKEN: token, E2E_REQUEST_LOG: join(work, 'upstream-requests.jsonl') },
+    stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
+  });
+  const address = await new Promise((resolve, reject) => {
+    provider.once('message', resolve); provider.once('error', reject);
+    provider.once('exit', code => reject(new Error(`Mock supplier exited: ${code}`)));
+  });
+  upstreamBaseURL = `${address.baseURL}/v1`;
+  console.log(`Independent mock supplier listening at ${address.baseURL}`);
+}
+
 config.vars = { ENVIRONMENT: 'local', PUBLIC_BASE_URL: baseURL, EMAIL_VERIFICATION_READY: 'true', EMAIL_FROM: 'e2e-sender@example.invalid',
-  EMAIL_HMAC_KEY: randomBytes(32).toString('base64'), E2E_CONTROL_TOKEN: token };
+  EMAIL_HMAC_KEY: randomBytes(32).toString('base64'), E2E_CONTROL_TOKEN: token,
+  ...(provider ? { E2E_UPSTREAM_URL: upstreamBaseURL.slice(0, -3) } : {}) };
 const configPath = join(work, 'wrangler.json');
 await writeFile(configPath, JSON.stringify(config, null, 2), { mode: 0o600 });
 // A local file next to this generated config prevents inheriting an unrelated
@@ -77,7 +95,7 @@ const hash = await hashPassword(adminPassword);
 const sqlPath = join(work, 'bootstrap.sql');
 await writeFile(sqlPath, buildBootstrapSql(adminEmail, hash, randomUUID(), Date.now()), { mode: 0o600 });
 await run([wrangler, 'd1', 'execute', 'DB', '--file', sqlPath, '--json', ...common]);
-const connection = JSON.stringify({ baseURL, token, adminEmail, adminPassword, work });
+const connection = JSON.stringify({ baseURL, token, adminEmail, adminPassword, work, upstreamBaseURL });
 await writeFile(join(parent, `connection-${portText}.json`), connection, { mode: 0o600 });
 if (portText === '9789') await writeFile(join(parent, 'connection.json'), connection, { mode: 0o600 });
 console.log(`Starting isolated local browser-test Worker at ${baseURL}`);
@@ -86,6 +104,7 @@ const server = spawn(process.execPath, [wrangler, 'dev', ...common, '--ip', '127
 let stopping = false;
 function stop() {
   if (stopping) return; stopping = true;
+  provider?.kill('SIGTERM');
   if (server.exitCode !== null) return;
   if (process.platform === 'win32' && server.pid) {
     spawn('taskkill', ['/PID', String(server.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' });
@@ -93,4 +112,4 @@ function stop() {
 }
 process.once('SIGINT', stop); process.once('SIGTERM', stop);
 server.once('error', error => { console.error(error.message); process.exitCode = 1; });
-server.once('exit', code => { process.exitCode = stopping ? 0 : code ?? 1; });
+server.once('exit', code => { provider?.kill('SIGTERM'); process.exitCode = stopping ? 0 : code ?? 1; });

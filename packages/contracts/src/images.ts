@@ -83,6 +83,15 @@ export const imageJobSchema = z.object({
       'delivery_failed',
     ])
     .nullable(),
+  diagnostic: z
+    .object({
+      message: z.string(),
+      status: z.number().int().optional(),
+      code: z.string().nullable().optional(),
+      request_id: z.string().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
   priceUnits: units,
   billingStatus: z.enum(['unbilled', 'pending', 'settled']),
   createdAt: count,

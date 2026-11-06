@@ -80,3 +80,34 @@ After integration, typecheck, full frontend ESLint and cloud build (including Wo
 The account branch's credential test matched both the visible message and shared diagnostic detail. Its assertion now addresses each element explicitly and verifies expanded cause text; all nine credential lifecycle tests passed. Source branch heads were rechecked before publication and remain exactly the hashes listed above.
 
 The integrated full Vitest run completed: 244 files, 3,683 tests; 3,682 passed and only the credential duplicate-text assertion failed. Its corrected file then passed 9/9. No other Worker, Node or React failures were reported. Logs are local verification artifacts, not committed production evidence.
+
+## Independent HTTP supplier acceptance
+
+The earlier fixture intercepted fetch inside the test Worker. The new opt-in acceptance mode starts `scripts/start-mock-provider.mjs` as a separate Node process listening on a real loopback HTTP port. Channels use that actual Base URL. Worker fetch delegates loopback supplier requests to native fetch; it does not fabricate those responses. The supplier parses HTTP requests, sends JSON or delayed SSE frames, returns a visible PNG fixture, and records request paths/models/body/status and credential-presence checks in `upstream-requests.jsonl`. It never records credential values. The existing in-process fixture remains available for faster tests.
+
+Reproduce with:
+
+```sh
+XDG_CONFIG_HOME=/workspace/.config CHEAPAI_CHROMIUM_EXECUTABLE=/usr/bin/chromium CHEAPAI_E2E_HTTP_UPSTREAM=1 pnpm exec playwright test tests/e2e/full-workflow.spec.ts tests/e2e/web-chat.spec.ts tests/e2e/image-workflow.spec.ts
+```
+
+The command creates fresh local D1/R2/DO storage, starts and stops its own supplier/Worker, and runs desktop (1280×800) and narrow (390×844) projects. Local connection metadata identifies the supplier URL and run directory. Playwright artifacts retain screenshots, ledger/request attachments and failure traces. This is independent HTTP transport acceptance, not a real model or production supplier call; model text, usage counts and PNG pixels are deterministic. No production settings or money were changed.
+
+Actual application paths exercised: browser registration/email/login, API-key creation, group/model configuration, streaming chat, image background submission/alarm/query, authenticated preview and downloaded PNG bytes, refreshed history, quoted price and exact-once ledger charge, and all nine downstream/upstream protocol pairs in JSON and SSE. The image price is 0.05 with multiplier 0.5: quoted/charged 0.025 and balance 0.1 → 0.075. A real supplier HTTP 429 is exercised for chat and images; failed requests retain local and upstream identifiers and provider reasons. Image details can be expanded/copied and survive refresh. No rejected request is assigned invented usage or a new fee policy.
+
+### Repairs found by this acceptance and review
+
+- Image non-2xx responses previously discarded body/status/request ID. The provider now reuses bounded diagnostic capture/redaction; migration 0037 adds one nullable diagnostic column. Owner-only history returns those facts and the card uses the existing shared ErrorDetails display/copy. Known channel credentials are redacted; another user cannot read the job. Delivery/billing rules are unchanged.
+- Chat/JSON execution logged supplier facts but request finalization persisted a generic message. The existing request error_message now retains the same bounded, redacted provider reason/code/status/ID. No new request state or storage table is introduced.
+- Twenty permanently failing pending settlements could monopolize maintenance's oldest-first LIMIT 20. A failed attempt now advances its existing updated_at ordering timestamp. A native D1 test verifies a later eligible result settles after the blocked batch rotates.
+- R2 success followed by a failed D1 completion write previously stranded the asset. That write failure now reaches the platform alarm retry. A retry checks the deterministic R2 key and completes the same record without calling the supplier again; maintenance re-enqueues an interrupted started task before declaring delivery failure. A native D1 trigger reproduces the write failure and verifies result access, one supplier invocation and one ledger entry after recovery. No new task framework or free closure is added.
+
+Validation after these repairs: typecheck passed; Node/React 88 files / 1,731 tests passed; JSON/SSE execution tests passed (43 tests), and final image/request repository/history checks passed (50 tests). The first independent HTTP run revealed generic persisted chat diagnostics; the corrected desktop/narrow run passed all six flows. Final visual/error-detail acceptance and build/lint results are recorded with the PR update.
+
+The browser picker exposed one additional real normal-path block: ChatService rejected an authorized group/model differing from the conversation's remembered selection unless an extra PATCH had happened first. The UI selects locally and sends that selection with the next message; the existing message transaction already validates the conversation version and stores the selection atomically. The redundant equality gate is removed. Authorization, ownership, operation deduplication, version checks and the price snapshot remain. Browser acceptance selects the 0.2 group, sends and verifies that group is persisted and exactly 300 units are charged; the chat/auth regression passes 21 tests.
+
+Acceptance infrastructure fixes: each local run copies its built assets before Wrangler starts, so a concurrent build cannot invalidate its asset manifest. Billing assertions recognize the mobile list as well as the desktop table. The expanded model-selection check verifies persistence after sending, matching the product's single-write design. These fixes do not change product behavior.
+
+Final verification: desktop/narrow API and image cases passed (4 cases); the final desktop/narrow chat run, including picker → discounted send → history and supplier-error page, passed 2/2. HTTP request logs across these two retained runs contain 60 requests (56 HTTP 200 and four deliberate HTTP 429); every supplier call carried authorization and none carried a platform API-key value. Provider processes stop with the test run. The final typecheck, full frontend lint, cloud build and final Worker dry-run passed. Screenshots of the visible PNG and both error-detail pages were inspected.
+
+Known accounting boundary: the existing text-request accounting state remains usage_unknown when a rejected supplier response contains no usage. The history page exposes the original rejection and both request identifiers with a manual-check exit. This acceptance does not silently turn that state into a zero-cost settlement, waive a charge, or invent token counts.

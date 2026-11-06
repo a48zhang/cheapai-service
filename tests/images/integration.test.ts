@@ -383,7 +383,7 @@ describe('image generation through session routes, native D1, R2 and limits', ()
         'fetch',
         vi.fn(async () =>
           mode === 'rejected'
-            ? Response.json({ error: { message: 'private upstream details' } }, { status: 400 })
+            ? Response.json({ error: { message: 'Unsupported image size; credential=test-secret', code: 'bad_size' } }, { status: 400, headers: { 'x-request-id': 'provider-image-request' } })
             : Response.json({
                 data: [{ b64_json: mode === 'invalid' ? btoa('<svg>invalid</svg>') : png }],
               }),
@@ -402,7 +402,13 @@ describe('image generation through session routes, native D1, R2 and limits', ()
           'balance_units',
         ),
       ).toBe(100000000);
-      expect(JSON.stringify(job)).not.toContain('private upstream');
+      expect(JSON.stringify(job)).not.toContain('test-secret');
+      if (mode === 'rejected') {
+        expect(job.diagnostic).toMatchObject({ status: 400, code: 'bad_size', request_id: 'provider-image-request' });
+        expect(job.diagnostic?.message).toContain('Unsupported image size');
+        const other = await request(`/api/v1/images/generations/${job.id}`, 'image-other');
+        expect(other.status).toBe(404);
+      }
     },
   );
   it('deduplicates overlapping sends before generating and keeps immutable price snapshots', async () => {
@@ -470,4 +476,37 @@ describe('image generation through session routes, native D1, R2 and limits', ()
       ).first('n'),
     ).toBe(1);
   });
+  it('recovers an R2 result after the completed-record write fails, without another provider call', async () => {
+    const fetcher = vi.fn(async () => Response.json({ data: [{ b64_json: png }] }));
+    vi.stubGlobal('fetch', fetcher);
+    const accepted = await request('/api/v1/images/generations', 'image-owner', input('saved-asset'), 'POST', false);
+    const job = ((await accepted.json()) as { data: ImageJob }).data;
+    await testEnv.DB.exec(`CREATE TRIGGER image_record_outage BEFORE UPDATE OF status ON image_generations WHEN NEW.status='completed' BEGIN SELECT RAISE(ABORT,'record outage'); END;`);
+    const stub = testEnv.IMAGE_JOBS!.getByName(job.id);
+    await expect(runInDurableObject(stub, instance => instance.alarm())).rejects.toThrow();
+    expect(await testEnv.IMAGE_ASSETS!.head(`images/image-owner/${job.id}`)).not.toBeNull();
+    await testEnv.DB.exec('DROP TRIGGER image_record_outage;');
+    await runInDurableObject(stub, instance => instance.alarm());
+    const restored = ((await (await request(`/api/v1/images/generations/${job.id}`)).json()) as { data: ImageJob }).data;
+    expect(restored).toMatchObject({ status: 'completed', billingStatus: 'settled' });
+    expect((await request(`/api/v1/images/generations/${job.id}/content`)).status).toBe(200);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(await testEnv.DB.prepare('SELECT count(*) AS n FROM billing_entries WHERE image_generation_id=?').bind(job.id).first('n')).toBe(1);
+  });
+  it('rotates persistent settlement failures so a later pending image can settle', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ data: [{ b64_json: png }] })));
+    await testEnv.DB.exec(`CREATE TRIGGER image_settlement_outage BEFORE INSERT ON billing_entries WHEN NEW.kind='image_generation' BEGIN SELECT RAISE(ABORT,'outage'); END;`);
+    const first = ((await (await request('/api/v1/images/generations', 'image-owner', input('blocked-template'))).json()) as { data: ImageJob }).data;
+    // Native D1 rows reproduce a full maintenance batch without 20 redundant provider calls.
+    for (let i = 0; i < 20; i++) {
+      await testEnv.DB.prepare(`INSERT INTO image_generations SELECT 'blocked-' || ?,user_id,'blocked-op-' || ?,model_id,model_name,group_id,prompt,size,status,error,price_units,price_snapshot,billing_status,asset_key,media_type,created_at,1,expires_at,execution_snapshot,started_at,error_diagnostic FROM image_generations WHERE id=?`).bind(i, i, first.id).run();
+    }
+    await testEnv.DB.prepare('UPDATE image_generations SET updated_at=2 WHERE id=?').bind(first.id).run();
+    await testEnv.DB.exec('DROP TRIGGER image_settlement_outage;');
+    await testEnv.DB.exec(`CREATE TRIGGER image_settlement_outage BEFORE INSERT ON billing_entries WHEN NEW.kind='image_generation' AND NEW.image_generation_id LIKE 'blocked-%' BEGIN SELECT RAISE(ABORT,'outage'); END;`);
+    await maintainImageJobs(env());
+    await maintainImageJobs(env());
+    expect(await testEnv.DB.prepare('SELECT billing_status FROM image_generations WHERE id=?').bind(first.id).first('billing_status')).toBe('settled');
+  });
+
 });

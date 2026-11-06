@@ -1,14 +1,18 @@
-import type { ImageGenerateInput } from '@cheapai/contracts/images';
+import type { ImageGenerateInput, ImageJob } from '@cheapai/contracts/images';
 import { validateUpstreamBaseUrl } from '../gateway/upstream-url';
 import type { SelectionRow } from './repository';
+import { readDiagnosticBody } from '../gateway/diagnostic-body';
+import { redactDiagnosticBody, redactDiagnosticText } from '../gateway/diagnostic-redaction';
 
 export class ImageProviderError extends Error {
+  readonly diagnostic: ImageJob['diagnostic'];
   constructor(
     readonly reason:
       'provider_rejected' | 'provider_unavailable' | 'invalid_image' | 'delivery_failed',
-    options?: ErrorOptions,
+    options?: ErrorOptions & { diagnostic?: ImageJob['diagnostic'] },
   ) {
     super(reason, options);
+    this.diagnostic = options?.diagnostic;
   }
 }
 export function imageEndpoint(base: string): URL {
@@ -76,11 +80,25 @@ export async function generateImage(
     throw new ImageProviderError('delivery_failed', { cause });
   }
   if (!response.ok) {
-    void response.body?.cancel().catch(() => undefined);
+    const captured = await readDiagnosticBody(response.body);
+    const safe = redactDiagnosticBody(captured.text, { secrets: [channel.upstreamKey], truncated: captured.truncated });
+    let code: string | null = null;
+    try {
+      const parsed = JSON.parse(safe.body ?? '');
+      if (typeof parsed.error?.code === 'string') code = parsed.error.code;
+    } catch { /* A non-JSON provider body is still useful diagnostic text. */ }
+    const providerId = response.headers.get('x-request-id') ?? response.headers.get('request-id');
+    const diagnostic = {
+      message: safe.body || response.statusText || `HTTP ${response.status}`,
+      status: response.status, code,
+      request_id: providerId ? redactDiagnosticText(providerId, [channel.upstreamKey]).text : null,
+    };
     throw new ImageProviderError(
       response.status >= 400 && response.status < 500 ? 'provider_rejected' : 'delivery_failed',
+      { cause: diagnostic, diagnostic },
     );
   }
+
   let payload: unknown;
   try {
     payload = await response.json();

@@ -18,14 +18,14 @@ test('funded user logs in, generates an image, reloads history and sees the pres
     };
     const tag = randomUUID().slice(0, 8);
     const channel = await create('/api/v1/admin/channels', {
-      name: `Image ${tag}`, baseUrl: 'https://e2e-upstream.example.invalid/v1',
+      name: `Image ${tag}`, baseUrl: info.upstreamBaseURL,
       upstreamKey: 'local-fixture-upstream-key', concurrencyLimit: 2, rpmLimit: 60, priority: 10, status: 'active',
     });
     const group = await create('/api/v1/admin/groups', {
       name: `Image group ${tag}`, status: 'active', channelIds: [channel.id], billingMultiplier: '0.5',
     });
     const model = await create('/api/v1/admin/image-models', {
-      name: `Image model ${tag}`, channelId: channel.id, upstreamModel: 'fixture-image', pricePerImage: '0.05',
+      name: `Image model ${tag}`, channelId: channel.id, upstreamModel: `fixture-image-${tag}`, pricePerImage: '0.05',
       sizes: ['1024x1024'], quality: 'default', responseFormat: 'b64_json', status: 'active',
     });
     const email = `image-flow-${tag}@example.invalid`;
@@ -45,6 +45,18 @@ test('funded user logs in, generates an image, reloads history and sees the pres
     await page.getByRole('button', { name: '生成图片', exact: true }).click();
     await expect(page.getByRole('button', { name: '放大预览图片' })).toBeVisible();
     await expect(page.getByText('已扣费 0.025 积分', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: '放大预览图片' }).click();
+    await expect(page.getByRole('dialog', { name: '图片预览' })).toBeVisible();
+    const downloadEvent = page.waitForEvent('download');
+    await page.getByRole('button', { name: '下载原图', exact: true }).click();
+    const download = await downloadEvent;
+    expect(await download.failure()).toBeNull();
+    expect(readFileSync((await download.path())!).subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: test.info().outputPath('image-result.png'), fullPage: true });
+
     const api = page.context().request;
     const history = (await (await api.get('/api/v1/images/generations')).json()).data.items;
     expect(history).toHaveLength(1);
@@ -58,8 +70,36 @@ test('funded user logs in, generates an image, reloads history and sees the pres
     await expect(page.getByText('图片生成', { exact: true }).first()).toBeVisible();
     const entries = (await (await api.get('/api/v1/billing/entries?kind=image_generation')).json()).data.items;
     expect(entries).toHaveLength(1);
+    await test.info().attach('image-ledger', { body: JSON.stringify({ history, entries }, null, 2), contentType: 'application/json' });
     expect((await (await api.get('/api/v1/account/balance')).json()).data.balance_units).toBe('7500000');
     const calls = (await (await admin.get('/__test__/calls', { headers: { 'X-E2E-Control': info.token } })).json()).calls;
-    expect(calls.filter((call: { protocol: string; model: string }) => call.protocol === 'images' && call.model === 'fixture-image')).toHaveLength(1);
+    expect(calls.filter((call: { protocol: string; model: string }) => call.protocol === 'images' && call.model === `fixture-image-${tag}`)).toHaveLength(1);
+    if (process.env.CHEAPAI_E2E_HTTP_UPSTREAM === '1') {
+      const { id, version, ...config } = model;
+      const changed = await admin.patch(`/api/v1/admin/image-models/${id}`, { headers, data: { ...config, version, upstreamModel: 'fixture-rejected' } });
+      expect(changed.status(), await changed.text()).toBe(200);
+      await page.goto('/images');
+      await page.getByRole('textbox', { name: '画面描述' }).fill('Rejected image acceptance');
+      await page.getByRole('button', { name: '生成图片', exact: true }).click();
+      const failedCard = page.getByRole('article', { name: '生图记录' }).filter({ hasText: 'Rejected image acceptance' });
+      await failedCard.getByText('查看错误详情').click();
+      await expect(failedCard).toContainText('Mock supplier capacity reached');
+      await expect(failedCard).toContainText('HTTP 状态：429');
+      await expect(failedCard).toContainText('供应商请求编号：mock_');
+      const failedHistory = (await (await api.get('/api/v1/images/generations')).json()).data.items;
+      const failed = failedHistory.find((item: { status: string }) => item.status === 'failed');
+      expect(failed.diagnostic).toMatchObject({ status: 429, code: 'mock_capacity' });
+      await expect(failedCard).toContainText(failed.id);
+      await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+      await failedCard.getByRole('button', { name: '复制错误详情' }).click();
+      expect(await page.evaluate(() => navigator.clipboard.readText())).toContain(failed.diagnostic.request_id);
+      await page.screenshot({ path: test.info().outputPath('image-provider-error.png'), fullPage: true });
+      await page.reload();
+      await page.getByRole('article', { name: '生图记录' }).filter({ hasText: 'Rejected image acceptance' }).getByText('查看错误详情').click();
+      await expect(page.locator('main')).toContainText(failed.diagnostic.request_id);
+      expect((await (await api.get('/api/v1/account/balance')).json()).data.balance_units).toBe('7500000');
+      await test.info().attach('image-provider-error', { body: JSON.stringify(failed, null, 2), contentType: 'application/json' });
+    }
+
   } finally { await admin.dispose(); }
 });
