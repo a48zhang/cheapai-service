@@ -1,3 +1,4 @@
+import { RequestExport } from '../../features/request-history/RequestExport';
 import { Input } from '../../shared/ui/Input';
 import { RouteButton } from '../../shared/ui/RouteButton';
 import { DateInput } from '../../shared/ui/DateInput';
@@ -319,6 +320,7 @@ export function RequestsPage() {
           </p>
         )}
       </form>
+      <RequestExport filters={urlState.filters} scope="personal" />
       {requestError && <ApiErrorNotice error={requestError} onRetry={() => void query.refetch()} />}
       {(!requestError || rows.length > 0) && (
         <RequestTable
