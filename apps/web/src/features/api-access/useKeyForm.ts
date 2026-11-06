@@ -149,14 +149,14 @@ export function useKeyForm(props: KeyFormProps) {
   }, [open, mode, item?.id, ownerKey, reset, populate]);
 
   useEffect(() => {
-    if (mode !== 'create' || !open || !groups.length) return;
+    if (mode !== 'create' || !open || !groups.length || operation.status !== 'idle') return;
     const matchingGroup = groups.find((group) => group.id === groupId);
     if (groups.length === 1 && matchingGroup === undefined) {
       setValue('groupId', groups[0]?.id ?? '');
     } else if (groups.length > 1 && matchingGroup === undefined && groupId !== '') {
       setValue('groupId', '');
     }
-  }, [mode, open, groups, groupId, setValue]);
+  }, [mode, open, groups, groupId, setValue, operation.status]);
 
   function close(nextOpen: boolean, allowCompletedWrite = false) {
     if (!nextOpen && busyRef.current && !allowCompletedWrite) return;
@@ -176,21 +176,22 @@ export function useKeyForm(props: KeyFormProps) {
   const submit = handleSubmit(async (values) => {
     if (busyRef.current) return;
     if (mode === 'create') {
-      if (!selectedGroup) {
-        setError('groupId', { message: '请选择管理员开放的分组。' });
-        return;
-      }
-      const expiresAt = parseKeyExpiry(values.expiresAt);
-      if (expiresAt === undefined || (expiresAt !== null && expiresAt <= Date.now())) {
-        setError('expiresAt', { message: '到期时间必须是有效的未来时间。' });
-        return;
-      }
-      const input: KeyInput = { name: values.name, expiresAt, groupId: values.groupId };
       const existingIntent =
-        operationRef.current.status === 'unknown' || operationRef.current.status === 'correctable'
-          ? operationRef.current.intent
-          : null;
-      const intent = createKeyIntent(input, existingIntent);
+        operationRef.current.status === 'unknown' ? operationRef.current.intent : null;
+      let intent = existingIntent;
+      if (!intent) {
+        if (!selectedGroup) {
+          setError('groupId', { message: '请选择管理员开放的分组。' });
+          return;
+        }
+        const expiresAt = parseKeyExpiry(values.expiresAt);
+        if (expiresAt === undefined || (expiresAt !== null && expiresAt <= Date.now())) {
+          setError('expiresAt', { message: '到期时间必须是有效的未来时间。' });
+          return;
+        }
+        const input: KeyInput = { name: values.name, expiresAt, groupId: values.groupId };
+        intent = createKeyIntent(input);
+      }
       transition({ type: 'submit', intent });
       const busyLease = acquireBusyLease();
       setNotice(null);
@@ -224,7 +225,7 @@ export function useKeyForm(props: KeyFormProps) {
           setNotice(
             withErrorContext(
               error,
-              '尚未确认密钥是否创建成功。请点击“重试确认”，避免重复创建；暂时不要刷新页面。',
+              `未收到有效的创建结果。请点击“重试确认”，系统会按原操作编号核对，避免重复创建。暂时不要刷新页面；持续失败时请保存操作编号并联系管理员。${error instanceof Error ? ` 具体原因：${error.message}` : ''}`,
             ),
           );
         }
@@ -325,6 +326,7 @@ export function useKeyForm(props: KeyFormProps) {
     notice,
     busy,
     reloadNeeded,
+    pendingOperationId: operation.status === 'unknown' ? operation.intent.operationId : null,
     createPhase,
     settled,
     fieldsDisabled,

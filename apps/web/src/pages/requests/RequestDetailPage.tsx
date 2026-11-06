@@ -54,6 +54,19 @@ export function RequestDetailPage() {
     internal_error: '请求处理失败',
     unclassified_error: '请求处理失败',
   };
+  const recoveryMessage = !item
+    ? null
+    : item.billing_status === 'usage_unknown'
+      ? '模型服务未返回完整、有效的用量，当前无法核算费用。请复制请求编号联系管理员核查；刷新仅会读取现有记录，不会重新发起模型请求。'
+      : item.billing_status === 'settlement_pending'
+        ? item.next_retry_at !== null
+          ? '费用尚未结算，系统将继续处理。可刷新查看进度；持续未完成时，请提供请求编号联系管理员。'
+          : '自动结算已暂停，需要管理员核查。请复制请求编号联系管理员处理；刷新可查看处理后的结果。'
+        : item.billing_status === 'awaiting_usage'
+          ? '请求已接收，正在等待用量记录。可刷新查看进度；长时间没有更新时，请提供请求编号联系管理员核查。'
+          : item.billing_status === 'settled' && item.cost_units === null
+            ? '记录标记为已结算，但未返回金额。请刷新读取；仍缺失时，请提供请求编号联系管理员核对账单。'
+            : null;
   const result = item ? requestResultPresentation(item.execution_status) : null;
 
   return (
@@ -182,6 +195,24 @@ export function RequestDetailPage() {
             )}
           </section>
 
+          {recoveryMessage && (
+            <section className="console-panel space-y-3 p-4 sm:p-5" aria-label="费用处理进度">
+              <p role="status" className="text-sm leading-6">
+                {recoveryMessage}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  busy={query.isFetching}
+                  onClick={() => void query.refetch()}
+                >
+                  刷新处理状态
+                </Button>
+                <CopyButton value={item.id} label="复制待核查请求编号" />
+              </div>
+            </section>
+          )}
           <Disclosure
             className="console-panel p-4 sm:p-5"
             title={<>技术详情</>}

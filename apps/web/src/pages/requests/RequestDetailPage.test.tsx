@@ -1,8 +1,19 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { RequestDetailPage } from './RequestDetailPage';
+
+const queryState = vi.hoisted(() => ({
+  billingStatus: 'settled',
+  nextRetryAt: 3000 as number | null,
+  refetch: vi.fn(),
+}));
+afterEach(() => {
+  queryState.billingStatus = 'settled';
+  queryState.nextRetryAt = 3000;
+  queryState.refetch.mockReset();
+});
 
 vi.mock('../../features/session/useSession', () => ({
   useSession: () => ({ client: {}, user: { id: 'user' }, state: { status: 'authenticated' } }),
@@ -10,6 +21,8 @@ vi.mock('../../features/session/useSession', () => ({
 vi.mock('../../features/request-history/api', () => ({ requestDetailQueryOptions: () => ({}) }));
 vi.mock('@tanstack/react-query', () => ({
   useQuery: () => ({
+    refetch: queryState.refetch,
+    isFetching: false,
     data: {
       id: 'request-for-support',
       user_id: 'user',
@@ -22,14 +35,14 @@ vi.mock('@tanstack/react-query', () => ({
       downstream_protocol: 'responses',
       upstream_protocol: 'chat',
       execution_status: 'failed',
-      billing_status: 'settled',
+      billing_status: queryState.billingStatus,
       source: 'api',
       created_at: 1000,
       started_at: 1000,
       finished_at: 2000,
       updated_at: 2000,
       retry_count: 2,
-      next_retry_at: 3000,
+      next_retry_at: queryState.nextRetryAt,
       cost_units: '100000000',
       error: {
         code: 'upstream_error',
@@ -97,6 +110,19 @@ describe('使用记录信息范围', () => {
       '请求 ID: request-for-support\n错误码: upstream_error\nHTTP 429: rate limit exceeded; retry after 30 seconds',
     );
     expect(screen.queryByText('下次结算重试')).not.toBeInTheDocument();
+  });
+
+  it('暂停的结算提供核查编号和刷新出口，不承诺自动完成', async () => {
+    const user = userEvent.setup();
+    queryState.billingStatus = 'settlement_pending';
+    queryState.nextRetryAt = null;
+    show('/requests/request-for-support');
+    expect(screen.getByText(/自动结算已暂停，需要管理员核查/)).toBeVisible();
+    await user.click(screen.getByRole('button', { name: '刷新处理状态' }));
+    expect(queryState.refetch).toHaveBeenCalledOnce();
+    const clipboard = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue();
+    await user.click(screen.getByRole('button', { name: '复制待核查请求编号' }));
+    expect(clipboard).toHaveBeenCalledWith('request-for-support');
   });
 
   it('管理员仍可展开内部诊断与路由信息', async () => {

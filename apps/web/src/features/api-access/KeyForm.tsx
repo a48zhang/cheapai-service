@@ -4,6 +4,7 @@ import { Select } from '../../shared/ui/Select';
 import { formatCreditsPerMillionTokens } from '../../shared/lib/model-price';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { Button } from '../../shared/ui/Button';
+import { CopyButton } from '../../shared/ui/CopyButton';
 import { Dialog } from '../../shared/ui/Dialog';
 import { Field } from '../../shared/ui/Field';
 import { Input } from '../../shared/ui/Input';
@@ -22,6 +23,7 @@ export function KeyForm(props: KeyFormProps) {
     busy,
     reloadNeeded,
     createPhase,
+    pendingOperationId,
     settled,
     fieldsDisabled,
     groupsError,
@@ -55,7 +57,10 @@ export function KeyForm(props: KeyFormProps) {
           type="submit"
           form="key-form"
           busy={busy}
-          disabled={groupsQuery.isLoading || groupsError !== '' || !selectedGroup}
+          disabled={
+            createPhase !== 'unknown' &&
+            (groupsQuery.isLoading || groupsError !== '' || !selectedGroup)
+          }
         >
           {busy ? '正在确认…' : createPhase === 'unknown' ? '重试确认' : '创建密钥'}
         </Button>
@@ -93,6 +98,14 @@ export function KeyForm(props: KeyFormProps) {
         ) : (
           <ApiErrorNotice error={notice} />
         ))}
+      {pendingOperationId && (
+        <div className="mb-4 space-y-2 text-sm">
+          <p className="break-all">
+            操作编号：<code>{pendingOperationId}</code>
+          </p>
+          <CopyButton value={pendingOperationId} label="复制操作编号" />
+        </div>
+      )}
       {mode === 'edit' && current?.status === 'revoked' && (
         <p className="mb-4 text-sm text-[var(--color-muted-foreground)]">此密钥已撤销。</p>
       )}
