@@ -1,3 +1,4 @@
+import { RequestExport } from '../../features/request-history/RequestExport';
 import { DateInput } from '../../shared/ui/DateInput';
 import { Disclosure } from '../../shared/ui/Disclosure';
 import { Select } from '../../shared/ui/Select';
@@ -133,6 +134,7 @@ export default function RequestsPage() {
           }
         />
       )}
+      <RequestExport filters={filters} scope="admin" />
       <RequestTable
         scope="admin"
         rows={rows}
