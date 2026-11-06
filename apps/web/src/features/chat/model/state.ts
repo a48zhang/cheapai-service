@@ -23,6 +23,13 @@ export interface ChatFailure {
   readonly kind: 'rejected' | 'failed' | 'interrupted';
   readonly message: string;
   readonly code?: string;
+  readonly requestId?: string | null;
+  readonly diagnostics?: {
+    readonly code: string;
+    readonly status: number | null;
+    readonly requestId: string | null;
+    readonly details: unknown;
+  };
 }
 
 /** Local submission, owned by the command; never presented as a persisted server message. */

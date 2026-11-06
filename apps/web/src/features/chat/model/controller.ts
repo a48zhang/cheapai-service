@@ -267,10 +267,8 @@ export function createChatController(options: ChatControllerOptions) {
     if (!isRunCurrent(run)) return 'superseded';
     const failure = ambiguousCreate
       ? {
-          kind: 'failed' as const,
+          ...asChatFailure(cause, 'failed'),
           code: 'conversation_creation_unknown',
-          message:
-            '会话创建结果暂时无法确认。请刷新会话列表核对是否已创建；若不存在，再明确新建会话。',
         }
       : asChatFailure(cause, 'rejected');
     if (canDispatchForRun(run)) {

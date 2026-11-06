@@ -3,6 +3,8 @@ import { RouteButton } from '../../../shared/ui/RouteButton';
 import { ArrowUpRight, CircleAlert } from 'lucide-react';
 import type { ChatState } from '../model/state';
 import { Button } from '../../../shared/ui/Button';
+import { Disclosure } from '../../../shared/ui/Disclosure';
+import { CopyButton } from '../../../shared/ui/CopyButton';
 
 export function ChatNotice({
   state,
@@ -16,6 +18,22 @@ export function ChatNotice({
   onRestart: () => void;
 }) {
   if (!state.failure) return null;
+  const { failure } = state;
+  const requestId =
+    failure.diagnostics?.requestId ??
+    failure.requestId ??
+    state.detail?.messages.find((message) => message.id === state.streamMessageId)?.requestId;
+  const errorDetails = [
+    `具体原因：${failure.message}`,
+    (failure.diagnostics?.code ?? failure.code) &&
+      `错误码：${failure.diagnostics?.code ?? failure.code}`,
+    failure.diagnostics?.status != null && `HTTP 状态：${failure.diagnostics.status}`,
+    requestId && `请求编号：${requestId}`,
+    failure.diagnostics?.details != null &&
+      `错误详情：${JSON.stringify(failure.diagnostics.details, null, 2)}`,
+  ]
+    .filter(Boolean)
+    .join('\n');
   const creationUnknown = state.failure.code === 'conversation_creation_unknown';
   const uncertain = state.phase === 'interrupted';
   const selectionUnknown = uncertain && state.operationKind === 'select';
@@ -70,6 +88,16 @@ export function ChatNotice({
               {description}
             </p>
           )}
+          <Disclosure
+            title="查看错误详情"
+            className="mt-2 text-sm text-[var(--color-muted-foreground)]"
+            triggerClassName="w-fit gap-2"
+          >
+            <pre className="my-2 whitespace-pre-wrap break-words font-sans text-xs leading-5">
+              {errorDetails}
+            </pre>
+            <CopyButton value={errorDetails} label="复制错误详情" />
+          </Disclosure>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           {creationUnknown ? (

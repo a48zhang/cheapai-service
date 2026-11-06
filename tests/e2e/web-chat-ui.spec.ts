@@ -179,3 +179,26 @@ test('chat selection reload recovers unchanged server state and preserves the ne
   await expect(page.getByRole('log', { name: '对话消息' }).getByText('UI answer', { exact: true })).toBeVisible();
   await expect(page.getByText('回答版本尚未确认', { exact: true })).toHaveCount(0);
 });
+
+test('chat rejection exposes actionable diagnostics on demand', async ({ page }) => {
+  await mockedChat(page);
+  await page.route('**/api/v1/chat/conversations/conv-ui/messages', route => route.fulfill({
+    status: 422, contentType: 'application/json', body: JSON.stringify({
+      error: { code: 'model_unsupported', message: '模型暂不支持当前请求，请选择其他模型。', details: { reason: 'unsupported_parameter' } },
+      request_id: 'chat-request-422',
+    }),
+  }));
+  await page.goto('/chat/conv-ui');
+  await page.getByRole('textbox', { name: '消息内容' }).fill('test rejected request');
+  await page.getByRole('button', { name: '发送', exact: true }).click();
+  const details = page.getByText(/具体原因：模型暂不支持/);
+  await expect(details).toBeHidden();
+  await page.getByRole('button', { name: '查看错误详情' }).click();
+  await expect(details).toBeVisible();
+  await expect(details).toContainText('HTTP 状态：422');
+  await expect(details).toContainText('错误码：model_unsupported');
+  await expect(details).toContainText('请求编号：chat-request-422');
+  await expect(details).toContainText('unsupported_parameter');
+  await page.getByRole('button', { name: '复制错误详情' }).click();
+  await expect(page.getByRole('button', { name: '已复制', exact: true })).toBeVisible();
+});

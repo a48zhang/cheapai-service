@@ -159,6 +159,7 @@ async function responseError(response: Response): Promise<never> {
         status: response.status,
         code,
         ...(parsedRequestId.success ? { request_id: parsedRequestId.data } : {}),
+        ...(Object.hasOwn(payload.error, 'details') ? { details: payload.error.details } : {}),
       });
     }
   } catch (error) {
