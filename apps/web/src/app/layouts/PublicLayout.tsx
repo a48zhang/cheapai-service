@@ -58,7 +58,7 @@ export function PublicLayout() {
                   : `/login?returnTo=${encodeURIComponent(pathname + search + hash)}`
               }
             >
-              {isAuthenticated ? '控制台' : '登录'}
+              {isAuthenticated ? 'API 接入' : '登录'}
               <ArrowUpRight size={15} aria-hidden="true" />
             </RouteButton>
             <RouteButton variant="outline" to="/chat">

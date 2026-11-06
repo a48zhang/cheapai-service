@@ -22,7 +22,7 @@ export class RegistrationIdentityError extends Error {
     readonly registration: RegistrationResult,
     cause: unknown,
   ) {
-    super('账户已创建，暂时无法确认身份。请恢复会话或登录，勿重复注册。', { cause });
+    super('账户已创建，请登录后继续。', { cause });
     this.name = 'RegistrationIdentityError';
   }
 }
