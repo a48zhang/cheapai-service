@@ -97,25 +97,10 @@ async function reconcileFinalSnapshot(
   context: ChatOperationExecutorContext,
   initialOperation: ChatWriteOperation,
   replayDetail: ConversationDetail | null,
-  isReplay: boolean,
   failure: ChatFailure | null,
 ): Promise<ChatOperationResult> {
   const { run } = context;
   let operation = initialOperation;
-  if (isReplay && replayDetail) {
-    const replayedMessage = findOperationAssistant(replayDetail, {
-      operation,
-      belongsToOperation: true,
-    });
-    if (replayedMessage) {
-      operation = markOperationAccepted(operation, {
-        id: replayedMessage.id,
-        requestId: replayedMessage.requestId,
-      });
-      run.operation = operation;
-      context.rememberPending(operation);
-    }
-  }
 
   const expectedVersion = operation.input.conversationVersion + 1;
   let lastOutcome: ChatSnapshotOutcome = 'unconfirmed';
@@ -277,9 +262,7 @@ export async function executeChatOperation(
           );
     if (!context.isCurrent()) return 'superseded';
     let replayDetail: ConversationDetail | null = null;
-    let replay = false;
     if (result.kind === 'replay') {
-      replay = true;
       replayDetail = { conversation: result.conversation, messages: result.messages };
       const message = findOperationAssistant(replayDetail, { operation, belongsToOperation: true });
       if (message) {
@@ -311,7 +294,7 @@ export async function executeChatOperation(
     const failure = run.streamError
       ? { kind: 'failed' as const, message: run.streamError.message, code: run.streamError.code }
       : null;
-    return reconcileFinalSnapshot(context, operation, replayDetail, replay, failure);
+    return reconcileFinalSnapshot(context, operation, replayDetail, failure);
   } catch (cause) {
     if (!context.isCurrent()) return 'superseded';
     const accepted =
@@ -336,6 +319,6 @@ export async function executeChatOperation(
     const failure = run.streamError
       ? { kind: 'failed' as const, message: run.streamError.message, code: run.streamError.code }
       : asChatFailure(cause, 'interrupted');
-    return reconcileFinalSnapshot(context, operation, null, false, failure);
+    return reconcileFinalSnapshot(context, operation, null, failure);
   }
 }
