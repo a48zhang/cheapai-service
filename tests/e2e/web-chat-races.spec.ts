@@ -4,13 +4,12 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-type Connection = { baseURL: string; token: string; adminEmail: string; adminPassword: string };
+type Connection = { upstreamBaseURL: string; baseURL: string; token: string; adminEmail: string; adminPassword: string };
 type Fixture = { info: Connection; admin: APIRequestContext; userContext: BrowserContext; page: Page; userApi: APIRequestContext; userCsrf: string; modelId: string };
 type PlaywrightHarness = { request: { newContext(options: any): Promise<APIRequestContext> } };
 type BrowserHarness = { newContext(options: any): Promise<BrowserContext> };
 
 const answer = 'Local fixture answer';
-const fixtureBaseUrl = 'https://e2e-upstream.example.invalid/v1';
 
 function readConnection(): Connection {
   return JSON.parse(readFileSync(join(__dirname, `../../.wrangler/e2e/connection-${process.env.SUB2API_E2E_PORT ?? '9789'}.json`), 'utf8')) as Connection;
@@ -62,7 +61,7 @@ async function prepareUser(playwright: PlaywrightHarness, browser: BrowserHarnes
   const tag = randomUUID().slice(0, 8);
   const modelId = `web-chat-race-${tag}`;
   const channel = await create(admin, '/api/v1/admin/channels', {
-    name: `Web chat race ${tag}`, baseUrl: fixtureBaseUrl, upstreamKey: 'local-fixture-upstream-key',
+    name: `Web chat race ${tag}`, baseUrl: info.upstreamBaseURL, upstreamKey: 'local-fixture-upstream-key',
     concurrencyLimit: 2, rpmLimit: 60, priority: 10, status: 'active',
   }, headers);
   await create(admin, '/api/v1/admin/models', {publicModelId: modelId, status: 'active', sellPrices: { input: '1', output: '1' }}, headers);

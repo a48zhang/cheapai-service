@@ -273,7 +273,7 @@ test('a failed conversation read keeps the draft and requires a successful retry
   await expect(input).toHaveValue('保留读取失败时的草稿');
 });
 
-test('unknown conversation creation can restart while preserving the question and new draft', async ({
+test('failed conversation creation retries directly while preserving the question and new draft', async ({
   page,
 }) => {
   const api = await fixture(page);
@@ -290,11 +290,10 @@ test('unknown conversation creation can restart while preserving the question an
   const input = page.getByRole('textbox', { name: '消息内容' });
   await input.fill('创建失败前的问题');
   await page.getByRole('button', { name: '发送', exact: true }).click();
-  await expect(page.getByRole('button', { name: '重新开始', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '重试发送', exact: true })).toBeEnabled();
   await input.fill('保留新草稿');
-  await expect(page.getByRole('button', { name: '发送', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '发送', exact: true })).toBeEnabled();
   expect(creates).toBe(1);
-  await page.getByRole('button', { name: '重新开始', exact: true }).click();
   await expect(input).toHaveValue('保留新草稿');
   await page.getByRole('button', { name: '重试发送', exact: true }).click();
   await expect(page.getByRole('article', { name: '你的消息' })).toContainText('创建失败前的问题');
