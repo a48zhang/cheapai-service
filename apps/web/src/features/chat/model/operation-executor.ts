@@ -54,7 +54,15 @@ function delay(milliseconds: number): Promise<void> {
 }
 
 export function asChatFailure(cause: unknown, kind: ChatFailure['kind']): ChatFailure {
-  if (cause instanceof ApiClientError) return { kind, message: cause.message, code: cause.code };
+  if (cause instanceof ApiClientError)
+    return {
+      kind,
+      message: cause.message,
+      code: cause.code,
+      status: cause.status,
+      requestId: cause.request_id,
+      details: cause.details,
+    };
   return { kind, message: cause instanceof Error ? cause.message : '聊天请求失败。' };
 }
 
@@ -142,7 +150,7 @@ async function reconcileFinalSnapshot(
       run.operation = operation;
       context.forgetPending(operation);
       const outcome = lastOutcome;
-      const terminalFailure =
+      const terminalFailure: ChatFailure | undefined =
         outcome === 'failed'
           ? (failure ??
             (run.streamError
@@ -158,7 +166,14 @@ async function reconcileFinalSnapshot(
         operationId: operation.operationId,
         outcome,
         detail: latest,
-        ...(terminalFailure === undefined ? {} : { failure: terminalFailure }),
+        ...(terminalFailure === undefined
+          ? {}
+          : {
+              failure: {
+                ...terminalFailure,
+                requestId: terminalFailure.requestId ?? operation.requestId,
+              },
+            }),
       });
       try {
         await context.onDetailConfirmed?.(latest);
@@ -176,9 +191,12 @@ async function reconcileFinalSnapshot(
   context.dispatch({
     type: 'interrupted',
     operationId: operation.operationId,
-    failure: failure ?? {
-      kind: 'interrupted',
-      message: '连接已中断，服务端结果尚未确认。可使用原操作重试。',
+    failure: {
+      ...(failure ?? {
+        kind: 'interrupted',
+        message: '连接已中断，服务端结果尚未确认。可使用原操作重试。',
+      }),
+      requestId: failure?.requestId ?? operation.requestId,
     },
   });
   return 'interrupted';

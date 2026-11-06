@@ -56,6 +56,7 @@ export function MessageList({
   loading = false,
   emptyMessage = '在下方输入消息开始对话。',
 }: MessageListProps) {
+  const actionsBusy = busy || phase === 'interrupted';
   const activeOperationId = operationId ?? submission?.operationId ?? null;
   const activeOperationKind = operationKind ?? (submission ? 'send' : null);
   const presentation = getChatPresentation(phase, activeOperationKind);
@@ -161,7 +162,7 @@ export function MessageList({
               ? true
               : regenerateAvailability.allowed &&
                 regenerateAvailability.assistant.id === row.message.id) &&
-            !busy &&
+            !actionsBusy &&
             onRegenerate !== undefined &&
             regenerateDisabledReason === undefined;
           const canSelectVersion =
@@ -169,12 +170,12 @@ export function MessageList({
             isCurrentSelection &&
             canOperateOnAssistant(row.message) &&
             selectableVariants.some((variant) => variant.id !== row.message.id) &&
-            !busy &&
+            !actionsBusy &&
             onSelectVersion !== undefined;
           return (
             <Message
               key={row.renderKey}
-              busy={busy}
+              busy={actionsBusy}
               canRegenerate={canRegenerate}
               canSelectVersion={canSelectVersion}
               message={row.message}

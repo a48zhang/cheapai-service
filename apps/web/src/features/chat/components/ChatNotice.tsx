@@ -1,41 +1,64 @@
+import { apiErrorMessages } from '@cheapai/api-client/errors';
 import { RouteButton } from '../../../shared/ui/RouteButton';
 import { ArrowUpRight, CircleAlert } from 'lucide-react';
 import type { ChatState } from '../model/state';
 import { Button } from '../../../shared/ui/Button';
+import { Disclosure } from '../../../shared/ui/Disclosure';
+import { CopyButton } from '../../../shared/ui/CopyButton';
 
 export function ChatNotice({
   state,
   onRetry,
   onReload,
-  onRestart,
 }: {
   state: ChatState;
   onRetry: () => void;
-  onReload: () => void;
-  onRestart: () => void;
+  onReload?: (() => void) | undefined;
 }) {
   if (!state.failure) return null;
-  const creationUnknown = state.failure.code === 'conversation_creation_unknown';
+  const { failure } = state;
+  const requestId =
+    failure.requestId ??
+    state.detail?.messages.find((message) => message.id === state.streamMessageId)?.requestId;
+  const errorDetails = [
+    `具体原因：${failure.message}`,
+    failure.code && `错误码：${failure.code}`,
+    failure.status != null && `HTTP 状态：${failure.status}`,
+    requestId && `请求编号：${requestId}`,
+    state.operationId && `操作编号：${state.operationId}`,
+    state.detail?.conversation.id && `对话编号：${state.detail.conversation.id}`,
+    failure.details != null && `错误详情：${JSON.stringify(failure.details, null, 2)}`,
+  ]
+    .filter(Boolean)
+    .join('\n');
   const uncertain = state.phase === 'interrupted';
+  const selectionUnknown = uncertain && state.operationKind === 'select';
+  const rejectedMessage = Object.hasOwn(apiErrorMessages, state.failure.code ?? '')
+    ? apiErrorMessages[state.failure.code as keyof typeof apiErrorMessages]
+    : '操作暂时无法完成，请稍后重试。';
   const insufficientBalance = state.failure.code === 'insufficient_balance';
-  const message = creationUnknown
-    ? '会话创建结果待确认'
+  const message = selectionUnknown
+    ? '回答版本尚未确认'
     : uncertain
-      ? '请求结果待确认'
+      ? '回答尚未确认'
       : insufficientBalance
         ? '账户余额不足'
         : state.failure.kind === 'rejected'
-          ? state.failure.message
+          ? rejectedMessage
           : '本次生成未完成';
-  const description = creationUnknown
-    ? '问题尚未发送。可查看聊天记录，或重新开始对话。'
+  const description = selectionUnknown
+    ? '请重新加载对话，查看当前回答版本后继续。'
     : uncertain
-      ? '请先确认本次请求的结果，再继续对话。'
+      ? '连接已中断。请点击“确认结果”获取这次回答，再继续对话。'
       : insufficientBalance
         ? '请查看账户余额后继续对话。'
         : state.failure.kind === 'rejected'
-          ? ''
-          : '请稍后再试，或重新加载当前对话。';
+          ? state.unsent.length > 0
+            ? '消息尚未发送，可在消息下方重试发送。'
+            : ''
+          : state.unsent.length > 0
+            ? '消息尚未发送，可在消息下方重试发送。'
+            : '可在回答下方选择“重新回答”，或重新加载对话。';
   return (
     <div
       role="alert"
@@ -57,27 +80,35 @@ export function ChatNotice({
               {description}
             </p>
           )}
+          <Disclosure
+            title="查看错误详情"
+            className="mt-2 text-sm text-[var(--color-muted-foreground)]"
+            triggerClassName="w-fit gap-2"
+          >
+            <pre className="my-2 whitespace-pre-wrap break-words font-sans text-xs leading-5">
+              {errorDetails}
+            </pre>
+            <CopyButton value={errorDetails} label="复制错误详情" />
+          </Disclosure>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {creationUnknown ? (
-            <Button size="sm" onClick={onRestart}>
-              重新开始
-            </Button>
-          ) : insufficientBalance ? (
+          {insufficientBalance ? (
             <RouteButton size="sm" variant="primary" to="/billing">
               查看余额
               <ArrowUpRight size={16} aria-hidden="true" />
             </RouteButton>
           ) : (
             <>
-              {uncertain && (
+              {uncertain && !selectionUnknown && (
                 <Button size="sm" onClick={onRetry}>
                   确认结果
                 </Button>
               )}
-              <Button variant="outline" size="sm" onClick={onReload}>
-                重新加载
-              </Button>
+              {onReload && (
+                <Button variant="outline" size="sm" onClick={onReload}>
+                  重新加载
+                </Button>
+              )}
             </>
           )}
         </div>

@@ -135,7 +135,16 @@ export function useChatController(options: UseChatControllerOptions) {
     busy: isChatBusy(visibleState.phase),
     loading: view === 'opening',
     error: query.error,
-    reload: () => query.refetch(),
+    reload: async () => {
+      const before = controller.getSnapshot();
+      const selectionOperationId =
+        before.phase === 'interrupted' && before.operationKind === 'select'
+          ? before.operationId
+          : null;
+      const result = await query.refetch();
+      if (result.isSuccess) controller.hydrate(result.data, selectionOperationId);
+      return result;
+    },
     retry: () => controller.retry(),
     stop: () => controller.stop(),
   };

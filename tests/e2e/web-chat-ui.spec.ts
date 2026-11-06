@@ -152,3 +152,77 @@ test('FE-V02 history first-page failure is distinct from empty and supports retr
   await page.getByRole('button', { name: '重试', exact: true }).click();
   await expect(page.getByText('还没有对话', { exact: true })).toBeVisible();
 });
+
+test('chat selection reload recovers unchanged server state and preserves the next draft', async ({ page }) => {
+  const fixture = await mockedChat(page);
+  fixture.setDetail({ conversation: { ...conversation }, messages: [{ ...prompt }, { ...answer }, { ...answer, id: 'alternative-ui', variant: 2, selected: false, content: 'Alternative answer' }] });
+  let interrupted = false;
+  await page.route('**/api/v1/chat/conversations/conv-ui/select', route => {
+    interrupted = true;
+    return route.abort('failed');
+  });
+  await page.route('**/api/v1/chat/conversations/conv-ui', route => interrupted ? route.abort('failed') : route.fallback());
+  await page.goto('/chat/conv-ui');
+  const composer = page.getByRole('textbox', { name: '消息内容' });
+  await composer.fill('保留下一条消息');
+  await page.getByRole('button', { name: '下一个回答版本' }).click();
+  await expect(page.getByText('回答版本尚未确认', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '确认结果', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '版本切换待确认', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '下一个回答版本' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '重新回答', exact: true })).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  interrupted = false;
+  await page.getByRole('button', { name: '重新加载', exact: true }).click();
+  await expect(page.getByRole('button', { name: '发送', exact: true })).toBeEnabled();
+  await expect(composer).toHaveValue('保留下一条消息');
+  await expect(page.getByRole('log', { name: '对话消息' }).getByText('UI answer', { exact: true })).toBeVisible();
+  await expect(page.getByText('回答版本尚未确认', { exact: true })).toHaveCount(0);
+});
+
+test('chat rejection exposes actionable diagnostics on demand', async ({ page }) => {
+  await mockedChat(page);
+  await page.route('**/api/v1/chat/conversations/conv-ui/messages', route => route.fulfill({
+    status: 422, contentType: 'application/json', body: JSON.stringify({
+      error: { code: 'model_unsupported', message: '模型暂不支持当前请求，请选择其他模型。', details: { reason: 'unsupported_parameter' } },
+      request_id: 'chat-request-422',
+    }),
+  }));
+  await page.goto('/chat/conv-ui');
+  await page.getByRole('textbox', { name: '消息内容' }).fill('test rejected request');
+  await page.getByRole('button', { name: '发送', exact: true }).click();
+  const details = page.getByText(/具体原因：模型暂不支持/);
+  await expect(details).toBeHidden();
+  await page.getByRole('button', { name: '查看错误详情' }).click();
+  await expect(details).toBeVisible();
+  await expect(details).toContainText('HTTP 状态：422');
+  await expect(details).toContainText('错误码：model_unsupported');
+  await expect(details).toContainText('请求编号：chat-request-422');
+  await expect(details).toContainText('unsupported_parameter');
+  await page.getByRole('button', { name: '复制错误详情' }).click();
+  await expect(page.getByRole('button', { name: '已复制', exact: true })).toBeVisible();
+});
+
+test('failed conversation creation retries the unsent question directly', async ({ page }) => {
+  const fixture = await mockedChat(page);
+  let creates = 0;
+  const sent: string[] = [];
+  await page.route('**/api/v1/chat/conversations', route => {
+    if (route.request().method() !== 'POST') return fixture.fulfill(route, { items: [], nextCursor: null });
+    creates += 1;
+    return creates === 1 ? route.abort('failed') : fixture.fulfill(route, conversation);
+  });
+  await page.route('**/api/v1/chat/conversations/conv-ui/messages', route => {
+    sent.push(route.request().postDataJSON().content);
+    return route.fulfill({ status: 422, contentType: 'application/json', body: JSON.stringify({ error: { code: 'invalid_request', message: 'fixture rejection' }, request_id: 'retry-create-request' }) });
+  });
+  await page.goto('/chat');
+  await page.getByRole('textbox', { name: '消息内容' }).fill('保留并重试这个问题');
+  await page.getByRole('button', { name: '发送', exact: true }).click();
+  await expect(page.getByRole('button', { name: '重试发送', exact: true })).toBeEnabled();
+  expect(sent).toEqual([]);
+  await expect(page.getByRole('button', { name: '重新开始', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: '重试发送', exact: true }).click();
+  await expect.poll(() => sent).toEqual(['保留并重试这个问题']);
+  expect(creates).toBe(2);
+});
