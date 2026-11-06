@@ -8,8 +8,7 @@ import {
 import type { ChatEvent, ChatFailure, ChatState } from './state';
 
 export function chatReducer(state: ChatState = initialChatState, event: ChatEvent): ChatState {
-  if (event.type === 'reset')
-    return event.keepUnsent ? { ...initialChatState, unsent: state.unsent } : initialChatState;
+  if (event.type === 'reset') return initialChatState;
   if (event.type === 'hydrate') {
     return { ...initialChatState, detail: event.detail };
   }

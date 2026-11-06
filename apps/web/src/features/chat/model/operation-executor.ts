@@ -59,12 +59,9 @@ export function asChatFailure(cause: unknown, kind: ChatFailure['kind']): ChatFa
       kind,
       message: cause.message,
       code: cause.code,
-      diagnostics: {
-        code: cause.code,
-        status: cause.status,
-        requestId: cause.request_id,
-        details: cause.details,
-      },
+      status: cause.status,
+      requestId: cause.request_id,
+      details: cause.details,
     };
   return { kind, message: cause instanceof Error ? cause.message : '聊天请求失败。' };
 }
@@ -153,7 +150,7 @@ async function reconcileFinalSnapshot(
       run.operation = operation;
       context.forgetPending(operation);
       const outcome = lastOutcome;
-      const terminalFailure =
+      const terminalFailure: ChatFailure | undefined =
         outcome === 'failed'
           ? (failure ??
             (run.streamError
@@ -171,7 +168,12 @@ async function reconcileFinalSnapshot(
         detail: latest,
         ...(terminalFailure === undefined
           ? {}
-          : { failure: { ...terminalFailure, requestId: operation.requestId } }),
+          : {
+              failure: {
+                ...terminalFailure,
+                requestId: terminalFailure.requestId ?? operation.requestId,
+              },
+            }),
       });
       try {
         await context.onDetailConfirmed?.(latest);
@@ -194,7 +196,7 @@ async function reconcileFinalSnapshot(
         kind: 'interrupted',
         message: '连接已中断，服务端结果尚未确认。可使用原操作重试。',
       }),
-      requestId: operation.requestId,
+      requestId: failure?.requestId ?? operation.requestId,
     },
   });
   return 'interrupted';

@@ -20,7 +20,6 @@ describe('chat recovery notice', () => {
         }}
         onReload={onReload}
         onRetry={vi.fn()}
-        onRestart={vi.fn()}
       />,
     );
     expect(screen.queryByRole('button', { name: '确认结果' })).toBeNull();
@@ -50,7 +49,6 @@ describe('chat recovery notice', () => {
           unsent: [{ operationId: 'unsent', content: 'question', userMessageId: null }],
         }}
         onRetry={vi.fn()}
-        onRestart={vi.fn()}
       />,
     );
     expect(screen.getByText(/具体原因：模型暂不支持/)).not.toBeVisible();

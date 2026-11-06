@@ -216,12 +216,7 @@ export default function ChatPage() {
                 retrySubmissionId: submission.operationId,
               });
           }}
-          retryDisabled={
-            chat.busy ||
-            chat.state.phase === 'interrupted' ||
-            chat.state.failure?.code === 'conversation_creation_unknown' ||
-            !selection.available
-          }
+          retryDisabled={chat.busy || chat.state.phase === 'interrupted' || !selection.available}
           busy={chat.busy}
           loading={authenticated && chat.loading}
           {...(!selection.available && selection.unavailableReason
@@ -243,7 +238,6 @@ export default function ChatPage() {
           <div className="chat-notice-area">
             <ChatNotice
               state={chat.state}
-              onRestart={() => chat.controller.resetConversation(true)}
               onRetry={() => {
                 void chat.retry();
               }}
@@ -278,7 +272,6 @@ export default function ChatPage() {
           disabled={
             Boolean(disabledReason) ||
             chat.state.phase === 'interrupted' ||
-            chat.state.failure?.code === 'conversation_creation_unknown' ||
             (authenticated && (Boolean(selection.error) || !selection.available))
           }
           {...(disabledReason ? { disabledReason } : {})}

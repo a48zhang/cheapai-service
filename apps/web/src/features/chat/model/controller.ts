@@ -113,22 +113,6 @@ function sameOwner(left: ChatOperationOwner, right: ChatOperationOwner | null): 
   return right !== null && left.userId === right.userId && left.epoch === right.epoch;
 }
 
-function createResultMayBeUnknown(cause: unknown): boolean {
-  if (!(cause instanceof ApiClientError)) return true;
-  if (cause.kind === 'request') return false;
-  if (cause.kind === 'network' || cause.kind === 'invalid_response' || cause.kind === 'aborted')
-    return true;
-  if (cause.kind === 'api') {
-    return (
-      cause.status === null ||
-      cause.status >= 500 ||
-      cause.code === 'internal_error' ||
-      cause.code === 'service_unavailable'
-    );
-  }
-  return cause.status === null || cause.status >= 500;
-}
-
 function validSendCommand(command: ChatSendCommand, operationId: string): boolean {
   if (!operationIdentifier.test(operationId)) return false;
   return chatSendInputSchema.safeParse({
@@ -259,22 +243,15 @@ export function createChatController(options: ChatControllerOptions) {
     };
   }
 
-  async function finishBeforeSend(
-    run: ActiveRun,
-    cause: unknown,
-    ambiguousCreate = false,
-  ): Promise<ChatCommandResult> {
+  async function finishBeforeSend(run: ActiveRun, cause: unknown): Promise<ChatCommandResult> {
     if (!isRunCurrent(run)) return 'superseded';
-    const failure = ambiguousCreate
-      ? {
-          ...asChatFailure(cause, 'failed'),
-          code: 'conversation_creation_unknown',
-        }
-      : asChatFailure(cause, 'rejected');
+    // No message request has been sent yet; retain it as unsent and allow the
+    // ordinary retry path, even if creating an empty conversation lost its response.
+    const failure = asChatFailure(cause, 'rejected');
     if (canDispatchForRun(run)) {
       dispatch({ type: 'failed', operationId: run.commandId, failure });
     }
-    return ambiguousCreate ? 'interrupted' : 'rejected';
+    return 'rejected';
   }
 
   function performOperation(
@@ -366,7 +343,7 @@ export function createChatController(options: ChatControllerOptions) {
         }
       } catch (cause) {
         if (!isRunCurrent(run)) return 'superseded';
-        return finishBeforeSend(run, cause, createResultMayBeUnknown(cause));
+        return finishBeforeSend(run, cause);
       }
     }
 
@@ -433,8 +410,6 @@ export function createChatController(options: ChatControllerOptions) {
   function send(command: ChatSendCommand, onAccepted?: () => void): Promise<ChatCommandResult> {
     if (disposed) return Promise.resolve('disposed');
     if (activeRun) return Promise.resolve('busy');
-    if (state.failure?.code === 'conversation_creation_unknown')
-      return Promise.resolve('interrupted');
     if (activeConversationId !== null && state.detail?.conversation.id !== activeConversationId) {
       // The route Query has not supplied this conversation yet. It is the sole ordinary detail reader.
       return Promise.resolve('busy');
@@ -673,12 +648,12 @@ export function createChatController(options: ChatControllerOptions) {
     }
   }
 
-  function resetConversation(keepUnsent = false): void {
+  function resetConversation(): void {
     if (disposed) return;
     loadEpoch += 1;
     cancelRunForRouteChange();
     activeConversationId = null;
-    dispatch({ type: 'reset', keepUnsent });
+    dispatch({ type: 'reset' });
   }
 
   function subscribe(listener: () => void): () => void {

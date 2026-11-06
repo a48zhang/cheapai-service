@@ -320,7 +320,7 @@ describe('chat controller command lifecycle', () => {
     controller.dispose();
   });
 
-  it('blocks a second create after an unknown create result until explicit reset', async () => {
+  it('keeps a failed creation unsent and retries directly without a reset', async () => {
     const created = makeConversation('controller-create-after-reset');
     let createCount = 0;
     const createConversation = vi.fn(async () => {
@@ -337,18 +337,18 @@ describe('chat controller command lifecycle', () => {
       idFactory: () => 'unknown-create-operation',
     });
 
-    await expect(controller.send(sendCommand('Keep this draft'))).resolves.toBe('interrupted');
+    await expect(controller.send(sendCommand('Keep this draft'))).resolves.toBe('rejected');
     expect(controller.getSnapshot().failure).toMatchObject({
-      code: 'conversation_creation_unknown',
+      code: 'network',
+      message: 'create response lost',
     });
-    await expect(controller.send(sendCommand('Do not create twice'))).resolves.toBe('interrupted');
     expect(createConversation).toHaveBeenCalledTimes(1);
-
-    controller.resetConversation(true);
-    expect(controller.getSnapshot().unsent[0]?.content).toBe('Keep this draft');
-    await expect(controller.send(sendCommand('Explicit new conversation'))).resolves.toBe(
-      'rejected',
-    );
+    expect(sendMessage).not.toHaveBeenCalled();
+    const unsent = controller.getSnapshot().unsent[0]!;
+    expect(unsent.content).toBe('Keep this draft');
+    await expect(
+      controller.send({ ...sendCommand(unsent.content), retrySubmissionId: unsent.operationId }),
+    ).resolves.toBe('rejected');
     expect(createConversation).toHaveBeenCalledTimes(2);
     expect(sendMessage).toHaveBeenCalledTimes(1);
     controller.dispose();

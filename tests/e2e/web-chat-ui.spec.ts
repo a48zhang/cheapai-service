@@ -202,3 +202,27 @@ test('chat rejection exposes actionable diagnostics on demand', async ({ page })
   await page.getByRole('button', { name: '复制错误详情' }).click();
   await expect(page.getByRole('button', { name: '已复制', exact: true })).toBeVisible();
 });
+
+test('failed conversation creation retries the unsent question directly', async ({ page }) => {
+  const fixture = await mockedChat(page);
+  let creates = 0;
+  const sent: string[] = [];
+  await page.route('**/api/v1/chat/conversations', route => {
+    if (route.request().method() !== 'POST') return fixture.fulfill(route, { items: [], nextCursor: null });
+    creates += 1;
+    return creates === 1 ? route.abort('failed') : fixture.fulfill(route, conversation);
+  });
+  await page.route('**/api/v1/chat/conversations/conv-ui/messages', route => {
+    sent.push(route.request().postDataJSON().content);
+    return route.fulfill({ status: 422, contentType: 'application/json', body: JSON.stringify({ error: { code: 'invalid_request', message: 'fixture rejection' }, request_id: 'retry-create-request' }) });
+  });
+  await page.goto('/chat');
+  await page.getByRole('textbox', { name: '消息内容' }).fill('保留并重试这个问题');
+  await page.getByRole('button', { name: '发送', exact: true }).click();
+  await expect(page.getByRole('button', { name: '重试发送', exact: true })).toBeEnabled();
+  expect(sent).toEqual([]);
+  await expect(page.getByRole('button', { name: '重新开始', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: '重试发送', exact: true }).click();
+  await expect.poll(() => sent).toEqual(['保留并重试这个问题']);
+  expect(creates).toBe(2);
+});
