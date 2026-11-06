@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { ApiClientError } from '@cheapai/api-client/errors';
 import { useSession } from './useSession';
 import { RegistrationIdentityError } from './controller';
 import { VerificationCodeField } from './VerificationCodeField';
@@ -21,6 +22,7 @@ const schema = z.object({
 export function RegisterForm({ returnTo = '/' }: { returnTo?: string }) {
   const { session, publicSettings, settingsError, pending } = useSession();
   const [submitError, setSubmitError] = useState<unknown>(null);
+  const [needsAccountCheck, setNeedsAccountCheck] = useState(false);
   const [created, setCreated] = useState(false);
   const [codeBusy, setCodeBusy] = useState(false);
   const navigate = useNavigate();
@@ -51,7 +53,7 @@ export function RegisterForm({ returnTo = '/' }: { returnTo?: string }) {
       </>
     );
   if (publicSettings.registrationMode === 'closed') return <p role="status">当前未开放注册</p>;
-  if (created)
+  if (created || needsAccountCheck)
     return (
       <div role="status" className="space-y-4">
         {submitError ? (
@@ -94,6 +96,16 @@ export function RegisterForm({ returnTo = '/' }: { returnTo?: string }) {
           if (result.session === 'created') navigate(safeDestination, { replace: true });
         } catch (cause) {
           setSubmitError(cause);
+          if (
+            !(cause instanceof ApiClientError) ||
+            cause.kind === 'network' ||
+            cause.kind === 'aborted' ||
+            cause.kind === 'invalid_response' ||
+            (cause.status !== null && cause.status >= 500)
+          ) {
+            setNeedsAccountCheck(true);
+            setValue('password', '');
+          }
           if (cause instanceof RegistrationIdentityError) {
             setCreated(true);
             setValue('password', '');
