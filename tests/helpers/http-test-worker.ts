@@ -2,6 +2,7 @@
 import worker from '../../apps/worker/index';
 import type { Env } from '../../apps/worker/env';
 export { Gate } from '../../apps/worker/limits/gate';
+export { ImageGenerationJob } from '../../apps/worker/images/job';
 
 interface TestEnv extends Env { E2E_CONTROL_TOKEN: string }
 const calls: { protocol: string; model: string; stream: boolean; platformCredentialLeaked: boolean }[] = [];

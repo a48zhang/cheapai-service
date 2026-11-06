@@ -1,3 +1,4 @@
+import { maintainImageJobs } from '../images/maintenance';
 import type { Env } from '../env';
 import { ApiError } from '../http';
 import { logError } from '../logging';
@@ -70,6 +71,7 @@ export async function runScheduledMaintenance(database: D1Database, context: Pic
 
 /** scheduledTime may be old after delayed delivery; actual processing time wins. */
 export async function handleScheduled(_controller: ScheduledController, env: Env, context: ExecutionContext): Promise<void> {
+  context.waitUntil(maintainImageJobs(env));
   try {
     const report = await runScheduledMaintenance(env.DB, context);
     console.info('scheduled_maintenance', report);

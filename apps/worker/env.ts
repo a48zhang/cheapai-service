@@ -1,3 +1,4 @@
+import type { ImageGenerationJob } from './images/job';
 import type { Gate } from './limits/gate';
 
 /** Resource names must match wrangler.jsonc in every environment. */
@@ -7,6 +8,7 @@ export interface Env {
   /** Private generated images; authorization is enforced by owner-scoped download routes. */
   IMAGE_ASSETS?: R2Bucket;
   GATE: DurableObjectNamespace<Gate>;
+  IMAGE_JOBS?: DurableObjectNamespace<ImageGenerationJob>;
   EMAIL?: SendEmail;
   /** Defaults to Cloudflare for existing deployments. */
   EMAIL_PROVIDER?: 'cloudflare' | 'resend';
