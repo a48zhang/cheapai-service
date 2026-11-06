@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createExecutionContext, waitOnExecutionContext } from 'cloudflare:test';
+import {
+  createExecutionContext,
+  waitOnExecutionContext,
+  runInDurableObject,
+  evictDurableObject,
+  runDurableObjectAlarm,
+} from 'cloudflare:test';
+import { maintainImageJobs } from '../../apps/worker/images/maintenance';
 import { app } from '../../apps/worker/app';
 import { createCookieSession } from '../../apps/worker/auth/sessions';
 import { issueCsrfToken } from '../../apps/worker/auth/csrf';
@@ -17,6 +24,7 @@ async function request(
   actor = 'image-owner',
   body?: unknown,
   method = body === undefined ? 'GET' : 'POST',
+  finish = true,
 ) {
   const ctx = createExecutionContext();
   const response = await app.fetch(
@@ -29,6 +37,12 @@ async function request(
     ctx,
   );
   await waitOnExecutionContext(ctx);
+  if (finish && response.status === 202) {
+    const job = ((await response.clone().json()) as { data: ImageJob }).data;
+    const stub = testEnv.IMAGE_JOBS!.getByName(job.id);
+    if (job.status === 'generating') await runInDurableObject(stub, (instance) => instance.alarm());
+    return request(`/api/v1/images/generations/${job.id}`, actor);
+  }
   return response;
 }
 const input = (operationId = 'image-operation') => ({
@@ -97,6 +111,84 @@ beforeEach(async () => {
   model = ((await created.json()) as { data: ImageModel }).data;
 });
 describe('image generation through session routes, native D1, R2 and limits', () => {
+  it('accepts without provider work and survives request completion and object eviction', async () => {
+    const fetcher = vi.fn(async () => Response.json({ data: [{ b64_json: png }] }));
+    vi.stubGlobal('fetch', fetcher);
+    const accepted = await request(
+      '/api/v1/images/generations',
+      'image-owner',
+      input(),
+      'POST',
+      false,
+    );
+    expect(accepted.status).toBe(202);
+    const job = ((await accepted.json()) as { data: ImageJob }).data;
+    expect(job.status).toBe('generating');
+    expect(fetcher).not.toHaveBeenCalled();
+    const stub = testEnv.IMAGE_JOBS!.getByName(job.id);
+    expect(await runInDurableObject(stub, (_, ctx) => ctx.storage.getAlarm())).not.toBeNull();
+    await evictDurableObject(stub);
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    await runInDurableObject(stub, (instance) => instance.alarm());
+    const result = await request(`/api/v1/images/generations/${job.id}`);
+    expect(((await result.json()) as { data: ImageJob }).data).toMatchObject({
+      status: 'completed',
+      billingStatus: 'settled',
+    });
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
+  it('repairs a missing wake-up from D1 without a browser confirmation', async () => {
+    const fetcher = vi.fn(async () => Response.json({ data: [{ b64_json: png }] }));
+    vi.stubGlobal('fetch', fetcher);
+    const response = await request(
+      '/api/v1/images/generations',
+      'image-owner',
+      input(),
+      'POST',
+      false,
+    );
+    const job = ((await response.json()) as { data: ImageJob }).data;
+    const stub = testEnv.IMAGE_JOBS!.getByName(job.id);
+    await runInDurableObject(stub, async (_, ctx) => {
+      await ctx.storage.deleteAlarm();
+      await ctx.storage.deleteAll();
+    });
+    await maintainImageJobs(env());
+    expect(await runInDurableObject(stub, (_, ctx) => ctx.storage.getAlarm())).not.toBeNull();
+    await runInDurableObject(stub, (instance) => instance.alarm());
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(
+      await testEnv.DB.prepare('SELECT billing_status FROM image_generations WHERE id=?')
+        .bind(job.id)
+        .first('billing_status'),
+    ).toBe('settled');
+  });
+  it('does not resend a claimed job after interruption or charge an unknown result', async () => {
+    const fetcher = vi.fn();
+    vi.stubGlobal('fetch', fetcher);
+    const response = await request(
+      '/api/v1/images/generations',
+      'image-owner',
+      input(),
+      'POST',
+      false,
+    );
+    const job = ((await response.json()) as { data: ImageJob }).data;
+    await testEnv.DB.prepare('UPDATE image_generations SET started_at=? WHERE id=?')
+      .bind(Date.now(), job.id)
+      .run();
+    const stub = testEnv.IMAGE_JOBS!.getByName(job.id);
+    await evictDurableObject(stub);
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    await request('/api/v1/images/generations', 'image-owner', input());
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(
+      await testEnv.DB.prepare('SELECT status,billing_status FROM image_generations WHERE id=?')
+        .bind(job.id)
+        .first(),
+    ).toEqual({ status: 'unknown', billing_status: 'unbilled' });
+  });
   it('shows authorized prices, generates privately, and charges only once across replays', async () => {
     const fetcher = vi.fn(async (url: URL, init: RequestInit) => {
       expect(String(url)).toBe('https://provider.example.invalid/prefix/v1/images/generations');
@@ -273,31 +365,22 @@ describe('image generation through session routes, native D1, R2 and limits', ()
     },
   );
   it('deduplicates overlapping sends before generating and keeps immutable price snapshots', async () => {
-    let release!: () => void;
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    let entered!: () => void;
-    const started = new Promise<void>((resolve) => {
-      entered = resolve;
-    });
-    const fetcher = vi.fn(async () => {
-      entered();
-      await gate;
-      return Response.json({ data: [{ b64_json: png }] });
-    });
+    const fetcher = vi.fn(async () => Response.json({ data: [{ b64_json: png }] }));
     vi.stubGlobal('fetch', fetcher);
-    const first = request('/api/v1/images/generations', 'image-owner', input());
-    await started;
-    const second = await request('/api/v1/images/generations', 'image-owner', input());
-    expect(((await second.json()) as { data: ImageJob }).data.status).toBe('generating');
+    const [first, second] = await Promise.all([
+      request('/api/v1/images/generations', 'image-owner', input(), 'POST', false),
+      request('/api/v1/images/generations', 'image-owner', input(), 'POST', false),
+    ]);
+    const job = ((await first.json()) as { data: ImageJob }).data;
+    expect(((await second.json()) as { data: ImageJob }).data.id).toBe(job.id);
     await testEnv.DB.prepare(
       'UPDATE image_models SET price_units=90000000,version=version+1 WHERE id=?',
     )
       .bind(model.id)
       .run();
-    release();
-    expect(((await (await first).json()) as { data: ImageJob }).data.priceUnits).toBe('5000000');
+    await runInDurableObject(testEnv.IMAGE_JOBS!.getByName(job.id), (instance) => instance.alarm());
+    const result = await request(`/api/v1/images/generations/${job.id}`);
+    expect(((await result.json()) as { data: ImageJob }).data.priceUnits).toBe('5000000');
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
   it('recovers a delayed charge without regenerating or charging twice', async () => {
@@ -322,6 +405,12 @@ describe('image generation through session routes, native D1, R2 and limits', ()
       ),
     ).toBe(100000000);
     await testEnv.DB.prepare('DROP TRIGGER image_settlement_outage').run();
+    await maintainImageJobs(env());
+    expect(
+      await testEnv.DB.prepare('SELECT billing_status FROM image_generations WHERE id=?')
+        .bind(job.id)
+        .first('billing_status'),
+    ).toBe('settled');
     for (let i = 0; i < 2; i++) {
       const restored = await request(`/api/v1/images/generations/${job.id}`);
       expect(((await restored.json()) as { data: ImageJob }).data.billingStatus).toBe('settled');

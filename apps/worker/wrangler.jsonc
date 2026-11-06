@@ -29,10 +29,10 @@
     "remote": false
   }],
   "durable_objects": {
-    "bindings": [{ "name": "GATE", "class_name": "Gate" }]
+    "bindings": [{ "name": "GATE", "class_name": "Gate" }, { "name": "IMAGE_JOBS", "class_name": "ImageGenerationJob" }]
   },
   "r2_buckets": [{ "binding": "IMAGE_ASSETS", "bucket_name": "cheapai-images-local", "remote": false }],
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Gate"] }],
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Gate"] }, { "tag": "v2-image-jobs", "new_sqlite_classes": ["ImageGenerationJob"] }],
   // Email Service uses send_email / SendEmail. Local simulation never delivers mail.
   "send_email": [{
     "name": "EMAIL",
@@ -52,7 +52,7 @@
     }],
     // Native Previews allocate their own Gate namespace and storage.
     "durable_objects": {
-      "bindings": [{ "name": "GATE", "class_name": "Gate" }]
+      "bindings": [{ "name": "GATE", "class_name": "Gate" }, { "name": "IMAGE_JOBS", "class_name": "ImageGenerationJob" }]
     },
     "observability": {
       "logs": {
@@ -120,7 +120,7 @@
         "remote": false
       }],
       "durable_objects": {
-        "bindings": [{ "name": "GATE", "class_name": "Gate" }]
+        "bindings": [{ "name": "GATE", "class_name": "Gate" }, { "name": "IMAGE_JOBS", "class_name": "ImageGenerationJob" }]
       },
       "send_email": []
     }

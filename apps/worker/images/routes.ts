@@ -29,7 +29,10 @@ export function createImageRoutes(options: { fetch?: typeof fetch; now?: () => n
   app.onError((error, c) => apiError(error, c.get('requestId')));
   app.get(`${IMAGE_API_PATH}/models`, async (c) =>
     apiSuccess(
-      { items: await choices(c.env.DB, c.get('user').id), available: Boolean(c.env.IMAGE_ASSETS) },
+      {
+        items: await choices(c.env.DB, c.get('user').id),
+        available: Boolean(c.env.IMAGE_ASSETS && c.env.IMAGE_JOBS),
+      },
       c.get('requestId'),
     ),
   );
@@ -50,6 +53,7 @@ export function createImageRoutes(options: { fetch?: typeof fetch; now?: () => n
     return apiSuccess(
       await startImage(c.env, c.get('user').id, parsed.data, options),
       c.get('requestId'),
+      202,
     );
   });
   app.get(`${IMAGE_API_PATH}/generations/:id`, async (c) => {
@@ -77,7 +81,10 @@ export function createImageRoutes(options: { fetch?: typeof fetch; now?: () => n
   });
   app.get(IMAGE_ADMIN_PATH, async (c) =>
     apiSuccess(
-      { items: await listModels(c.env.DB), storageReady: Boolean(c.env.IMAGE_ASSETS) },
+      {
+        items: await listModels(c.env.DB),
+        storageReady: Boolean(c.env.IMAGE_ASSETS && c.env.IMAGE_JOBS),
+      },
       c.get('requestId'),
     ),
   );

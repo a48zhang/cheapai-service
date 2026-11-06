@@ -9,7 +9,6 @@ import { generateImage, ImageProviderError } from './provider';
 import {
   authorize,
   byOperation,
-  getJob,
   jobView,
   markFailure,
   recover,
@@ -17,6 +16,7 @@ import {
   settleImage,
   verifyReplay,
 } from './repository';
+import type { JobRow, SelectionRow } from './repository';
 
 /** One explicit user operation yields at most one upstream request. Replays only read its result. */
 export async function startImage(
@@ -29,14 +29,62 @@ export async function startImage(
   const known = await byOperation(env.DB, userId, input.operationId);
   if (known) {
     verifyReplay(known, input);
-    return jobView(await recover(env.DB, known, now()));
+    const row = await recover(env.DB, known, now());
+    if (row.status === 'generating' && row.started_at === null && row.execution_snapshot)
+      await enqueueImage(env, row);
+    return jobView(row);
   }
-  if (!env.IMAGE_ASSETS) throw new ApiError('service_unavailable');
+  if (!env.IMAGE_ASSETS || !env.IMAGE_JOBS) throw new ApiError('service_unavailable');
   const config = await authorize(env.DB, userId, input);
   const channel = await readChannelForForwarding(env.DB, config.channel_id);
   if (!channel || channel.status !== 'active' || channel.configVersion !== config.channel_version)
     throw new ApiError('conflict');
-  const id = crypto.randomUUID();
+  const accepted = await register(env.DB, userId, input, config, crypto.randomUUID(), now());
+  await enqueueImage(env, accepted.row);
+  return jobView(accepted.row);
+}
+
+export async function enqueueImage(env: Env, row: JobRow): Promise<void> {
+  if (!env.IMAGE_JOBS) throw new ApiError('service_unavailable');
+  await env.IMAGE_JOBS.getByName(row.id).schedule(row.id, row.user_id);
+}
+
+/** Called only by a durable alarm. A persisted claim fences retries before upstream I/O. */
+export async function executeImage(
+  env: Env,
+  row: JobRow,
+  options: { fetch?: typeof fetch; now?: () => number } = {},
+): Promise<void> {
+  const now = options.now ?? Date.now;
+  if (row.status !== 'generating' || !row.execution_snapshot) return;
+  if (row.started_at !== null) {
+    await markFailure(env.DB, row, 'result_unknown', now());
+    return;
+  }
+  if (row.expires_at <= now()) {
+    await recover(env.DB, row, now());
+    return;
+  }
+  const config: SelectionRow = JSON.parse(row.execution_snapshot);
+  const userId = row.user_id;
+  const id = row.id;
+  const input: ImageGenerateInput = {
+    operationId: row.operation_id,
+    modelId: row.model_id,
+    groupId: row.group_id,
+    prompt: row.prompt,
+    size: row.size,
+  };
+  const channel = await readChannelForForwarding(env.DB, config.channel_id);
+  if (
+    !env.IMAGE_ASSETS ||
+    !channel ||
+    channel.status !== 'active' ||
+    channel.configVersion !== config.channel_version
+  ) {
+    await markFailure(env.DB, row, 'provider_unavailable', now());
+    return;
+  }
   const limits = (limit: number, rpm: number) => ({
     limit,
     ttlMs: 210_000,
@@ -49,18 +97,19 @@ export async function startImage(
     user: limits(config.user_concurrency, config.user_rpm),
     channel: limits(config.channel_concurrency, config.channel_rpm),
   });
-  if (!acquired.granted)
-    throw new ApiError(
-      acquired.reason === 'denied' && acquired.cleanup.complete
-        ? 'rate_limited'
-        : 'service_unavailable',
-    );
+  if (!acquired.granted) {
+    await markFailure(env.DB, row, 'provider_unavailable', now());
+    return;
+  }
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), 180_000);
   try {
-    const accepted = await register(env.DB, userId, input, config, id, now());
-    if (!accepted.created) return jobView(await recover(env.DB, accepted.row, now()));
-    const row = accepted.row;
+    const claimed = await prepare(
+      env.DB,
+      "UPDATE image_generations SET started_at=?,expires_at=? WHERE id=? AND status='generating' AND started_at IS NULL AND expires_at>?",
+      [now(), now() + 210_000, row.id, now()],
+    ).run();
+    if (claimed.changes !== 1) return;
     let stage: 'provider' | 'storage' | 'record' = 'provider';
     try {
       const result = await generateImage(
@@ -96,9 +145,6 @@ export async function startImage(
             : 'result_unknown';
       await markFailure(env.DB, row, reason, now());
     }
-    const result = await getJob(env.DB, userId, row.id);
-    if (!result) throw new ApiError('service_unavailable');
-    return jobView(result);
   } finally {
     clearTimeout(timer);
     await acquired.lease.release();

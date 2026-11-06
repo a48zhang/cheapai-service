@@ -55,6 +55,8 @@ export interface JobRow {
   created_at: number;
   updated_at: number;
   expires_at: number;
+  execution_snapshot: string | null;
+  started_at: number | null;
 }
 export function modelView(row: ModelRow): ImageModel {
   return imageModelSchema.parse({
@@ -249,8 +251,8 @@ export async function register(
   });
   const inserted = await prepare(
     db,
-    `INSERT INTO image_generations(id,user_id,operation_id,model_id,model_name,group_id,prompt,size,status,price_units,price_snapshot,billing_status,created_at,updated_at,expires_at)
-    SELECT ?,?,?,m.id,m.name,g.id,?,?,'generating',?,?,'unbilled',?,?,? ${authorized}
+    `INSERT INTO image_generations(id,user_id,operation_id,model_id,model_name,group_id,prompt,size,status,price_units,price_snapshot,billing_status,created_at,updated_at,expires_at,execution_snapshot)
+    SELECT ?,?,?,m.id,m.name,g.id,?,?,'generating',?,?,'unbilled',?,?,?,? ${authorized}
     AND m.id=? AND g.id=? AND m.version=? AND c.config_version=? AND g.version=? AND u.version=? AND u.balance_units>=?
     ON CONFLICT(user_id,operation_id) DO NOTHING`,
     [
@@ -263,7 +265,8 @@ export async function register(
       snapshot,
       now,
       now,
-      now + 210_000,
+      now + 600_000,
+      JSON.stringify(config),
       userId,
       input.modelId,
       input.groupId,
@@ -304,7 +307,15 @@ export async function settleImage(db: D1Database, row: JobRow, now: number): Pro
 }
 export async function recover(db: D1Database, row: JobRow, now: number): Promise<JobRow> {
   if (row.status === 'generating' && row.expires_at <= now)
-    await markFailure(db, row, 'result_unknown', now);
+    // Recheck the deadline in SQL: an alarm may have started since this row was read.
+    await prepare(
+      db,
+      `UPDATE image_generations SET
+      status=CASE WHEN execution_snapshot IS NOT NULL AND started_at IS NULL THEN 'failed' ELSE 'unknown' END,
+      error=CASE WHEN execution_snapshot IS NOT NULL AND started_at IS NULL THEN 'provider_unavailable' ELSE 'result_unknown' END,
+      updated_at=? WHERE id=? AND user_id=? AND status='generating' AND expires_at<=?`,
+      [now, row.id, row.user_id, now],
+    ).run();
   if (row.status === 'completed' && row.billing_status === 'pending') {
     try {
       await settleImage(db, row, now);

@@ -37,7 +37,7 @@ export function ImageWaiting({ uncertain = false }: { uncertain?: boolean }) {
         <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
           {uncertain
             ? '可以确认原请求的结果，描述已保留。'
-            : '图片完成后会显示在这里，可以先编辑下一条描述。'}
+            : '提交成功的任务会在后台继续，稍后可在历史中查看。'}
         </p>
       </div>
     </div>
