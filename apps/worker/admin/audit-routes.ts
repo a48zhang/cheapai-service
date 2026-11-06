@@ -32,7 +32,7 @@ function noStore(response: Response): Response { response.headers.set('Cache-Con
  */
 export function createAuditRoutes(dependencies: { now(): number } = { now: Date.now }): Hono<RouteEnv> {
   const app = new Hono<RouteEnv>();
-  app.onError((error, context) => noStore(apiError(error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }), context.get('requestId') ?? createRequestId())));
+  app.onError((error, context) => noStore(apiError(error, context.get('requestId') ?? createRequestId(), 'service_unavailable')));
   app.get(ADMIN_AUDIT_PATH, async (context, next) => {
     context.set('requestId', context.get('requestId') ?? createRequestId());
     const now = dependencies.now();

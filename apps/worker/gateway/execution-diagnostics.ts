@@ -124,3 +124,13 @@ export async function captureProviderFailure(response: Response, cancel: () => v
   } catch { return { note: 'provider_error_capture_failed' }; }
   finally { if (timer !== undefined) clearTimeout(timer); }
 }
+
+/** Persist the same bounded provider facts shown in logs, rather than replacing them with a generic message. */
+export function requestFailureDetails(details: ExecutionDiagnostic | undefined, secrets: readonly string[]): { errorMessage?: string } {
+  if (!details?.provider?.message) return {};
+  const response = details.response;
+  const requestId = response?.headers.get('x-request-id') ?? response?.headers.get('request-id');
+  const text = [details.provider.message, details.provider.code && `code=${details.provider.code}`,
+    response && `HTTP ${response.status}`, requestId && `upstream_request_id=${requestId}`].filter(Boolean).join('; ');
+  return { errorMessage: safeDiagnosticText(text, secrets) };
+}

@@ -12,6 +12,10 @@ const edge = process.platform === 'win32' ? [
 const chromium = process.env.CHEAPAI_CHROMIUM_EXECUTABLE ?? edge;
 
 export default defineConfig({
+  ...(process.env.CHEAPAI_E2E_HTTP_UPSTREAM === '1' ? { projects: [
+    { name: 'desktop', use: { viewport: { width: 1280, height: 800 } } },
+    { name: 'narrow', use: { viewport: { width: 390, height: 844 } } },
+  ] } : {}),
   testDir: './tests/e2e', fullyParallel: false, workers: 1, retries: 0, timeout: 60_000,
   expect: { timeout: 10_000 }, reporter: [['list'], ['json', { outputFile: 'test-results/browser-results.json' }]],
   use: { baseURL, ignoreHTTPSErrors: true, actionTimeout: 10_000, trace: 'retain-on-failure',

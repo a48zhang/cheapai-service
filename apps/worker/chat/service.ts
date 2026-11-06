@@ -255,12 +255,7 @@ export class ChatService {
     const maxTokens = input.maxOutputTokens === undefined ? undefined : maxOutput(input.maxOutputTokens);
     const current = await this.storage.getConversation(userId, idOfConversation);
     if (current === null) throw new ApiError('not_found');
-    // The conversation's remembered selector is authoritative for a send.
-    // Switching group/model is an explicit conversation PATCH; accepting a
-    // body-only switch would let a stale tab route this conversation through a
-    // different multiplier or channel set.
-    if ((current.conversation.groupId !== null && current.conversation.groupId !== groupId)
-      || (current.conversation.modelId !== null && current.conversation.modelId !== modelId)) throw new ApiError('forbidden');
+    // The message transaction atomically stores the authorized selection with its version check.
     const selection: AuthorizedChatSelection = await authorizeChatSelection(this.database, userId, groupId, modelId, this.clock());
     // Internal virtual-key authentication is scoped to this request's selected
     // group. The browser never supplies a key ID or credential.

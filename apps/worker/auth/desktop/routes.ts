@@ -77,7 +77,7 @@ function desktopReason(error: unknown): DesktopReason | null {
 }
 
 async function errorResponse(error: unknown, id: string): Promise<Response> {
-  const response = apiError(error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }), id);
+  const response = apiError(error, id, 'service_unavailable');
   const reason = desktopReason(error);
   if (reason === null) return response;
 

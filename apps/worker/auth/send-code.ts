@@ -124,7 +124,7 @@ export function createSendCodeRoutes(dependencies: SendCodeRouteDependencies): H
     maxSize: 2048,
     onError: () => apiError(new ApiError("payload_too_large"), createRequestId()),
   }), async (context) => {
-    const requestId = createRequestId();
+    const requestId = context.get('requestId') ?? createRequestId();
     console.debug('Registration email request started', { request_id: requestId });
     try {
       if (context.req.header("content-type")?.split(";", 1)[0]?.trim().toLowerCase() !== "application/json") throw new ApiError("invalid_request");
@@ -143,8 +143,7 @@ export function createSendCodeRoutes(dependencies: SendCodeRouteDependencies): H
       response.headers.set("Retry-After", Math.ceil(result.retryAfterMs / 1000).toString());
       return response;
     } catch (error) {
-      console.error('Registration email request failed', { request_id: requestId }, error);
-      const response = apiError(error instanceof ApiError ? error : new ApiError("service_unavailable", { cause: error }), requestId);
+      const response = apiError(error, requestId, 'service_unavailable');
       if (error instanceof SendCodeRateError) response.headers.set("Retry-After", Math.ceil(error.retryAfterMs / 1000).toString());
       return response;
     }

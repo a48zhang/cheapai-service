@@ -89,7 +89,7 @@ export function validateCsrfRequest(request: Request, trustedOrigin: string): vo
 /** Configure once from trusted server settings. Session middleware may run later:
  * a login request must be able to pass CSRF checks before it owns a session.
  */
-export function requireCsrf(trustedOrigin: string): MiddlewareHandler {
+export function requireCsrf(trustedOrigin: string): MiddlewareHandler<{ Variables: { requestId: string } }> {
   const origin = configuredOrigin(trustedOrigin);
   return async (context, next) => {
     try {
@@ -97,7 +97,7 @@ export function requireCsrf(trustedOrigin: string): MiddlewareHandler {
     } catch (error) {
       const existing = context.get('requestId');
       const requestId = typeof existing === 'string' ? existing : createRequestId();
-      return apiError(error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }), requestId);
+      return apiError(error, requestId, 'service_unavailable');
     }
     await next();
   };

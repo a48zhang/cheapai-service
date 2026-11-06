@@ -7,7 +7,7 @@ import type { KeyCreation, KeyMetadata } from '@cheapai/api-client/keys';
 import type { CodeBatch } from '@cheapai/contracts/registration-admin';
 import KeysPage from '../../pages/keys/KeysPage';
 import { KeyForm } from './KeyForm';
-import { createApiAccessApi } from './api';
+import { createApiAccessApi, apiAccessKeysQueryKeys } from './api';
 import { CodeBatchDialog } from '../admin-registration/public';
 
 const mocks = vi.hoisted(() => ({
@@ -232,6 +232,51 @@ describe('one-time credential lifecycle', () => {
     expect(nextSecretField).toHaveValue(keyToken);
     view.unmount();
     expect(document.body.textContent).not.toContain(keyToken);
+  });
+
+  it('can reconcile a lost creation response after expiry and group availability change', async () => {
+    const user = userEvent.setup();
+    const onChanged = vi.fn();
+    const api = createApiAccessApi(mocks.session.client as ApiClient);
+    const create = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('connection interrupted'))
+      .mockResolvedValueOnce({ kind: 'replayed', key: metadata });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <KeyForm
+          open
+          mode="create"
+          api={{ ...api, create }}
+          userId="user-1"
+          onOpenChange={vi.fn()}
+          onChanged={onChanged}
+          onSecret={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    const dialog = await screen.findByRole('dialog');
+    await prepareSoleGroupKeyForm(dialog, user, metadata.name);
+    fireEvent.change(within(dialog).getByLabelText(/到期时间/), {
+      target: { value: futureLocalDateTime() },
+    });
+    await user.click(within(dialog).getByRole('button', { name: '创建密钥' }));
+    await screen.findByText('stable-test-operation');
+    expect(screen.getByText(/connection interrupted/, { selector: 'p' })).toBeVisible();
+    await user.click(screen.getByText('查看错误详情'));
+    expect(screen.getByText(/原因：connection interrupted/, { selector: 'pre' })).toBeVisible();
+    const [input, operationId] = create.mock.calls[0]!;
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(input.expiresAt + 1000);
+    try {
+      act(() => queryClient.setQueryData(apiAccessKeysQueryKeys.groups('user-1'), []));
+      await user.click(screen.getByRole('button', { name: '重试确认' }));
+      await waitFor(() => expect(onChanged).toHaveBeenCalledWith(metadata));
+      expect(create).toHaveBeenLastCalledWith(input, operationId);
+      expect(screen.getByText(/密钥已创建，请在列表中确认/)).toBeVisible();
+      expect(screen.queryByRole('button', { name: '重试确认' })).not.toBeInTheDocument();
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   it('does not display a secret when a Key creation response is replayed', async () => {

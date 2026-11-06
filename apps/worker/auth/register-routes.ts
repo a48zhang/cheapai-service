@@ -48,15 +48,16 @@ async function readInput(request: Request): Promise<unknown> {
 }
 
 /** Unmounted factory: A31 owns integration with the main application. */
-export function createRegisterRoutes<Bindings extends object = Env>(options: RegisterRoutesOptions<Bindings>): Hono<{ Bindings: Bindings }> {
-  const app = new Hono<{ Bindings: Bindings }>();
-  app.onError((error) => apiError(error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }), createRequestId()));
+export function createRegisterRoutes<Bindings extends object = Env>(options: RegisterRoutesOptions<Bindings>): Hono<{ Bindings: Bindings; Variables: { requestId: string } }> {
+  const app = new Hono<{ Bindings: Bindings; Variables: { requestId: string } }>();
+  app.onError((error, context) => apiError(error, context.get('requestId') ?? createRequestId(), 'service_unavailable'));
   app.use("*", async (context, next) => {
     await next();
     context.res.headers.set("Cache-Control", "no-store");
   });
   app.post(REGISTER_PATH, requireCsrf(options.trustedOrigin), async (context) => {
-    const requestId = createRequestId();
+    const requestId = context.get('requestId') ?? createRequestId();
+    context.set('requestId', requestId);
     try {
       const input = await readInput(context.req.raw);
       // Hono's conditional middleware Env type obscures the Bindings generic;
@@ -71,7 +72,7 @@ export function createRegisterRoutes<Bindings extends object = Env>(options: Reg
       if (result.session === "created") response.headers.set("Set-Cookie", result.setCookie);
       return response;
     } catch (error) {
-      const response = apiError(error instanceof ApiError ? error : new ApiError("service_unavailable", { cause: error }), requestId);
+      const response = apiError(error, requestId, 'service_unavailable');
       if (error instanceof RegistrationRateError) response.headers.set("Retry-After", Math.ceil(error.retryAfterMs / 1000).toString());
       return response;
     }

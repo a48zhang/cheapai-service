@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createExecutionContext, waitOnExecutionContext } from 'cloudflare:test';
+import {
+  createExecutionContext,
+  waitOnExecutionContext,
+  runInDurableObject,
+  evictDurableObject,
+  runDurableObjectAlarm,
+} from 'cloudflare:test';
+import { maintainImageJobs } from '../../apps/worker/images/maintenance';
 import { app } from '../../apps/worker/app';
 import { createCookieSession } from '../../apps/worker/auth/sessions';
 import { issueCsrfToken } from '../../apps/worker/auth/csrf';
@@ -17,6 +24,7 @@ async function request(
   actor = 'image-owner',
   body?: unknown,
   method = body === undefined ? 'GET' : 'POST',
+  finish = true,
 ) {
   const ctx = createExecutionContext();
   const response = await app.fetch(
@@ -29,6 +37,12 @@ async function request(
     ctx,
   );
   await waitOnExecutionContext(ctx);
+  if (finish && response.status === 202) {
+    const job = ((await response.clone().json()) as { data: ImageJob }).data;
+    const stub = testEnv.IMAGE_JOBS!.getByName(job.id);
+    if (job.status === 'generating') await runInDurableObject(stub, (instance) => instance.alarm());
+    return request(`/api/v1/images/generations/${job.id}`, actor);
+  }
   return response;
 }
 const input = (operationId = 'image-operation') => ({
@@ -97,6 +111,125 @@ beforeEach(async () => {
   model = ((await created.json()) as { data: ImageModel }).data;
 });
 describe('image generation through session routes, native D1, R2 and limits', () => {
+  it('accepts without provider work and survives request completion and object eviction', async () => {
+    const fetcher = vi.fn(async () => Response.json({ data: [{ b64_json: png }] }));
+    vi.stubGlobal('fetch', fetcher);
+    const accepted = await request(
+      '/api/v1/images/generations',
+      'image-owner',
+      input(),
+      'POST',
+      false,
+    );
+    expect(accepted.status).toBe(202);
+    const job = ((await accepted.json()) as { data: ImageJob }).data;
+    expect(job.status).toBe('generating');
+    expect(fetcher).not.toHaveBeenCalled();
+    const stub = testEnv.IMAGE_JOBS!.getByName(job.id);
+    expect(await runInDurableObject(stub, (_, ctx) => ctx.storage.getAlarm())).not.toBeNull();
+    await evictDurableObject(stub);
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    await runInDurableObject(stub, (instance) => instance.alarm());
+    const result = await request(`/api/v1/images/generations/${job.id}`);
+    expect(((await result.json()) as { data: ImageJob }).data).toMatchObject({
+      status: 'completed',
+      billingStatus: 'settled',
+    });
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
+  it('repairs a missing wake-up from D1 without a browser confirmation', async () => {
+    const fetcher = vi.fn(async () => Response.json({ data: [{ b64_json: png }] }));
+    vi.stubGlobal('fetch', fetcher);
+    const response = await request(
+      '/api/v1/images/generations',
+      'image-owner',
+      input(),
+      'POST',
+      false,
+    );
+    const job = ((await response.json()) as { data: ImageJob }).data;
+    const stub = testEnv.IMAGE_JOBS!.getByName(job.id);
+    await runInDurableObject(stub, async (_, ctx) => {
+      await ctx.storage.deleteAlarm();
+      await ctx.storage.deleteAll();
+    });
+    await maintainImageJobs(env());
+    expect(await runInDurableObject(stub, (_, ctx) => ctx.storage.getAlarm())).not.toBeNull();
+    await runInDurableObject(stub, (instance) => instance.alarm());
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(
+      await testEnv.DB.prepare('SELECT billing_status FROM image_generations WHERE id=?')
+        .bind(job.id)
+        .first('billing_status'),
+    ).toBe('settled');
+  });
+  it('does not resend a claimed job after interruption or charge an interrupted delivery', async () => {
+    const fetcher = vi.fn();
+    vi.stubGlobal('fetch', fetcher);
+    const response = await request(
+      '/api/v1/images/generations',
+      'image-owner',
+      input(),
+      'POST',
+      false,
+    );
+    const job = ((await response.json()) as { data: ImageJob }).data;
+    await testEnv.DB.prepare('UPDATE image_generations SET started_at=? WHERE id=?')
+      .bind(Date.now(), job.id)
+      .run();
+    const stub = testEnv.IMAGE_JOBS!.getByName(job.id);
+    await evictDurableObject(stub);
+    expect(await runDurableObjectAlarm(stub)).toBe(true);
+    await request('/api/v1/images/generations', 'image-owner', input());
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(
+      await testEnv.DB.prepare('SELECT status,billing_status FROM image_generations WHERE id=?')
+        .bind(job.id)
+        .first(),
+    ).toEqual({ status: 'failed', billing_status: 'unbilled' });
+  });
+  it('records a returned image and charges its preset price even after a delivery timeout', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        await testEnv.DB.prepare(
+          "UPDATE image_generations SET expires_at=0 WHERE operation_id='image-operation'",
+        ).run();
+        await maintainImageJobs(env());
+        return Response.json({ data: [{ b64_json: png }] });
+      }),
+    );
+    const response = await request('/api/v1/images/generations', 'image-owner', input());
+    const job = ((await response.json()) as { data: ImageJob }).data;
+    expect(job).toMatchObject({
+      status: 'completed',
+      error: null,
+      billingStatus: 'settled',
+      priceUnits: '5000000',
+    });
+    expect(await testEnv.IMAGE_ASSETS!.head(`images/image-owner/${job.id}`)).not.toBeNull();
+    expect(
+      await testEnv.DB.prepare(
+        'SELECT delta_units FROM billing_entries WHERE image_generation_id=?',
+      )
+        .bind(job.id)
+        .first('delta_units'),
+    ).toBe(-5000000);
+    await request('/api/v1/images/generations', 'image-owner', input());
+    expect(
+      await testEnv.DB.prepare(
+        'SELECT count(*) AS n FROM billing_entries WHERE image_generation_id=?',
+      )
+        .bind(job.id)
+        .first('n'),
+    ).toBe(1);
+    await expect(
+      testEnv.DB.prepare("UPDATE image_generations SET status='unknown' WHERE id=?")
+        .bind(job.id)
+        .run(),
+    ).rejects.toThrow();
+  });
   it('shows authorized prices, generates privately, and charges only once across replays', async () => {
     const fetcher = vi.fn(async (url: URL, init: RequestInit) => {
       expect(String(url)).toBe('https://provider.example.invalid/prefix/v1/images/generations');
@@ -216,15 +349,15 @@ describe('image generation through session routes, native D1, R2 and limits', ()
       ).first('n'),
     ).toBe(2);
   });
-  it('does not repeat an uncertain provider call when the same operation is confirmed', async () => {
+  it('does not repeat an interrupted provider call when the same operation is confirmed', async () => {
     const fetcher = vi.fn(async () => {
       throw new Error('provider disconnected');
     });
     vi.stubGlobal('fetch', fetcher);
     const first = await request('/api/v1/images/generations', 'image-owner', input());
     expect(((await first.json()) as { data: ImageJob }).data).toMatchObject({
-      status: 'unknown',
-      error: 'result_unknown',
+      status: 'failed',
+      error: 'delivery_failed',
       billingStatus: 'unbilled',
     });
     await request('/api/v1/images/generations', 'image-owner', input());
@@ -250,7 +383,7 @@ describe('image generation through session routes, native D1, R2 and limits', ()
         'fetch',
         vi.fn(async () =>
           mode === 'rejected'
-            ? Response.json({ error: { message: 'private upstream details' } }, { status: 400 })
+            ? Response.json({ error: { message: 'Unsupported image size; credential=test-secret', code: 'bad_size' } }, { status: 400, headers: { 'x-request-id': 'provider-image-request' } })
             : Response.json({
                 data: [{ b64_json: mode === 'invalid' ? btoa('<svg>invalid</svg>') : png }],
               }),
@@ -269,35 +402,32 @@ describe('image generation through session routes, native D1, R2 and limits', ()
           'balance_units',
         ),
       ).toBe(100000000);
-      expect(JSON.stringify(job)).not.toContain('private upstream');
+      expect(JSON.stringify(job)).not.toContain('test-secret');
+      if (mode === 'rejected') {
+        expect(job.diagnostic).toMatchObject({ status: 400, code: 'bad_size', request_id: 'provider-image-request' });
+        expect(job.diagnostic?.message).toContain('Unsupported image size');
+        const other = await request(`/api/v1/images/generations/${job.id}`, 'image-other');
+        expect(other.status).toBe(404);
+      }
     },
   );
   it('deduplicates overlapping sends before generating and keeps immutable price snapshots', async () => {
-    let release!: () => void;
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    let entered!: () => void;
-    const started = new Promise<void>((resolve) => {
-      entered = resolve;
-    });
-    const fetcher = vi.fn(async () => {
-      entered();
-      await gate;
-      return Response.json({ data: [{ b64_json: png }] });
-    });
+    const fetcher = vi.fn(async () => Response.json({ data: [{ b64_json: png }] }));
     vi.stubGlobal('fetch', fetcher);
-    const first = request('/api/v1/images/generations', 'image-owner', input());
-    await started;
-    const second = await request('/api/v1/images/generations', 'image-owner', input());
-    expect(((await second.json()) as { data: ImageJob }).data.status).toBe('generating');
+    const [first, second] = await Promise.all([
+      request('/api/v1/images/generations', 'image-owner', input(), 'POST', false),
+      request('/api/v1/images/generations', 'image-owner', input(), 'POST', false),
+    ]);
+    const job = ((await first.json()) as { data: ImageJob }).data;
+    expect(((await second.json()) as { data: ImageJob }).data.id).toBe(job.id);
     await testEnv.DB.prepare(
       'UPDATE image_models SET price_units=90000000,version=version+1 WHERE id=?',
     )
       .bind(model.id)
       .run();
-    release();
-    expect(((await (await first).json()) as { data: ImageJob }).data.priceUnits).toBe('5000000');
+    await runInDurableObject(testEnv.IMAGE_JOBS!.getByName(job.id), (instance) => instance.alarm());
+    const result = await request(`/api/v1/images/generations/${job.id}`);
+    expect(((await result.json()) as { data: ImageJob }).data.priceUnits).toBe('5000000');
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
   it('recovers a delayed charge without regenerating or charging twice', async () => {
@@ -322,6 +452,14 @@ describe('image generation through session routes, native D1, R2 and limits', ()
       ),
     ).toBe(100000000);
     await testEnv.DB.prepare('DROP TRIGGER image_settlement_outage').run();
+    const readOnly = await request(`/api/v1/images/generations/${job.id}`);
+    expect(((await readOnly.json()) as { data: ImageJob }).data.billingStatus).toBe('pending');
+    await maintainImageJobs(env());
+    expect(
+      await testEnv.DB.prepare('SELECT billing_status FROM image_generations WHERE id=?')
+        .bind(job.id)
+        .first('billing_status'),
+    ).toBe('settled');
     for (let i = 0; i < 2; i++) {
       const restored = await request(`/api/v1/images/generations/${job.id}`);
       expect(((await restored.json()) as { data: ImageJob }).data.billingStatus).toBe('settled');
@@ -338,4 +476,37 @@ describe('image generation through session routes, native D1, R2 and limits', ()
       ).first('n'),
     ).toBe(1);
   });
+  it('recovers an R2 result after the completed-record write fails, without another provider call', async () => {
+    const fetcher = vi.fn(async () => Response.json({ data: [{ b64_json: png }] }));
+    vi.stubGlobal('fetch', fetcher);
+    const accepted = await request('/api/v1/images/generations', 'image-owner', input('saved-asset'), 'POST', false);
+    const job = ((await accepted.json()) as { data: ImageJob }).data;
+    await testEnv.DB.exec(`CREATE TRIGGER image_record_outage BEFORE UPDATE OF status ON image_generations WHEN NEW.status='completed' BEGIN SELECT RAISE(ABORT,'record outage'); END;`);
+    const stub = testEnv.IMAGE_JOBS!.getByName(job.id);
+    await expect(runInDurableObject(stub, instance => instance.alarm())).rejects.toThrow();
+    expect(await testEnv.IMAGE_ASSETS!.head(`images/image-owner/${job.id}`)).not.toBeNull();
+    await testEnv.DB.exec('DROP TRIGGER image_record_outage;');
+    await runInDurableObject(stub, instance => instance.alarm());
+    const restored = ((await (await request(`/api/v1/images/generations/${job.id}`)).json()) as { data: ImageJob }).data;
+    expect(restored).toMatchObject({ status: 'completed', billingStatus: 'settled' });
+    expect((await request(`/api/v1/images/generations/${job.id}/content`)).status).toBe(200);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(await testEnv.DB.prepare('SELECT count(*) AS n FROM billing_entries WHERE image_generation_id=?').bind(job.id).first('n')).toBe(1);
+  });
+  it('rotates persistent settlement failures so a later pending image can settle', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ data: [{ b64_json: png }] })));
+    await testEnv.DB.exec(`CREATE TRIGGER image_settlement_outage BEFORE INSERT ON billing_entries WHEN NEW.kind='image_generation' BEGIN SELECT RAISE(ABORT,'outage'); END;`);
+    const first = ((await (await request('/api/v1/images/generations', 'image-owner', input('blocked-template'))).json()) as { data: ImageJob }).data;
+    // Native D1 rows reproduce a full maintenance batch without 20 redundant provider calls.
+    for (let i = 0; i < 20; i++) {
+      await testEnv.DB.prepare(`INSERT INTO image_generations SELECT 'blocked-' || ?,user_id,'blocked-op-' || ?,model_id,model_name,group_id,prompt,size,status,error,price_units,price_snapshot,billing_status,asset_key,media_type,created_at,1,expires_at,execution_snapshot,started_at,error_diagnostic FROM image_generations WHERE id=?`).bind(i, i, first.id).run();
+    }
+    await testEnv.DB.prepare('UPDATE image_generations SET updated_at=2 WHERE id=?').bind(first.id).run();
+    await testEnv.DB.exec('DROP TRIGGER image_settlement_outage;');
+    await testEnv.DB.exec(`CREATE TRIGGER image_settlement_outage BEFORE INSERT ON billing_entries WHEN NEW.kind='image_generation' AND NEW.image_generation_id LIKE 'blocked-%' BEGIN SELECT RAISE(ABORT,'outage'); END;`);
+    await maintainImageJobs(env());
+    await maintainImageJobs(env());
+    expect(await testEnv.DB.prepare('SELECT billing_status FROM image_generations WHERE id=?').bind(first.id).first('billing_status')).toBe('settled');
+  });
+
 });

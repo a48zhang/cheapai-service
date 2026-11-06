@@ -22,7 +22,7 @@ const kindLabels: Record<BillingKind, string> = {
   consumption: '模型消费',
   image_generation: '图片生成',
   grant: '管理员授额',
-  adjustment: '余额调整',
+  adjustment: '积分调整',
 };
 
 function amountLabel(value: string, showPositiveSign = false): string {
@@ -30,7 +30,7 @@ function amountLabel(value: string, showPositiveSign = false): string {
     const units = BigInt(value);
     return `${showPositiveSign && units > 0n ? '+' : ''}${formatConsumptionUsd(units)}`;
   } catch {
-    return '金额未知';
+    return '积分数值不可用';
   }
 }
 function sourceLabel(source: BillingEntry['source']) {
@@ -92,7 +92,7 @@ export function BillingTable({
     },
     {
       id: 'amount',
-      header: '金额变化（积分）',
+      header: '积分变动',
       size: 180,
       meta: { align: 'right', numeric: true },
       cell: ({ row }) => (
@@ -203,7 +203,7 @@ export function BillingTable({
     },
     {
       id: 'amount',
-      header: '余额变动（积分）',
+      header: '积分变动',
       size: 180,
       meta: { align: 'right', numeric: true },
       cell: ({ row }) => (
@@ -240,7 +240,7 @@ export function BillingTable({
                   <span className="font-medium">{kindLabels[entry.kind]}</span>
                   <span
                     className="console-number font-semibold"
-                    aria-label={`余额变动 ${amountLabel(entry.deltaUnits, true)} 积分`}
+                    aria-label={`积分变动 ${amountLabel(entry.deltaUnits, true)} 积分`}
                   >
                     {amountLabel(entry.deltaUnits, true)} 积分
                   </span>

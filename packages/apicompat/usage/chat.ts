@@ -115,7 +115,8 @@ export function extractChatUsage(input: unknown): UsageSnapshot {
  * Native Chat chunks contain cumulative usage. A choice finish_reason ends that
  * choice, not accounting: include_usage may deliver a later choices:[] chunk.
  * A complete usage-only chunk is final accounting evidence even if [DONE] is
- * subsequently lost. Transport completion alone cannot bless early totals.
+ * subsequently lost. Some compatible providers attach usage to the final choice
+ * instead; accept those actual totals once the explicit [DONE] marker arrives.
  */
 export function createChatUsageSession(): StreamUsageSession<unknown> {
   let counts: MutableCounts = {};
@@ -125,9 +126,11 @@ export function createChatUsageSession(): StreamUsageSession<unknown> {
   let lastFingerprint: string | undefined;
   let done = false;
   let finalUsage = false;
+  let terminalChoiceUsage = false;
   let finished: UsageSnapshot | undefined;
   const seal = (): readonly UsageUpdate[] => {
     done = true;
+    finalUsage ||= terminalChoiceUsage;
     return [];
   };
   return {
@@ -140,10 +143,15 @@ export function createChatUsageSession(): StreamUsageSession<unknown> {
         try { chunk = JSON.parse(chunk.data) as unknown; } catch { return []; }
       }
       if (!record(chunk) || chunk.object !== 'chat.completion.chunk' || !Array.isArray(chunk.choices)) return [];
-      if (chunk.usage === undefined || chunk.usage === null) return [];
+      if (chunk.usage === undefined || chunk.usage === null) {
+        if (chunk.choices.length > 0) terminalChoiceUsage = false;
+        return [];
+      }
       const read = inspectUsage(chunk.usage, 'usage', 'chat.completion.chunk');
       const location = chunk.choices.length === 0 ? 'usage_chunk' : 'chunk';
-      const fingerprint = JSON.stringify([location, read.counts, read.issues]);
+      const finishedChoices = chunk.choices.length > 0 && chunk.choices.every(
+        choice => record(choice) && typeof choice.finish_reason === 'string' && choice.finish_reason.length > 0);
+      const fingerprint = JSON.stringify([location, finishedChoices, read.counts, read.issues]);
       if (fingerprint === lastFingerprint) return [];
       lastFingerprint = fingerprint;
       sources.set(location, read.source); // Only two locations; never retain choices/deltas.
@@ -155,7 +163,9 @@ export function createChatUsageSession(): StreamUsageSession<unknown> {
       counts = { ...counts, ...read.counts };
       for (const issue of contradictions(counts)) issues.add(issue);
       // An empty/partial later usage object must not bless earlier stale totals.
-      finalUsage = location === 'usage_chunk' && read.counts.inputTokens !== undefined && read.counts.outputTokens !== undefined;
+      const completeCounts = read.counts.inputTokens !== undefined && read.counts.outputTokens !== undefined;
+      finalUsage = location === 'usage_chunk' && completeCounts;
+      terminalChoiceUsage = finishedChoices && completeCounts;
       return [Object.freeze({ sequence: ++sequence, mode: 'cumulative', counts: Object.freeze({ ...read.counts }), semantics, source: read.source, final: finalUsage })];
     },
     finish() {

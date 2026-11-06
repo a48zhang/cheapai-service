@@ -1,4 +1,4 @@
-import { logExecutionFailure, streamFailureSource, providerDiagnostic, requestDiagnosticSecrets, captureProviderFailure } from './execution-diagnostics';
+import { logExecutionFailure, requestFailureDetails, streamFailureSource, providerDiagnostic, requestDiagnosticSecrets, captureProviderFailure } from './execution-diagnostics';
 import type { ExecutionDiagnostic } from './execution-diagnostics';
 import { createResponseIds } from '@sub2api/apicompat/ids';
 import { SseByteParser } from '@sub2api/apicompat/streams/parser';
@@ -69,8 +69,8 @@ export interface StreamExecutionOptions {
 export interface StreamExecution { response: Response; completion: Promise<StreamCompletion> }
 export class StreamExecutionError extends Error {
   constructor(readonly reason: 'invalid_admission' | 'invalid_request' | 'stream_start_failed', readonly completion: StreamCompletion | null = null,
-    readonly dispatched = false) {
-    super('Streaming execution could not start.'); this.name = 'StreamExecutionError';
+    readonly dispatched = false, options?: ErrorOptions) {
+    super('Streaming execution could not start.', options); this.name = 'StreamExecutionError';
   }
 }
 const problem = (code: string): ProtocolError => ({ kind: 'stream_error', code, message: 'The upstream stream could not be completed safely.' });
@@ -210,6 +210,7 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
       const recordedResult = await bounded(() => finishRequest(database, record!.id, record!.user_id, {
           status: state.status === 'completed' || state.status === 'incomplete' ? 'succeeded' : state.status === 'cancelled' ? 'cancelled' : 'failed',
           ...(upstreamId === null ? {} : { responseId: upstreamId }),
+          ...(state.status === 'failed' ? requestFailureDetails({ ...(diagnostic ?? { stage: 'stream_terminal', source: 'provider_stream', code: 'upstream_error' }), ...(providerError ? { provider: providerError } : {}), ...(exchange ? { response: exchange.response } : {}) }, diagnosticSecrets) : {}),
           ...(state.status === 'failed' ? { errorCode: upstreamDispatched ? 'upstream_error' as const : 'internal_error' as const } : {}),
         }, now()));
       const recorded = recordedResult.ok && recordedResult.value;
@@ -372,6 +373,6 @@ export async function executeStream<Input, Output>(dependencies: StreamExecution
     const result = await finish(stopReason === 'cancelled' ? { status: 'cancelled' } : { status: 'failed', error: problem(stopReason ?? 'stream_start_failed') });
     if (!preDispatchAccounting) startupFailure = 'service_unavailable';
     throw new StreamExecutionError(upstreamDispatched ? 'stream_start_failed' : startupFailure === 'invalid_request' ? 'invalid_request' : 'stream_start_failed',
-      result, upstreamDispatched);
+      result, upstreamDispatched, { cause: error });
   }
 }

@@ -75,6 +75,6 @@ describe('image provider boundary', () => {
       response_format: 'b64_json',
     });
     expect(new Headers(args[1].headers).get('Cookie')).toBeNull();
-    expect(args[1].redirect).toBe('error');
+    expect(args[1].redirect).toBe('manual');
   });
 });

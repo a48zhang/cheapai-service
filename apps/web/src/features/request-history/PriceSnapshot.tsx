@@ -7,6 +7,7 @@ import type {
 } from '@cheapai/contracts/requests';
 
 export interface PriceSnapshotProps extends Omit<HTMLAttributes<HTMLElement>, 'children'> {
+  readonly showInternalDetails?: boolean;
   readonly snapshot: PriceSnapshotData | null;
   readonly snapshotValid: boolean;
   readonly costUnits: string | null;
@@ -51,6 +52,7 @@ function formattedCost(value: string): string | null {
 
 /** Exact cost and immutable price facts; decimal rates are displayed as strings with no float conversion. */
 export function PriceSnapshot({
+  showInternalDetails = false,
   snapshot,
   snapshotValid,
   costUnits,
@@ -82,8 +84,8 @@ export function PriceSnapshot({
 
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          {!snapshotValid && <StatusBadge tone="danger">快照无效或不可用</StatusBadge>}
-          {snapshotValid && !snapshot && <StatusBadge tone="neutral">没有快照</StatusBadge>}
+          {!snapshotValid && <StatusBadge tone="danger">价格信息暂不可用</StatusBadge>}
+          {snapshotValid && !snapshot && <StatusBadge tone="neutral">未记录价格信息</StatusBadge>}
         </div>
         {!snapshotValid || !snapshot ? (
           <p className="m-0 text-sm leading-6 text-[var(--color-ink-secondary)]">
@@ -98,18 +100,22 @@ export function PriceSnapshot({
                   {snapshot.public_model_id}
                 </dd>
               </div>
-              <div>
-                <dt className="console-label">上游模型 / 协议</dt>
-                <dd className="m-0 break-all font-mono text-[var(--color-ink)]">
-                  {snapshot.upstream_model} · {snapshot.upstream_protocol}
-                </dd>
-              </div>
-              <div>
-                <dt className="console-label">访问组</dt>
-                <dd className="m-0 break-all text-[var(--color-ink)]">
-                  {snapshot.group_id ?? '历史快照未记录'}
-                </dd>
-              </div>
+              {showInternalDetails && (
+                <>
+                  <div>
+                    <dt className="console-label">上游模型 / 协议</dt>
+                    <dd className="m-0 break-all font-mono text-[var(--color-ink)]">
+                      {snapshot.upstream_model} · {snapshot.upstream_protocol}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="console-label">访问组</dt>
+                    <dd className="m-0 break-all text-[var(--color-ink)]">
+                      {snapshot.group_id ?? '历史快照未记录'}
+                    </dd>
+                  </div>
+                </>
+              )}
               <div>
                 <dt className="console-label">计费倍率</dt>
                 <dd className="m-0 console-number text-[var(--color-ink)]">

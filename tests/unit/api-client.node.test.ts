@@ -252,6 +252,15 @@ describe('protected session expiry transport', () => {
 });
 
 describe('channel diagnostic API errors and cancellation', () => {
+  it('retains the HTTP request ID when a proxy returns a non-JSON error', async () => {
+    const client = createApiClient({ fetch: async () => new Response('Bad gateway', {
+      status: 502, headers: { 'Content-Type': 'text/plain', 'X-Request-ID': 'proxy-request' },
+    }) });
+    await expect(client.get('/api/v1/auth/me')).rejects.toMatchObject({
+      kind: 'invalid_response', status: 502, code: 'non_json_response', request_id: 'proxy-request',
+    });
+  });
+
   it('preserves unknown error details through ApiClientError and added context', async () => {
     const rawDetails = { diagnostic: 'unreviewed', vendor: ['future', null], nested: { value: 7 } };
     const client = createApiClient({
@@ -273,7 +282,7 @@ describe('channel diagnostic API errors and cancellation', () => {
         return withErrorContext(error, '加载渠道失败。');
       });
 
-    expect(originalError).toMatchObject({ message: '数据已发生变化，请刷新后重试。' });
+    expect(originalError).toMatchObject({ message: 'Version changed.' });
     expect(contextual).toBeInstanceOf(ApiClientError);
     expect(contextual).toMatchObject({
       kind: 'api',

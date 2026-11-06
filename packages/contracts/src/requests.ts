@@ -96,7 +96,8 @@ export const priceSnapshotSchema = z.object({
   billing_multiplier: multiplierSchema.optional(),
 });
 
-const requestErrorSchema = z.object({ code: text(128), message: text(512) });
+// Diagnostic text is evidence, not an input identifier. Preserve whitespace and length.
+const requestErrorSchema = z.object({ code: z.string(), message: z.string() });
 
 /** Public request data intentionally excludes private upstream payloads and headers. */
 export const requestSchema = z

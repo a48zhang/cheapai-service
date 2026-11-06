@@ -8,19 +8,16 @@ import { AgentGuides } from './AgentGuides';
 const questions = [
   [
     'CheapAI 提供什么？',
-    '你可以直接在网页中对话，也可以通过 API 接入自己的应用；两种方式共用账户余额。',
+    '你可以在网页中对话、生成图片，也可以通过 API 接入自己的应用；这些使用方式共用账户余额。',
   ],
-  [
-    '支持哪些模型？',
-    '「模型目录」提供各公开分组的模型与价格；实际可用模型以账户授权为准，登录后可在 API 接入页查看。',
-  ],
+  ['支持哪些模型？', '在「模型目录」查看模型与价格，登录后可查看账户可用的模型。'],
   [
     '如何开始使用？',
-    '先登录账户；开放注册时，也可以从登录页创建账户。部分部署需要邀请码。获得模型访问权限并由管理员授予余额后，即可开始调用。',
+    '先登录或创建账户；注册时如需邀请码，请按页面提示填写。账户有可用余额后，即可选择模型开始使用。',
   ],
   [
     '如何查看费用？',
-    '你可以在「费用」中查看余额与账单，在「使用记录」中查看请求详情。实际费用取决于所用模型、用量和访问组倍率。',
+    '你可以在「费用」中查看余额与账单，在「使用记录」中查看请求详情。每次使用的用量、计费单价、倍率和实际扣费均可在详情中核对。',
   ],
 ];
 
@@ -42,13 +39,16 @@ export default function HomePage() {
     <>
       <section className="home-hero" aria-labelledby="hero-title">
         <div className="home-hero-copy">
-          <h1 id="hero-title">对话与 API 接入</h1>
+          <h1 id="hero-title">对话、生图与 API 接入</h1>
           <p className="home-hero-description">
-            选择可用模型开始对话，或在自己的应用中调用 API。用量与费用统一在控制台查看。
+            选择可用模型开始对话或生成图片，也可以在自己的应用中调用 API。用量与费用统一在控制台查看。
           </p>
           <div className="home-hero-actions">
             <RouteButton variant="outline" to="/chat">
               开始对话 <ArrowRight size={18} aria-hidden="true" />
+            </RouteButton>
+            <RouteButton variant="outline" to="/images">
+              生成图片 <ArrowRight size={18} aria-hidden="true" />
             </RouteButton>
             <RouteButton variant="outline" to="/#agent-tools">
               接入 Agent <ArrowUpRight size={18} aria-hidden="true" />

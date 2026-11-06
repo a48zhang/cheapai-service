@@ -1,11 +1,10 @@
 import { requestIdSchema } from '@cheapai/contracts/common';
-import { ApiClientError, apiErrorMessages } from './errors.js';
+import { ApiClientError } from './errors.js';
 import { readCsrfCookie } from './csrf.js';
 import { apiUrlFor, isProtectedApiPath } from './url.js';
 import type {
   ApiClient,
   ApiClientOptions,
-  ApiErrorCode,
   ApiMethod,
   ApiRequestOptions,
   JsonInput,
@@ -117,11 +116,16 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       }
     }
 
+    const headerRequestId = response.headers.get('x-request-id') ?? undefined;
+    const responseContext = {
+      status: response.status,
+      ...(headerRequestId ? { request_id: headerRequestId } : {}),
+    };
     const mediaType =
       response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() ?? '';
     if (mediaType !== 'application/json' && !/^application\/[a-z0-9.+-]+\+json$/u.test(mediaType)) {
       throw new ApiClientError('invalid_response', '服务返回了非 JSON 响应。', {
-        status: response.status,
+        ...responseContext,
         code: 'non_json_response',
       });
     }
@@ -134,7 +138,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
         throw failedTransport(cause, input.signal);
       }
       throw new ApiClientError('invalid_response', '服务返回了无法解析的 JSON 响应。', {
-        status: response.status,
+        ...responseContext,
         cause,
       });
     }
@@ -142,7 +146,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     const parsedRequestId = isObject(payload)
       ? requestIdSchema.safeParse(payload.request_id)
       : null;
-    const requestId = parsedRequestId?.success ? parsedRequestId.data : undefined;
+    const requestId = parsedRequestId?.success ? parsedRequestId.data : headerRequestId;
     const details = {
       status: response.status,
       ...(requestId === undefined ? {} : { request_id: requestId }),
@@ -158,10 +162,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
       if (response.ok || Object.hasOwn(payload, 'data')) {
         throw new ApiClientError('invalid_response', '服务返回了不一致的响应格式。', details);
       }
-      const message = Object.hasOwn(apiErrorMessages, code)
-        ? apiErrorMessages[code as ApiErrorCode]
-        : '请求未能完成，请稍后重试。';
-      throw new ApiClientError('api', message, {
+      throw new ApiClientError('api', payload.error.message, {
         ...details,
         code,
         ...(Object.hasOwn(payload.error, 'details') ? { details: payload.error.details } : {}),
@@ -173,6 +174,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     if (
       !isObject(payload) ||
       requestId === undefined ||
+      !parsedRequestId?.success ||
       !Object.hasOwn(payload, 'data') ||
       Object.hasOwn(payload, 'error')
     ) {

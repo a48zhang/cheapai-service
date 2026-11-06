@@ -14,12 +14,12 @@ export const ADMIN_REQUESTS_PATH = '/api/v1/admin/requests';
 interface RouteEnv extends AuthEnv { Variables: AuthEnv['Variables'] & { queryNow?: number } }
 interface QueryRow extends RequestRecord {
   source: 'api' | 'web_chat'; group_id: string | null;
-  usage_json: string | null; usage_quality: string; cost_units: string | null; error_code: string | null;
+  usage_json: string | null; usage_quality: string; cost_units: string | null; error_code: string | null; error_message: string | null;
   retry_count: number; next_retry_at: number | null; updated_at: number;
 }
 const projection = `id,user_id,api_key_id,source,group_id,channel_id,public_model_id,upstream_model,downstream_protocol,upstream_protocol,
   price_snapshot,execution_status,billing_status,created_at,started_at,finished_at,updated_at,
-  usage_json,usage_quality,CAST(cost_units AS TEXT) AS cost_units,error_code,retry_count,next_retry_at`;
+  usage_json,usage_quality,CAST(cost_units AS TEXT) AS cost_units,error_code,error_message,retry_count,next_retry_at`;
 const statuses = ['admitted', 'succeeded', 'failed', 'cancelled', 'abandoned'];
 const billings = ['awaiting_usage', 'settled', 'not_chargeable', 'settlement_pending', 'usage_unknown'];
 const errors: Record<string, string> = { upstream_error: 'Upstream request failed.', client_cancelled: 'Client cancelled the request.',
@@ -59,12 +59,11 @@ function usage(raw: string | null): { value: unknown; valid: boolean | null } {
   } catch { return { value: null, valid: false }; }
 }
 function publicRecord(row: QueryRow) {
-  const { price_snapshot, usage_json, error_code, ...safe } = row;
+  const { price_snapshot, usage_json, error_code, error_message, ...safe } = row;
   let price: ReturnType<typeof readPriceSnapshot>['snapshot'] | null = null;
   try { if (price_snapshot.length <= 65536) price = readPriceSnapshot(price_snapshot).snapshot; } catch { /* Unsupported/corrupt evidence stays unknown. */ }
   const evidence = usage(usage_json);
-  const error = error_code === null ? null : Object.hasOwn(errors, error_code)
-    ? { code: error_code, message: errors[error_code] } : { code: 'unclassified_error', message: 'Request processing failed.' };
+  const error = error_code === null ? null : { code: error_code, message: error_message ?? errors[error_code] ?? 'Request processing failed.' };
   return { ...safe, price_snapshot: price, price_snapshot_valid: price !== null, usage: evidence.value, usage_valid: evidence.valid, error };
 }
 /** Resolve page labels in bounded batch reads, never one query per request. */
@@ -88,7 +87,7 @@ function noStore(response: Response): Response { response.headers.set('Cache-Con
  */
 export function createRequestQueryRoutes(dependencies: { now(): number } = { now: Date.now }): Hono<RouteEnv> {
   const app = new Hono<RouteEnv>();
-  app.onError((error, context) => noStore(apiError(error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }), context.get('requestId') ?? createRequestId())));
+  app.onError((error, context) => noStore(apiError(error, context.get('requestId') ?? createRequestId(), 'service_unavailable')));
   const initialize: MiddlewareHandler<RouteEnv> = async (context, next) => {
     context.set('requestId', context.get('requestId') ?? createRequestId());
     const now = dependencies.now();

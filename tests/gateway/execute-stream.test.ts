@@ -48,11 +48,16 @@ beforeEach(async () => {
 afterEach(() => vi.restoreAllMocks());
 
 describe('G08 incremental stream lifecycle with native D1/Gate and mock upstream', () => {
-  it('runs G11 accounting before normal release and includes it in context-owned completion', async () => {
+  it.each(['usage-only', 'terminal-choice'])('settles preset prices before release with %s usage', async (shape) => {
     const context = createExecutionContext();
     const finalizer = createRequestFinalizer({ database: testEnv.DB, request: admission.request, waitUntil: work => context.waitUntil(work) });
     const execution = await executeStream(dependencies(async () => sourceResponse(new ReadableStream({ start(controller) {
-      controller.enqueue(frame(chunk({}, 'stop'))); controller.enqueue(frame(usage)); controller.enqueue(frame('[DONE]')); controller.close();
+      if (shape === 'terminal-choice') {
+        controller.enqueue(frame(JSON.stringify({ ...JSON.parse(chunk({}, 'stop')), usage: JSON.parse(usage).usage })));
+      } else {
+        controller.enqueue(frame(chunk({}, 'stop'))); controller.enqueue(frame(usage));
+      }
+      controller.enqueue(frame('[DONE]')); controller.close();
     } }))), admission, adapters, { onComplete: async (completion, signal) => {
       expect(Object.hasOwn(completion, 'cleanup')).toBe(false);
       expect(await active('user:g08-user')).toBe(1);

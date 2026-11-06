@@ -3,9 +3,9 @@ import { routes } from './routes';
 import type { Env } from './env';
 import { apiError, createRequestId } from './http';
 
-export const app = new Hono<{ Bindings: Env }>();
+export const app = new Hono<{ Bindings: Env; Variables: { requestId: string } }>();
 
-app.onError((error) => apiError(error, createRequestId()));
+app.onError((error, context) => apiError(error, context.get('requestId') ?? createRequestId()));
 
 const csp = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'";
 const apiPrefixes = ['/api', '/v1', '/healthz'] as const;
@@ -47,8 +47,9 @@ function applySecurityHeaders(response: Response, origin?: string, requestOrigin
 // Keep API responses in the Worker path while permitting the trusted origin
 // selected for this request to use browser CORS. No credentialed CORS is enabled.
 app.use('*', async (context, next) => {
+  context.set('requestId', createRequestId());
   const startedAt = Date.now();
-  const details = { method: context.req.method, path: context.req.path };
+  const details = { request_id: context.get('requestId'), method: context.req.method, path: context.req.path };
   if (workerPath(context.req.path)) console.debug('HTTP request started', details);
   await next();
   context.res = applySecurityHeaders(context.res, configuredOrigin(context.env), context.req.header('Origin'), context.req.path);
@@ -110,5 +111,5 @@ app.notFound(async context => {
       }
     } catch (error) { console.error('Static asset fetch failed', { path: context.req.path }, error); }
   }
-  return context.json({ error: { code: 'not_found', message: 'Resource not found.' }, request_id: crypto.randomUUID() }, 404);
+  return context.json({ error: { code: 'not_found', message: 'Resource not found.' }, request_id: context.get('requestId') }, 404);
 });

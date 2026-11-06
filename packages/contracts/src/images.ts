@@ -73,16 +73,25 @@ export const imageJobSchema = z.object({
   groupId: id,
   prompt: z.string(),
   size: imageSizeSchema,
-  status: z.enum(['generating', 'completed', 'failed', 'unknown']),
+  status: z.enum(['generating', 'completed', 'failed']),
   error: z
     .enum([
       'provider_rejected',
       'provider_unavailable',
       'invalid_image',
       'storage_unavailable',
-      'result_unknown',
+      'delivery_failed',
     ])
     .nullable(),
+  diagnostic: z
+    .object({
+      message: z.string(),
+      status: z.number().int().optional(),
+      code: z.string().nullable().optional(),
+      request_id: z.string().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
   priceUnits: units,
   billingStatus: z.enum(['unbilled', 'pending', 'settled']),
   createdAt: count,

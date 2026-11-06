@@ -1,3 +1,4 @@
+import { ErrorDetails } from '../../shared/patterns/ApiErrorNotice';
 import { RouteButton } from '../../shared/ui/RouteButton';
 import { downloadAsset as browserDownload } from '../../shared/lib/download';
 import { useState } from 'react';
@@ -18,7 +19,7 @@ const errors: Record<NonNullable<ImageJob['error']>, string> = {
   provider_unavailable: '生成服务暂时不可用，请稍后重试。',
   invalid_image: '生成服务没有返回可保存的图片，本次未扣费。',
   storage_unavailable: '图片保存失败，本次未扣费。请稍后重试。',
-  result_unknown: '生成结果尚未确认。刷新记录不会重复生成；再次生成会发起新的请求。',
+  delivery_failed: '本次未能取得图片。可查看记录或修改后重新生成。',
 };
 export function ImageWaiting({ uncertain = false }: { uncertain?: boolean }) {
   return (
@@ -37,7 +38,7 @@ export function ImageWaiting({ uncertain = false }: { uncertain?: boolean }) {
         <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">
           {uncertain
             ? '可以确认原请求的结果，描述已保留。'
-            : '图片完成后会显示在这里，可以先编辑下一条描述。'}
+            : '提交成功的任务会在后台继续，稍后可在历史中查看。'}
         </p>
       </div>
     </div>
@@ -46,11 +47,9 @@ export function ImageWaiting({ uncertain = false }: { uncertain?: boolean }) {
 export function ImageResultCard({
   job,
   onReuse,
-  onRefresh,
 }: {
   job: ImageJob;
   onReuse: (job: ImageJob) => void;
-  onRefresh: () => void;
 }) {
   const [loadError, setLoadError] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -75,7 +74,9 @@ export function ImageResultCard({
             ? job.billingStatus === 'settled'
               ? `已扣费 ${formatConsumptionUsd(job.priceUnits)} 积分`
               : `费用确认中 · ${formatConsumptionUsd(job.priceUnits)} 积分`
-            : `单张 ${formatConsumptionUsd(job.priceUnits)} 积分`}
+            : job.status === 'generating'
+              ? `单张 ${formatConsumptionUsd(job.priceUnits)} 积分`
+              : '尚未入账'}
         </span>
       </div>
       {job.status === 'generating' ? (
@@ -137,14 +138,16 @@ export function ImageResultCard({
         </>
       ) : (
         <div className="rounded-lg bg-[var(--color-muted)]/40 p-4" role="status">
-          <p className="text-sm leading-6">{errors[job.error ?? 'result_unknown']}</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {job.status === 'unknown' && (
-              <Button variant="outline" size="sm" onClick={onRefresh}>
-                刷新记录
-              </Button>
-            )}
-          </div>
+          <p className="text-sm leading-6">{errors[job.error ?? 'delivery_failed']}</p>
+          <ErrorDetails
+            error={{
+              ...job.diagnostic,
+              message: job.diagnostic?.message ?? errors[job.error ?? 'delivery_failed'],
+              code: job.diagnostic?.code ?? job.error,
+              request_id: job.id,
+            }}
+            context={{ 供应商请求编号: job.diagnostic?.request_id, 操作编号: job.operationId }}
+          />
         </div>
       )}
       {job.status !== 'generating' && (

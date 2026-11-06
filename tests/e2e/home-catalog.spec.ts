@@ -72,7 +72,9 @@ for (const width of [320, 375, 1440]) {
     await page.goto('/');
     const banner = page.getByRole('banner');
     await expect(page.getByRole('tablist', { name: '首页内容' })).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: '对话与 API 接入' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '对话、生图与 API 接入' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '生成图片', exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     expect(requests).toBe(0);
     if (width < 900) {
       await banner.getByRole('button', { name: '打开导航' }).click();
@@ -166,7 +168,7 @@ test('header navigation, catalog deep links and overview anchors survive reload 
   );
   await navigation.getByRole('button', { name: '产品', exact: true }).focus();
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('heading', { name: '对话与 API 接入' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '对话、生图与 API 接入' })).toBeVisible();
   await page.goBack();
   await expect(navigation.getByRole('button', { name: '模型目录' })).toHaveAttribute(
     'aria-current',

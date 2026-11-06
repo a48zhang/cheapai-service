@@ -1,3 +1,4 @@
+import { logError } from '../logging';
 import type {
   ImageChoice,
   ImageGenerateInput,
@@ -47,6 +48,7 @@ export interface JobRow {
   size: ImageJob['size'];
   status: ImageJob['status'];
   error: ImageJob['error'];
+  error_diagnostic?: string | null;
   price_units: number;
   price_snapshot: string;
   billing_status: ImageJob['billingStatus'];
@@ -55,6 +57,8 @@ export interface JobRow {
   created_at: number;
   updated_at: number;
   expires_at: number;
+  execution_snapshot: string | null;
+  started_at: number | null;
 }
 export function modelView(row: ModelRow): ImageModel {
   return imageModelSchema.parse({
@@ -81,6 +85,7 @@ export function jobView(row: JobRow): ImageJob {
     size: row.size,
     status: row.status,
     error: row.error,
+    diagnostic: row.error_diagnostic ? JSON.parse(row.error_diagnostic) : null,
     priceUnits: String(row.price_units),
     billingStatus: row.billing_status,
     createdAt: row.created_at,
@@ -249,8 +254,8 @@ export async function register(
   });
   const inserted = await prepare(
     db,
-    `INSERT INTO image_generations(id,user_id,operation_id,model_id,model_name,group_id,prompt,size,status,price_units,price_snapshot,billing_status,created_at,updated_at,expires_at)
-    SELECT ?,?,?,m.id,m.name,g.id,?,?,'generating',?,?,'unbilled',?,?,? ${authorized}
+    `INSERT INTO image_generations(id,user_id,operation_id,model_id,model_name,group_id,prompt,size,status,price_units,price_snapshot,billing_status,created_at,updated_at,expires_at,execution_snapshot)
+    SELECT ?,?,?,m.id,m.name,g.id,?,?,'generating',?,?,'unbilled',?,?,?,? ${authorized}
     AND m.id=? AND g.id=? AND m.version=? AND c.config_version=? AND g.version=? AND u.version=? AND u.balance_units>=?
     ON CONFLICT(user_id,operation_id) DO NOTHING`,
     [
@@ -263,7 +268,8 @@ export async function register(
       snapshot,
       now,
       now,
-      now + 210_000,
+      now + 600_000,
+      JSON.stringify(config),
       userId,
       input.modelId,
       input.groupId,
@@ -284,14 +290,15 @@ export async function markFailure(
   row: JobRow,
   error: NonNullable<ImageJob['error']>,
   now: number,
+  diagnostic?: ImageJob['diagnostic'],
 ): Promise<void> {
   await prepare(
     db,
-    `UPDATE image_generations SET status=?,error=?,updated_at=? WHERE id=? AND user_id=? AND status='generating'`,
-    [error === 'result_unknown' ? 'unknown' : 'failed', error, now, row.id, row.user_id],
+    `UPDATE image_generations SET status='failed',error=?,error_diagnostic=?,updated_at=? WHERE id=? AND user_id=? AND status='generating'`,
+    [error, diagnostic ? JSON.stringify(diagnostic) : null, now, row.id, row.user_id],
   ).run();
 }
-export async function settleImage(db: D1Database, row: JobRow, now: number): Promise<void> {
+async function settleImage(db: D1Database, row: JobRow, now: number): Promise<void> {
   // The unique operation and SQL triggers commit the charge and balance exactly once.
   await prepare(
     db,
@@ -304,18 +311,29 @@ export async function settleImage(db: D1Database, row: JobRow, now: number): Pro
 }
 export async function recover(db: D1Database, row: JobRow, now: number): Promise<JobRow> {
   if (row.status === 'generating' && row.expires_at <= now)
-    await markFailure(db, row, 'result_unknown', now);
+    // Recheck the deadline in SQL: an alarm may have started since this row was read.
+    await prepare(
+      db,
+      `UPDATE image_generations SET
+      status='failed',
+      error=CASE WHEN execution_snapshot IS NOT NULL AND started_at IS NULL THEN 'provider_unavailable' ELSE 'delivery_failed' END,
+      updated_at=? WHERE id=? AND user_id=? AND status='generating' AND expires_at<=?`,
+      [now, row.id, row.user_id, now],
+    ).run();
   if (row.status === 'completed' && row.billing_status === 'pending') {
     try {
       await settleImage(db, row, now);
-    } catch {
+    } catch (error) {
+      logError('Image settlement failed', error, { request_id: row.id });
+      // Rotate failed work behind untouched rows in the bounded maintenance batch.
+      await prepare(db, "UPDATE image_generations SET updated_at=? WHERE id=? AND billing_status='pending'", [now, row.id]).run();
       // A temporary accounting failure must not hide an already saved result.
-      // The pending status keeps owner-scoped reads polling this same charge.
+      // The scheduled maintenance task retries this same charge.
     }
   }
   return (await getJob(db, row.user_id, row.id)) ?? row;
 }
-export async function history(db: D1Database, userId: string, cursor: string | null, now: number) {
+export async function history(db: D1Database, userId: string, cursor: string | null) {
   let after: [number, string] | null = null;
   if (cursor) {
     try {
@@ -340,8 +358,7 @@ export async function history(db: D1Database, userId: string, cursor: string | n
       [userId, ...(after ? [after[0], after[0], after[1]] : [])],
     ).all()
   ).rows;
-  const items = [];
-  for (const row of rows.slice(0, 20)) items.push(jobView(await recover(db, row, now)));
+  const items = rows.slice(0, 20).map(jobView);
   const last = items.at(-1);
   return {
     items,

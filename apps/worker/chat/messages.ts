@@ -1,10 +1,7 @@
 import { batch, prepare } from '../db';
 import { ApiError } from '../http';
 import {
-  createConversation as createConversationRecord,
-  deleteConversation as deleteConversationRecord,
   getConversation as getConversationRecord,
-  listConversations as listConversationRecords,
   requireChatId,
   requireChatText,
   requireChatTime,
@@ -12,7 +9,6 @@ import {
   requireConversationOwner,
   requireOperationId,
   optionalChatId,
-  updateConversation as updateConversationRecord,
 } from './repository';
 import type {
   AcceptRegenerateInput,
@@ -586,79 +582,3 @@ export const finalizeMessage = finalize;
 export const checkpointMessage = checkpoint;
 export const selectVersion = selectMessageVersion;
 export const recoverGeneratingMessages = reconcileGeneration;
-
-// Re-export conversation CRUD from the chat storage entry point.  The service
-// imports one module for its whole persistence boundary, while the actual
-// implementation remains split by concern in repository.ts/messages.ts.
-export { createConversationRecord as createConversation, deleteConversationRecord as deleteConversation,
-  getConversationRecord as getConversation, listConversationRecords as listConversations,
-  updateConversationRecord as updateConversation };
-
-/**
- * Small positional adapter for the chat service.  Keeping this next to the
- * storage state machine lets route/service code depend on a narrow interface
- * while tests can call the atomic operations above directly.
- */
-export interface ChatStorageAdapter {
-  listConversations(userId: string, cursor: string | null, limit: number): Promise<{ items: readonly Conversation[]; nextCursor: string | null }>;
-  getConversation(userId: string, conversationId: string): Promise<ConversationWithMessages | null>;
-  createConversation(userId: string, input: { title?: string; groupId?: string | null; modelId?: string | null; now: number }): Promise<Conversation>;
-  updateConversation(userId: string, conversationId: string, expectedVersion: number, patch: { title?: string; groupId?: string | null; modelId?: string | null }, now: number): Promise<Conversation>;
-  deleteConversation(userId: string, conversationId: string, expectedVersion: number, now: number): Promise<boolean>;
-  startMessage(userId: string, conversationId: string, input: { operationId: string; groupId: string; modelId: string; content?: string; conversationVersion: number; now: number }): Promise<
-    | { kind: 'accepted'; conversation: Conversation; userMessage: Message | null; assistantMessage: Message; context: readonly { role: 'user' | 'assistant'; content: string }[] }
-    | { kind: 'replayed'; conversation: Conversation; messages: readonly Message[] }
-  >;
-  associateRequest(userId: string, conversationId: string, assistantMessageId: string, operationId: string, requestId: string): Promise<boolean>;
-  saveAssistantProgress(userId: string, conversationId: string, assistantMessageId: string, content: string, now: number): Promise<void>;
-  finishAssistant(userId: string, conversationId: string, assistantMessageId: string, status: Exclude<Message['status'], 'generating'>, content: string, now: number): Promise<Message>;
-  selectVersion(userId: string, conversationId: string, messageId: string, expectedConversationVersion: number, now: number): Promise<ConversationWithMessages>;
-}
-
-export function createChatStorage(database: D1Database): ChatStorageAdapter {
-  return {
-    listConversations: (userId, cursor, limit) => listConversationRecords(database, userId, { cursor, limit }),
-    getConversation: (userId, conversationId) => getConversationWithMessages(database, userId, conversationId),
-    createConversation: (userId, input) => createConversationRecord(database, userId, input),
-    updateConversation: (userId, conversationId, expectedVersion, patch, now) => updateConversationRecord(database, userId, conversationId, expectedVersion, patch, now),
-    deleteConversation: (userId, conversationId, expectedVersion, _now) => deleteConversationRecord(database, userId, conversationId, expectedVersion),
-    startMessage: async (userId, conversationId, input) => {
-      if (input.content === undefined) {
-        const accepted = await acceptRegenerate(database, { userId, conversationId, operationId: input.operationId,
-          conversationVersion: input.conversationVersion, groupId: input.groupId, modelId: input.modelId, now: input.now });
-        if (accepted.replayed) return { kind: 'replayed', conversation: accepted.conversation, messages: accepted.messages };
-        return { kind: 'accepted', conversation: accepted.conversation, userMessage: accepted.userMessage,
-          assistantMessage: accepted.assistantMessage, context: (await readContext(database, userId, conversationId, input.now)).map(message => ({ role: message.role, content: message.content })) };
-      }
-      const accepted = await acceptSend(database, { userId, conversationId, operationId: input.operationId,
-        conversationVersion: input.conversationVersion, groupId: input.groupId, modelId: input.modelId, content: input.content, now: input.now });
-      if (accepted.replayed) return { kind: 'replayed', conversation: accepted.conversation, messages: accepted.messages };
-      return { kind: 'accepted', conversation: accepted.conversation, userMessage: accepted.userMessage,
-        assistantMessage: accepted.assistantMessage, context: (await readContext(database, userId, conversationId, input.now)).map(message => ({ role: message.role, content: message.content })) };
-    },
-    associateRequest: async (userId, conversationId, assistantMessageId, operationId, requestId) => {
-      try {
-        const current = await messageById(database, userId, assistantMessageId);
-        if (!current || current.conversationId !== conversationId || current.role !== 'assistant') return false;
-        const operation = await prepare<{ operation_id: string | null }>(database,
-          'SELECT operation_id FROM chat_messages WHERE id=? AND conversation_id=? AND role=\'assistant\'', [assistantMessageId, conversationId]).first();
-        if (!operation || operation.operation_id !== operationId) return false;
-        await attachRequest(database, { userId, messageId: assistantMessageId, requestId, now: current.updatedAt,
-          conversationId, operationId });
-        return true;
-      } catch { return false; }
-    },
-    saveAssistantProgress: async (userId, conversationId, assistantMessageId, content, now) => {
-      const current = await messageById(database, userId, assistantMessageId);
-      if (!current || current.conversationId !== conversationId) throw new ApiError('not_found');
-      await checkpoint(database, { userId, messageId: assistantMessageId, content, now });
-    },
-    finishAssistant: async (userId, conversationId, assistantMessageId, status, content, now) => {
-      const current = await messageById(database, userId, assistantMessageId);
-      if (!current || current.conversationId !== conversationId) throw new ApiError('not_found');
-      return finalize(database, { userId, messageId: assistantMessageId, status, content, now });
-    },
-    selectVersion: (userId, conversationId, messageId, expectedConversationVersion, now) =>
-      selectMessageVersion(database, { userId, conversationId, messageId, conversationVersion: expectedConversationVersion, now }),
-  };
-}

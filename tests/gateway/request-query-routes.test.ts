@@ -1,3 +1,4 @@
+import { decodeRequest } from '@cheapai/contracts/requests';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createRequestQueryRoutes, PERSONAL_REQUESTS_PATH, ADMIN_REQUESTS_PATH } from '../../apps/worker/gateway/request-query-routes';
 import { createPriceSnapshot } from '../../apps/worker/billing/fingerprint';
@@ -59,20 +60,27 @@ describe('request query HTTP on native D1', () => {
   it('returns controlled price/usage/error evidence and preserves unknown cost rather than zero', async () => {
     await testEnv.DB.prepare(`UPDATE requests SET usage_json=?,usage_quality='partial',error_code='upstream_error',error_message=?,attempts_json=? WHERE id='b12-a'`)
       .bind(JSON.stringify({ protocol: 'chat', quality: 'partial', counts: { inputTokens: 7 }, sources: [{ raw: { prompt: 'PRIVATE PROMPT', authorization: 'PRIVATE KEY' } }], issues: ['PRIVATE ERROR'] }),
-        'PRIVATE UPSTREAM ERROR', '[{"prompt":"PRIVATE PROMPT"}]').run();
+        'Provider rejected this model (HTTP 422).', '[{"prompt":"PRIVATE PROMPT"}]').run();
     const response = await request(`${PERSONAL_REQUESTS_PATH}/b12-a`); const text = await response.text(); expect(text).not.toContain('PRIVATE');
     const body = JSON.parse(text).data;
     expect(body.price_snapshot.sell_prices).toEqual({ input: '1', output: '2' });
     expect(body.usage.counts).toEqual({ inputTokens: 7 }); expect(body.usage.counts).not.toHaveProperty('outputTokens');
-    expect(body.cost_units).toBeNull(); expect(body.error).toEqual({ code: 'upstream_error', message: 'Upstream request failed.' });
+    expect(body.cost_units).toBeNull(); expect(body.error).toEqual({ code: 'upstream_error', message: 'Provider rejected this model (HTTP 422).' });
     await testEnv.DB.prepare("UPDATE requests SET cost_units=9007199254740991 WHERE id='b12-a'").run();
     expect(await (await request(`${PERSONAL_REQUESTS_PATH}/b12-a`)).json()).toMatchObject({ data: { cost_units: '9007199254740991' } });
   });
+  it('preserves persisted diagnostic text through the frontend contract', async () => {
+    const message = '  Provider details: ' + 'detail '.repeat(100) + '\n';
+    await testEnv.DB.prepare("UPDATE requests SET error_code='provider_extended',error_message=? WHERE id='b12-a'").bind(message).run();
+    const response = await request(`${PERSONAL_REQUESTS_PATH}/b12-a`);
+    const envelope = await response.json<{ data: unknown }>();
+    expect(decodeRequest(envelope.data).error).toEqual({ code: 'provider_extended', message });
+  });
   it('marks malformed evidence unavailable without returning arbitrary JSON', async () => {
     await testEnv.DB.prepare("UPDATE requests SET price_snapshot=?,usage_json=?,error_code=? WHERE id='b12-a'")
-      .bind('{"prompt":"PRIVATE"}', '{"raw":"PRIVATE"}', 'PRIVATE ERROR').run();
+      .bind('{"prompt":"PRIVATE"}', '{"raw":"PRIVATE"}', 'provider_model_unsupported').run();
     const response = await request(`${PERSONAL_REQUESTS_PATH}/b12-a`); const text = await response.text(); expect(text).not.toContain('PRIVATE');
-    expect(JSON.parse(text).data).toMatchObject({ price_snapshot: null, price_snapshot_valid: false, usage: null, usage_valid: false, error: { code: 'unclassified_error' } });
+    expect(JSON.parse(text).data).toMatchObject({ price_snapshot: null, price_snapshot_valid: false, usage: null, usage_valid: false, error: { code: 'provider_model_unsupported' } });
   });
   it('filters admin user/time/status/model and validates query boundaries', async () => {
     await testEnv.DB.prepare("UPDATE requests SET execution_status='failed',billing_status='usage_unknown' WHERE id='b12-a'").run();
