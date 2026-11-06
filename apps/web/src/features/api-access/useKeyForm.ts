@@ -149,14 +149,14 @@ export function useKeyForm(props: KeyFormProps) {
   }, [open, mode, item?.id, ownerKey, reset, populate]);
 
   useEffect(() => {
-    if (mode !== 'create' || !open || !groups.length) return;
+    if (mode !== 'create' || !open || !groups.length || operation.status !== 'idle') return;
     const matchingGroup = groups.find((group) => group.id === groupId);
     if (groups.length === 1 && matchingGroup === undefined) {
       setValue('groupId', groups[0]?.id ?? '');
     } else if (groups.length > 1 && matchingGroup === undefined && groupId !== '') {
       setValue('groupId', '');
     }
-  }, [mode, open, groups, groupId, setValue]);
+  }, [mode, open, groups, groupId, setValue, operation.status]);
 
   function close(nextOpen: boolean, allowCompletedWrite = false) {
     if (!nextOpen && busyRef.current && !allowCompletedWrite) return;
@@ -176,21 +176,22 @@ export function useKeyForm(props: KeyFormProps) {
   const submit = handleSubmit(async (values) => {
     if (busyRef.current) return;
     if (mode === 'create') {
-      if (!selectedGroup) {
-        setError('groupId', { message: '请选择管理员开放的分组。' });
-        return;
-      }
-      const expiresAt = parseKeyExpiry(values.expiresAt);
-      if (expiresAt === undefined || (expiresAt !== null && expiresAt <= Date.now())) {
-        setError('expiresAt', { message: '到期时间必须是有效的未来时间。' });
-        return;
-      }
-      const input: KeyInput = { name: values.name, expiresAt, groupId: values.groupId };
       const existingIntent =
-        operationRef.current.status === 'unknown' || operationRef.current.status === 'correctable'
-          ? operationRef.current.intent
-          : null;
-      const intent = createKeyIntent(input, existingIntent);
+        operationRef.current.status === 'unknown' ? operationRef.current.intent : null;
+      let intent = existingIntent;
+      if (!intent) {
+        if (!selectedGroup) {
+          setError('groupId', { message: '请选择管理员开放的分组。' });
+          return;
+        }
+        const expiresAt = parseKeyExpiry(values.expiresAt);
+        if (expiresAt === undefined || (expiresAt !== null && expiresAt <= Date.now())) {
+          setError('expiresAt', { message: '到期时间必须是有效的未来时间。' });
+          return;
+        }
+        const input: KeyInput = { name: values.name, expiresAt, groupId: values.groupId };
+        intent = createKeyIntent(input);
+      }
       transition({ type: 'submit', intent });
       const busyLease = acquireBusyLease();
       setNotice(null);
@@ -206,7 +207,7 @@ export function useKeyForm(props: KeyFormProps) {
         } else {
           transition({ type: 'replayed', key: result.key });
           setNotice(
-            '此操作已创建 Key，但服务端不会再次返回明文。请在列表确认；如未保存，可撤销该 Key 后新建。',
+            '密钥已创建，请在列表中确认。完整密钥无法再次查看；如果未保存，请撤销后重新创建。',
           );
         }
       } catch (error) {
@@ -216,7 +217,7 @@ export function useKeyForm(props: KeyFormProps) {
           setNotice(
             withErrorContext(
               error,
-              error instanceof Error ? error.message : '请求未被接受，请修改参数后重试。',
+              error instanceof Error ? error.message : '未能创建密钥，请检查填写的信息后重试。',
             ),
           );
         } else {
@@ -224,7 +225,7 @@ export function useKeyForm(props: KeyFormProps) {
           setNotice(
             withErrorContext(
               error,
-              '结果尚未确认。重试会沿用同一操作和参数；请勿刷新页面。关闭后重新打开仍可继续确认。',
+              `未收到有效的创建结果。请点击“重试确认”，系统会按原操作编号核对，避免重复创建。暂时不要刷新页面；持续失败时请保存操作编号并联系管理员。${error instanceof Error ? ` 具体原因：${error.message}` : ''}`,
             ),
           );
         }
@@ -272,8 +273,8 @@ export function useKeyForm(props: KeyFormProps) {
       setReloadNeeded(true);
       const message =
         error instanceof ApiClientError && error.status === 409
-          ? 'Key 已发生变化或不可编辑。请重新读取并核对后再操作，不会自动覆盖其他修改。'
-          : '操作结果未确认。请重新读取状态后再操作，不会自动重试。';
+          ? '密钥状态已变化，请重新读取并核对后再保存。'
+          : '尚未确认保存结果，请重新读取并核对密钥状态。';
       setNotice(withErrorContext(error, message));
     } finally {
       releaseBusyLease(busyLease);
@@ -325,6 +326,7 @@ export function useKeyForm(props: KeyFormProps) {
     notice,
     busy,
     reloadNeeded,
+    pendingOperationId: operation.status === 'unknown' ? operation.intent.operationId : null,
     createPhase,
     settled,
     fieldsDisabled,

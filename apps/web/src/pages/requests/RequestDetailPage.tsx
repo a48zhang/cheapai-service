@@ -18,6 +18,7 @@ import { safeReturnPath } from '../../shared/lib/return-path';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { PageHeader } from '../../shared/patterns/PageHeader';
 import { Button } from '../../shared/ui/Button';
+import { CopyButton } from '../../shared/ui/CopyButton';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
 
 export function RequestDetailPage() {
@@ -47,12 +48,25 @@ export function RequestDetailPage() {
       ? `${((item.finished_at - item.started_at) / 1000).toLocaleString('zh-CN', { maximumFractionDigits: 3 })} 秒`
       : '—';
   const errorSummary: Record<string, string> = {
-    upstream_error: '上游模型请求失败',
+    upstream_error: '模型请求失败',
     client_cancelled: '请求已取消',
     request_timeout: '请求超时',
     internal_error: '请求处理失败',
     unclassified_error: '请求处理失败',
   };
+  const recoveryMessage = !item
+    ? null
+    : item.billing_status === 'usage_unknown'
+      ? '模型服务未返回完整、有效的用量，当前无法核算费用。请复制请求编号联系管理员核查；刷新仅会读取现有记录，不会重新发起模型请求。'
+      : item.billing_status === 'settlement_pending'
+        ? item.next_retry_at !== null
+          ? '费用尚未结算，系统将继续处理。可刷新查看进度；持续未完成时，请提供请求编号联系管理员。'
+          : '自动结算已暂停，需要管理员核查。请复制请求编号联系管理员处理；刷新可查看处理后的结果。'
+        : item.billing_status === 'awaiting_usage'
+          ? '请求已接收，正在等待用量记录。可刷新查看进度；长时间没有更新时，请提供请求编号联系管理员核查。'
+          : item.billing_status === 'settled' && item.cost_units === null
+            ? '记录标记为已结算，但未返回金额。请刷新读取；仍缺失时，请提供请求编号联系管理员核对账单。'
+            : null;
   const result = item ? requestResultPresentation(item.execution_status) : null;
 
   return (
@@ -170,13 +184,35 @@ export function RequestDetailPage() {
                   title={<>服务返回信息</>}
                   triggerClassName="cursor-pointer"
                 >
-                  <p className="mb-0 mt-2 break-words">{item.error.message}</p>
-                  <p className="mb-0 mt-1 break-all font-mono">{item.error.code}</p>
+                  <p className="mb-0 mt-2 whitespace-pre-wrap break-words">{item.error.message}</p>
+                  <p className="mb-2 mt-1 break-all font-mono">{item.error.code}</p>
+                  <CopyButton
+                    label="复制错误详情"
+                    value={`请求 ID: ${item.id}\n错误码: ${item.error.code}\n${item.error.message}`}
+                  />
                 </Disclosure>
               </div>
             )}
           </section>
 
+          {recoveryMessage && (
+            <section className="console-panel space-y-3 p-4 sm:p-5" aria-label="费用处理进度">
+              <p role="status" className="text-sm leading-6">
+                {recoveryMessage}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  busy={query.isFetching}
+                  onClick={() => void query.refetch()}
+                >
+                  刷新处理状态
+                </Button>
+                <CopyButton value={item.id} label="复制待核查请求编号" />
+              </div>
+            </section>
+          )}
           <Disclosure
             className="console-panel p-4 sm:p-5"
             title={<>技术详情</>}
@@ -187,29 +223,33 @@ export function RequestDetailPage() {
                 <div>
                   <dt className="console-label">访问组</dt>
                   <dd className="m-0 mt-1 break-all">
-                    {item.group_name ?? item.group_id ?? '未记录分组'}
+                    {item.group_name ?? (scope === 'admin' ? item.group_id : null) ?? '未记录分组'}
                   </dd>
                 </div>
                 <div>
                   <dt className="console-label">请求协议</dt>
                   <dd className="m-0 mt-1">{item.downstream_protocol}</dd>
                 </div>
-                <div>
-                  <dt className="console-label">上游协议</dt>
-                  <dd className="m-0 mt-1">{item.upstream_protocol}</dd>
-                </div>
-                <div>
-                  <dt className="console-label">上游模型</dt>
-                  <dd className="m-0 mt-1 break-all">{item.upstream_model}</dd>
-                </div>
-                <div>
-                  <dt className="console-label">渠道 ID</dt>
-                  <dd className="m-0 mt-1 break-all font-mono text-sm">{item.channel_id}</dd>
-                </div>
-                <div>
-                  <dt className="console-label">重试次数</dt>
-                  <dd className="m-0 mt-1 tabular-nums">{item.retry_count}</dd>
-                </div>
+                {scope === 'admin' && (
+                  <>
+                    <div>
+                      <dt className="console-label">上游协议</dt>
+                      <dd className="m-0 mt-1">{item.upstream_protocol}</dd>
+                    </div>
+                    <div>
+                      <dt className="console-label">上游模型</dt>
+                      <dd className="m-0 mt-1 break-all">{item.upstream_model}</dd>
+                    </div>
+                    <div>
+                      <dt className="console-label">渠道 ID</dt>
+                      <dd className="m-0 mt-1 break-all font-mono text-sm">{item.channel_id}</dd>
+                    </div>
+                    <div>
+                      <dt className="console-label">重试次数</dt>
+                      <dd className="m-0 mt-1 tabular-nums">{item.retry_count}</dd>
+                    </div>
+                  </>
+                )}
                 {scope === 'admin' && (
                   <>
                     <div>
@@ -243,7 +283,7 @@ export function RequestDetailPage() {
                   <dt className="console-label">最后更新</dt>
                   <dd className="m-0 mt-1">{formatDateTime(item.updated_at)}</dd>
                 </div>
-                {item.next_retry_at !== null && (
+                {scope === 'admin' && item.next_retry_at !== null && (
                   <div>
                     <dt className="console-label">下次结算重试</dt>
                     <dd className="m-0 mt-1">{formatDateTime(item.next_retry_at)}</dd>
@@ -266,11 +306,12 @@ export function RequestDetailPage() {
 
           <Disclosure
             className="console-panel p-4 sm:p-5"
-            title={<>价格快照</>}
+            title={<>计费依据</>}
             triggerClassName="console-section-title cursor-pointer"
           >
             <PriceSnapshot
               className="mt-4"
+              showInternalDetails={scope === 'admin'}
               snapshot={item.price_snapshot}
               snapshotValid={item.price_snapshot_valid}
               costUnits={item.cost_units}

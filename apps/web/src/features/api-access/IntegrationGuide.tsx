@@ -170,6 +170,7 @@ export function IntegrationGuide({
       <h2 id="integration-guide-title" className="text-xl font-semibold">
         快速接入
       </h2>
+      {modelControls}
       <Tabs
         defaultValue="codex"
         ariaLabel="接入方式"
@@ -182,7 +183,6 @@ export function IntegrationGuide({
               state ??
               (configuration && (
                 <div className="space-y-4">
-                  {modelControls}
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <span className="inline-flex items-center gap-2 text-[15px]">
                       <FileCode2 size={18} aria-hidden="true" />
@@ -215,7 +215,7 @@ export function IntegrationGuide({
                   </pre>
                   <p className="text-sm leading-6 text-[var(--color-muted-foreground)]">
                     将 auth.json 中的 YOUR_API_KEY 换成完整密钥。Codex 使用 Responses
-                    协议，所选模型及对应渠道需支持该协议。
+                    协议，请选择支持 Responses 的模型。
                   </p>
                 </div>
               )),
@@ -227,7 +227,6 @@ export function IntegrationGuide({
               state ??
               (example && (
                 <div className="space-y-4">
-                  {modelControls}
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <Select
                       aria-label="调用协议"

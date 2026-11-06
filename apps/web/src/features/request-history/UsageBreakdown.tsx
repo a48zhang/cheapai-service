@@ -10,8 +10,9 @@ export interface UsageBreakdownProps {
 const number = new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 0 });
 
 function semanticLabel(value: string, included: string, excluded: string): string {
-  if (value === included) return '已计入主计数';
-  if (value === excluded) return '未计入主计数';
+  const total = included === 'included_in_output' ? '输出 Token' : '输入 Token';
+  if (value === included) return `已包含在${total}中`;
+  if (value === excluded) return `未包含在${total}中`;
   return '口径未知';
 }
 
@@ -31,7 +32,7 @@ export function UsageBreakdown({ usage, usageValid, className }: UsageBreakdownP
   if (usage.quality === 'missing') {
     return (
       <div className={['flex items-center gap-2', className].filter(Boolean).join(' ')}>
-        <StatusBadge tone="warning">上游未提供用量</StatusBadge>
+        <StatusBadge tone="warning">模型服务未返回用量</StatusBadge>
       </div>
     );
   }
@@ -46,7 +47,9 @@ export function UsageBreakdown({ usage, usageValid, className }: UsageBreakdownP
 
   const counts = usage.counts;
   const cacheWriteTtlLabel =
-    usage.semantics.cacheWriteTtl === 'subsets_of_cache_write' ? '缓存写入子集' : '缓存关系未知';
+    usage.semantics.cacheWriteTtl === 'subsets_of_cache_write'
+      ? '已包含在缓存写入总量中'
+      : '缓存关系未知';
   const rows: Array<readonly [string, number | undefined, string?]> = [
     ['输入 Token', counts.inputTokens],
     ['输出 Token', counts.outputTokens],
@@ -115,7 +118,7 @@ export function UsageBreakdown({ usage, usageValid, className }: UsageBreakdownP
       {usage.semantics.cacheWriteTtl === 'subsets_of_cache_write' &&
         (counts.cacheWrite5mTokens !== undefined || counts.cacheWrite1hTokens !== undefined) && (
           <p className="m-0 text-sm leading-5 text-[var(--color-ink-muted)]">
-            5 分钟与 1 小时缓存写入计数属于缓存写入子集，请勿重复加总。
+            5 分钟与 1 小时缓存写入计数属于已包含在缓存写入总量中，请勿重复加总。
           </p>
         )}
     </section>
