@@ -113,9 +113,27 @@ describe('Chat cumulative streaming usage', () => {
       const session = createChatUsageSession(); session.push(chunk(usage));
       expect(session.finish(terminal)).toMatchObject({ quality: 'complete', counts: { inputTokens: 20, outputTokens: 7 }, issues: [] });
     }
-    // DONE after an ordinary chunk proves stream closure, not final accounting.
+    // Complete counters on the terminal choice are also final once DONE arrives.
     const early = createChatUsageSession(); early.push(chunk(usage, [{ index: 0, finish_reason: 'stop' }])); early.push('[DONE]');
-    expect(early.finish(complete)).toMatchObject({ quality: 'partial', issues: ['missing_final_usage'] });
+    expect(early.finish(complete)).toMatchObject({ quality: 'complete', issues: [] });
+  });
+
+  it('uses actual final-choice counters without requiring an extra empty-choices packet', () => {
+    const session = createChatUsageSession();
+    const counters = { prompt_tokens: 104, completion_tokens: 29, total_tokens: 133,
+      prompt_tokens_details: { cached_tokens: 0 }, completion_tokens_details: { reasoning_tokens: 9 } };
+    // The same counts can appear before and on the final choice; deduplication
+    // must not discard its completion evidence.
+    session.push(chunk(counters, [{ index: 0, finish_reason: null }]));
+    session.push(chunk(counters, [{ index: 0, finish_reason: 'stop' }]));
+    session.push('[DONE]');
+    expect(session.finish(complete)).toMatchObject({ quality: 'complete',
+      counts: { inputTokens: 104, outputTokens: 29, cacheReadTokens: 0, reasoningTokens: 9 }, issues: [] });
+    const stale = createChatUsageSession();
+    stale.push(chunk(counters, [{ index: 0, finish_reason: 'stop' }]));
+    stale.push(chunk(null, [{ index: 0, delta: { content: 'more' }, finish_reason: null }]));
+    stale.push('[DONE]');
+    expect(stale.finish(complete).quality).toBe('partial');
   });
 
   it('does not upgrade missing/partial usage just because DONE arrived', () => {

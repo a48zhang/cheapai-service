@@ -6,8 +6,9 @@ export class ImageProviderError extends Error {
   constructor(
     readonly reason:
       'provider_rejected' | 'provider_unavailable' | 'invalid_image' | 'result_unknown',
+    options?: ErrorOptions,
   ) {
-    super(reason);
+    super(reason, options);
   }
 }
 export function imageEndpoint(base: string): URL {
@@ -54,7 +55,7 @@ export async function generateImage(
   try {
     response = await fetcher(imageEndpoint(channel.baseUrl), {
       method: 'POST',
-      redirect: 'error',
+      redirect: 'manual',
       signal,
       headers: {
         'Content-Type': 'application/json',
@@ -71,8 +72,8 @@ export async function generateImage(
           : { response_format: config.response_format }),
       }),
     });
-  } catch {
-    throw new ImageProviderError('result_unknown');
+  } catch (cause) {
+    throw new ImageProviderError('result_unknown', { cause });
   }
   if (!response.ok) {
     void response.body?.cancel().catch(() => undefined);
@@ -83,8 +84,8 @@ export async function generateImage(
   let payload: unknown;
   try {
     payload = await response.json();
-  } catch {
-    throw new ImageProviderError(signal.aborted ? 'result_unknown' : 'invalid_image');
+  } catch (cause) {
+    throw new ImageProviderError(signal.aborted ? 'result_unknown' : 'invalid_image', { cause });
   }
   return decodeImage(payload);
 }

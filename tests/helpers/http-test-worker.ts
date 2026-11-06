@@ -57,12 +57,13 @@ function stream(protocol: string, model: string, id: string): Response {
 globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   const request = new Request(input, init); const url = new URL(request.url);
   if (url.origin !== 'https://e2e-upstream.example.invalid' || request.method !== 'POST') throw new Error('External fetch is disabled in the local test Worker.');
-  const protocol = url.pathname.endsWith('/chat/completions') ? 'chat' : url.pathname.endsWith('/responses') ? 'responses' : url.pathname.endsWith('/messages') ? 'messages' : '';
+  const protocol = url.pathname.endsWith('/chat/completions') ? 'chat' : url.pathname.endsWith('/responses') ? 'responses' : url.pathname.endsWith('/messages') ? 'messages' : url.pathname.endsWith('/images/generations') ? 'images' : '';
   if (!protocol) throw new Error('Unknown fixture endpoint.');
   const payload = await request.json<{ model: string; stream?: boolean }>();
   if (calls.length >= 200) throw new Error('Local fixture call budget exceeded.');
   calls.push({ protocol, model: payload.model, stream: payload.stream === true,
     platformCredentialLeaked: [...request.headers.values()].some(value => value.includes('s2a_key_')) });
+  if (protocol === 'images') return Response.json({ data: [{ b64_json: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aK5kAAAAASUVORK5CYII=' }] });
   const id = `fixture_${crypto.randomUUID().replaceAll('-', '')}`;
   return payload.stream === true ? stream(protocol, payload.model, id) : Response.json(body(protocol, payload.model, id));
 }) as typeof fetch;

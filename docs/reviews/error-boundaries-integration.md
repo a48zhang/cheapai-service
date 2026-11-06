@@ -35,7 +35,7 @@ History returns the actual persisted error message/code under the existing owner
 - #33 `fix/account-user-paths`: inspected `2e4543c`. Account/key/billing UI changes remain owned by that PR. Backend history diagnostic repair and shared client/notice complement it.
 - #34 `fix/user-journey-copy`: inspected `db9c2f6`. Locally incorporated authentication/session changes and tests needed for operation-specific errors and bounded auth waits. Its duplicate AuthErrorNotice formatter is replaced by shared ErrorDetails; the API-access navigation label and query-normalization drawer fix are included because the auth browser flow exercises them; unrelated home copy is not included.
 - #35 `fix/chat-user-path`: inspected `882733a`. Locally incorporated the chat recovery simplification and diagnostic tests; its detail formatter is replaced by shared ErrorDetails, with causes preserved. No remote PR merge.
-- `feat/durable-image-jobs`: inspected `ab5ac79`. Its normal path is submit → persisted job/alarm → provider → asset → first settlement; queries are read-only and scheduled maintenance owns recovery. It closes undelivered jobs as failed/unbilled without asserting upstream non-execution. This branch does not duplicate or supersede those job changes.
+- `feat/durable-image-jobs`: inspected `632e97f`. Its normal path is submit → persisted job/alarm → provider → asset → first settlement; queries are read-only and scheduled maintenance owns recovery. The previously rejected failed/unbilled finality has been removed in 632e97f: a valid late image can complete and settle its original price; delivery status no longer asserts a free settlement policy. This branch does not duplicate or supersede those job changes.
 
 ## Explicit limits requiring a decision or the other branch
 
@@ -43,9 +43,9 @@ A lost create-conversation response can leave an empty history entry. No message
 
 Main still uses synchronous image execution and `unknown` job records until the separately reviewed durable-image changes are integrated. Those changes must not be silently represented as already present here.
 
-Chat/API `usage_unknown` is missing billing evidence, not a known zero cost. The current schema permits later complete evidence to settle it; changing it to final `not_chargeable` requires a charging-policy decision and a database guard against later debits. A question proposing final unbilled closure has been raised. Until answered this branch retains the evidence and existing behavior; it does not claim that all unknown billing states have been eliminated.
+The user explicitly rejected free closure/platform cost absorption. No billing waiver or closure migration is included here. Existing configured prices remain authoritative; actual quantities must come from upstream evidence. The rejected proposal is withdrawn, not pending approval.
 
-No live upstream credentials/model responses were used for verification. Local Worker/D1 tests and browser fault injection demonstrate implemented paths, not successful paid production model calls or proof of an upstream outcome after a lost connection.
+No paid upstream model calls were used for verification. A subsequent read-only production D1 check is documented below. Local Worker/D1 tests and browser fault injection demonstrate implemented paths, not successful paid production model calls or proof of an upstream outcome after a lost connection.
 
 ## Verification and integration evidence
 
@@ -60,3 +60,24 @@ No live upstream credentials/model responses were used for verification. Local W
 - #35 conflicts: ChatNotice.tsx and operation-executor.ts. Resolution intent: keep its simplified state/reload behavior and flat diagnostic fields, use shared ErrorDetails, retain cause-chain data.
 
 Detailed JSON/SSE causes stay attached to execution errors, in addition to the existing execution log. Protocol status mapping, upstream-call count, settlement and cleanup semantics are unchanged.
+
+
+## Normal-path metering correction
+
+Read-only production inspection confirmed configured prices and an actually successful Chat request retained with complete input/output counters but `missing_final_usage`. No production row, balance, price or provider setting was changed. Identifying production evidence remains outside this public repository.
+
+The reproducible blocker is in the Chat usage extractor: it required a separate `choices: []` usage packet even when an upstream sent complete counters on its final choice followed by `[DONE]`. The extractor now accepts those same provider counters after the explicit terminal marker. It does not estimate tokens, infer totals from text, add a fee policy, or treat an interrupted/incomplete stream as final. Duplicate cumulative counters no longer hide a later terminal-choice marker.
+
+The existing Worker finalizer test now runs both packet layouts through actual D1/Gate settlement: one ledger entry, the same preconfigured price, and released leases. Historical rows are not automatically rewritten or charged: the retained usage subtree does not preserve every original choice/DONE frame.
+
+A separate local browser workflow supplies a funded account, enabled group/channel and image model through existing admin APIs. Only its external provider is fixed; login, generation routes, R2 result access, history, balance and ledger are the actual local application. Missing production image configuration is not a product defect or a requested production change.
+
+## Funded local primary paths
+
+The real browser image workflow exposed an actual Worker runtime blocker: `redirect: 'error'` is unsupported by workerd, so generation threw before reaching the provider. The provider now uses `manual`; existing non-success handling rejects redirects without following them. Provider transport/JSON failures retain their causes; service transition catches log the original error with the generation ID and stage.
+
+After that fix, both real local image and web-chat workflows passed (2/2), in addition to the full signup/email/API-key/18 JSON-SSE request/billing workflow (1/1). Local image configuration uses a 0.05 price and 0.5 group multiplier: UI quotes and ledger charges 0.025, balance falls from 0.1 to 0.075, the result loads from R2, reload retains history, and there is exactly one upstream call and one ledger entry. The image test does not mock application routes; only the external supplier is a deterministic fixture. The web-chat test also exercises the actual upstream-failure path and confirms retained input/history with unchanged balance. Its mobile assertion now uses the actual “个人导航” drawer title.
+
+Final added metering/provider checks: Node 2 files / 44 tests; Worker settlement/image checks 2 files / 40 tests. The full Node suite after the metering change passed 57 files / 1,596 tests. These local results are not claims about live supplier availability.
+
+The provider redirect correction also applies to the latest durable-image branch (`632e97f`), which still contains the unsupported option. Its independently reviewed lifecycle/settlement changes remain separate; when integrating, retain this provider fix and cause logging alongside that branch's simplified execution ownership.

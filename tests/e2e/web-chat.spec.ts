@@ -215,7 +215,7 @@ test('local web chat: groups, idempotency, history, versions, failure and mobile
     const layout = await userPage.evaluate(() => ({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth }));
     expect(layout.scrollWidth).toBeLessThanOrEqual(layout.width + 1);
     await userPage.getByRole('button', { name: '打开导航', exact: true }).click();
-    await expect(userPage.getByRole('dialog', { name: '聊天记录' })).toBeVisible();
+    await expect(userPage.getByRole('dialog', { name: '个人导航' })).toBeVisible();
     await expect(userPage.getByRole('button', { name: '关闭侧栏', exact: true })).toBeVisible();
     await userPage.close();
 

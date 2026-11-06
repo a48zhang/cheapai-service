@@ -1,6 +1,7 @@
 import type { ImageGenerateInput, ImageJob } from '@cheapai/contracts/images';
 import type { Env } from '../env';
 import { ApiError } from '../http';
+import { logError } from '../logging';
 import { prepare } from '../db';
 import { readChannelForForwarding } from '../catalog/channels';
 import { acquireDualLease } from '../limits/dual-lease';
@@ -84,10 +85,12 @@ export async function startImage(
       ).run();
       try {
         await settleImage(env.DB, row, now());
-      } catch {
+      } catch (error) {
+        logError('Image settlement failed', error, { request_id: row.id });
         /* Result is durable; owner-scoped reads retry settlement without generating again. */
       }
     } catch (error) {
+      logError('Image execution failed', error, { request_id: row.id, stage });
       const reason =
         error instanceof ImageProviderError
           ? error.reason
