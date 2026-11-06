@@ -29,6 +29,8 @@ export function ChatNotice({
       `错误码：${failure.diagnostics?.code ?? failure.code}`,
     failure.diagnostics?.status != null && `HTTP 状态：${failure.diagnostics.status}`,
     requestId && `请求编号：${requestId}`,
+    state.operationId && `操作编号：${state.operationId}`,
+    state.detail?.conversation.id && `对话编号：${state.detail.conversation.id}`,
     failure.diagnostics?.details != null &&
       `错误详情：${JSON.stringify(failure.diagnostics.details, null, 2)}`,
   ]

@@ -15,6 +15,7 @@ describe('chat recovery notice', () => {
           ...initialChatState,
           phase: 'interrupted',
           operationKind: 'select',
+          operationId: 'selection-operation',
           failure: { kind: 'interrupted', message: 'network failure' },
         }}
         onReload={onReload}
@@ -25,6 +26,8 @@ describe('chat recovery notice', () => {
     expect(screen.queryByRole('button', { name: '确认结果' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '重新加载' }));
     expect(onReload).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole('button', { name: '查看错误详情' }));
+    expect(screen.getByText(/操作编号：selection-operation/)).toBeVisible();
   });
 
   it('keeps diagnostics collapsed and lets the user inspect and copy the full failure', async () => {
