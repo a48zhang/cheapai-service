@@ -18,6 +18,7 @@ import { safeReturnPath } from '../../shared/lib/return-path';
 import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
 import { PageHeader } from '../../shared/patterns/PageHeader';
 import { Button } from '../../shared/ui/Button';
+import { CopyButton } from '../../shared/ui/CopyButton';
 import { StatusBadge } from '../../shared/ui/StatusBadge';
 
 export function RequestDetailPage() {
@@ -47,7 +48,7 @@ export function RequestDetailPage() {
       ? `${((item.finished_at - item.started_at) / 1000).toLocaleString('zh-CN', { maximumFractionDigits: 3 })} 秒`
       : '—';
   const errorSummary: Record<string, string> = {
-    upstream_error: '模型服务暂时不可用',
+    upstream_error: '模型请求失败',
     client_cancelled: '请求已取消',
     request_timeout: '请求超时',
     internal_error: '请求处理失败',
@@ -165,18 +166,18 @@ export function RequestDetailPage() {
                 <strong className="block break-words">
                   {errorSummary[item.error.code] ?? '请求未能完成'}
                 </strong>
-                {scope === 'admin' ? (
-                  <Disclosure
-                    className="mt-2 text-sm"
-                    title={<>服务返回信息</>}
-                    triggerClassName="cursor-pointer"
-                  >
-                    <p className="mb-0 mt-2 break-words">{item.error.message}</p>
-                    <p className="mb-0 mt-1 break-all font-mono">{item.error.code}</p>
-                  </Disclosure>
-                ) : (
-                  <p className="mb-0 mt-2 text-sm">如需帮助，请提供上方请求编号以便查询。</p>
-                )}
+                <Disclosure
+                  className="mt-2 text-sm"
+                  title={<>服务返回信息</>}
+                  triggerClassName="cursor-pointer"
+                >
+                  <p className="mb-0 mt-2 whitespace-pre-wrap break-words">{item.error.message}</p>
+                  <p className="mb-2 mt-1 break-all font-mono">{item.error.code}</p>
+                  <CopyButton
+                    label="复制错误详情"
+                    value={`请求 ID: ${item.id}\n错误码: ${item.error.code}\n${item.error.message}`}
+                  />
+                </Disclosure>
               </div>
             )}
           </section>

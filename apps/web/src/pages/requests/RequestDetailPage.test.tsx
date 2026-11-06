@@ -31,7 +31,10 @@ vi.mock('@tanstack/react-query', () => ({
       retry_count: 2,
       next_retry_at: 3000,
       cost_units: '100000000',
-      error: { code: 'upstream_error', message: 'internal provider diagnostic' },
+      error: {
+        code: 'upstream_error',
+        message: 'HTTP 429: rate limit exceeded; retry after 30 seconds',
+      },
       usage: {
         protocol: 'responses',
         quality: 'complete',
@@ -69,7 +72,7 @@ function show(path: string) {
 }
 
 describe('使用记录信息范围', () => {
-  it('个人记录保留核账依据和请求编号，不展示内部路由与原始错误', async () => {
+  it('个人记录保留核账依据和可复制错误详情，不展示内部路由', async () => {
     const user = userEvent.setup();
     show('/requests/request-for-support');
     await user.click(screen.getByRole('button', { name: '技术详情' }));
@@ -82,7 +85,17 @@ describe('使用记录信息范围', () => {
     expect(screen.queryByText('渠道 ID')).not.toBeInTheDocument();
     expect(screen.queryByText('private-model')).not.toBeInTheDocument();
     expect(screen.queryByText('internal-group')).not.toBeInTheDocument();
-    expect(screen.queryByText('internal provider diagnostic')).not.toBeInTheDocument();
+    expect(
+      screen.getByText('HTTP 429: rate limit exceeded; retry after 30 seconds'),
+    ).not.toBeVisible();
+    const clipboard = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue();
+    await user.click(screen.getByRole('button', { name: '服务返回信息' }));
+    expect(screen.getByText('HTTP 429: rate limit exceeded; retry after 30 seconds')).toBeVisible();
+    expect(screen.getByText('upstream_error')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: '复制错误详情' }));
+    expect(clipboard).toHaveBeenCalledWith(
+      '请求 ID: request-for-support\n错误码: upstream_error\nHTTP 429: rate limit exceeded; retry after 30 seconds',
+    );
     expect(screen.queryByText('下次结算重试')).not.toBeInTheDocument();
   });
 
@@ -93,7 +106,7 @@ describe('使用记录信息范围', () => {
     await user.click(screen.getByRole('button', { name: '服务返回信息' }));
     expect(screen.getByText('private-channel')).toBeVisible();
     expect(screen.getByText('private-model')).toBeVisible();
-    expect(screen.getByText('internal provider diagnostic')).toBeVisible();
+    expect(screen.getByText('HTTP 429: rate limit exceeded; retry after 30 seconds')).toBeVisible();
     expect(screen.getByText('下次结算重试')).toBeVisible();
   });
 });
