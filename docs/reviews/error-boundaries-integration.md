@@ -118,4 +118,14 @@ Reviewed `review/pr36-user-flow-simplify` commit `f14e4d1` and incorporated it a
 
 Focused controller/billing regression: 18 tests passed. No source PR merge or deployment was performed.
 
-After this follow-up, typecheck and affected ESLint passed. The independent HTTP supplier desktop/narrow chat acceptance passed 2/2, covering replay/deduplication, selected-group pricing, streamed answers, history, failures and mobile navigation. Separate desktop/narrow review findings have not yet been supplied; no speculative UI changes are included.
+After this follow-up, typecheck and affected ESLint passed. The independent HTTP supplier desktop/narrow chat acceptance passed 2/2, covering replay/deduplication, selected-group pricing, streamed answers, history, failures and mobile navigation. Subsequent desktop/narrow review findings are covered below.
+
+## Legacy-dashboard navigation and recovery acceptance
+
+Reviewed and incorporated `review/auth-mobile-pr36` commit `29974d1` as `a0305d9`. `/dashboard` now resolves to `/billing` inside the authentication boundary but before the interactive personal navigation shell mounts. This removes the intermediate route that could dismiss a drawer the user had just opened. The shared route list no longer owns that redirect; the desktop hash router has the corresponding authenticated redirect, preserving its existing destination and access control.
+
+Reviewed `review/chat-pr36` commit `a2d1f6a` and incorporated it as `7a7219b`: the creation-failure browser test now follows the simplified direct-retry behavior, and race tests use the run's actual supplier Base URL. No product behavior is changed by those test revisions.
+
+Typecheck, affected ESLint and the three navigation component tests passed. Browser validation includes login redirect/mobile navigation, registration, direct creation retry and actual HTTP supplier chat races; final counts are recorded in the PR.
+
+Integrated browser run: 24/26 passed; the two failures were stale homepage test expectations (38px vs the shared size-9/36px icon button, and an old navigation role instead of the current menu). Tests now exercise the real menu and Escape dismissal without changing UI design. Corrected 320/375/1440px layout/login/draft checks passed 3/3. The narrow dashboard redirect/navigation case passed three consecutive runs (3/3); actual HTTP chat race cases passed in the integrated run.

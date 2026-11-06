@@ -337,9 +337,12 @@ for (const width of [320, 375, 1440]) {
     );
     if (width < 768) {
       const menu = page.getByRole('button', { name: '打开导航' });
-      expect((await menu.boundingBox())!.width).toBeGreaterThanOrEqual(38);
+      // Shared icon buttons use size-9 (36px); still verify the actual hit target and click.
+      expect((await menu.boundingBox())!.width).toBeGreaterThanOrEqual(36);
       await menu.click();
-      await expect(page.getByRole('navigation', { name: '移动端首页导航' })).toBeVisible();
+      await expect(page.getByRole('menu', { name: '打开导航' })).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('menu')).toHaveCount(0);
     }
     await page.screenshot({ path: testInfo.outputPath(`home-${width}.png`) });
     await login.click();
