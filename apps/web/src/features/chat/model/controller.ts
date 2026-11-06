@@ -632,7 +632,10 @@ export function createChatController(options: ChatControllerOptions) {
     if (conversationId && owner) restorePendingForConversation(conversationId, owner);
   }
 
-  function hydrate(detail: ConversationDetail | null): void {
+  function hydrate(
+    detail: ConversationDetail | null,
+    confirmedSelectionOperationId?: string | null,
+  ): void {
     if (detail === null) {
       syncConversation(null);
       return;
@@ -643,6 +646,22 @@ export function createChatController(options: ChatControllerOptions) {
     if (activeRun?.conversationId === detail.conversation.id) return;
     const current = state.detail?.conversation.id === detail.conversation.id ? state.detail : null;
     const latest = mergeConversationDetail(current, detail);
+    // Only an explicit fresh read can release an uncertain selection. Cached
+    // snapshots must not unlock a send whose outcome still needs reconciliation.
+    if (
+      confirmedSelectionOperationId &&
+      state.phase === 'interrupted' &&
+      state.operationKind === 'select' &&
+      state.operationId === confirmedSelectionOperationId
+    ) {
+      dispatch({
+        type: 'settled',
+        operationId: confirmedSelectionOperationId,
+        outcome: 'completed',
+        detail: latest,
+      });
+      return;
+    }
     if (latest !== current) {
       state = { ...state, detail: latest };
       notify();

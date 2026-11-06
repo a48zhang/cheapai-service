@@ -833,3 +833,40 @@ describe('chat controller command lifecycle', () => {
     expect(disposable.getSnapshot().phase).not.toBe('failed');
   });
 });
+
+it('unlocks an interrupted version selection only after its explicit reload', async () => {
+  const detail = makeDetail('selection-recovery');
+  detail.messages.push(
+    makeMessage('alternative', 'assistant', 0, {
+      conversationId: detail.conversation.id,
+      variant: 2,
+      selected: false,
+    }),
+  );
+  const api = makeApi({
+    selectVersion: vi.fn().mockRejectedValue(new TypeError('Failed to fetch')),
+    getConversation: vi.fn().mockRejectedValue(new TypeError('Failed to fetch')),
+  });
+  const controller = createChatController({
+    api,
+    getOwner: () => ({ userId: 'selection-recovery-user', epoch: 1 }),
+    conversationId: detail.conversation.id,
+    initialDetail: detail,
+  });
+  await expect(controller.selectVersion('alternative')).resolves.toBe('interrupted');
+  const operationId = controller.getSnapshot().operationId;
+  controller.hydrate(detail);
+  expect(controller.getSnapshot().phase).toBe('interrupted');
+  controller.hydrate(detail, 'another-operation');
+  expect(controller.getSnapshot().phase).toBe('interrupted');
+  controller.hydrate(detail, operationId);
+  expect(controller.getSnapshot().phase).toBe('idle');
+  expect(controller.getSnapshot().failure).toBeNull();
+  expect(
+    controller
+      .getSnapshot()
+      .detail?.messages.find((message) => message.selected && message.role === 'assistant')?.id,
+  ).toBe('assistant-old');
+  expect(api.selectVersion).toHaveBeenCalledTimes(1);
+  controller.dispose();
+});

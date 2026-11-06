@@ -152,3 +152,30 @@ test('FE-V02 history first-page failure is distinct from empty and supports retr
   await page.getByRole('button', { name: '重试', exact: true }).click();
   await expect(page.getByText('还没有对话', { exact: true })).toBeVisible();
 });
+
+test('chat selection reload recovers unchanged server state and preserves the next draft', async ({ page }) => {
+  const fixture = await mockedChat(page);
+  fixture.setDetail({ conversation: { ...conversation }, messages: [{ ...prompt }, { ...answer }, { ...answer, id: 'alternative-ui', variant: 2, selected: false, content: 'Alternative answer' }] });
+  let interrupted = false;
+  await page.route('**/api/v1/chat/conversations/conv-ui/select', route => {
+    interrupted = true;
+    return route.abort('failed');
+  });
+  await page.route('**/api/v1/chat/conversations/conv-ui', route => interrupted ? route.abort('failed') : route.fallback());
+  await page.goto('/chat/conv-ui');
+  const composer = page.getByRole('textbox', { name: '消息内容' });
+  await composer.fill('保留下一条消息');
+  await page.getByRole('button', { name: '下一个回答版本' }).click();
+  await expect(page.getByText('回答版本尚未确认', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '确认结果', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '版本切换待确认', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '下一个回答版本' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '重新回答', exact: true })).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  interrupted = false;
+  await page.getByRole('button', { name: '重新加载', exact: true }).click();
+  await expect(page.getByRole('button', { name: '发送', exact: true })).toBeEnabled();
+  await expect(composer).toHaveValue('保留下一条消息');
+  await expect(page.getByRole('log', { name: '对话消息' }).getByText('UI answer', { exact: true })).toBeVisible();
+  await expect(page.getByText('回答版本尚未确认', { exact: true })).toHaveCount(0);
+});

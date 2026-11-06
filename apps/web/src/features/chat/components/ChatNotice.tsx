@@ -1,3 +1,4 @@
+import { apiErrorMessages } from '@cheapai/api-client/errors';
 import { RouteButton } from '../../../shared/ui/RouteButton';
 import { ArrowUpRight, CircleAlert } from 'lucide-react';
 import type { ChatState } from '../model/state';
@@ -11,31 +12,43 @@ export function ChatNotice({
 }: {
   state: ChatState;
   onRetry: () => void;
-  onReload: () => void;
+  onReload?: (() => void) | undefined;
   onRestart: () => void;
 }) {
   if (!state.failure) return null;
   const creationUnknown = state.failure.code === 'conversation_creation_unknown';
   const uncertain = state.phase === 'interrupted';
+  const selectionUnknown = uncertain && state.operationKind === 'select';
+  const rejectedMessage = Object.hasOwn(apiErrorMessages, state.failure.code ?? '')
+    ? apiErrorMessages[state.failure.code as keyof typeof apiErrorMessages]
+    : '操作暂时无法完成，请稍后重试。';
   const insufficientBalance = state.failure.code === 'insufficient_balance';
   const message = creationUnknown
     ? '会话创建结果待确认'
-    : uncertain
-      ? '请求结果待确认'
-      : insufficientBalance
-        ? '账户余额不足'
-        : state.failure.kind === 'rejected'
-          ? state.failure.message
-          : '本次生成未完成';
+    : selectionUnknown
+      ? '回答版本尚未确认'
+      : uncertain
+        ? '回答尚未确认'
+        : insufficientBalance
+          ? '账户余额不足'
+          : state.failure.kind === 'rejected'
+            ? rejectedMessage
+            : '本次生成未完成';
   const description = creationUnknown
     ? '问题尚未发送。可查看聊天记录，或重新开始对话。'
-    : uncertain
-      ? '请先确认本次请求的结果，再继续对话。'
-      : insufficientBalance
-        ? '请查看账户余额后继续对话。'
-        : state.failure.kind === 'rejected'
-          ? ''
-          : '请稍后再试，或重新加载当前对话。';
+    : selectionUnknown
+      ? '请重新加载对话，查看当前回答版本后继续。'
+      : uncertain
+        ? '连接已中断。请点击“确认结果”获取这次回答，再继续对话。'
+        : insufficientBalance
+          ? '请查看账户余额后继续对话。'
+          : state.failure.kind === 'rejected'
+            ? state.unsent.length > 0
+              ? '消息尚未发送，可在消息下方重试发送。'
+              : ''
+            : state.unsent.length > 0
+              ? '消息尚未发送，可在消息下方重试发送。'
+              : '可在回答下方选择“重新回答”，或重新加载对话。';
   return (
     <div
       role="alert"
@@ -70,14 +83,16 @@ export function ChatNotice({
             </RouteButton>
           ) : (
             <>
-              {uncertain && (
+              {uncertain && !selectionUnknown && (
                 <Button size="sm" onClick={onRetry}>
                   确认结果
                 </Button>
               )}
-              <Button variant="outline" size="sm" onClick={onReload}>
-                重新加载
-              </Button>
+              {onReload && (
+                <Button variant="outline" size="sm" onClick={onReload}>
+                  重新加载
+                </Button>
+              )}
             </>
           )}
         </div>

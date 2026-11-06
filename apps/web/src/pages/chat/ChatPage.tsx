@@ -237,7 +237,7 @@ export default function ChatPage() {
                 modelId: selection.selection.modelId,
               });
           }}
-          emptyMessage={chat.view === 'error' ? null : '在下方输入消息，继续这段对话。'}
+          emptyMessage={chat.view === 'error' || newChat ? null : '在下方输入消息，继续这段对话。'}
         />
         {chat.state.failure && (
           <div className="chat-notice-area">
@@ -247,10 +247,13 @@ export default function ChatPage() {
               onRetry={() => {
                 void chat.retry();
               }}
-              onReload={() => {
-                if (conversationId) void chat.reload();
-                else void history.retry();
-              }}
+              onReload={
+                conversationId
+                  ? () => {
+                      void chat.reload();
+                    }
+                  : undefined
+              }
             />
           </div>
         )}
