@@ -294,7 +294,7 @@ export async function markFailure(
     [error, now, row.id, row.user_id],
   ).run();
 }
-export async function settleImage(db: D1Database, row: JobRow, now: number): Promise<void> {
+async function settleImage(db: D1Database, row: JobRow, now: number): Promise<void> {
   // The unique operation and SQL triggers commit the charge and balance exactly once.
   await prepare(
     db,
@@ -321,12 +321,12 @@ export async function recover(db: D1Database, row: JobRow, now: number): Promise
       await settleImage(db, row, now);
     } catch {
       // A temporary accounting failure must not hide an already saved result.
-      // The pending status keeps owner-scoped reads polling this same charge.
+      // The scheduled maintenance task retries this same charge.
     }
   }
   return (await getJob(db, row.user_id, row.id)) ?? row;
 }
-export async function history(db: D1Database, userId: string, cursor: string | null, now: number) {
+export async function history(db: D1Database, userId: string, cursor: string | null) {
   let after: [number, string] | null = null;
   if (cursor) {
     try {
@@ -351,8 +351,7 @@ export async function history(db: D1Database, userId: string, cursor: string | n
       [userId, ...(after ? [after[0], after[0], after[1]] : [])],
     ).all()
   ).rows;
-  const items = [];
-  for (const row of rows.slice(0, 20)) items.push(jobView(await recover(db, row, now)));
+  const items = rows.slice(0, 20).map(jobView);
   const last = items.at(-1);
   return {
     items,

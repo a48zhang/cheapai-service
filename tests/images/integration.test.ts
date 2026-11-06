@@ -442,6 +442,8 @@ describe('image generation through session routes, native D1, R2 and limits', ()
       ),
     ).toBe(100000000);
     await testEnv.DB.prepare('DROP TRIGGER image_settlement_outage').run();
+    const readOnly = await request(`/api/v1/images/generations/${job.id}`);
+    expect(((await readOnly.json()) as { data: ImageJob }).data.billingStatus).toBe('pending');
     await maintainImageJobs(env());
     expect(
       await testEnv.DB.prepare('SELECT billing_status FROM image_generations WHERE id=?')

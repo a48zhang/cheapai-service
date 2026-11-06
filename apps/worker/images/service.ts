@@ -13,7 +13,6 @@ import {
   markFailure,
   recover,
   register,
-  settleImage,
   verifyReplay,
 } from './repository';
 import type { JobRow, SelectionRow } from './repository';
@@ -23,16 +22,13 @@ export async function startImage(
   env: Env,
   userId: string,
   input: ImageGenerateInput,
-  options: { fetch?: typeof fetch; now?: () => number } = {},
+  options: { now?: () => number } = {},
 ): Promise<ImageJob> {
   const now = options.now ?? Date.now;
   const known = await byOperation(env.DB, userId, input.operationId);
   if (known) {
     verifyReplay(known, input);
-    const row = await recover(env.DB, known, now());
-    if (row.status === 'generating' && row.started_at === null && row.execution_snapshot)
-      await enqueueImage(env, row);
-    return jobView(row);
+    return jobView(known);
   }
   if (!env.IMAGE_ASSETS || !env.IMAGE_JOBS) throw new ApiError('service_unavailable');
   const config = await authorize(env.DB, userId, input);
@@ -135,11 +131,6 @@ export async function executeImage(
         // A deadline already closed this job. Never revive it or charge for a late result.
         await env.IMAGE_ASSETS.delete(key);
         return;
-      }
-      try {
-        await settleImage(env.DB, row, now());
-      } catch {
-        /* Result is durable; owner-scoped reads retry settlement without generating again. */
       }
     } catch (error) {
       const reason =

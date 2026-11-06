@@ -7,12 +7,12 @@ import type { AuthVariables } from '../auth/middleware';
 import { requireAdmin } from '../auth/roles';
 import { validateCsrfRequest } from '../auth/csrf';
 import { readGatewayJson } from '../gateway/read-json';
-import { choices, getJob, history, jobView, listModels, recover, saveModel } from './repository';
+import { choices, getJob, history, jobView, listModels, saveModel } from './repository';
 import { startImage } from './service';
 
 export const IMAGE_API_PATH = '/api/v1/images';
 export const IMAGE_ADMIN_PATH = '/api/v1/admin/image-models';
-export function createImageRoutes(options: { fetch?: typeof fetch; now?: () => number } = {}) {
+export function createImageRoutes(options: { now?: () => number } = {}) {
   const app = new Hono<{ Bindings: Env; Variables: AuthVariables }>();
   const now = options.now ?? Date.now;
   app.use('*', requireSession(now));
@@ -42,7 +42,6 @@ export function createImageRoutes(options: { fetch?: typeof fetch; now?: () => n
         c.env.DB,
         c.get('user').id,
         parsePagination(new URL(c.req.url).searchParams).cursor,
-        now(),
       ),
       c.get('requestId'),
     ),
@@ -59,7 +58,7 @@ export function createImageRoutes(options: { fetch?: typeof fetch; now?: () => n
   app.get(`${IMAGE_API_PATH}/generations/:id`, async (c) => {
     const row = await getJob(c.env.DB, c.get('user').id, c.req.param('id'));
     if (!row) throw new ApiError('not_found');
-    return apiSuccess(jobView(await recover(c.env.DB, row, now())), c.get('requestId'));
+    return apiSuccess(jobView(row), c.get('requestId'));
   });
   app.get(`${IMAGE_API_PATH}/generations/:id/content`, async (c) => {
     const row = await getJob(c.env.DB, c.get('user').id, c.req.param('id'));
