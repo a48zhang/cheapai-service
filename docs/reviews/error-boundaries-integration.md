@@ -129,3 +129,17 @@ Reviewed `review/chat-pr36` commit `a2d1f6a` and incorporated it as `7a7219b`: t
 Typecheck, affected ESLint and the three navigation component tests passed. Browser validation includes login redirect/mobile navigation, registration, direct creation retry and actual HTTP supplier chat races; final counts are recorded in the PR.
 
 Integrated browser run: 24/26 passed; the two failures were stale homepage test expectations (38px vs the shared size-9/36px icon button, and an old navigation role instead of the current menu). Tests now exercise the real menu and Escape dismissal without changing UI design. Corrected 320/375/1440px layout/login/draft checks passed 3/3. The narrow dashboard redirect/navigation case passed three consecutive runs (3/3); actual HTTP chat race cases passed in the integrated run.
+
+## Exploratory new-user walkthrough
+
+Starting from head `681503b`, manually operated Chromium at desktop 1280px and narrow 375px with fresh local accounts and a separate HTTP supplier process. This was a step-by-step product walkthrough, reusing the earlier technical acceptance rather than rerunning the entire suite.
+
+- Homepage → anonymous chat draft → login → registration/email verification → chat preserved the draft and returned to the intended task. Selecting the configured model and sending produced streamed text and a 1,500-unit charge.
+- Image selection showed the configured 0.05 quote; generation completed through the HTTP supplier and local Durable Object/R2. Preview, original-file download and refreshed history worked. The image's “查看费用” action opened its matching ledger entry.
+- API access → create key → copy configuration → actual HTTP API invocation succeeded. After one chat, one image and one API request, the first account's 100,000,000-unit local grant became 94,997,000 units, matching the three charges. Narrow-screen API navigation and guide layout also worked.
+
+The first concrete obstacle was discovery: neither desktop nor narrow anonymous homepage offered an image-generation entrance. A new image user had to enter chat and authenticate before discovering the sidebar. HomePage now names images and links directly to the existing `/images` route. Hero actions wrap on small screens; no new product flow or authentication mechanism was introduced.
+
+Verified the new entrance with a second fresh account: narrow homepage → images → registration returned to `/images`; generation, preview/download and reload succeeded. A separate desktop login from the same entrance returned to that account's image history. Its balance was exactly 95,000,000 units after one 0.05 image charge, and the ledger showed one matching entry. Frontend typecheck/build and affected ESLint passed. Existing 320/375/1440px browser checks were updated for the heading and now check the image entrance and homepage overflow; all three passed.
+
+Supplier text, token counts and pixels are fixed fixtures served over independent HTTP; authentication, registration, application routes, storage, background execution, downloads and accounting are real local execution. Test credit was granted locally. No paid supplier, production modification, PR merge or deployment was used. Local screenshots are `/tmp/walk-*.png`; these include the before/after homepage and both account journeys.
