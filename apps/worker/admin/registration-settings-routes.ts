@@ -113,7 +113,7 @@ export function createRegistrationSettingsRoutes<B extends Bindings = Bindings>(
 ): Hono<RouteEnv<B>> {
   const app = new Hono<RouteEnv<B>>();
   app.onError((error, context) => {
-    const response = apiError(error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }), context.get('requestId') ?? createRequestId());
+    const response = apiError(error, context.get('requestId') ?? createRequestId(), 'service_unavailable');
     response.headers.set('Cache-Control', 'no-store');
     return response;
   });
@@ -126,7 +126,7 @@ export function createRegistrationSettingsRoutes<B extends Bindings = Bindings>(
       context.set('registrationSettingsDependencies', dependencies);
       await next();
     } catch (error) {
-      context.res = apiError(error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }), context.get('requestId'));
+      context.res = apiError(error, context.get('requestId'), 'service_unavailable');
     }
     context.res.headers.set('Cache-Control', 'no-store');
   });

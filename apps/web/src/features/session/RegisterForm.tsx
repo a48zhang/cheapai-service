@@ -1,16 +1,16 @@
-import { RouteButton } from '../../shared/ui/RouteButton';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { ApiClientError } from '@cheapai/api-client/errors';
 import { useSession } from './useSession';
 import { RegistrationIdentityError } from './controller';
 import { VerificationCodeField } from './VerificationCodeField';
 import { Field } from '../../shared/ui/Field';
 import { Input } from '../../shared/ui/Input';
 import { Button } from '../../shared/ui/Button';
-import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
+import { AuthErrorNotice } from './AuthErrorNotice';
 import { safeReturnPath } from '../../shared/lib/return-path';
 
 const schema = z.object({
@@ -20,7 +20,9 @@ const schema = z.object({
   emailCode: z.string(),
 });
 export function RegisterForm({ returnTo = '/' }: { returnTo?: string }) {
-  const { session, publicSettings, settingsError, error, pending } = useSession();
+  const { session, publicSettings, settingsError, pending } = useSession();
+  const [submitError, setSubmitError] = useState<unknown>(null);
+  const [needsAccountCheck, setNeedsAccountCheck] = useState(false);
   const [created, setCreated] = useState(false);
   const [codeBusy, setCodeBusy] = useState(false);
   const navigate = useNavigate();
@@ -42,22 +44,23 @@ export function RegisterForm({ returnTo = '/' }: { returnTo?: string }) {
   if (!publicSettings)
     return (
       <>
-        <p role="status">正在读取注册设置…</p>
-        <ApiErrorNotice
+        {!settingsError && <p role="status">正在读取注册信息…</p>}
+        <AuthErrorNotice
+          operation="settings"
           error={settingsError}
           onRetry={() => void session.bootstrap().catch(() => undefined)}
         />
       </>
     );
   if (publicSettings.registrationMode === 'closed') return <p role="status">当前未开放注册</p>;
-  if (created)
+  if (created || needsAccountCheck)
     return (
       <div role="status" className="space-y-4">
-        <p>账户已创建，请登录或恢复会话继续。</p>
-        <ApiErrorNotice error={error} />
-        <RouteButton to={`/login?returnTo=${encodeURIComponent(safeDestination)}`}>
-          前往登录
-        </RouteButton>
+        {submitError ? (
+          <AuthErrorNotice error={submitError} operation="register" />
+        ) : (
+          <p>账户已创建，请登录后继续。</p>
+        )}
       </div>
     );
   return (
@@ -66,6 +69,7 @@ export function RegisterForm({ returnTo = '/' }: { returnTo?: string }) {
       className="space-y-5"
       onSubmit={handleSubmit(async (input) => {
         if (created || codeBusy) return;
+        setSubmitError(null);
         if (publicSettings.registrationMode === 'invite' && !input.registrationCode.trim()) {
           setError('registrationCode', { message: '请输入邀请码' });
           return;
@@ -91,6 +95,17 @@ export function RegisterForm({ returnTo = '/' }: { returnTo?: string }) {
           setValue('registrationCode', '');
           if (result.session === 'created') navigate(safeDestination, { replace: true });
         } catch (cause) {
+          setSubmitError(cause);
+          if (
+            !(cause instanceof ApiClientError) ||
+            cause.kind === 'network' ||
+            cause.kind === 'aborted' ||
+            cause.kind === 'invalid_response' ||
+            (cause.status !== null && cause.status >= 500)
+          ) {
+            setNeedsAccountCheck(true);
+            setValue('password', '');
+          }
           if (cause instanceof RegistrationIdentityError) {
             setCreated(true);
             setValue('password', '');
@@ -101,7 +116,7 @@ export function RegisterForm({ returnTo = '/' }: { returnTo?: string }) {
       })}
     >
       <Field label="邮箱" error={errors.email?.message}>
-        <Input type="email" autoComplete="email" {...register('email')} />
+        <Input type="email" spellCheck={false} autoComplete="email" {...register('email')} />
       </Field>
       <Field label="密码" description="至少六个字符" error={errors.password?.message}>
         <Input type="password" autoComplete="new-password" {...register('password')} />
@@ -121,7 +136,7 @@ export function RegisterForm({ returnTo = '/' }: { returnTo?: string }) {
           error={errors.emailCode?.message}
         />
       )}
-      <ApiErrorNotice error={error || settingsError} />
+      <AuthErrorNotice error={submitError} operation="register" />
       <Button
         type="submit"
         className="w-full"

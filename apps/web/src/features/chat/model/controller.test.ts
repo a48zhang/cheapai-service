@@ -320,7 +320,7 @@ describe('chat controller command lifecycle', () => {
     controller.dispose();
   });
 
-  it('blocks a second create after an unknown create result until explicit reset', async () => {
+  it('keeps a failed creation unsent and retries directly without a reset', async () => {
     const created = makeConversation('controller-create-after-reset');
     let createCount = 0;
     const createConversation = vi.fn(async () => {
@@ -337,18 +337,18 @@ describe('chat controller command lifecycle', () => {
       idFactory: () => 'unknown-create-operation',
     });
 
-    await expect(controller.send(sendCommand('Keep this draft'))).resolves.toBe('interrupted');
+    await expect(controller.send(sendCommand('Keep this draft'))).resolves.toBe('rejected');
     expect(controller.getSnapshot().failure).toMatchObject({
-      code: 'conversation_creation_unknown',
+      code: 'network',
+      message: 'create response lost',
     });
-    await expect(controller.send(sendCommand('Do not create twice'))).resolves.toBe('interrupted');
     expect(createConversation).toHaveBeenCalledTimes(1);
-
-    controller.resetConversation(true);
-    expect(controller.getSnapshot().unsent[0]?.content).toBe('Keep this draft');
-    await expect(controller.send(sendCommand('Explicit new conversation'))).resolves.toBe(
-      'rejected',
-    );
+    expect(sendMessage).not.toHaveBeenCalled();
+    const unsent = controller.getSnapshot().unsent[0]!;
+    expect(unsent.content).toBe('Keep this draft');
+    await expect(
+      controller.send({ ...sendCommand(unsent.content), retrySubmissionId: unsent.operationId }),
+    ).resolves.toBe('rejected');
     expect(createConversation).toHaveBeenCalledTimes(2);
     expect(sendMessage).toHaveBeenCalledTimes(1);
     controller.dispose();
@@ -832,4 +832,41 @@ describe('chat controller command lifecycle', () => {
     expect(disposeSignal?.aborted).toBe(true);
     expect(disposable.getSnapshot().phase).not.toBe('failed');
   });
+});
+
+it('unlocks an interrupted version selection only after its explicit reload', async () => {
+  const detail = makeDetail('selection-recovery');
+  detail.messages.push(
+    makeMessage('alternative', 'assistant', 0, {
+      conversationId: detail.conversation.id,
+      variant: 2,
+      selected: false,
+    }),
+  );
+  const api = makeApi({
+    selectVersion: vi.fn().mockRejectedValue(new TypeError('Failed to fetch')),
+    getConversation: vi.fn().mockRejectedValue(new TypeError('Failed to fetch')),
+  });
+  const controller = createChatController({
+    api,
+    getOwner: () => ({ userId: 'selection-recovery-user', epoch: 1 }),
+    conversationId: detail.conversation.id,
+    initialDetail: detail,
+  });
+  await expect(controller.selectVersion('alternative')).resolves.toBe('interrupted');
+  const operationId = controller.getSnapshot().operationId;
+  controller.hydrate(detail);
+  expect(controller.getSnapshot().phase).toBe('interrupted');
+  controller.hydrate(detail, 'another-operation');
+  expect(controller.getSnapshot().phase).toBe('interrupted');
+  controller.hydrate(detail, operationId);
+  expect(controller.getSnapshot().phase).toBe('idle');
+  expect(controller.getSnapshot().failure).toBeNull();
+  expect(
+    controller
+      .getSnapshot()
+      .detail?.messages.find((message) => message.selected && message.role === 'assistant')?.id,
+  ).toBe('assistant-old');
+  expect(api.selectVersion).toHaveBeenCalledTimes(1);
+  controller.dispose();
 });

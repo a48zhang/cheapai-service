@@ -168,7 +168,7 @@ const auditQueries = createAuditRoutes();
 export const ADMIN_RECONCILIATION_PATH = '/api/v1/admin/billing/reconciliation';
 const reconciliationQueries = new Hono<AuthEnv>();
 reconciliationQueries.onError((error, context) => {
-  const response = apiError(error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }), context.get('requestId') ?? createRequestId());
+  const response = apiError(error, context.get('requestId') ?? createRequestId(), 'service_unavailable');
   response.headers.set('Cache-Control', 'no-store'); return response;
 });
 reconciliationQueries.get(ADMIN_RECONCILIATION_PATH, requireSession(), requireAdmin, async context => {

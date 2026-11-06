@@ -67,8 +67,7 @@ export function requireSession(now: () => number = Date.now): MiddlewareHandler<
     } catch (error) {
       // Backend/crypto failures must not be presented as bad credentials.
       return apiError(
-        error instanceof ApiError ? error : new ApiError('service_unavailable', { cause: error }),
-        requestId,
+        error, requestId, 'service_unavailable',
       );
     }
     // Downstream business errors belong to the route/error handler, not auth.

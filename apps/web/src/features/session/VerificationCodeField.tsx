@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { z } from 'zod';
 import { ApiClientError } from '@cheapai/api-client/errors';
+import { AuthErrorNotice } from './AuthErrorNotice';
 import { useSession } from './useSession';
 import { Field } from '../../shared/ui/Field';
 import { Input } from '../../shared/ui/Input';
@@ -26,6 +27,7 @@ export function VerificationCodeField({
   const [until, setUntil] = useState(0);
   const [now, setNow] = useState(Date.now());
   const [message, setMessage] = useState('');
+  const [sendError, setSendError] = useState<unknown>(null);
   const latestEmail = useRef(email);
   const clearCode = useRef(onChange);
   clearCode.current = onChange;
@@ -33,6 +35,7 @@ export function VerificationCodeField({
   const seconds = Math.max(0, Math.ceil((until - now) / 1000));
   useEffect(() => {
     setMessage('');
+    setSendError(null);
     clearCode.current('');
   }, [email]);
   useEffect(() => {
@@ -47,6 +50,7 @@ export function VerificationCodeField({
     setSending(true);
     onBusyChange?.(true);
     setMessage('');
+    setSendError(null);
     try {
       const result = await auth.sendVerificationCode(email.trim());
       if (latestEmail.current !== target) return;
@@ -60,9 +64,7 @@ export function VerificationCodeField({
         cause.status !== null &&
         cause.status >= 400 &&
         cause.status < 500;
-      setMessage(
-        definitive ? (cause as Error).message : '暂时无法确认发送结果，邮件仍可能到达，请先查收。',
-      );
+      setSendError(cause);
       if (!definitive || (cause instanceof ApiClientError && cause.status === 429)) {
         setUntil(Date.now() + 60_000);
         setNow(Date.now());
@@ -94,6 +96,7 @@ export function VerificationCodeField({
           {seconds ? `${seconds} 秒后重发` : '发送验证码'}
         </Button>
       </div>
+      <AuthErrorNotice error={sendError} operation="verification" />
       {message && (
         <p role="status" className="text-sm leading-6 text-[var(--color-muted-foreground)]">
           {message}

@@ -216,12 +216,7 @@ export default function ChatPage() {
                 retrySubmissionId: submission.operationId,
               });
           }}
-          retryDisabled={
-            chat.busy ||
-            chat.state.phase === 'interrupted' ||
-            chat.state.failure?.code === 'conversation_creation_unknown' ||
-            !selection.available
-          }
+          retryDisabled={chat.busy || chat.state.phase === 'interrupted' || !selection.available}
           busy={chat.busy}
           loading={authenticated && chat.loading}
           {...(!selection.available && selection.unavailableReason
@@ -237,20 +232,22 @@ export default function ChatPage() {
                 modelId: selection.selection.modelId,
               });
           }}
-          emptyMessage={chat.view === 'error' ? null : '在下方输入消息，继续这段对话。'}
+          emptyMessage={chat.view === 'error' || newChat ? null : '在下方输入消息，继续这段对话。'}
         />
         {chat.state.failure && (
           <div className="chat-notice-area">
             <ChatNotice
               state={chat.state}
-              onRestart={() => chat.controller.resetConversation(true)}
               onRetry={() => {
                 void chat.retry();
               }}
-              onReload={() => {
-                if (conversationId) void chat.reload();
-                else void history.retry();
-              }}
+              onReload={
+                conversationId
+                  ? () => {
+                      void chat.reload();
+                    }
+                  : undefined
+              }
             />
           </div>
         )}
@@ -275,7 +272,6 @@ export default function ChatPage() {
           disabled={
             Boolean(disabledReason) ||
             chat.state.phase === 'interrupted' ||
-            chat.state.failure?.code === 'conversation_creation_unknown' ||
             (authenticated && (Boolean(selection.error) || !selection.available))
           }
           {...(disabledReason ? { disabledReason } : {})}

@@ -5,6 +5,7 @@ import {
   decodeRegistrationResult,
   decodeVerificationCodeResult,
 } from '@cheapai/contracts/auth';
+import { ApiClientError } from './errors.js';
 import { createApiClient } from './client.js';
 import { readCsrfCookie } from './csrf.js';
 import type { ApiClientOptions } from './types.js';
@@ -36,6 +37,27 @@ export interface AuthApi {
   sendVerificationCode(email: string): Promise<VerificationCodeResult>;
 }
 
+/** Bound connection and response-body waits without retrying authentication writes. */
+async function withAuthDeadline<T>(operation: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(
+        new ApiClientError('network', '服务在 30 秒内未返回完整结果，请检查连接后重试。', {
+          code: 'auth_timeout',
+        }),
+      );
+      controller.abort();
+    }, 30_000);
+  });
+  try {
+    return await Promise.race([operation(controller.signal), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Create cookie-session authentication methods without storing credentials in
  * browser storage. Concurrent callers share the in-flight public bootstrap.
@@ -50,8 +72,9 @@ export function createAuthApi(options: ApiClientOptions = {}): AuthApi {
 
   function bootstrap(): Promise<PublicSettings> {
     if (!bootstrapping) {
-      bootstrapping = client
-        .get('/api/v1/settings/public', { decode: decodePublicSettings })
+      bootstrapping = withAuthDeadline((signal) =>
+        client.get('/api/v1/settings/public', { decode: decodePublicSettings, signal }),
+      )
         .then((result) => {
           token = result.data.csrfToken;
           return result.data;
@@ -70,56 +93,70 @@ export function createAuthApi(options: ApiClientOptions = {}): AuthApi {
   return Object.freeze({
     bootstrap,
     async me(): Promise<PublicUser> {
-      return (await client.get('/api/v1/auth/me', { decode: decodePublicUser })).data;
+      return (
+        await withAuthDeadline((signal) =>
+          client.get('/api/v1/auth/me', { decode: decodePublicUser, signal }),
+        )
+      ).data;
     },
     async login(input: LoginInput): Promise<PublicUser> {
       await ensureCsrf();
       return (
-        await client.post(
-          '/api/v1/auth/login',
-          {
-            email: input.email,
-            password: input.password,
-          },
-          { decode: decodePublicUser },
+        await withAuthDeadline((signal) =>
+          client.post(
+            '/api/v1/auth/login',
+            {
+              email: input.email,
+              password: input.password,
+            },
+            { decode: decodePublicUser, signal },
+          ),
         )
       ).data;
     },
     async register(input: RegisterInput): Promise<RegistrationResult> {
       await ensureCsrf();
       return (
-        await client.post(
-          '/api/v1/auth/register',
-          {
-            email: input.email,
-            password: input.password,
-            ...(input.registrationCode === undefined
-              ? {}
-              : { registrationCode: input.registrationCode }),
-            ...(input.emailCode === undefined ? {} : { emailCode: input.emailCode }),
-          },
-          { decode: decodeRegistrationResult },
+        await withAuthDeadline((signal) =>
+          client.post(
+            '/api/v1/auth/register',
+            {
+              email: input.email,
+              password: input.password,
+              ...(input.registrationCode === undefined
+                ? {}
+                : { registrationCode: input.registrationCode }),
+              ...(input.emailCode === undefined ? {} : { emailCode: input.emailCode }),
+            },
+            { decode: decodeRegistrationResult, signal },
+          ),
         )
       ).data;
     },
     async logout(): Promise<void> {
       await ensureCsrf();
-      await client.post<void>('/api/v1/auth/logout', undefined, {
-        decode: (value) => {
-          decodeLogoutResult(value);
-          return undefined;
-        },
-      });
+      await withAuthDeadline((signal) =>
+        client.post<void>('/api/v1/auth/logout', undefined, {
+          signal,
+          decode: (value) => {
+            decodeLogoutResult(value);
+            return undefined;
+          },
+        }),
+      );
     },
     async sendVerificationCode(email: string): Promise<VerificationCodeResult> {
       await ensureCsrf();
       return (
-        await client.post(
-          '/api/v1/auth/send-verify-code',
-          { email },
-          {
-            decode: decodeVerificationCodeResult,
-          },
+        await withAuthDeadline((signal) =>
+          client.post(
+            '/api/v1/auth/send-verify-code',
+            { email },
+            {
+              decode: decodeVerificationCodeResult,
+              signal,
+            },
+          ),
         )
       ).data;
     },

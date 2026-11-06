@@ -1,7 +1,7 @@
 import type { ChatStorage } from './storage';
 import { createConversation as createStoredConversation, deleteConversation as deleteStoredConversation,
-  getConversationWithMessages, listConversations as listStoredConversations, updateConversation as updateStoredConversation } from './messages';
-import { acceptRegenerate, acceptSend, attachRequest, checkpoint, finalize, readContext, selectMessageVersion } from './messages';
+  listConversations as listStoredConversations, updateConversation as updateStoredConversation } from './repository';
+import { getConversationWithMessages, acceptRegenerate, acceptSend, attachRequest, checkpoint, finalize, readContext, selectMessageVersion } from './messages';
 import type { AcceptRegenerateInput, AcceptSendInput, CheckpointInput, FinalizeInput, SelectMessageVersionInput } from './types';
 
 /** Adapter to the storage owner's atomic state machine.  Keeping this bridge

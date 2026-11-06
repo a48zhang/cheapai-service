@@ -16,6 +16,7 @@ function Fixture() {
       <output>{location.pathname}</output>
       <button onClick={() => setOpen(true)}>打开菜单</button>
       <div data-testid="drawer">{open ? 'open' : 'closed'}</div>
+      <RouteButton to={`${location.pathname}?period=month`}>更新筛选</RouteButton>
       <RouteButton to="/keys" disabled>
         不可用入口
       </RouteButton>
@@ -71,4 +72,20 @@ it('uses one set of button menus and restores the selected conversation after vi
   expect(screen.getByRole('status')).toHaveTextContent('/chat/existing');
   await user.click(screen.getByRole('button', { name: '不可用入口' }));
   expect(screen.getByRole('status')).toHaveTextContent('/chat/existing');
+});
+
+it('keeps navigation open when the current page normalizes its query', async () => {
+  const user = userEvent.setup();
+  render(
+    <MemoryRouter initialEntries={['/billing']}>
+      <NavigationProvider>
+        <Fixture />
+      </NavigationProvider>
+    </MemoryRouter>,
+  );
+  await user.click(screen.getByRole('button', { name: '打开菜单' }));
+  await user.click(screen.getByRole('button', { name: '更新筛选' }));
+  expect(screen.getByTestId('drawer')).toHaveTextContent('open');
+  await user.click(screen.getByRole('button', { name: 'API 接入' }));
+  expect(screen.getByTestId('drawer')).toHaveTextContent('closed');
 });

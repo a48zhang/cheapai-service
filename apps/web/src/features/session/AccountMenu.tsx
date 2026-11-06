@@ -3,7 +3,7 @@ import { useProductEnvironment } from '../../shared/platform';
 import { useState } from 'react';
 import { Button } from '../../shared/ui/Button';
 import { Dialog } from '../../shared/ui/Dialog';
-import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
+import { AuthErrorNotice } from './AuthErrorNotice';
 import { ThemePicker } from '@cheapai/theme';
 import { ArrowUpRight, ChevronsUpDown } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -123,14 +123,14 @@ export function AccountMenu({
           if (!open) setLogoutError(null);
         }}
         title="退出登录未完成"
-        description="你仍处于登录状态，可以重试。"
+        description="请重试以确认已退出登录。"
         footer={
           <Button busy={pending !== null} onClick={() => void logout()}>
             重新退出
           </Button>
         }
       >
-        <ApiErrorNotice error={logoutError} />
+        <AuthErrorNotice error={logoutError} operation="logout" />
       </Dialog>
     </nav>
   );

@@ -20,9 +20,13 @@ export type ChatOperationKind = 'send' | 'regenerate' | 'select';
 export type ChatTerminalOutcome = 'completed' | 'stopped' | 'failed';
 
 export interface ChatFailure {
+  readonly cause?: unknown;
   readonly kind: 'rejected' | 'failed' | 'interrupted';
   readonly message: string;
   readonly code?: string;
+  readonly requestId?: string | null;
+  readonly status?: number | null;
+  readonly details?: unknown;
 }
 
 /** Local submission, owned by the command; never presented as a persisted server message. */
@@ -49,7 +53,7 @@ export interface ChatState {
 
 export type ChatEvent =
   | { readonly type: 'hydrate'; readonly detail: ConversationDetail }
-  | { readonly type: 'reset'; readonly keepUnsent?: boolean }
+  | { readonly type: 'reset' }
   | {
       readonly type: 'begin';
       readonly operationId: string;

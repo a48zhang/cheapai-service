@@ -42,13 +42,13 @@ export function createRequestId(): string {
 // Amount fields must already be strings; this helper never parses or rounds them.
 export function apiSuccess<T>(data: T, requestId: string, status: 200 | 201 | 202 = 200): Response {
   const body: SuccessEnvelope<T> = { data, request_id: requestId };
-  return Response.json(body, { status });
+  return Response.json(body, { status, headers: { 'X-Request-ID': requestId } });
 }
 
-export function apiError(error: unknown, requestId: string): Response {
+export function apiError(error: unknown, requestId: string, unexpected: 'internal_error' | 'service_unavailable' = 'internal_error'): Response {
   const code = error instanceof ApiError && Object.hasOwn(API_ERRORS, error.code)
     ? error.code
-    : 'internal_error';
+    : unexpected;
   const definition = API_ERRORS[code];
   const details = { request_id: requestId, code, status: definition.status };
   if (definition.status >= 500) logError('API request failed', error, details);
@@ -58,7 +58,7 @@ export function apiError(error: unknown, requestId: string): Response {
     error: { code, message: definition.message },
     request_id: requestId,
   };
-  return Response.json(body, { status: definition.status });
+  return Response.json(body, { status: definition.status, headers: { 'X-Request-ID': requestId } });
 }
 
 export interface Pagination {
