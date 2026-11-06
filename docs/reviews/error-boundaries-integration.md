@@ -111,3 +111,11 @@ Acceptance infrastructure fixes: each local run copies its built assets before W
 Final verification: desktop/narrow API and image cases passed (4 cases); the final desktop/narrow chat run, including picker → discounted send → history and supplier-error page, passed 2/2. HTTP request logs across these two retained runs contain 60 requests (56 HTTP 200 and four deliberate HTTP 429); every supplier call carried authorization and none carried a platform API-key value. Provider processes stop with the test run. The final typecheck, full frontend lint, cloud build and final Worker dry-run passed. Screenshots of the visible PNG and both error-detail pages were inspected.
 
 Known accounting boundary: the existing text-request accounting state remains usage_unknown when a rejected supplier response contains no usage. The history page exposes the original rejection and both request identifiers with a manual-check exit. This acceptance does not silently turn that state into a zero-cost settlement, waive a charge, or invent token counts.
+
+## Follow-up flow simplification
+
+Reviewed `review/pr36-user-flow-simplify` commit `f14e4d1` and incorporated it as `93ea473`. The replay response is already matched to its operation and marked accepted at the call site; the identical second confirmation/rememberPending block and isReplay flag were redundant. Final version/snapshot reconciliation remains. Billing pagination now uses ApiErrorNotice while retaining already loaded rows and retrying the same failed cursor. The new pagination regression uses the shared client and verifies original text, HTTP 503, request ID, copy control and recovery.
+
+Focused controller/billing regression: 18 tests passed. No source PR merge or deployment was performed.
+
+After this follow-up, typecheck and affected ESLint passed. The independent HTTP supplier desktop/narrow chat acceptance passed 2/2, covering replay/deduplication, selected-group pricing, streamed answers, history, failures and mobile navigation. Separate desktop/narrow review findings have not yet been supplied; no speculative UI changes are included.
