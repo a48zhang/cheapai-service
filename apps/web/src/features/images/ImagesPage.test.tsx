@@ -98,6 +98,27 @@ describe('image generation interaction', () => {
     expect(textbox).toHaveValue('下一张图片的描述');
     expect(screen.queryByText('正在生成图片…')).toBeNull();
   });
+  it('shows accepted background work without asking the user to confirm submission', async () => {
+    const send = setup(async (body) =>
+      Response.json(
+        {
+          data: {
+            ...job(String(body.operationId)),
+            status: 'generating',
+            billingStatus: 'unbilled',
+          },
+          request_id: 'images-test',
+        },
+        { status: 202 },
+      ),
+    );
+    const user = userEvent.setup();
+    await user.type(screen.getByRole('textbox', { name: '画面描述' }), prompt);
+    await user.click(await screen.findByRole('button', { name: '生成图片' }));
+    expect(await screen.findByRole('button', { name: '后台生成中' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: '确认生成结果' })).toBeNull();
+    expect(send).toHaveBeenCalledOnce();
+  });
   it('reuses all editable parameters without sending and can restore the displaced draft', async () => {
     const original = {
       ...job('old'),

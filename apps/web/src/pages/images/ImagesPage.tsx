@@ -188,7 +188,13 @@ function ImageWorkspace() {
             />
           </label>
           <Button type="submit" size="lg" disabled={!canSend} busy={work.sending}>
-            {work.sending ? '正在生成图片' : work.pending ? '生成结果待确认' : '生成图片'}
+            {work.sending
+              ? '正在生成图片'
+              : work.pending
+                ? pendingKnown
+                  ? '后台生成中'
+                  : '生成结果待确认'
+                : '生成图片'}
           </Button>
         </div>
         <p className="mt-3 text-xs leading-6 text-[var(--color-muted-foreground)]">
@@ -254,7 +260,7 @@ function ImageWorkspace() {
             <ImageWaiting uncertain={!work.sending} />
           </div>
         )}
-        {work.pending && !work.sending && (
+        {work.pending && !work.sending && !pendingKnown && (
           <Button variant="outline" onClick={work.confirm}>
             确认生成结果
           </Button>
