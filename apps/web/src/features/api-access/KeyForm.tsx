@@ -44,7 +44,7 @@ export function KeyForm(props: KeyFormProps) {
       )}
       {mode === 'create' && createPhase === 'correctable' && (
         <Button variant="secondary" onClick={modifyAfterFailure}>
-          修改参数
+          修改信息
         </Button>
       )}
       <Button variant="outline" disabled={busy} onClick={() => close(false)}>
@@ -94,7 +94,7 @@ export function KeyForm(props: KeyFormProps) {
           <ApiErrorNotice error={notice} />
         ))}
       {mode === 'edit' && current?.status === 'revoked' && (
-        <p className="mb-4 text-sm text-[var(--color-muted-foreground)]">此 密钥已撤销。</p>
+        <p className="mb-4 text-sm text-[var(--color-muted-foreground)]">此密钥已撤销。</p>
       )}
       {mode === 'edit' && current && (
         <p className="mb-4">

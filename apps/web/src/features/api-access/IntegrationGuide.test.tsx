@@ -57,6 +57,22 @@ describe('快速接入', () => {
     expect(screen.getByRole('button', { name: '复制示例' })).toBeVisible();
   });
 
+  it('空分组仍可切换到有模型的分组并复制配置', async () => {
+    const user = userEvent.setup();
+    render(
+      <IntegrationGuide
+        baseUrl="https://cheapai.dev/v1"
+        groups={[{ id: 'empty', name: '空分组', models: [] }, ...groups]}
+        selectedKey={null}
+      />,
+    );
+    expect(screen.getByText('当前授权范围暂无可用模型。')).toBeVisible();
+    await user.click(screen.getByRole('combobox', { name: '示例模型授权分组' }));
+    await user.click(screen.getByRole('option', { name: '默认分组' }));
+    expect(screen.getByRole('combobox', { name: 'API 示例模型' })).toHaveTextContent('gpt-5');
+    expect(screen.getByRole('button', { name: '复制配置' })).toBeVisible();
+  });
+
   it('分组加载失败时展示重试，不提供不可用的配置复制', async () => {
     const user = userEvent.setup();
     const retry = vi.fn();

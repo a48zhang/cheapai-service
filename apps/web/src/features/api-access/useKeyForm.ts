@@ -206,7 +206,7 @@ export function useKeyForm(props: KeyFormProps) {
         } else {
           transition({ type: 'replayed', key: result.key });
           setNotice(
-            '此操作已创建 Key，但服务端不会再次返回明文。请在列表确认；如未保存，可撤销该 Key 后新建。',
+            '密钥已创建，请在列表中确认。完整密钥无法再次查看；如果未保存，请撤销后重新创建。',
           );
         }
       } catch (error) {
@@ -216,7 +216,7 @@ export function useKeyForm(props: KeyFormProps) {
           setNotice(
             withErrorContext(
               error,
-              error instanceof Error ? error.message : '请求未被接受，请修改参数后重试。',
+              error instanceof Error ? error.message : '未能创建密钥，请检查填写的信息后重试。',
             ),
           );
         } else {
@@ -224,7 +224,7 @@ export function useKeyForm(props: KeyFormProps) {
           setNotice(
             withErrorContext(
               error,
-              '结果尚未确认。重试会沿用同一操作和参数；请勿刷新页面。关闭后重新打开仍可继续确认。',
+              '尚未确认密钥是否创建成功。请点击“重试确认”，避免重复创建；暂时不要刷新页面。',
             ),
           );
         }
@@ -272,8 +272,8 @@ export function useKeyForm(props: KeyFormProps) {
       setReloadNeeded(true);
       const message =
         error instanceof ApiClientError && error.status === 409
-          ? 'Key 已发生变化或不可编辑。请重新读取并核对后再操作，不会自动覆盖其他修改。'
-          : '操作结果未确认。请重新读取状态后再操作，不会自动重试。';
+          ? '密钥状态已变化，请重新读取并核对后再保存。'
+          : '尚未确认保存结果，请重新读取并核对密钥状态。';
       setNotice(withErrorContext(error, message));
     } finally {
       releaseBusyLease(busyLease);

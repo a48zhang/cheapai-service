@@ -47,7 +47,7 @@ export function RequestDetailPage() {
       ? `${((item.finished_at - item.started_at) / 1000).toLocaleString('zh-CN', { maximumFractionDigits: 3 })} 秒`
       : '—';
   const errorSummary: Record<string, string> = {
-    upstream_error: '上游模型请求失败',
+    upstream_error: '模型服务暂时不可用',
     client_cancelled: '请求已取消',
     request_timeout: '请求超时',
     internal_error: '请求处理失败',
@@ -165,14 +165,18 @@ export function RequestDetailPage() {
                 <strong className="block break-words">
                   {errorSummary[item.error.code] ?? '请求未能完成'}
                 </strong>
-                <Disclosure
-                  className="mt-2 text-sm"
-                  title={<>服务返回信息</>}
-                  triggerClassName="cursor-pointer"
-                >
-                  <p className="mb-0 mt-2 break-words">{item.error.message}</p>
-                  <p className="mb-0 mt-1 break-all font-mono">{item.error.code}</p>
-                </Disclosure>
+                {scope === 'admin' ? (
+                  <Disclosure
+                    className="mt-2 text-sm"
+                    title={<>服务返回信息</>}
+                    triggerClassName="cursor-pointer"
+                  >
+                    <p className="mb-0 mt-2 break-words">{item.error.message}</p>
+                    <p className="mb-0 mt-1 break-all font-mono">{item.error.code}</p>
+                  </Disclosure>
+                ) : (
+                  <p className="mb-0 mt-2 text-sm">如需帮助，请提供上方请求编号以便查询。</p>
+                )}
               </div>
             )}
           </section>
@@ -187,29 +191,33 @@ export function RequestDetailPage() {
                 <div>
                   <dt className="console-label">访问组</dt>
                   <dd className="m-0 mt-1 break-all">
-                    {item.group_name ?? item.group_id ?? '未记录分组'}
+                    {item.group_name ?? (scope === 'admin' ? item.group_id : null) ?? '未记录分组'}
                   </dd>
                 </div>
                 <div>
                   <dt className="console-label">请求协议</dt>
                   <dd className="m-0 mt-1">{item.downstream_protocol}</dd>
                 </div>
-                <div>
-                  <dt className="console-label">上游协议</dt>
-                  <dd className="m-0 mt-1">{item.upstream_protocol}</dd>
-                </div>
-                <div>
-                  <dt className="console-label">上游模型</dt>
-                  <dd className="m-0 mt-1 break-all">{item.upstream_model}</dd>
-                </div>
-                <div>
-                  <dt className="console-label">渠道 ID</dt>
-                  <dd className="m-0 mt-1 break-all font-mono text-sm">{item.channel_id}</dd>
-                </div>
-                <div>
-                  <dt className="console-label">重试次数</dt>
-                  <dd className="m-0 mt-1 tabular-nums">{item.retry_count}</dd>
-                </div>
+                {scope === 'admin' && (
+                  <>
+                    <div>
+                      <dt className="console-label">上游协议</dt>
+                      <dd className="m-0 mt-1">{item.upstream_protocol}</dd>
+                    </div>
+                    <div>
+                      <dt className="console-label">上游模型</dt>
+                      <dd className="m-0 mt-1 break-all">{item.upstream_model}</dd>
+                    </div>
+                    <div>
+                      <dt className="console-label">渠道 ID</dt>
+                      <dd className="m-0 mt-1 break-all font-mono text-sm">{item.channel_id}</dd>
+                    </div>
+                    <div>
+                      <dt className="console-label">重试次数</dt>
+                      <dd className="m-0 mt-1 tabular-nums">{item.retry_count}</dd>
+                    </div>
+                  </>
+                )}
                 {scope === 'admin' && (
                   <>
                     <div>
@@ -243,7 +251,7 @@ export function RequestDetailPage() {
                   <dt className="console-label">最后更新</dt>
                   <dd className="m-0 mt-1">{formatDateTime(item.updated_at)}</dd>
                 </div>
-                {item.next_retry_at !== null && (
+                {scope === 'admin' && item.next_retry_at !== null && (
                   <div>
                     <dt className="console-label">下次结算重试</dt>
                     <dd className="m-0 mt-1">{formatDateTime(item.next_retry_at)}</dd>
@@ -266,11 +274,12 @@ export function RequestDetailPage() {
 
           <Disclosure
             className="console-panel p-4 sm:p-5"
-            title={<>价格快照</>}
+            title={<>计费依据</>}
             triggerClassName="console-section-title cursor-pointer"
           >
             <PriceSnapshot
               className="mt-4"
+              showInternalDetails={scope === 'admin'}
               snapshot={item.price_snapshot}
               snapshotValid={item.price_snapshot_valid}
               costUnits={item.cost_units}
