@@ -58,7 +58,7 @@ export async function executeImage(
   const now = options.now ?? Date.now;
   if (row.status !== 'generating' || !row.execution_snapshot) return;
   if (row.started_at !== null) {
-    await markFailure(env.DB, row, 'result_unknown', now());
+    await markFailure(env.DB, row, 'delivery_failed', now());
     return;
   }
   if (row.expires_at <= now()) {
@@ -126,11 +126,16 @@ export async function executeImage(
         customMetadata: { owner: userId, generation: row.id },
       });
       stage = 'record';
-      await prepare(
+      const completed = await prepare(
         env.DB,
-        `UPDATE image_generations SET status='completed',error=NULL,asset_key=?,media_type=?,billing_status='pending',updated_at=? WHERE id=? AND user_id=? AND status IN ('generating','unknown')`,
+        `UPDATE image_generations SET status='completed',error=NULL,asset_key=?,media_type=?,billing_status='pending',updated_at=? WHERE id=? AND user_id=? AND status='generating'`,
         [key, result.mediaType, now(), row.id, userId],
       ).run();
+      if (completed.changes !== 1) {
+        // A deadline already closed this job. Never revive it or charge for a late result.
+        await env.IMAGE_ASSETS.delete(key);
+        return;
+      }
       try {
         await settleImage(env.DB, row, now());
       } catch {
@@ -142,7 +147,7 @@ export async function executeImage(
           ? error.reason
           : stage === 'storage'
             ? 'storage_unavailable'
-            : 'result_unknown';
+            : 'delivery_failed';
       await markFailure(env.DB, row, reason, now());
     }
   } finally {

@@ -164,7 +164,7 @@ describe('image generation through session routes, native D1, R2 and limits', ()
         .first('billing_status'),
     ).toBe('settled');
   });
-  it('does not resend a claimed job after interruption or charge an unknown result', async () => {
+  it('does not resend a claimed job after interruption or charge an interrupted delivery', async () => {
     const fetcher = vi.fn();
     vi.stubGlobal('fetch', fetcher);
     const response = await request(
@@ -187,7 +187,44 @@ describe('image generation through session routes, native D1, R2 and limits', ()
       await testEnv.DB.prepare('SELECT status,billing_status FROM image_generations WHERE id=?')
         .bind(job.id)
         .first(),
-    ).toEqual({ status: 'unknown', billing_status: 'unbilled' });
+    ).toEqual({ status: 'failed', billing_status: 'unbilled' });
+  });
+  it('keeps a timed-out delivery final even when a valid provider response arrives late', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        await testEnv.DB.prepare(
+          "UPDATE image_generations SET expires_at=0 WHERE operation_id='image-operation'",
+        ).run();
+        await maintainImageJobs(env());
+        return Response.json({ data: [{ b64_json: png }] });
+      }),
+    );
+    const response = await request('/api/v1/images/generations', 'image-owner', input());
+    const job = ((await response.json()) as { data: ImageJob }).data;
+    expect(job).toMatchObject({
+      status: 'failed',
+      error: 'delivery_failed',
+      billingStatus: 'unbilled',
+    });
+    expect(await testEnv.IMAGE_ASSETS!.head(`images/image-owner/${job.id}`)).toBeNull();
+    expect(
+      await testEnv.DB.prepare(
+        "SELECT count(*) AS n FROM billing_entries WHERE kind='image_generation'",
+      ).first('n'),
+    ).toBe(0);
+    await expect(
+      testEnv.DB.prepare("UPDATE image_generations SET status='unknown' WHERE id=?")
+        .bind(job.id)
+        .run(),
+    ).rejects.toThrow();
+    await expect(
+      testEnv.DB.prepare(
+        "UPDATE image_generations SET status='completed',billing_status='pending' WHERE id=?",
+      )
+        .bind(job.id)
+        .run(),
+    ).rejects.toThrow();
   });
   it('shows authorized prices, generates privately, and charges only once across replays', async () => {
     const fetcher = vi.fn(async (url: URL, init: RequestInit) => {
@@ -308,15 +345,15 @@ describe('image generation through session routes, native D1, R2 and limits', ()
       ).first('n'),
     ).toBe(2);
   });
-  it('does not repeat an uncertain provider call when the same operation is confirmed', async () => {
+  it('does not repeat an interrupted provider call when the same operation is confirmed', async () => {
     const fetcher = vi.fn(async () => {
       throw new Error('provider disconnected');
     });
     vi.stubGlobal('fetch', fetcher);
     const first = await request('/api/v1/images/generations', 'image-owner', input());
     expect(((await first.json()) as { data: ImageJob }).data).toMatchObject({
-      status: 'unknown',
-      error: 'result_unknown',
+      status: 'failed',
+      error: 'delivery_failed',
       billingStatus: 'unbilled',
     });
     await request('/api/v1/images/generations', 'image-owner', input());

@@ -290,8 +290,8 @@ export async function markFailure(
 ): Promise<void> {
   await prepare(
     db,
-    `UPDATE image_generations SET status=?,error=?,updated_at=? WHERE id=? AND user_id=? AND status='generating'`,
-    [error === 'result_unknown' ? 'unknown' : 'failed', error, now, row.id, row.user_id],
+    `UPDATE image_generations SET status='failed',error=?,updated_at=? WHERE id=? AND user_id=? AND status='generating'`,
+    [error, now, row.id, row.user_id],
   ).run();
 }
 export async function settleImage(db: D1Database, row: JobRow, now: number): Promise<void> {
@@ -311,8 +311,8 @@ export async function recover(db: D1Database, row: JobRow, now: number): Promise
     await prepare(
       db,
       `UPDATE image_generations SET
-      status=CASE WHEN execution_snapshot IS NOT NULL AND started_at IS NULL THEN 'failed' ELSE 'unknown' END,
-      error=CASE WHEN execution_snapshot IS NOT NULL AND started_at IS NULL THEN 'provider_unavailable' ELSE 'result_unknown' END,
+      status='failed',
+      error=CASE WHEN execution_snapshot IS NOT NULL AND started_at IS NULL THEN 'provider_unavailable' ELSE 'delivery_failed' END,
       updated_at=? WHERE id=? AND user_id=? AND status='generating' AND expires_at<=?`,
       [now, row.id, row.user_id, now],
     ).run();

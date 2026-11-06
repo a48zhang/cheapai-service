@@ -18,7 +18,7 @@ const errors: Record<NonNullable<ImageJob['error']>, string> = {
   provider_unavailable: '生成服务暂时不可用，请稍后重试。',
   invalid_image: '生成服务没有返回可保存的图片，本次未扣费。',
   storage_unavailable: '图片保存失败，本次未扣费。请稍后重试。',
-  result_unknown: '生成结果尚未确认。刷新记录不会重复生成；再次生成会发起新的请求。',
+  delivery_failed: '本次未能取得图片，任务已结束且未扣费。可修改后重新生成；重新生成是一笔新请求。',
 };
 export function ImageWaiting({ uncertain = false }: { uncertain?: boolean }) {
   return (
@@ -46,11 +46,9 @@ export function ImageWaiting({ uncertain = false }: { uncertain?: boolean }) {
 export function ImageResultCard({
   job,
   onReuse,
-  onRefresh,
 }: {
   job: ImageJob;
   onReuse: (job: ImageJob) => void;
-  onRefresh: () => void;
 }) {
   const [loadError, setLoadError] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -139,14 +137,7 @@ export function ImageResultCard({
         </>
       ) : (
         <div className="rounded-lg bg-[var(--color-muted)]/40 p-4" role="status">
-          <p className="text-sm leading-6">{errors[job.error ?? 'result_unknown']}</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {job.status === 'unknown' && (
-              <Button variant="outline" size="sm" onClick={onRefresh}>
-                刷新记录
-              </Button>
-            )}
-          </div>
+          <p className="text-sm leading-6">{errors[job.error ?? 'delivery_failed']}</p>
         </div>
       )}
       {job.status !== 'generating' && (

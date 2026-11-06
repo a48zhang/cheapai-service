@@ -280,14 +280,10 @@ function ImageWorkspace() {
         {work.error != null && <ApiErrorNotice error={work.error} />}
         {requested.error && <ApiErrorNotice error={requested.error} />}
         {requested.data && !work.jobs.some((job) => job.id === requested.data.id) && (
-          <ImageResultCard
-            job={requested.data}
-            onReuse={restore}
-            onRefresh={() => void requested.refetch()}
-          />
+          <ImageResultCard job={requested.data} onReuse={restore} />
         )}
         {work.jobs.map((job) => (
-          <ImageResultCard key={job.id} job={job} onReuse={restore} onRefresh={work.refresh} />
+          <ImageResultCard key={job.id} job={job} onReuse={restore} />
         ))}
         {work.history.isPending && (
           <p role="status" className="text-center text-sm text-[var(--color-muted-foreground)]">

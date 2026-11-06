@@ -5,7 +5,7 @@ import type { SelectionRow } from './repository';
 export class ImageProviderError extends Error {
   constructor(
     readonly reason:
-      'provider_rejected' | 'provider_unavailable' | 'invalid_image' | 'result_unknown',
+      'provider_rejected' | 'provider_unavailable' | 'invalid_image' | 'delivery_failed',
   ) {
     super(reason);
   }
@@ -72,19 +72,19 @@ export async function generateImage(
       }),
     });
   } catch {
-    throw new ImageProviderError('result_unknown');
+    throw new ImageProviderError('delivery_failed');
   }
   if (!response.ok) {
     void response.body?.cancel().catch(() => undefined);
     throw new ImageProviderError(
-      response.status >= 400 && response.status < 500 ? 'provider_rejected' : 'result_unknown',
+      response.status >= 400 && response.status < 500 ? 'provider_rejected' : 'delivery_failed',
     );
   }
   let payload: unknown;
   try {
     payload = await response.json();
   } catch {
-    throw new ImageProviderError(signal.aborted ? 'result_unknown' : 'invalid_image');
+    throw new ImageProviderError(signal.aborted ? 'delivery_failed' : 'invalid_image');
   }
   return decodeImage(payload);
 }
