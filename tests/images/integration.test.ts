@@ -189,7 +189,7 @@ describe('image generation through session routes, native D1, R2 and limits', ()
         .first(),
     ).toEqual({ status: 'failed', billing_status: 'unbilled' });
   });
-  it('keeps a timed-out delivery final even when a valid provider response arrives late', async () => {
+  it('records a returned image and charges its preset price even after a delivery timeout', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => {
@@ -203,25 +203,29 @@ describe('image generation through session routes, native D1, R2 and limits', ()
     const response = await request('/api/v1/images/generations', 'image-owner', input());
     const job = ((await response.json()) as { data: ImageJob }).data;
     expect(job).toMatchObject({
-      status: 'failed',
-      error: 'delivery_failed',
-      billingStatus: 'unbilled',
+      status: 'completed',
+      error: null,
+      billingStatus: 'settled',
+      priceUnits: '5000000',
     });
-    expect(await testEnv.IMAGE_ASSETS!.head(`images/image-owner/${job.id}`)).toBeNull();
+    expect(await testEnv.IMAGE_ASSETS!.head(`images/image-owner/${job.id}`)).not.toBeNull();
     expect(
       await testEnv.DB.prepare(
-        "SELECT count(*) AS n FROM billing_entries WHERE kind='image_generation'",
-      ).first('n'),
-    ).toBe(0);
+        'SELECT delta_units FROM billing_entries WHERE image_generation_id=?',
+      )
+        .bind(job.id)
+        .first('delta_units'),
+    ).toBe(-5000000);
+    await request('/api/v1/images/generations', 'image-owner', input());
+    expect(
+      await testEnv.DB.prepare(
+        'SELECT count(*) AS n FROM billing_entries WHERE image_generation_id=?',
+      )
+        .bind(job.id)
+        .first('n'),
+    ).toBe(1);
     await expect(
       testEnv.DB.prepare("UPDATE image_generations SET status='unknown' WHERE id=?")
-        .bind(job.id)
-        .run(),
-    ).rejects.toThrow();
-    await expect(
-      testEnv.DB.prepare(
-        "UPDATE image_generations SET status='completed',billing_status='pending' WHERE id=?",
-      )
         .bind(job.id)
         .run(),
     ).rejects.toThrow();

@@ -124,14 +124,10 @@ export async function executeImage(
       stage = 'record';
       const completed = await prepare(
         env.DB,
-        `UPDATE image_generations SET status='completed',error=NULL,asset_key=?,media_type=?,billing_status='pending',updated_at=? WHERE id=? AND user_id=? AND status='generating'`,
+        `UPDATE image_generations SET status='completed',error=NULL,asset_key=?,media_type=?,billing_status='pending',updated_at=? WHERE id=? AND user_id=? AND (status='generating' OR (status='failed' AND error='delivery_failed'))`,
         [key, result.mediaType, now(), row.id, userId],
       ).run();
-      if (completed.changes !== 1) {
-        // A deadline already closed this job. Never revive it or charge for a late result.
-        await env.IMAGE_ASSETS.delete(key);
-        return;
-      }
+      if (completed.changes !== 1) throw new ApiError('conflict');
     } catch (error) {
       const reason =
         error instanceof ImageProviderError

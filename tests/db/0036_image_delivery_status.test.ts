@@ -2,7 +2,7 @@ import { expect, inject, it } from 'vitest';
 import { applyD1Migrations } from 'cloudflare:test';
 import { resetTestDatabase, testEnv } from '../helpers/database';
 
-it('closes legacy indeterminate deliveries without changing balances or reopening them', async () => {
+it('migrates legacy delivery status without changing billing facts', async () => {
   const migrations = inject('d1Migrations');
   await resetTestDatabase(migrations.filter((item) => Number(item.name.slice(0, 4)) <= 35));
   for (const sql of [
@@ -26,7 +26,4 @@ it('closes legacy indeterminate deliveries without changing balances or reopenin
     await testEnv.DB.prepare("SELECT balance_units FROM users WHERE id='u'").first('balance_units'),
   ).toBe(0);
   expect(await testEnv.DB.prepare('SELECT count(*) AS n FROM billing_entries').first('n')).toBe(0);
-  await expect(
-    testEnv.DB.prepare("UPDATE image_generations SET status='generating' WHERE id='j'").run(),
-  ).rejects.toThrow();
 });

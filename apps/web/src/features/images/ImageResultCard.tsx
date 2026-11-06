@@ -18,7 +18,7 @@ const errors: Record<NonNullable<ImageJob['error']>, string> = {
   provider_unavailable: '生成服务暂时不可用，请稍后重试。',
   invalid_image: '生成服务没有返回可保存的图片，本次未扣费。',
   storage_unavailable: '图片保存失败，本次未扣费。请稍后重试。',
-  delivery_failed: '本次未能取得图片，任务已结束且未扣费。可修改后重新生成；重新生成是一笔新请求。',
+  delivery_failed: '本次未能取得图片。可查看记录或修改后重新生成。',
 };
 export function ImageWaiting({ uncertain = false }: { uncertain?: boolean }) {
   return (
@@ -75,7 +75,7 @@ export function ImageResultCard({
               : `费用确认中 · ${formatConsumptionUsd(job.priceUnits)} 积分`
             : job.status === 'generating'
               ? `单张 ${formatConsumptionUsd(job.priceUnits)} 积分`
-              : '本次未扣费'}
+              : '尚未入账'}
         </span>
       </div>
       {job.status === 'generating' ? (
