@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useSession } from '../../features/session/useSession';
 import { safeReturnPath } from '../../shared/lib/return-path';
 import { Button } from '../../shared/ui/Button';
-import { ApiErrorNotice } from '../../shared/patterns/ApiErrorNotice';
+import { AuthErrorNotice } from '../../features/session/AuthErrorNotice';
 import { useProductEnvironment } from '../../shared/platform';
 
 export default function SessionUnavailablePage() {
@@ -16,7 +16,7 @@ export default function SessionUnavailablePage() {
     <section className="mx-auto max-w-lg space-y-5 p-8">
       <h1 className="text-2xl font-semibold">暂时无法连接</h1>
       <p className="text-[var(--color-muted-foreground)]">请重试，连接恢复后将返回之前的页面。</p>
-      <ApiErrorNotice error={error} />
+      <AuthErrorNotice error={error} operation="restore" />
       <Button
         busy={pending !== null}
         onClick={() =>
