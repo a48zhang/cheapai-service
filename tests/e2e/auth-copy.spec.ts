@@ -62,7 +62,9 @@ for (const path of ['/login', '/register']) {
     await page.goto(path);
     await expect(page.getByRole('alert')).toContainText('暂时无法读取注册信息，请重试。');
     await expect(page.getByText('正在读取注册信息…')).toHaveCount(0);
-    await expect(page.getByText(/HTTP|upstream|管理 API|响应格式/)).toHaveCount(0);
+    await expect(page.getByText(/HTTP|upstream|管理 API|响应格式/)).toBeHidden();
+    await page.getByRole('button', { name: '查看错误详情' }).click();
+    await expect(page.getByText('HTTP 状态码：503', { exact: false })).toBeVisible();
     state.settingsFail = false;
     await page.getByRole('button', { name: '重试', exact: true }).click();
     await expect(page.getByRole('alert')).toHaveCount(0);
@@ -81,10 +83,12 @@ test('failed login is actionable and does not follow the user into registration'
   await page.getByLabel('密码', { exact: true }).fill('wrong-password');
   await page.getByRole('button', { name: '登录', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('邮箱或密码不正确，请检查后重试。');
-  await expect(page.getByText('请登录后重试。')).toHaveCount(0);
+  await expect(page.getByRole('alert')).not.toContainText('请登录后重试。');
   await expect(page.getByText(/internal credential/)).toHaveCount(0);
-  await page.getByText('查看请求信息').click();
-  await expect(page.getByRole('alert')).toContainText('login-rejected');
+  await page.getByText('查看错误详情').click();
+  await expect(page.getByText('请求编号：login-rejected', { exact: false })).toBeVisible();
+  await expect(page.getByText('HTTP 状态码：401', { exact: false })).toBeVisible();
+  await expect(page.getByText('错误代码：unauthorized', { exact: false })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('login-error-mobile.png') });
   await page.getByRole('button', { name: '创建账户', exact: true }).click();
   await expect(page).toHaveURL(

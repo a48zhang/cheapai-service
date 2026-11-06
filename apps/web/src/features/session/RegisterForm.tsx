@@ -54,7 +54,11 @@ export function RegisterForm({ returnTo = '/' }: { returnTo?: string }) {
   if (created)
     return (
       <div role="status" className="space-y-4">
-        <p>账户已创建，请登录后继续。</p>
+        {submitError ? (
+          <AuthErrorNotice error={submitError} operation="register" />
+        ) : (
+          <p>账户已创建，请登录后继续。</p>
+        )}
       </div>
     );
   return (
